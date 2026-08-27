@@ -5,7 +5,7 @@ import Link from "next/link";
 
 export default function NuevaPropiedadPage() {
   // Control de paso (1 o 2)
-  const [pasoActual, setPasoActual] = useState<1 | 2>(2);
+  const [pasoActual, setPasoActual] = useState<1 | 2>(1);
 
   // Estado del formulario
   const [formData, setFormData] = useState({
