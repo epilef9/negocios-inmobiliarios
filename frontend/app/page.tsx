@@ -132,8 +132,8 @@ export default function Home() {
           </div>
 
           <div className="grid gap-5 border-b border-[#dbe5f6] py-14 sm:grid-cols-3 lg:py-16">
-            {[["[N°]", "[Métrica pendiente]"], ["[N°]", "[Métrica pendiente]"], ["[N°]", "[Métrica pendiente]"]].map(([value, label]) => (
-              <div key={label} className="border-l-2 border-red-500 pl-5"><p className="text-3xl font-bold text-[#071a52]">{value}</p><p className="mt-1 text-sm text-slate-500">{label}</p></div>
+            {[["[N°]", "[Métrica pendiente]"], ["[N°]", "[Métrica pendiente]"], ["[N°]", "[Métrica pendiente]"]].map(([value, label], index) => (
+              <div key={index} className="border-l-2 border-red-500 pl-5"><p className="text-3xl font-bold text-[#071a52]">{value}</p><p className="mt-1 text-sm text-slate-500">{label}</p></div>
             ))}
           </div>
 
