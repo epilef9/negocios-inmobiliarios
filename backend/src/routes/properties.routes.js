@@ -1,7 +1,6 @@
 const express = require('express');
 const propertiesController = require('../controllers/properties.controller');
-const { validateProperty } = require('../validators/property.validator');
-const { authenticate } = require('../middlewares/auth.middleware');
+const { validateProperty, validatePropertyId } = require('../validators/property.validator');
 
 const router = express.Router();
 
@@ -9,15 +8,15 @@ const router = express.Router();
 router.get('/', propertiesController.getAllProperties);
 
 // Obtener una propiedad específica
-router.get('/:id', propertiesController.getPropertyById);
+router.get('/:id', validatePropertyId, propertiesController.getPropertyById);
 
 // Crear una nueva propiedad
-router.post('/', authenticate, validateProperty, propertiesController.createProperty);
+router.post('/', validateProperty, propertiesController.createProperty);
 
 // Actualizar una propiedad existente
-router.put('/:id', authenticate, validateProperty, propertiesController.updateProperty);
+router.put('/:id', validatePropertyId, validateProperty, propertiesController.updateProperty);
 
 // Eliminar una propiedad
-router.delete('/:id', authenticate, propertiesController.deleteProperty);
+router.delete('/:id', validatePropertyId, propertiesController.deleteProperty);
 
 module.exports = router;

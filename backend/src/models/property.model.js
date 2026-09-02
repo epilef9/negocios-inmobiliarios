@@ -42,9 +42,8 @@ const propertySchema = new mongoose.Schema({
     },
 });
 
-propertySchema.pre('save', function(next) {
+propertySchema.pre('save', function() {
     this.updatedAt = Date.now();
-    next();
 });
 
 const Property = mongoose.model('Property', propertySchema);

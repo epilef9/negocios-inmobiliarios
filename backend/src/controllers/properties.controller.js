@@ -5,10 +5,10 @@ const PropertyService = require('../services/properties.service');
 // Obtener todas las propiedades
 exports.getAllProperties = async (req, res) => {
     try {
-        const properties = await PropertyService.getAllProperties();
-        res.status(200).json(properties);
+        const properties = await PropertyService.getAllProperties(req.query);
+        res.status(200).json({ data: properties });
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener propiedades', error });
+        res.status(500).json({ message: 'Error al obtener propiedades' });
     }
 };
 
@@ -20,9 +20,9 @@ exports.getPropertyById = async (req, res) => {
         if (!property) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
-        res.status(200).json(property);
+        res.status(200).json({ data: property });
     } catch (error) {
-        res.status(500).json({ message: 'Error al obtener la propiedad', error });
+        res.status(500).json({ message: 'Error al obtener la propiedad' });
     }
 };
 
@@ -31,9 +31,9 @@ exports.createProperty = async (req, res) => {
     const propertyData = req.body;
     try {
         const newProperty = await PropertyService.createProperty(propertyData);
-        res.status(201).json(newProperty);
+        res.status(201).json({ data: newProperty });
     } catch (error) {
-        res.status(500).json({ message: 'Error al crear la propiedad', error });
+        res.status(400).json({ message: 'No se pudo crear la propiedad', error: error.message });
     }
 };
 
@@ -46,9 +46,9 @@ exports.updateProperty = async (req, res) => {
         if (!updatedProperty) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
-        res.status(200).json(updatedProperty);
+        res.status(200).json({ data: updatedProperty });
     } catch (error) {
-        res.status(500).json({ message: 'Error al actualizar la propiedad', error });
+        res.status(400).json({ message: 'No se pudo actualizar la propiedad', error: error.message });
     }
 };
 
@@ -62,6 +62,6 @@ exports.deleteProperty = async (req, res) => {
         }
         res.status(204).send();
     } catch (error) {
-        res.status(500).json({ message: 'Error al eliminar la propiedad', error });
+        res.status(500).json({ message: 'Error al eliminar la propiedad' });
     }
 };
