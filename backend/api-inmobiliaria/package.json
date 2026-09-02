@@ -1,0 +1,30 @@
+{
+  "name": "real-estate-backend",
+  "version": "1.0.0",
+  "description": "Backend for a real estate management system",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "express": "^4.17.1",
+    "mongoose": "^5.10.9",
+    "dotenv": "^8.2.0",
+    "cors": "^2.8.5",
+    "body-parser": "^1.19.0",
+    "jsonwebtoken": "^8.5.1"
+  },
+  "devDependencies": {
+    "jest": "^26.6.0",
+    "supertest": "^6.1.0"
+  },
+  "keywords": [
+    "real-estate",
+    "backend",
+    "api"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
