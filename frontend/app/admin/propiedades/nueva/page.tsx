@@ -2,8 +2,12 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { createProperty } from "../../../../services/api";
 
 export default function NuevaPropiedadPage() {
+  const router = useRouter();
+  const [mensaje, setMensaje] = useState("");
   // Control de paso (1 o 2)
   const [pasoActual, setPasoActual] = useState<1 | 2>(1);
 
@@ -98,6 +102,25 @@ export default function NuevaPropiedadPage() {
       const filesArray = Array.from(e.target.files);
       const newUrls = filesArray.map((file) => URL.createObjectURL(file));
       setImagenes((prev) => [...prev, ...newUrls].slice(0, 20));
+    }
+  };
+
+  const publicarPropiedad = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await createProperty({
+        title: formData.titulo,
+        description: formData.descripcion,
+        price: Number(formData.precioUSD),
+        location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, ${formData.provincia}`,
+        bedrooms: Number(formData.dormitorios),
+        bathrooms: Number(formData.banos),
+        area: Number(formData.superficieTotal),
+        images: imagenes,
+      });
+      router.push("/admin/propiedades");
+    } catch (error) {
+      setMensaje(error instanceof Error ? error.message : "No se pudo publicar la propiedad");
     }
   };
 
@@ -663,7 +686,7 @@ export default function NuevaPropiedadPage() {
 
         {/* CONTENIDO PASO 2 */}
         {pasoActual === 2 && (
-          <form className="space-y-6" onSubmit={(e) => e.preventDefault()}>
+          <form className="space-y-6" onSubmit={publicarPropiedad}>
             {/* Grilla superior: 5. Descripción y 6. Ubicación */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* 5. Descripción */}
@@ -1209,6 +1232,7 @@ export default function NuevaPropiedadPage() {
               >
                 Publicar propiedad →
               </button>
+              {mensaje && <p className="text-xs text-red-600">{mensaje}</p>}
             </div>
           </form>
         )}

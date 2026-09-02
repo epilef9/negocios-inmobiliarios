@@ -1,14 +1,14 @@
-import express from 'express';
-import propertiesRoutes from './properties.routes.js';
-import usersRoutes from './users.routes.js';
-import clientsRoutes from './clients.routes.js';
-import authRoutes from './auth.routes.js';
+const express = require('express');
+const propertiesRoutes = require('./properties.routes');
+const usersRoutes = require('./users.routes');
+const clientsRoutes = require('./clients.routes');
+const authRoutes = require('./auth.routes');
 
 const router = express.Router();
 
-router.use('/api/properties', propertiesRoutes);
-router.use('/api/users', usersRoutes);
-router.use('/api/clients', clientsRoutes);
-router.use('/api/auth', authRoutes);
+router.use('/properties', propertiesRoutes);
+router.use('/users', usersRoutes);
+router.use('/clients', clientsRoutes);
+router.use('/auth', authRoutes);
 
-export default router;
+module.exports = router;

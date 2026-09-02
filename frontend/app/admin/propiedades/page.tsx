@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import { deleteProperty, getProperties, updateProperty } from "../../../services/api";
 
 interface PropiedadAdmin {
   id: string;
@@ -15,49 +16,7 @@ interface PropiedadAdmin {
 }
 
 export default function GestionPropiedadesPage() {
-  // Estado de lista de propiedades iniciales
-  const [propiedades, setPropiedades] = useState<PropiedadAdmin[]>([
-    {
-      id: "1",
-      titulo: "Dpto. 2 amb. Centro",
-      direccion: "San Martín 1200",
-      tipo: "Departamento",
-      operacion: "Venta",
-      precio: "USD 72.000",
-      estado: "disponible",
-      imagen: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500&auto=format&fit=crop&q=80",
-    },
-    {
-      id: "2",
-      titulo: "Casa 3 dorm. Oro Verde",
-      direccion: "Av. Zanni 450",
-      tipo: "Casa",
-      operacion: "Venta",
-      precio: "USD 120.000",
-      estado: "reservado",
-      imagen: "https://images.unsplash.com/photo-1568605117036-5fe5e7bab0b7?w=500&auto=format&fit=crop&q=80",
-    },
-    {
-      id: "3",
-      titulo: "Local comercial San Martín",
-      direccion: "San Martín 650",
-      tipo: "Local",
-      operacion: "Alquiler",
-      precio: "USD 450/mes",
-      estado: "alquilado",
-      imagen: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80",
-    },
-    {
-      id: "4",
-      titulo: "Dpto. temporario Costanera",
-      direccion: "Costanera Norte 200",
-      tipo: "Departamento",
-      operacion: "Temporario",
-      precio: "USD 60/noche",
-      estado: "disponible",
-      imagen: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=500&auto=format&fit=crop&q=80",
-    },
-  ]);
+  const [propiedades, setPropiedades] = useState<PropiedadAdmin[]>([]);
 
   // Filtros y búsqueda
   const [busqueda, setBusqueda] = useState("");
@@ -70,6 +29,22 @@ export default function GestionPropiedadesPage() {
 
   // Estado para modal de confirmación de eliminación
   const [propiedadAEliminar, setPropiedadAEliminar] = useState<PropiedadAdmin | null>(null);
+  const [mensaje, setMensaje] = useState("");
+
+  useEffect(() => {
+    getProperties()
+      .then((properties) => setPropiedades(properties.map((property) => ({
+        id: property._id,
+        titulo: property.title,
+        direccion: property.location,
+        tipo: "Propiedad",
+        operacion: "Venta",
+        precio: `USD ${property.price.toLocaleString("es-AR")}`,
+        estado: "disponible",
+        imagen: property.images?.[0] ?? "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500",
+      }))))
+      .catch((error: Error) => setMensaje(error.message));
+  }, []);
 
   // Limpiar filtros
   const limpiarFiltros = () => {
@@ -97,21 +72,35 @@ export default function GestionPropiedadesPage() {
   const totalAlquiladas = propiedades.filter((p) => p.estado === "alquilado").length;
 
   // Manejador para eliminar
-  const confirmarEliminacion = () => {
+  const confirmarEliminacion = async () => {
     if (propiedadAEliminar) {
-      setPropiedades((prev) => prev.filter((p) => p.id !== propiedadAEliminar.id));
-      setPropiedadAEliminar(null);
+      try {
+        await deleteProperty(propiedadAEliminar.id);
+        setPropiedades((prev) => prev.filter((p) => p.id !== propiedadAEliminar.id));
+        setPropiedadAEliminar(null);
+        setMensaje("Propiedad eliminada correctamente");
+      } catch (error) {
+        setMensaje(error instanceof Error ? error.message : "No se pudo eliminar la propiedad");
+      }
     }
   };
 
   // Manejador para guardar edición
-  const guardarEdicion = (e: React.FormEvent) => {
+  const guardarEdicion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (propiedadAEditar) {
-      setPropiedades((prev) =>
-        prev.map((p) => (p.id === propiedadAEditar.id ? propiedadAEditar : p))
-      );
-      setPropiedadAEditar(null);
+      try {
+        await updateProperty(propiedadAEditar.id, {
+          title: propiedadAEditar.titulo,
+          location: propiedadAEditar.direccion,
+          price: Number(propiedadAEditar.precio.replace(/[^0-9]/g, "")),
+        });
+        setPropiedades((prev) => prev.map((p) => (p.id === propiedadAEditar.id ? propiedadAEditar : p)));
+        setPropiedadAEditar(null);
+        setMensaje("Propiedad actualizada correctamente");
+      } catch (error) {
+        setMensaje(error instanceof Error ? error.message : "No se pudo actualizar la propiedad");
+      }
     }
   };
 
@@ -176,6 +165,7 @@ export default function GestionPropiedadesPage() {
 
       {/* Contenido Principal */}
       <main className="flex-1 overflow-y-auto px-8 py-7">
+        {mensaje && <p className="mb-4 rounded-lg bg-blue-50 px-4 py-3 text-xs text-blue-700">{mensaje}</p>}
         {/* Encabezado */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-2xl font-extrabold text-[#0A193D] tracking-tight">

@@ -1,38 +1,39 @@
-const apiBaseUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000/api").replace(/\/$/, "");
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
-export type ApiRequestOptions = Omit<RequestInit, "body"> & {
-	body?: BodyInit | Record<string, unknown> | null;
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
+	const response = await fetch(`${API_URL}${path}`, {
+		...options,
+		headers: {
+			"Content-Type": "application/json",
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
+			...options.headers,
+		},
+	});
+	const body = await response.json().catch(() => ({}));
+	if (!response.ok) throw new Error(body.message ?? "No se pudo completar la operación");
+	return body.data as T;
+}
+
+export type ApiProperty = {
+	_id: string;
+	title: string;
+	description: string;
+	price: number;
+	location: string;
+	bedrooms: number;
+	bathrooms: number;
+	area: number;
+	images?: string[];
 };
 
-export interface HealthResponse {
-	status: string;
-	service: string;
-}
+export const getProperties = () => request<ApiProperty[]>("/properties");
 
-export async function request<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-	const { body, headers, ...requestOptions } = options;
-	const requestHeaders = new Headers(headers);
+export const createProperty = (property: Omit<ApiProperty, "_id">) =>
+	request<ApiProperty>("/properties", { method: "POST", body: JSON.stringify(property) });
 
-	if (body && typeof body === "object" && !(body instanceof FormData)) {
-		requestHeaders.set("Content-Type", "application/json");
-	}
+export const updateProperty = (id: string, property: Partial<Omit<ApiProperty, "_id">>) =>
+	request<ApiProperty>(`/properties/${id}`, { method: "PUT", body: JSON.stringify(property) });
 
-	const response = await fetch(`${apiBaseUrl}/${path.replace(/^\//, "")}`, {
-		...requestOptions,
-		headers: requestHeaders,
-		body:
-			body && typeof body === "object" && !(body instanceof FormData)
-				? JSON.stringify(body)
-				: body,
-	});
-
-	if (!response.ok) {
-		throw new Error(`API request failed with status ${response.status}`);
-	}
-
-	return response.json() as Promise<T>;
-}
-
-export function checkBackendHealth(): Promise<HealthResponse> {
-	return request<HealthResponse>("health");
-}
+export const deleteProperty = (id: string) =>
+	request<void>(`/properties/${id}`, { method: "DELETE" });
