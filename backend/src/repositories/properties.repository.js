@@ -1,25 +1,27 @@
 const Property = require('../models/property.model');
 
 class PropertyRepository {
-    async getAllProperties() {
-        return await Property.find();
+    async getAllProperties(filters = {}) {
+        return Property.find(filters).sort({ createdAt: -1 });
     }
 
     async getPropertyById(id) {
-        return await Property.findById(id);
+        return Property.findById(id);
     }
 
     async createProperty(propertyData) {
-        const property = new Property(propertyData);
-        return await property.save();
+        return Property.create(propertyData);
     }
 
     async updateProperty(id, propertyData) {
-        return await Property.findByIdAndUpdate(id, propertyData, { new: true });
+        return Property.findByIdAndUpdate(id, propertyData, {
+            new: true,
+            runValidators: true,
+        });
     }
 
     async deleteProperty(id) {
-        return await Property.findByIdAndDelete(id);
+        return Property.findByIdAndDelete(id);
     }
 
     async searchProperties(query) {

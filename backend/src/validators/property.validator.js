@@ -1,31 +1,43 @@
-const { body, param } = require('express-validator');
+const mongoose = require('mongoose');
 
-const propertyValidator = {
-    createProperty: [
-        body('title').notEmpty().withMessage('Title is required'),
-        body('description').notEmpty().withMessage('Description is required'),
-        body('price').isNumeric().withMessage('Price must be a number'),
-        body('location').notEmpty().withMessage('Location is required'),
-        body('type').notEmpty().withMessage('Property type is required'),
-        body('bedrooms').isInt({ min: 0 }).withMessage('Bedrooms must be a non-negative integer'),
-        body('bathrooms').isInt({ min: 0 }).withMessage('Bathrooms must be a non-negative integer'),
-    ],
-    updateProperty: [
-        param('id').isMongoId().withMessage('Invalid property ID'),
-        body('title').optional().notEmpty().withMessage('Title cannot be empty'),
-        body('description').optional().notEmpty().withMessage('Description cannot be empty'),
-        body('price').optional().isNumeric().withMessage('Price must be a number'),
-        body('location').optional().notEmpty().withMessage('Location cannot be empty'),
-        body('type').optional().notEmpty().withMessage('Property type cannot be empty'),
-        body('bedrooms').optional().isInt({ min: 0 }).withMessage('Bedrooms must be a non-negative integer'),
-        body('bathrooms').optional().isInt({ min: 0 }).withMessage('Bathrooms must be a non-negative integer'),
-    ],
-    getProperty: [
-        param('id').isMongoId().withMessage('Invalid property ID'),
-    ],
-    deleteProperty: [
-        param('id').isMongoId().withMessage('Invalid property ID'),
-    ],
+const requiredFields = ['title', 'description', 'price', 'location', 'bedrooms', 'bathrooms', 'area'];
+const numericFields = ['price', 'bedrooms', 'bathrooms', 'area'];
+
+const validateProperty = (req, res, next) => {
+    const errors = [];
+    const isUpdate = req.method === 'PUT' || req.method === 'PATCH';
+
+    if (!isUpdate) {
+        requiredFields.forEach((field) => {
+            if (req.body[field] === undefined || req.body[field] === null || req.body[field] === '') {
+                errors.push(`${field} es obligatorio`);
+            }
+        });
+    }
+
+    numericFields.forEach((field) => {
+        if (req.body[field] !== undefined && (!Number.isFinite(Number(req.body[field])) || Number(req.body[field]) < 0)) {
+            errors.push(`${field} debe ser un número no negativo`);
+        }
+    });
+
+    if (req.body.images !== undefined && (!Array.isArray(req.body.images) || req.body.images.some((image) => typeof image !== 'string'))) {
+        errors.push('images debe ser un arreglo de textos');
+    }
+
+    if (errors.length > 0) {
+        return res.status(400).json({ message: 'Datos de propiedad inválidos', errors });
+    }
+
+    next();
 };
 
-module.exports = propertyValidator;
+const validatePropertyId = (req, res, next) => {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+        return res.status(400).json({ message: 'El id de la propiedad no es válido' });
+    }
+
+    next();
+};
+
+module.exports = { validateProperty, validatePropertyId };
