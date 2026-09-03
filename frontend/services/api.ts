@@ -25,6 +25,19 @@ export type ApiProperty = {
 	bathrooms: number;
 	area: number;
 	images?: string[];
+	priceARS?: number;
+	ciudad?: string;
+	categoria_operacion?: "venta" | "alquiler" | "temporario";
+	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
+	cantidad_ambientes?: number;
+	comodidades?: string[];
+	estado?: "disponible" | "reservado" | "alquilado" | "vendido";
+	operation?: string;
+	category?: string;
+	propertyType?: string;
+	status?: string;
+	amenities?: string[];
+	expenses?: number;
 };
 
 export const getProperties = () => request<ApiProperty[]>("/properties");
