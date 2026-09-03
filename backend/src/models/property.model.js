@@ -17,6 +17,22 @@ const propertySchema = new mongoose.Schema({
         type: String,
         required: true,
     },
+    ciudad: String,
+    categoria_operacion: {
+        type: String,
+        enum: ['venta', 'alquiler', 'temporario'],
+    },
+    tipo_inmueble: {
+        type: String,
+        enum: ['departamento', 'local', 'casa', 'monoambiente', 'terreno'],
+    },
+    cantidad_ambientes: Number,
+    comodidades: [String],
+    estado: {
+        type: String,
+        enum: ['disponible', 'reservado', 'alquilado', 'vendido'],
+        default: 'disponible',
+    },
     bedrooms: {
         type: Number,
         required: true,
