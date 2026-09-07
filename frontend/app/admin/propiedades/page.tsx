@@ -10,6 +10,7 @@ interface PropiedadAdmin {
   direccion: string;
   tipo: string;
   operacion: string;
+  categoria: string;
   precio: string;
   estado: "disponible" | "reservado" | "alquilado";
   imagen: string;
@@ -33,16 +34,28 @@ export default function GestionPropiedadesPage() {
 
   useEffect(() => {
     getProperties()
-      .then((properties) => setPropiedades(properties.map((property) => ({
+        .then((properties) => setPropiedades(properties.map((property) => {
+          const categoria = property.categoria_operacion ?? "venta";
+          const etiquetasCategoria: Record<string, string> = {
+            venta: "Venta",
+            alquiler: "Alquiler",
+            temporario: "Alquiler temporario",
+          };
+
+          return {
         id: property._id,
         titulo: property.title,
         direccion: property.location,
-        tipo: "Propiedad",
-        operacion: "Venta",
-        precio: `USD ${property.price.toLocaleString("es-AR")}`,
+          tipo: property.tipo_inmueble ?? "Propiedad",
+          categoria,
+          operacion: etiquetasCategoria[categoria] ?? categoria,
+        precio: property.moneda === "ARS"
+          ? `ARS ${(property.priceARS ?? 0).toLocaleString("es-AR")}`
+          : `USD ${property.price.toLocaleString("es-AR")}`,
         estado: "disponible",
         imagen: property.images?.[0] ?? "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500",
-      }))))
+        };
+      })))
       .catch((error: Error) => setMensaje(error.message));
   }, []);
 
@@ -60,7 +73,7 @@ export default function GestionPropiedadesPage() {
       p.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
       p.direccion.toLowerCase().includes(busqueda.toLowerCase());
     const coincideTipo = filtroTipo === "todos" || p.tipo.toLowerCase() === filtroTipo.toLowerCase();
-    const coincideCategoria = filtroCategoria === "todas" || p.operacion.toLowerCase() === filtroCategoria.toLowerCase();
+    const coincideCategoria = filtroCategoria === "todas" || p.categoria === filtroCategoria;
     const coincideEstado = filtroEstado === "todos" || p.estado.toLowerCase() === filtroEstado.toLowerCase();
 
     return coincideTexto && coincideTipo && coincideCategoria && coincideEstado;
@@ -462,16 +475,15 @@ export default function GestionPropiedadesPage() {
                   {/* Botones de Acción (Modificar y Eliminar) */}
                   <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-slate-50">
                     {/* Botón Editar */}
-                    <button
-                      type="button"
-                      onClick={() => setPropiedadAEditar(prop)}
+                    <Link
+                      href={`/admin/propiedades/nueva?editar=${prop.id}`}
                       className="inline-flex items-center gap-1 px-3 py-1 rounded-md border border-blue-300 text-blue-600 hover:bg-blue-50 text-[11px] font-semibold transition"
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                         <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                       </svg>
                       Editar
-                    </button>
+                    </Link>
 
                     {/* Botón Eliminar */}
                     <button
