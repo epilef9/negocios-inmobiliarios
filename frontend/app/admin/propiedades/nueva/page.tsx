@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createProperty } from "../../../../services/api";
+import { createProperty, getPropertyById, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
@@ -24,7 +24,8 @@ export default function NuevaPropiedadPage() {
     referenciasUbicacion: "A metros de Av. Principal, cerca de plazas y comercios",
     precioUSD: "72000",
     moneda: "USD",
-    precioARS: "96.840.000",
+    precioARS: "96840000",
+    cotizacionDolar: "1370",
     expensas: "no_incluye",
     montoExpensas: "72000",
     superficieTotal: "80",
@@ -72,6 +73,64 @@ export default function NuevaPropiedadPage() {
     "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=300&auto=format&fit=crop&q=80",
   ]);
 
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [cargandoPropiedad, setCargandoPropiedad] = useState(false);
+  const [arrastrandoImagenes, setArrastrandoImagenes] = useState(false);
+
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("editar");
+    if (!id) return;
+
+    getPropertyById(id)
+      .then((property) => {
+        setModoEdicion(true);
+        setFormData((current) => ({
+          ...current,
+          titulo: property.title ?? "",
+          codigoInterno: property.codigoInterno ?? "",
+          tipoInmueble: property.tipo_inmueble ?? current.tipoInmueble,
+          categoriaOperacion: property.categoria_operacion ?? current.categoriaOperacion,
+          ciudadZonaBarrio: property.ciudad ?? "",
+          provincia: property.provincia ?? "",
+          direccionCompleta: property.direccionCompleta ?? property.location ?? "",
+          referenciasUbicacion: property.referenciasUbicacion ?? "",
+          precioUSD: String(property.price ?? ""),
+          moneda: property.moneda ?? "USD",
+          precioARS: String(property.priceARS ?? ""),
+          cotizacionDolar: String(property.cotizacionDolar ?? current.cotizacionDolar),
+          expensas: property.expensas ?? current.expensas,
+          montoExpensas: String(property.montoExpensas ?? ""),
+          superficieTotal: String(property.area ?? ""),
+          cantidadAmbientes: String(property.cantidad_ambientes ?? ""),
+          dormitorios: String(property.bedrooms ?? ""),
+          banos: String(property.bathrooms ?? ""),
+          cochera: property.cochera ?? "no",
+          pisoUnidad: property.pisoUnidad ?? "",
+          otrasComodidades: property.otrasComodidades ?? "",
+          descripcion: property.description ?? "",
+          linkGoogleMaps: property.linkGoogleMaps ?? "",
+          latitud: property.latitud ?? "",
+          longitud: property.longitud ?? "",
+          permitirVisita: property.permitirVisita ?? true,
+          permitirWhatsApp: property.permitirWhatsApp ?? true,
+          permitirEmail: property.permitirEmail ?? true,
+          horarioAtencion: property.horarioAtencion ?? current.horarioAtencion,
+          telefonoWhatsApp: property.telefonoWhatsApp ?? "",
+          precioPorNocheUSD: String(property.precioPorNocheUSD ?? ""),
+          minimoNoches: String(property.minimoNoches ?? ""),
+          huespedesMaximos: String(property.huespedesMaximos ?? ""),
+          costoLimpiezaUSD: String(property.costoLimpiezaUSD ?? ""),
+          checkInDesde: property.checkInDesde ?? "",
+          checkOutHasta: property.checkOutHasta ?? "",
+          checkInFlexible: property.checkInFlexible ?? "si",
+        }));
+        setComodidadesSeleccionadas(property.comodidades ?? []);
+        setImagenes(property.images ?? []);
+      })
+      .catch((error) => setMensaje(error instanceof Error ? error.message : "No se pudo cargar la propiedad"))
+      .finally(() => setCargandoPropiedad(false));
+  }, []);
+
   const eliminarImagen = (indexAEliminar: number) => {
     setImagenes((prev) => prev.filter((_, idx) => idx !== indexAEliminar));
   };
@@ -97,33 +156,105 @@ export default function NuevaPropiedadPage() {
     { id: "laundry", label: "Laundry", icon: "🧺" },
   ];
 
-  const handleSubirImagenes = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      const newUrls = filesArray.map((file) => URL.createObjectURL(file));
-      setImagenes((prev) => [...prev, ...newUrls].slice(0, 20));
+  const subirArchivos = async (filesArray: File[]) => {
+    if (filesArray.length > 0) {
+      const oversizedFile = filesArray.find((file) => file.size > 20 * 1024 * 1024);
+
+      if (oversizedFile) {
+        setMensaje(`La imagen "${oversizedFile.name}" supera el límite de 20 MB`);
+        return;
+      }
+
+      const invalidFile = filesArray.find((file) => !file.type.startsWith("image/"));
+      if (invalidFile) {
+        setMensaje(`El archivo "${invalidFile.name}" no es una imagen válida`);
+        return;
+      }
+
+      try {
+        setMensaje("Subiendo imágenes...");
+        const newUrls = await uploadPropertyImages(filesArray);
+        setImagenes((prev) => [...prev, ...newUrls].slice(0, 20));
+        setMensaje(`${newUrls.length} imagen${newUrls.length === 1 ? "" : "es"} subida${newUrls.length === 1 ? "" : "s"} correctamente`);
+      } catch (error) {
+        setMensaje(error instanceof Error ? error.message : "No se pudieron subir las imágenes");
+      }
     }
+  };
+
+  const handleSubirImagenes = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await subirArchivos(Array.from(e.target.files ?? []));
+    e.target.value = "";
+  };
+
+  const handleSoltarImagenes = async (e: React.DragEvent<HTMLLabelElement>) => {
+    e.preventDefault();
+    setArrastrandoImagenes(false);
+    await subirArchivos(Array.from(e.dataTransfer.files));
   };
 
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      await createProperty({
+      const propertyId = new URLSearchParams(window.location.search).get("editar");
+      const cotizacionDolar = Number(formData.cotizacionDolar) || 1370;
+      const precioIngresado = Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD);
+      const precioUSD = formData.moneda === "ARS"
+        ? precioIngresado / cotizacionDolar
+        : precioIngresado;
+      const precioARS = formData.moneda === "ARS"
+        ? precioIngresado
+        : precioIngresado * cotizacionDolar;
+
+      const propertyData = {
         title: formData.titulo,
+        codigoInterno: formData.codigoInterno,
         description: formData.descripcion,
-        price: Number(formData.precioUSD),
+        price: Number(precioUSD.toFixed(2)),
+        moneda: formData.moneda as "USD" | "ARS",
+        priceARS: Number(precioARS.toFixed(2)),
+        cotizacionDolar,
         location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, ${formData.provincia}`,
         ciudad: formData.ciudadZonaBarrio,
+        provincia: formData.provincia,
+        direccionCompleta: formData.direccionCompleta,
+        referenciasUbicacion: formData.referenciasUbicacion,
         categoria_operacion: formData.categoriaOperacion as "venta" | "alquiler" | "temporario",
         tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "monoambiente" | "terreno",
         cantidad_ambientes: Number(formData.cantidadAmbientes),
         comodidades: comodidadesSeleccionadas,
-        estado: "disponible",
+        otrasComodidades: formData.otrasComodidades,
+        expensas: formData.expensas,
+        montoExpensas: Number(formData.montoExpensas) || 0,
+        estado: "disponible" as const,
         bedrooms: Number(formData.dormitorios),
         bathrooms: Number(formData.banos),
         area: Number(formData.superficieTotal),
+        cochera: formData.cochera,
+        pisoUnidad: formData.pisoUnidad,
+        linkGoogleMaps: formData.linkGoogleMaps,
+        latitud: formData.latitud,
+        longitud: formData.longitud,
+        permitirVisita: formData.permitirVisita,
+        permitirWhatsApp: formData.permitirWhatsApp,
+        permitirEmail: formData.permitirEmail,
+        horarioAtencion: formData.horarioAtencion,
+        telefonoWhatsApp: formData.telefonoWhatsApp,
+        precioPorNocheUSD: Number(formData.precioPorNocheUSD) || 0,
+        minimoNoches: Number(formData.minimoNoches) || 0,
+        huespedesMaximos: Number(formData.huespedesMaximos) || 0,
+        costoLimpiezaUSD: Number(formData.costoLimpiezaUSD) || 0,
+        checkInDesde: formData.checkInDesde,
+        checkOutHasta: formData.checkOutHasta,
+        checkInFlexible: formData.checkInFlexible,
         images: imagenes,
-      });
+      };
+
+      if (propertyId) {
+        await updateProperty(propertyId, propertyData);
+      } else {
+        await createProperty(propertyData);
+      }
       router.push("/admin/propiedades");
     } catch (error) {
       setMensaje(error instanceof Error ? error.message : "No se pudo publicar la propiedad");
@@ -195,10 +326,10 @@ export default function NuevaPropiedadPage() {
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-2xl font-extrabold text-[#0A193D] tracking-tight">
-              Nueva propiedad
+              {modoEdicion ? "Editar propiedad" : "Nueva propiedad"}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              Completá los datos para publicar un inmueble
+              {modoEdicion ? "Actualizá los datos de ambos pasos" : "Completá los datos para publicar un inmueble"}
             </p>
           </div>
 
@@ -437,13 +568,13 @@ export default function NuevaPropiedadPage() {
                   <div className="grid grid-cols-5 gap-2">
                     <div className="col-span-3">
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Precio en USD <span className="text-red-500">*</span>
+                        Precio ({formData.moneda}) <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
-                        placeholder="Ej: 72000"
-                        value={formData.precioUSD}
-                        onChange={(e) => setFormData({ ...formData, precioUSD: e.target.value })}
+                        placeholder={formData.moneda === "ARS" ? "Ej: 98640000" : "Ej: 72000"}
+                        value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
+                        onChange={(e) => setFormData({ ...formData, [formData.moneda === "ARS" ? "precioARS" : "precioUSD"]: e.target.value })}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -457,22 +588,38 @@ export default function NuevaPropiedadPage() {
                         className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
                       >
                         <option value="USD">Dólar (USD)</option>
-                        <option value="ARS">Peso (ARS)</option>
+                        <option value="ARS">Peso argentino (ARS)</option>
                       </select>
                     </div>
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Precio equivalente en ARS
+                      Equivalente en {formData.moneda === "ARS" ? "USD" : "ARS"}
                     </label>
                     <input
                       type="text"
                       placeholder="Ej: 96.840.000"
-                      value={formData.precioARS}
-                      onChange={(e) => setFormData({ ...formData, precioARS: e.target.value })}
+                      value={formData.moneda === "ARS"
+                        ? (Number(formData.precioARS || 0) / (Number(formData.cotizacionDolar) || 1370)).toFixed(2)
+                        : (Number(formData.precioUSD || 0) * (Number(formData.cotizacionDolar) || 1370)).toFixed(2)}
+                      readOnly
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Cotización dólar usada
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      value={formData.cotizacionDolar}
+                      onChange={(e) => setFormData({ ...formData, cotizacionDolar: e.target.value })}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                    />
+                    <p className="mt-1 text-[10px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -753,12 +900,22 @@ export default function NuevaPropiedadPage() {
                       Link de Google Maps (opcional)
                     </label>
                     <input
-                      type="text"
+                      type="url"
                       placeholder="Ej: https://maps.app.goo.gl/..."
                       value={formData.linkGoogleMaps}
                       onChange={(e) => setFormData({ ...formData, linkGoogleMaps: e.target.value })}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
                     />
+                    {formData.linkGoogleMaps && (
+                      <a
+                        href={formData.linkGoogleMaps}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-1 inline-flex text-[11px] font-semibold text-blue-600 hover:text-blue-800"
+                      >
+                        Abrir ubicación en Google Maps ↗
+                      </a>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -818,8 +975,18 @@ export default function NuevaPropiedadPage() {
 
                     {/* Etiquetas en mapa */}
                     <div className="absolute bottom-2 left-2 text-[10px] text-slate-600 bg-white/80 px-1.5 py-0.5 rounded backdrop-blur-xs">
-                      Plaza 1° de Mayo, Paraná
+                      {formData.linkGoogleMaps ? "Ubicación cargada desde Google Maps" : "Ingresá un link de Google Maps"}
                     </div>
+                    {formData.linkGoogleMaps && (
+                      <a
+                        href={formData.linkGoogleMaps}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="absolute inset-0 flex items-center justify-center bg-[#092454]/15 text-xs font-bold text-[#092454] transition hover:bg-[#092454]/25"
+                      >
+                        Ver ubicación en Google Maps ↗
+                      </a>
+                    )}
                   </div>
                 </div>
               </div>
@@ -848,7 +1015,23 @@ export default function NuevaPropiedadPage() {
                   </div>
 
                   {/* Dropzone */}
-                  <label className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-5 cursor-pointer hover:border-blue-400 hover:bg-blue-50/30 transition text-center group">
+                  <label
+                    onDragEnter={(e) => {
+                      e.preventDefault();
+                      setArrastrandoImagenes(true);
+                    }}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setArrastrandoImagenes(false);
+                    }}
+                    onDrop={handleSoltarImagenes}
+                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition group ${
+                      arrastrandoImagenes
+                        ? "border-[#004bb7] bg-blue-50"
+                        : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
+                    } cursor-pointer`}
+                  >
                     <input
                       type="file"
                       multiple
@@ -862,10 +1045,10 @@ export default function NuevaPropiedadPage() {
                       </svg>
                     </div>
                     <p className="text-xs font-semibold text-slate-700">
-                      Arrastrá las imágenes aquí o <span className="text-[#004bb7]">hacé clic para seleccionar</span>
+                      {arrastrandoImagenes ? "Soltá las imágenes aquí" : <>Arrastrá las imágenes aquí o <span className="text-[#004bb7]">hacé clic para seleccionar</span></>}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-0.5">
-                      JPG, PNG — hasta 5 MB por archivo
+                      JPG, PNG, WEBP — hasta 20 MB por archivo
                     </p>
                   </label>
 
@@ -1236,7 +1419,7 @@ export default function NuevaPropiedadPage() {
                 type="submit"
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
               >
-                Publicar propiedad →
+                {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : "Publicar propiedad →"}
               </button>
               {mensaje && <p className="text-xs text-red-600">{mensaje}</p>}
             </div>
