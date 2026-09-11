@@ -3,9 +3,11 @@
 
 import React, { useState } from 'react';
 import Link from "next/link";
+import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, logout } = useAuth();
 
   return (
     <nav className="absolute top-0 left-0 w-full z-50 bg-black/10 backdrop-blur-md border-b border-white/10">
@@ -26,12 +28,52 @@ export default function Navbar() {
             <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Alquileres</Link>
             <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Alquiler Temporario</Link>
             <Link href="/contacto" className="text-white/80 hover:text-white font-medium transition-colors">Contacto</Link>
-            <Link 
-              href="/admin" 
-              className="bg-red-600/90 hover:bg-red-500 text-white px-5 py-2.5 rounded-lg font-semibold transition-all backdrop-blur-sm border border-red-500/50 hover:shadow-lg hover:shadow-red-600/20 active:scale-[0.98]"
-            >
-              Panel Admin
-            </Link>
+            
+            {user ? (
+              <div className="flex items-center space-x-3">
+                {user.role === 'admin' && (
+                  <Link 
+                    href="/admin" 
+                    className="bg-slate-800/80 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs transition-all backdrop-blur-sm border border-white/20"
+                  >
+                    Panel Admin
+                  </Link>
+                )}
+                
+                {/* Nombre de usuario en cápsula destacada con bordes rojos */}
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-black/40 border border-red-500/80 text-white text-xs font-semibold backdrop-blur-sm shadow-sm">
+                  <svg className="w-3.5 h-3.5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>
+                    {user.nombre ? `${user.nombre} ${user.apellido || ''}`.trim() : user.email}
+                  </span>
+                </div>
+
+                {/* Botón Cerrar Sesión en rojo corporativo pleno */}
+                <button
+                  onClick={logout}
+                  className="bg-red-600 hover:bg-red-500 text-white text-xs font-semibold px-3.5 py-1.5 rounded-lg transition-all shadow-sm shadow-red-600/30 active:scale-[0.98]"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center space-x-3">
+                <Link
+                  href="/login"
+                  className="text-white/90 hover:text-white font-medium text-xs px-3 py-2 rounded-lg transition-colors border border-white/20 hover:bg-white/10"
+                >
+                  Ingresar
+                </Link>
+                <Link 
+                  href="/register" 
+                  className="bg-red-600/90 hover:bg-red-500 text-white px-4 py-2 rounded-lg font-semibold text-xs transition-all backdrop-blur-sm border border-red-500/50 hover:shadow-lg hover:shadow-red-600/20 active:scale-[0.98]"
+                >
+                  Registrarse
+                </Link>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -58,11 +100,41 @@ export default function Navbar() {
             <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Alquileres</Link>
             <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Alquiler Temporario</Link>
             <Link href="/contacto" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Contacto</Link>
-            <Link href="/admin" className="block w-full pt-2">
-              <button className="w-full text-center bg-red-600 hover:bg-red-500 text-white px-3 py-3 rounded-lg font-semibold transition-colors">
-                Panel de Administración
-              </button>
-            </Link>
+            
+            {user ? (
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-red-500/80 text-white text-xs font-semibold">
+                  <svg className="w-3.5 h-3.5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <span>{user.nombre ? `${user.nombre} ${user.apellido || ''}`.trim() : user.email}</span>
+                </div>
+                {user.role === 'admin' && (
+                  <Link href="/admin" className="block w-full">
+                    <button className="w-full text-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-lg font-semibold text-xs transition-colors border border-white/20">
+                      Panel de Administración
+                    </button>
+                  </Link>
+                )}
+                <button
+                  onClick={logout}
+                  className="w-full text-center bg-red-600 hover:bg-red-500 text-white px-3 py-2.5 rounded-lg font-semibold text-xs transition-colors shadow-sm shadow-red-600/30"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            ) : (
+              <div className="pt-2 border-t border-white/10 space-y-2">
+                <Link href="/login" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">
+                  Iniciar sesión
+                </Link>
+                <Link href="/register" className="block w-full">
+                  <button className="w-full text-center bg-red-600 hover:bg-red-500 text-white px-3 py-2.5 rounded-lg font-semibold text-xs transition-colors">
+                    Registrarse
+                  </button>
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

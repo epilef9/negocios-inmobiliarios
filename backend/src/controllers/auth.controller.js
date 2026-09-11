@@ -1,37 +1,71 @@
 // auth.controller.js
+// Controlador para endpoints de autenticacion
 
-const User = require('../models/user.model');
-const jwt = require('jsonwebtoken');
-const bcrypt = require('bcrypt');
-const { validationResult } = require('express-validator');
+const authService = require('../services/auth.service');
 
-exports.login = async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-
-    const { email, password } = req.body;
-
+// Registro de nuevo usuario (HU-05)
+exports.register = async (req, res) => {
     try {
-        const user = await User.findOne({ email });
-        if (!user) {
-            return res.status(401).json({ message: 'Credenciales inválidas' });
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return res.status(401).json({ message: 'Credenciales inválidas' });
-        }
-
-        const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
-        res.json({ token });
+        const result = await authService.register(req.body);
+        res.status(201).json({
+            message: 'Usuario registrado exitosamente',
+            data: result,
+            token: result.token,
+            user: result.user
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error en el servidor' });
+        const status = error.statusCode || 500;
+        res.status(status).json({
+            message: error.message || 'Error al registrar usuario',
+            error: error.message
+        });
     }
 };
 
+// Inicio de sesion (HU-09)
+exports.login = async (req, res) => {
+    const { email, password } = req.body;
+
+    try {
+        const result = await authService.login(email, password);
+        res.status(200).json({
+            message: 'Inicio de sesion exitoso',
+            data: result,
+            token: result.token,
+            user: result.user
+        });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        res.status(status).json({
+            message: error.message || 'Error al iniciar sesion',
+            error: error.message
+        });
+    }
+};
+
+// Obtener datos del usuario autenticado actual
+exports.me = async (req, res) => {
+    try {
+        const user = req.user;
+        const safeUser = {
+            id: user._id,
+            nombre: user.nombre,
+            apellido: user.apellido,
+            telefono: user.telefono,
+            email: user.email,
+            role: user.role,
+            createdAt: user.createdAt
+        };
+        res.status(200).json({
+            data: safeUser,
+            user: safeUser
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener usuario autenticado' });
+    }
+};
+
+// Cierre de sesion
 exports.logout = (req, res) => {
-    // Implementar lógica de cierre de sesión si es necesario
-    res.json({ message: 'Cierre de sesión exitoso' });
+    res.status(200).json({ message: 'Cierre de sesion exitoso' });
 };
