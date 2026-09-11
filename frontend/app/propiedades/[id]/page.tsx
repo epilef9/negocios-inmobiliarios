@@ -36,7 +36,7 @@ export default function PropertyDetail() {
             <span className="relative flex h-10 w-11 items-end justify-center border-b-[3px] border-white pb-0.5"><span className="absolute -top-1 h-7 w-7 rotate-45 border-l-[4px] border-t-[4px] border-white" /><span className="relative z-10 mb-0.5 grid h-4 w-4 grid-cols-2 gap-0.5 bg-red-600 p-0.5"><i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" /></span></span>
             <span className="leading-[0.9]"><strong className="block text-[17px] font-bold tracking-[0.06em]">NEGOCIOS</strong><b className="block text-[14px] font-bold tracking-[0.04em] text-red-500">INMOBILIARIOS</b></span>
           </Link>
-          <nav className="hidden items-center gap-10 text-[14px] font-semibold md:flex"><Link href="/" className="border-b-2 border-red-500 py-5 text-white">Inicio</Link><Link href="/propiedades" className="py-5 text-white/85 transition hover:text-white">Requisitos</Link><Link href="/contacto" className="py-5 text-white/85 transition hover:text-white">Contacto</Link><Link href="/admin" className="ml-4 rounded-md bg-red-600 px-5 py-2.5 transition hover:bg-red-500">♙&nbsp; Ingresar</Link></nav>
+          <nav className="hidden items-center gap-10 text-[14px] font-semibold md:flex"><Link href="/" className="py-5 text-white/85 transition hover:text-white">Inicio</Link><Link href="/requisitos" className="py-5 text-white/85 transition hover:text-white">Requisitos</Link><Link href="/contacto" className="py-5 text-white/85 transition hover:text-white">Contacto</Link><Link href="/admin" className="ml-4 rounded-md bg-red-600 px-5 py-2.5 transition hover:bg-red-500">♙&nbsp; Ingresar</Link></nav>
         </div>
       </header>
 
