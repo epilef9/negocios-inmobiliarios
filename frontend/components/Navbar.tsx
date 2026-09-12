@@ -33,9 +33,8 @@ export default function Navbar() {
           {/* Desktop Navigation */}
           <div className="hidden lg:flex space-x-8 items-center">
             <Link href="/" className="text-white/80 hover:text-white font-medium transition-colors">Inicio</Link>
-            <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Ventas</Link>
-            <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Alquileres</Link>
-            <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Alquiler Temporario</Link>
+            <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Propiedades</Link>
+            <Link href="/requisitos" className="text-white/80 hover:text-white font-medium transition-colors">Requisitos</Link>
             <Link href="/contacto" className="text-white/80 hover:text-white font-medium transition-colors">Contacto</Link>
             
             {user ? (
@@ -106,8 +105,7 @@ export default function Navbar() {
           <div className="px-4 pt-4 pb-6 space-y-3">
             <Link href="/" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Inicio</Link>
             <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Ventas</Link>
-            <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Alquileres</Link>
-            <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Alquiler Temporario</Link>
+            <Link href="/requisitos" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Requisitos</Link>
             <Link href="/contacto" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Contacto</Link>
             
             {user ? (
