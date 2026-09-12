@@ -10,13 +10,22 @@ export default function Navbar() {
   const { user, logout } = useAuth();
 
   return (
-    <nav className="absolute top-0 left-0 w-full z-50 bg-black/10 backdrop-blur-md border-b border-white/10">
+    <nav className="absolute top-0 left-0 w-full z-50 bg-black/15 backdrop-blur-md border-b border-white/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-20">
           
           {/* Logo */}
-          <Link href="/" className="flex-shrink-0 flex items-center">
-            <span className="text-2xl font-bold text-white tracking-tight">
+          <Link href="/" className="flex-shrink-0 flex items-center gap-2.5">
+            <span className="relative flex h-9 w-10 items-end justify-center border-b-[3px] border-white pb-0.5">
+              <span className="absolute -top-1 h-6 w-6 rotate-45 border-l-[3.5px] border-t-[3.5px] border-white" />
+              <span className="relative z-10 mb-0.5 grid h-3.5 w-3.5 grid-cols-2 gap-0.5 bg-red-600 p-0.5">
+                <i className="bg-white/90" />
+                <i className="bg-white/90" />
+                <i className="bg-white/90" />
+                <i className="bg-white/90" />
+              </span>
+            </span>
+            <span className="text-xl font-bold text-white tracking-tight">
               Negocios <span className="text-red-500">Inmobiliarios</span>
             </span>
           </Link>
