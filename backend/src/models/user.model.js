@@ -1,10 +1,20 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
+    nombre: {
+        type: String,
+        trim: true
+    },
+    apellido: {
+        type: String,
+        trim: true
+    },
+    telefono: {
+        type: String,
+        trim: true
+    },
     username: {
         type: String,
-        required: true,
-        unique: true,
         trim: true
     },
     password: {
@@ -15,12 +25,13 @@ const userSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        trim: true
+        trim: true,
+        lowercase: true
     },
     role: {
         type: String,
-        enum: ['admin', 'user'],
-        default: 'user'
+        enum: ['admin', 'cliente', 'user'],
+        default: 'cliente'
     },
     createdAt: {
         type: Date,
@@ -32,10 +43,12 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Middleware to update the updatedAt field before saving
-userSchema.pre('save', function(next) {
+// Middleware para asignar username por defecto y actualizar fecha
+userSchema.pre('save', function() {
+    if (!this.username && this.email) {
+        this.username = this.email;
+    }
     this.updatedAt = Date.now();
-    next();
 });
 
 const User = mongoose.model('User', userSchema);
