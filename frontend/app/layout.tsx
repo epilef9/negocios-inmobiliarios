@@ -30,6 +30,8 @@ export const metadata: Metadata = {
     "Encontrá propiedades exclusivas con asesoramiento personalizado. Compra, venta y alquiler de inmuebles.",
 };
 
+import { AuthProvider } from "../context/AuthContext";
+
 export default function RootLayout({
   children,
 }: {
@@ -40,7 +42,9 @@ export default function RootLayout({
       lang="es"
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${publicSans.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

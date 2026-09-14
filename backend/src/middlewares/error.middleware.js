@@ -17,7 +17,7 @@ const errorHandler = (err, req, res, next) => {
 };
 
 const notFoundHandler = (req, res, next) => {
-    const error = new apiError('Not Found', 404);
+    const error = new apiError(404, 'Not Found');
     next(error);
 };
 
