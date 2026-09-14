@@ -10,6 +10,7 @@ export interface User {
   telefono?: string;
   email: string;
   role: string;
+  checklistRequisitos?: string[];
   createdAt?: string;
 }
 
@@ -103,6 +104,31 @@ export async function getCurrentUser(): Promise<User | null> {
       localStorage.removeItem("user");
     }
     return null;
+  }
+}
+
+// Obtener checklist de requisitos del usuario autenticado
+export async function getUserChecklist(): Promise<string[]> {
+  try {
+    const data = await authRequest<string[]>("/auth/checklist");
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Error al obtener checklist de usuario:", error);
+    return [];
+  }
+}
+
+// Guardar checklist de requisitos del usuario autenticado
+export async function saveUserChecklist(items: string[]): Promise<string[]> {
+  try {
+    const data = await authRequest<string[]>("/auth/checklist", {
+      method: "PUT",
+      body: JSON.stringify({ checklist: items }),
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error("Error al guardar checklist de usuario:", error);
+    return items;
   }
 }
 
