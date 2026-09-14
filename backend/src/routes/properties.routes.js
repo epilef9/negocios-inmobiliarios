@@ -48,6 +48,8 @@ router.post('/images', (req, res, next) => {
 	});
 });
 
+router.get('/maps/resolve', propertiesController.resolveMapsLink);
+
 // Obtener todas las propiedades
 router.get('/', propertiesController.getAllProperties);
 
