@@ -2,6 +2,45 @@
 
 const PropertyService = require('../services/properties.service');
 
+const extractCoordinates = (value) => {
+    const coordinateMatch = value.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+        || value.match(/[?&](?:q|query)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+        || value.match(/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/)
+        || value.match(/\/search\/(-?\d+(?:\.\d+)?),\+?(-?\d+(?:\.\d+)?)/);
+    return coordinateMatch ? { latitud: coordinateMatch[1], longitud: coordinateMatch[2] } : null;
+};
+
+exports.resolveMapsLink = async (req, res) => {
+    const rawUrl = String(req.query.url ?? '');
+    try {
+        const parsedUrl = new URL(rawUrl);
+        const allowedHosts = ['maps.app.goo.gl', 'goo.gl', 'google.com', 'www.google.com', 'maps.google.com'];
+        if (!allowedHosts.some((host) => parsedUrl.hostname === host || parsedUrl.hostname.endsWith(`.${host}`))) {
+            return res.status(400).json({ message: 'El enlace no pertenece a Google Maps' });
+        }
+
+        let currentUrl = parsedUrl.toString();
+        for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
+            const coordinates = extractCoordinates(currentUrl);
+            if (coordinates) return res.status(200).json({ data: coordinates });
+
+            const response = await fetch(currentUrl, { redirect: 'follow' });
+            const redirectedUrl = response.url;
+            const redirectedCoordinates = extractCoordinates(redirectedUrl);
+            if (redirectedCoordinates) return res.status(200).json({ data: redirectedCoordinates });
+
+            const html = await response.text();
+            const bodyCoordinates = extractCoordinates(html);
+            if (bodyCoordinates) return res.status(200).json({ data: bodyCoordinates });
+            break;
+        }
+
+        return res.status(404).json({ message: 'No se encontraron coordenadas en el enlace' });
+    } catch (_error) {
+        return res.status(400).json({ message: 'El enlace de Google Maps no es válido' });
+    }
+};
+
 // Obtener todas las propiedades
 exports.getAllProperties = async (req, res) => {
     try {

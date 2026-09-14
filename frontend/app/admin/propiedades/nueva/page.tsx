@@ -3,79 +3,100 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createProperty, getPropertyById, updateProperty, uploadPropertyImages } from "../../../../services/api";
+import { createProperty, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
   const [mensaje, setMensaje] = useState("");
   // Control de paso (1 o 2)
-  const [pasoActual, setPasoActual] = useState<1 | 2>(1);
+  const [pasoActual, setPasoActual] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
+  const [pasosCompletados, setPasosCompletados] = useState<number[]>([]);
 
   // Estado del formulario
   const [formData, setFormData] = useState({
     // Paso 1
-    titulo: "Departamento 2 ambientes con cochera – Centro",
-    codigoInterno: "DEP-000123",
-    tipoInmueble: "departamento",
-    categoriaOperacion: "temporario",
-    ciudadZonaBarrio: "Centro",
+    titulo: "",
+    codigoInterno: "",
+    tipoInmueble: "",
+    categoriaOperacion: "",
+    ciudadZonaBarrio: "",
     provincia: "entre_rios",
-    direccionCompleta: "San Martin 1200, Paraná, Entre Ríos",
-    referenciasUbicacion: "A metros de Av. Principal, cerca de plazas y comercios",
-    precioUSD: "72000",
+    direccionCompleta: "",
+    referenciasUbicacion: "",
+    precioUSD: "",
     moneda: "USD",
-    precioARS: "96840000",
-    cotizacionDolar: "1370",
-    expensas: "no_incluye",
-    montoExpensas: "72000",
-    superficieTotal: "80",
-    cantidadAmbientes: "2",
-    dormitorios: "1",
-    banos: "1",
-    cochera: "si",
-    pisoUnidad: "Piso 3, Unidad A",
-    otrasComodidades: "Gimnasio, SUM, Playroom, etc.",
+    precioARS: "",
+    cotizacionDolar: "",
+    expensas: "",
+    montoExpensas: "",
+    superficieTotal: "",
+    cantidadAmbientes: "",
+    dormitorios: "",
+    banos: "",
+    cochera: "",
+    pisoUnidad: "",
+    otrasComodidades: "",
 
     // Paso 2
     descripcion: "",
     linkGoogleMaps: "",
-    latitud: "-31.731706",
-    longitud: "-60.52318",
+    latitud: "",
+    longitud: "",
     permitirVisita: true,
     permitirWhatsApp: true,
     permitirEmail: true,
-    horarioAtencion: "Lun a Vie 9 - 18 h • Sáb 9 - 13 h",
-    telefonoWhatsApp: "+54 9 343 4449922",
+    horarioAtencion: "",
+    telefonoWhatsApp: "",
     
     // Alquiler temporario
-    precioPorNocheUSD: "85",
-    minimoNoches: "2",
-    huespedesMaximos: "2",
-    costoLimpiezaUSD: "25",
-    checkInDesde: "14:00",
-    checkOutHasta: "11:00",
-    checkInFlexible: "si",
+    precioPorNocheUSD: "",
+    minimoNoches: "",
+    huespedesMaximos: "",
+    costoLimpiezaUSD: "",
+    duracionAlquilerMeses: "",
+    unidadDuracionAlquiler: "meses",
+    checkInDesde: "",
+    checkOutHasta: "",
+    checkInFlexible: "",
   });
 
-  const [comodidadesSeleccionadas, setComodidadesSeleccionadas] = useState<string[]>([
-    "aire",
-    "wifi",
-    "balcon",
-    "cochera_cubierta",
-  ]);
+  const [comodidadesSeleccionadas, setComodidadesSeleccionadas] = useState<string[]>([]);
 
   // Lista de imágenes de ejemplo para el diseño de referencia
-  const [imagenes, setImagenes] = useState<string[]>([
-    "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=300&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1556911220-e15b29be8c8f?w=300&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1540518614846-7eded433c457?w=300&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=300&auto=format&fit=crop&q=80",
-    "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=300&auto=format&fit=crop&q=80",
-  ]);
+  const [imagenes, setImagenes] = useState<string[]>([]);
 
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [mostrarTodoEdicion, setMostrarTodoEdicion] = useState(true);
   const [cargandoPropiedad, setCargandoPropiedad] = useState(false);
   const [arrastrandoImagenes, setArrastrandoImagenes] = useState(false);
+  const [resolviendoMapa, setResolviendoMapa] = useState(false);
+
+  const esVivienda = formData.tipoInmueble === "casa" || formData.tipoInmueble === "departamento";
+  const esTerreno = formData.tipoInmueble === "terreno";
+  const permiteAlquilerTemporario = esVivienda;
+
+  const completarCoordenadasDesdeLink = async (link: string) => {
+    const coordinates = link.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+      ?? link.match(/[?&](?:q|query)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
+      ?? link.match(/\/search\/(-?\d+(?:\.\d+)?),\+?(-?\d+(?:\.\d+)?)/);
+
+    if (coordinates) {
+      setFormData((current) => ({ ...current, latitud: coordinates[1], longitud: coordinates[2] }));
+      return;
+    }
+
+    if (!link.includes("maps.app.goo.gl") && !link.includes("goo.gl/maps")) return;
+
+    try {
+      setResolviendoMapa(true);
+      const resolved = await resolveMapsLink(link);
+      setFormData((current) => ({ ...current, latitud: resolved.latitud, longitud: resolved.longitud }));
+    } catch {
+      setMensaje("No se pudieron obtener coordenadas de ese enlace; podés ingresarlas manualmente.");
+    } finally {
+      setResolviendoMapa(false);
+    }
+  };
 
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get("editar");
@@ -88,10 +109,12 @@ export default function NuevaPropiedadPage() {
           ...current,
           titulo: property.title ?? "",
           codigoInterno: property.codigoInterno ?? "",
-          tipoInmueble: property.tipo_inmueble ?? current.tipoInmueble,
-          categoriaOperacion: property.categoria_operacion ?? current.categoriaOperacion,
+          tipoInmueble: property.tipo_inmueble === "monoambiente" ? "departamento" : property.tipo_inmueble ?? current.tipoInmueble,
+          categoriaOperacion: property.categoria_operacion === "temporario" && !["casa", "departamento"].includes(property.tipo_inmueble ?? "")
+            ? "venta"
+            : property.categoria_operacion ?? current.categoriaOperacion,
           ciudadZonaBarrio: property.ciudad ?? "",
-          provincia: property.provincia ?? "",
+          provincia: property.provincia === "entre_rios" ? property.provincia : "entre_rios",
           direccionCompleta: property.direccionCompleta ?? property.location ?? "",
           referenciasUbicacion: property.referenciasUbicacion ?? "",
           precioUSD: String(property.price ?? ""),
@@ -120,12 +143,21 @@ export default function NuevaPropiedadPage() {
           minimoNoches: String(property.minimoNoches ?? ""),
           huespedesMaximos: String(property.huespedesMaximos ?? ""),
           costoLimpiezaUSD: String(property.costoLimpiezaUSD ?? ""),
+          duracionAlquilerMeses: property.duracionAlquilerMeses
+            ? String(property.duracionAlquilerMeses >= 12 && property.duracionAlquilerMeses % 12 === 0
+              ? property.duracionAlquilerMeses / 12
+              : property.duracionAlquilerMeses)
+            : "",
+          unidadDuracionAlquiler: property.unidadDuracionAlquiler ?? (property.duracionAlquilerMeses && property.duracionAlquilerMeses >= 12 && property.duracionAlquilerMeses % 12 === 0 ? "años" : "meses"),
           checkInDesde: property.checkInDesde ?? "",
           checkOutHasta: property.checkOutHasta ?? "",
           checkInFlexible: property.checkInFlexible ?? "si",
         }));
         setComodidadesSeleccionadas(property.comodidades ?? []);
         setImagenes(property.images ?? []);
+        if (property.linkGoogleMaps && (!property.latitud || !property.longitud)) {
+          void completarCoordenadasDesdeLink(property.linkGoogleMaps);
+        }
       })
       .catch((error) => setMensaje(error instanceof Error ? error.message : "No se pudo cargar la propiedad"))
       .finally(() => setCargandoPropiedad(false));
@@ -139,6 +171,21 @@ export default function NuevaPropiedadPage() {
     setComodidadesSeleccionadas((prev) =>
       prev.includes(item) ? prev.filter((c) => c !== item) : [...prev, item]
     );
+  };
+
+  const handleNonNegativeNumberChange = (field: string, value: string) => {
+    if (value === "" || Number(value) >= 0) {
+      setFormData((current) => ({ ...current, [field]: value }));
+    }
+  };
+
+  const actualizarUbicacionTexto = (field: "linkGoogleMaps" | "direccionCompleta" | "ciudadZonaBarrio", value: string) => {
+    setFormData((current) => ({
+      ...current,
+      [field]: value,
+      latitud: "",
+      longitud: "",
+    }));
   };
 
   const comodidadesList = [
@@ -193,10 +240,109 @@ export default function NuevaPropiedadPage() {
     await subirArchivos(Array.from(e.dataTransfer.files));
   };
 
+  const validarPaso = (paso: number) => {
+    const requiredFields = paso === 1
+      ? [
+          ["título", formData.titulo],
+          ["tipo de inmueble", formData.tipoInmueble],
+          ["categoría / operación", formData.categoriaOperacion],
+          ["ciudad / zona / barrio", formData.ciudadZonaBarrio],
+          ["provincia", formData.provincia],
+          ["dirección completa", formData.direccionCompleta],
+        ]
+      : paso === 2
+        ? [
+            ["precio", formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD],
+          ]
+          : paso === 3
+          ? [
+              ["superficie total", formData.superficieTotal],
+              ...(esTerreno ? [] : [["cantidad de ambientes", formData.cantidadAmbientes]]),
+              ...(esVivienda ? [["dormitorios", formData.dormitorios], ["baños", formData.banos]] : []),
+            ]
+          : paso === 7 && formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario
+              ? [
+                  ["precio por noche", formData.precioPorNocheUSD],
+                  ["mínimo de noches", formData.minimoNoches],
+                  ["huéspedes máximos", formData.huespedesMaximos],
+                ]
+              : [];
+
+    const missingField = requiredFields.find(([, value]) => !value.trim());
+    if (missingField) {
+      setMensaje(`Completá el campo ${missingField[0]} antes de continuar`);
+      return false;
+    }
+
+    const numericFields = requiredFields.filter(([field]) =>
+      ["precio", "cotización del dólar", "superficie total", "cantidad de ambientes", "dormitorios", "baños", "precio por noche", "mínimo de noches", "huéspedes máximos"].includes(field)
+    );
+    const invalidField = numericFields.find(([, value]) => Number(value) < 0 || !Number.isFinite(Number(value)));
+    if (invalidField) {
+      setMensaje(`El campo ${invalidField[0]} debe ser un número válido y no negativo`);
+      return false;
+    }
+
+    setMensaje("");
+    return true;
+  };
+
+  const avanzarAlPasoDos = () => {
+    if (validarPaso(1)) {
+      setPasosCompletados((current) => [...new Set([...current, 1])]);
+      setPasoActual(2);
+    }
+  };
+
+  const avanzarPaso = () => {
+    if (!validarPaso(pasoActual)) return;
+    setPasosCompletados((current) => [...new Set([...current, pasoActual])]);
+    setPasoActual((pasoActual < 7 ? pasoActual + 1 : 7) as typeof pasoActual);
+  };
+  const retrocederPaso = () => setPasoActual((pasoActual > 1 ? pasoActual - 1 : 1) as typeof pasoActual);
+  const seleccionarParte = (parte: typeof pasoActual) => {
+    setPasoActual(parte);
+    if (modoEdicion) setMostrarTodoEdicion(false);
+  };
+
+  const mostrarParte = (parte: typeof pasoActual) =>
+    pasoActual === parte || (modoEdicion && mostrarTodoEdicion);
+
+  const pasoCompletado = (paso: number) => pasosCompletados.includes(paso);
+
+  const mapQuery = formData.latitud && formData.longitud
+    ? `${formData.latitud},${formData.longitud}`
+    : formData.linkGoogleMaps || formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`;
+  const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const propertyId = new URLSearchParams(window.location.search).get("editar");
+      const numericFields = [
+        ["precio", formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD],
+        ["cotización del dólar", formData.cotizacionDolar],
+        ["monto de expensas", formData.montoExpensas],
+        ["superficie total", formData.superficieTotal],
+        ...(esTerreno ? [] : [["cantidad de ambientes", formData.cantidadAmbientes]]),
+        ...(esVivienda ? [["dormitorios", formData.dormitorios], ["baños", formData.banos]] : []),
+        ...(formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario
+          ? [
+              ["precio por noche", formData.precioPorNocheUSD],
+              ["mínimo de noches", formData.minimoNoches],
+              ["huéspedes máximos", formData.huespedesMaximos],
+              ["costo de limpieza", formData.costoLimpiezaUSD],
+            ]
+          : []),
+        ["duración del alquiler", formData.duracionAlquilerMeses],
+      ] as const;
+
+      const invalidField = numericFields.find(([, value]) => value !== "" && Number(value) < 0);
+      if (invalidField) {
+        setMensaje(`El campo ${invalidField[0]} no puede tener un valor negativo`);
+        return;
+      }
+
       const cotizacionDolar = Number(formData.cotizacionDolar) || 1370;
       const precioIngresado = Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD);
       const precioUSD = formData.moneda === "ARS"
@@ -214,13 +360,13 @@ export default function NuevaPropiedadPage() {
         moneda: formData.moneda as "USD" | "ARS",
         priceARS: Number(precioARS.toFixed(2)),
         cotizacionDolar,
-        location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, ${formData.provincia}`,
+        location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`,
         ciudad: formData.ciudadZonaBarrio,
         provincia: formData.provincia,
         direccionCompleta: formData.direccionCompleta,
         referenciasUbicacion: formData.referenciasUbicacion,
         categoria_operacion: formData.categoriaOperacion as "venta" | "alquiler" | "temporario",
-        tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "monoambiente" | "terreno",
+        tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
         cantidad_ambientes: Number(formData.cantidadAmbientes),
         comodidades: comodidadesSeleccionadas,
         otrasComodidades: formData.otrasComodidades,
@@ -244,6 +390,8 @@ export default function NuevaPropiedadPage() {
         minimoNoches: Number(formData.minimoNoches) || 0,
         huespedesMaximos: Number(formData.huespedesMaximos) || 0,
         costoLimpiezaUSD: Number(formData.costoLimpiezaUSD) || 0,
+        duracionAlquilerMeses: (Number(formData.duracionAlquilerMeses) || 0) * (formData.unidadDuracionAlquiler === "años" ? 12 : 1),
+        unidadDuracionAlquiler: formData.unidadDuracionAlquiler as "meses" | "años",
         checkInDesde: formData.checkInDesde,
         checkOutHasta: formData.checkOutHasta,
         checkInFlexible: formData.checkInFlexible,
@@ -329,36 +477,31 @@ export default function NuevaPropiedadPage() {
               {modoEdicion ? "Editar propiedad" : "Nueva propiedad"}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {modoEdicion ? "Actualizá los datos de ambos pasos" : "Completá los datos para publicar un inmueble"}
+              {modoEdicion ? "Actualizá los datos de la propiedad" : "Completá los datos para publicar un inmueble"}
             </p>
           </div>
 
-          <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-2xs">
             <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            Página {pasoActual} de 2
+            {modoEdicion ? "Edición completa" : `Parte ${pasoActual} de 7`}
+            </div>
           </div>
         </div>
 
-        {/* Stepper Card */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-5 mb-6 shadow-2xs">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+        {!modoEdicion && <div className="bg-white border border-slate-200/90 rounded-xl p-5 mb-6 shadow-2xs">
+          <div className="grid grid-cols-2 md:grid-cols-7 gap-2 relative">
             {/* Paso 1 */}
             <div
-              onClick={() => setPasoActual(1)}
-              className={`flex items-start gap-3.5 relative pb-3 cursor-pointer transition-opacity ${
-                pasoActual === 1 ? "opacity-100" : "opacity-90"
-              }`}
+              onClick={() => seleccionarParte(1)}
+              className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === 1 ? "opacity-100" : "opacity-60"}`}
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-sm ${
-                  pasoActual === 2
-                    ? "bg-[#004bb7] text-white"
-                    : "bg-[#004bb7] text-white"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-sm ${pasoCompletado(1) || pasoActual === 1 ? "bg-[#6798dc] text-white" : "bg-slate-100 border border-slate-300 text-slate-600"}`}
               >
-                {pasoActual === 2 ? (
+                {pasoCompletado(1) ? (
                   <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
@@ -367,11 +510,11 @@ export default function NuevaPropiedadPage() {
                 )}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-[#0A193D]">
-                  Paso 1. Datos de la propiedad
+                <h3 className="text-xs font-bold text-[#0A193D]">
+                  1. Básicos
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Información básica, características y comodidades
+                <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">
+                  Identidad y ubicación
                 </p>
               </div>
               {pasoActual === 1 && (
@@ -381,40 +524,45 @@ export default function NuevaPropiedadPage() {
 
             {/* Paso 2 */}
             <div
-              onClick={() => setPasoActual(2)}
-              className={`flex items-start gap-3.5 relative pb-3 cursor-pointer transition-opacity ${
-                pasoActual === 2 ? "opacity-100" : "opacity-60"
-              }`}
+              onClick={() => (modoEdicion || pasoActual >= 2) && seleccionarParte(2)}
+              className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === 2 ? "opacity-100" : "opacity-60"}`}
             >
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${
-                  pasoActual === 2
-                    ? "bg-[#004bb7] text-white shadow-sm"
-                    : "bg-slate-100 border border-slate-300 text-slate-600"
-                }`}
+                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(2) || pasoActual === 2 ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}
               >
-                2
+                {pasoCompletado(2) ? "✓" : "2"}
               </div>
               <div>
-                <h3 className="text-sm font-bold text-[#0A193D]">
-                  Paso 2. Publicación y configuración
+                <h3 className="text-xs font-bold text-[#0A193D]">
+                  2. Precio
                 </h3>
-                <p className="text-xs text-slate-500 mt-0.5">
-                  Descripción, ubicación, imágenes y contacto
+                <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">
+                  Operación y gastos
                 </p>
               </div>
               {pasoActual === 2 && (
                 <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />
               )}
             </div>
+
+            {["Características", "Comodidades", "Descripción", "Imágenes", "Condiciones"].map((label, index) => {
+              const step = (index + 3) as typeof pasoActual;
+              return (
+                <div key={label} onClick={() => (modoEdicion || step <= pasoActual) && seleccionarParte(step)} className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === step ? "opacity-100" : "opacity-60"}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(step) || pasoActual === step ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}>{pasoCompletado(step) ? "✓" : step}</div>
+                  <div><h3 className="text-xs font-bold text-[#0A193D]">{step}. {label}</h3></div>
+                  {pasoActual === step && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />}
+                </div>
+              );
+            })}
           </div>
-        </div>
+        </div>}
 
         {/* CONTENIDO PASO 1 */}
-        {pasoActual === 1 && (
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); setPasoActual(2); }}>
+        {(modoEdicion || pasoActual <= 4) && (
+          <form className="space-y-6">
             {/* 1. Información principal */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs">
+            <div className={`${mostrarParte(1) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
               <div className="flex items-center gap-2.5 mb-5">
                 <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
                   i
@@ -460,14 +608,22 @@ export default function NuevaPropiedadPage() {
                   </label>
                   <select
                     value={formData.tipoInmueble}
-                    onChange={(e) => setFormData({ ...formData, tipoInmueble: e.target.value })}
+                    onChange={(e) => {
+                      const tipoInmueble = e.target.value;
+                      setFormData({
+                        ...formData,
+                        tipoInmueble,
+                        categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
+                          ? formData.categoriaOperacion
+                          : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
+                      });
+                    }}
                     className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
                   >
                     <option value="">Seleccionar tipo</option>
                     <option value="departamento">Departamento</option>
                     <option value="casa">Casa</option>
                     <option value="local">Local comercial</option>
-                    <option value="monoambiente">Monoambiente</option>
                     <option value="terreno">Terreno</option>
                   </select>
                 </div>
@@ -485,7 +641,7 @@ export default function NuevaPropiedadPage() {
                     <option value="">Seleccionar</option>
                     <option value="venta">Venta</option>
                     <option value="alquiler">Alquiler</option>
-                    <option value="temporario">Alquiler temporario</option>
+                    {permiteAlquilerTemporario && <option value="temporario">Alquiler temporario</option>}
                   </select>
                 </div>
 
@@ -498,7 +654,7 @@ export default function NuevaPropiedadPage() {
                     type="text"
                     placeholder="Ej: Centro"
                     value={formData.ciudadZonaBarrio}
-                    onChange={(e) => setFormData({ ...formData, ciudadZonaBarrio: e.target.value })}
+                    onChange={(e) => actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
                   />
                 </div>
@@ -510,14 +666,10 @@ export default function NuevaPropiedadPage() {
                   </label>
                   <select
                     value={formData.provincia}
-                    onChange={(e) => setFormData({ ...formData, provincia: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                    disabled
+                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700"
                   >
-                    <option value="">Seleccionar provincia</option>
                     <option value="entre_rios">Entre Ríos</option>
-                    <option value="santa_fe">Santa Fe</option>
-                    <option value="buenos_aires">Buenos Aires</option>
-                    <option value="cordoba">Córdoba</option>
                   </select>
                 </div>
 
@@ -530,7 +682,7 @@ export default function NuevaPropiedadPage() {
                     type="text"
                     placeholder="Ej: San Martin 1200, Paraná, Entre Ríos"
                     value={formData.direccionCompleta}
-                    onChange={(e) => setFormData({ ...formData, direccionCompleta: e.target.value })}
+                    onChange={(e) => actualizarUbicacionTexto("direccionCompleta", e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
                   />
                 </div>
@@ -552,9 +704,9 @@ export default function NuevaPropiedadPage() {
             </div>
 
             {/* Tres tarjetas inferiores en columnas */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+            <div className={`${modoEdicion || pasoActual >= 2 && pasoActual <= 4 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-3 gap-6 items-start`}>
               {/* 2. Precio y operación */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full">
+              <div className={`${mostrarParte(2) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
                     $
@@ -568,13 +720,14 @@ export default function NuevaPropiedadPage() {
                   <div className="grid grid-cols-5 gap-2">
                     <div className="col-span-3">
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Precio ({formData.moneda}) <span className="text-red-500">*</span>
+                        {formData.categoriaOperacion === "alquiler" ? "Precio mensual" : `Precio (${formData.moneda})`} <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder={formData.moneda === "ARS" ? "Ej: 98640000" : "Ej: 72000"}
                         value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
-                        onChange={(e) => setFormData({ ...formData, [formData.moneda === "ARS" ? "precioARS" : "precioUSD"]: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -616,7 +769,7 @@ export default function NuevaPropiedadPage() {
                       type="number"
                       min="1"
                       value={formData.cotizacionDolar}
-                      onChange={(e) => setFormData({ ...formData, cotizacionDolar: e.target.value })}
+                      onChange={(e) => handleNonNegativeNumberChange("cotizacionDolar", e.target.value)}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
                     />
                     <p className="mt-1 text-[10px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
@@ -632,6 +785,7 @@ export default function NuevaPropiedadPage() {
                         onChange={(e) => setFormData({ ...formData, expensas: e.target.value })}
                         className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
                       >
+                        <option value="">Seleccionar (opcional)</option>
                         <option value="no_incluye">No incluye expensas</option>
                         <option value="incluye">Incluye expensas</option>
                         <option value="sin_expensas">Sin expensas</option>
@@ -643,9 +797,10 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 72000"
                         value={formData.montoExpensas}
-                        onChange={(e) => setFormData({ ...formData, montoExpensas: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("montoExpensas", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -654,7 +809,7 @@ export default function NuevaPropiedadPage() {
               </div>
 
               {/* 3. Características del inmueble */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full">
+              <div className={`${mostrarParte(3) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -674,36 +829,39 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 80"
                         value={formData.superficieTotal}
-                        onChange={(e) => setFormData({ ...formData, superficieTotal: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("superficieTotal", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
-                    <div>
+                    {!esTerreno && <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Cantidad de ambientes <span className="text-red-500">*</span>
+                        Cantidad de ambientes {esVivienda && <span className="text-red-500">*</span>}
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 2"
                         value={formData.cantidadAmbientes}
-                        onChange={(e) => setFormData({ ...formData, cantidadAmbientes: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("cantidadAmbientes", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
-                    </div>
+                    </div>}
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  {esVivienda && <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                         Dormitorios <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 1"
                         value={formData.dormitorios}
-                        onChange={(e) => setFormData({ ...formData, dormitorios: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("dormitorios", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -713,15 +871,16 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 1"
                         value={formData.banos}
-                        onChange={(e) => setFormData({ ...formData, banos: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("banos", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
-                  </div>
+                  </div>}
 
-                  <div className="grid grid-cols-2 gap-2 items-center pt-1">
+                  {!esTerreno && <div className="grid grid-cols-2 gap-2 items-center pt-1">
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
                         Cochera
@@ -764,12 +923,12 @@ export default function NuevaPropiedadPage() {
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
-                  </div>
+                  </div>}
                 </div>
               </div>
 
               {/* 4. Comodidades y equipamiento */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full">
+              <div className={`${mostrarParte(4) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -818,7 +977,7 @@ export default function NuevaPropiedadPage() {
             </div>
 
             {/* Footer de navegación Paso 1 */}
-            <div className="flex items-center justify-between pt-2">
+            {!modoEdicion && <div className="flex items-center justify-between pt-2">
               <Link
                 href="/admin"
                 className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
@@ -828,22 +987,22 @@ export default function NuevaPropiedadPage() {
 
               <button
                 type="button"
-                onClick={() => setPasoActual(2)}
+                onClick={() => pasoActual === 1 ? avanzarAlPasoDos() : avanzarPaso()}
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
               >
                 Siguiente →
               </button>
-            </div>
+            </div>}
           </form>
         )}
 
         {/* CONTENIDO PASO 2 */}
-        {pasoActual === 2 && (
+        {(modoEdicion || pasoActual >= 5) && (
           <form className="space-y-6" onSubmit={publicarPropiedad}>
             {/* Grilla superior: 5. Descripción y 6. Ubicación */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className={`${modoEdicion || pasoActual === 5 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6`}>
               {/* 5. Descripción */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col">
+              <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col`}>
                 <div className="flex items-start gap-2.5 mb-4">
                   <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -876,7 +1035,7 @@ export default function NuevaPropiedadPage() {
               </div>
 
               {/* 6. Ubicación */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col">
+              <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col`}>
                 <div className="flex items-start gap-2.5 mb-4">
                   <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -897,25 +1056,19 @@ export default function NuevaPropiedadPage() {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Link de Google Maps (opcional)
+                      Referencia de Google Maps (opcional)
                     </label>
                     <input
                       type="url"
                       placeholder="Ej: https://maps.app.goo.gl/..."
                       value={formData.linkGoogleMaps}
-                      onChange={(e) => setFormData({ ...formData, linkGoogleMaps: e.target.value })}
+                      onChange={(e) => actualizarUbicacionTexto("linkGoogleMaps", e.target.value)}
+                      onBlur={(e) => completarCoordenadasDesdeLink(e.target.value.trim())}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
                     />
-                    {formData.linkGoogleMaps && (
-                      <a
-                        href={formData.linkGoogleMaps}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="mt-1 inline-flex text-[11px] font-semibold text-blue-600 hover:text-blue-800"
-                      >
-                        Abrir ubicación en Google Maps ↗
-                      </a>
-                    )}
+                    <p className="mt-1 text-[10px] text-slate-400">
+                      {resolviendoMapa ? "Buscando coordenadas..." : "Al salir del campo se completan latitud y longitud automáticamente."}
+                    </p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
@@ -945,57 +1098,28 @@ export default function NuevaPropiedadPage() {
                     </div>
                   </div>
 
-                  {/* Vista previa del Mapa */}
-                  <div className="relative w-full h-32 rounded-lg overflow-hidden border border-slate-200 bg-[#e5e3df]">
-                    <div 
-                      className="absolute inset-0 bg-cover bg-center opacity-90"
-                      style={{
-                        backgroundImage: `url('https://images.unsplash.com/photo-1524661135-423995f22d0b?w=600&auto=format&fit=crop&q=80')`,
-                        backgroundPosition: "center 40%"
-                      }}
-                    >
-                      {/* Overlay estilo mapa */}
-                      <div className="absolute inset-0 bg-[#eef3f7]/60 backdrop-contrast-125" />
-                    </div>
-
-                    {/* Pin de ubicación */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="relative -top-2 flex flex-col items-center animate-bounce">
-                        <svg className="w-8 h-8 text-red-600 drop-shadow-md" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* Controles de zoom */}
-                    <div className="absolute top-2 right-2 flex flex-col bg-white rounded shadow-sm border border-slate-200 text-xs font-bold text-slate-700">
-                      <button type="button" className="px-2 py-0.5 hover:bg-slate-100 border-b border-slate-200">+</button>
-                      <button type="button" className="px-2 py-0.5 hover:bg-slate-100">-</button>
-                    </div>
-
-                    {/* Etiquetas en mapa */}
-                    <div className="absolute bottom-2 left-2 text-[10px] text-slate-600 bg-white/80 px-1.5 py-0.5 rounded backdrop-blur-xs">
-                      {formData.linkGoogleMaps ? "Ubicación cargada desde Google Maps" : "Ingresá un link de Google Maps"}
-                    </div>
-                    {formData.linkGoogleMaps && (
-                      <a
-                        href={formData.linkGoogleMaps}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="absolute inset-0 flex items-center justify-center bg-[#092454]/15 text-xs font-bold text-[#092454] transition hover:bg-[#092454]/25"
-                      >
-                        Ver ubicación en Google Maps ↗
-                      </a>
-                    )}
+                  <div className="relative w-full h-64 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                    <iframe
+                      key={mapEmbedUrl}
+                      title="Mapa de ubicación de la propiedad"
+                      src={mapEmbedUrl}
+                      className="w-full h-full border-0"
+                      loading="lazy"
+                      allowFullScreen
+                      referrerPolicy="no-referrer-when-downgrade"
+                    />
                   </div>
+                  <p className="text-[11px] text-slate-500">
+                    Podés mover el mapa, acercar o alejar la vista y usar pantalla completa sin salir del formulario.
+                  </p>
                 </div>
               </div>
             </div>
 
             {/* Grilla intermedia: 7. Imágenes y 8. Configuración de contacto */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className={`${modoEdicion || pasoActual === 6 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6`}>
               {/* 7. Imágenes */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+              <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
                 <div>
                   <div className="flex items-start gap-2.5 mb-4">
                     <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
@@ -1087,7 +1211,7 @@ export default function NuevaPropiedadPage() {
               </div>
 
               {/* 8. Configuración de contacto */}
-              <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between">
+              <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
                 <div>
                   <div className="flex items-start gap-2.5 mb-4">
                     <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
@@ -1192,8 +1316,10 @@ export default function NuevaPropiedadPage() {
               </div>
             </div>
 
-            {/* 9. Datos de alquiler temporario */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs">
+            {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
+              <>
+                {/* 9. Datos de alquiler temporario */}
+                <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
               <div className="flex items-center gap-2 mb-5">
                 <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1203,7 +1329,7 @@ export default function NuevaPropiedadPage() {
                 <h2 className="text-sm font-bold text-[#0A193D]">
                   9. Datos de alquiler temporario{" "}
                   <span className="text-xs font-normal text-slate-400">
-                    (mostrar solo si la categoría es &quot;Alquiler temporario&quot;)
+                    
                   </span>
                 </h2>
               </div>
@@ -1218,9 +1344,10 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 85"
                         value={formData.precioPorNocheUSD}
-                        onChange={(e) => setFormData({ ...formData, precioPorNocheUSD: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -1230,9 +1357,10 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 2"
                         value={formData.minimoNoches}
-                        onChange={(e) => setFormData({ ...formData, minimoNoches: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("minimoNoches", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -1242,9 +1370,10 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 2"
                         value={formData.huespedesMaximos}
-                        onChange={(e) => setFormData({ ...formData, huespedesMaximos: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("huespedesMaximos", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -1254,9 +1383,10 @@ export default function NuevaPropiedadPage() {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         placeholder="Ej: 25"
                         value={formData.costoLimpiezaUSD}
-                        onChange={(e) => setFormData({ ...formData, costoLimpiezaUSD: e.target.value })}
+                        onChange={(e) => handleNonNegativeNumberChange("costoLimpiezaUSD", e.target.value)}
                         className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                       />
                     </div>
@@ -1343,9 +1473,75 @@ export default function NuevaPropiedadPage() {
                 </div>
               </div>
             </div>
+              </>
+            ) : (
+              <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
+                <h2 className="text-sm font-bold text-[#0A193D]">
+                  {formData.categoriaOperacion === "venta" ? "9. Condiciones de venta" : "9. Condiciones de alquiler"}
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">
+                  {formData.categoriaOperacion === "venta"
+                    ? "La publicación mostrará el precio de venta y la moneda seleccionada."
+                    : "La publicación mostrará el precio mensual y las expensas configuradas."}
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <span className="block text-[11px] font-semibold text-slate-500">Precio {formData.categoriaOperacion === "venta" ? "de venta" : "mensual"}</span>
+                    <span className="text-sm font-bold text-[#0A193D]">
+                      {formData.moneda} {Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD || 0).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                    <span className="block text-[11px] font-semibold text-slate-500">Expensas</span>
+                    <span className="text-sm font-bold text-[#0A193D]">
+                      {formData.expensas === "sin_expensas" ? "Sin expensas" : `ARS ${Number(formData.montoExpensas || 0).toLocaleString("es-AR")}`}
+                    </span>
+                  </div>
+                </div>
+                {formData.categoriaOperacion === "alquiler" && (
+                  <div className="mt-4 max-w-sm">
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Duración del contrato (opcional)
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        max={formData.unidadDuracionAlquiler === "meses" ? "11" : undefined}
+                        placeholder={formData.unidadDuracionAlquiler === "meses" ? "Ej: 6" : "Ej: 1"}
+                        value={formData.duracionAlquilerMeses}
+                        onChange={(e) => {
+                          const value = Number(e.target.value);
+                          const maxMeses = formData.unidadDuracionAlquiler === "meses" ? 11 : Number.MAX_SAFE_INTEGER;
+                          handleNonNegativeNumberChange("duracionAlquilerMeses", e.target.value === "" ? "" : String(Math.min(value, maxMeses)));
+                        }}
+                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                      />
+                      <select
+                        value={formData.unidadDuracionAlquiler}
+                        onChange={(e) => {
+                          const unidad = e.target.value;
+                          setFormData((current) => ({
+                            ...current,
+                            unidadDuracionAlquiler: unidad,
+                            duracionAlquilerMeses: unidad === "meses" && Number(current.duracionAlquilerMeses) > 11 ? "11" : current.duracionAlquilerMeses,
+                          }));
+                        }}
+                        className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white"
+                      >
+                        <option value="meses">Meses</option>
+                        <option value="años">Años</option>
+                      </select>
+                    </div>
+                    <p className="mt-1 text-[10px] text-slate-400">Dejalo vacío si el contrato no tiene un plazo definido.</p>
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* 10. Normas de la estadía */}
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
+            {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario && mostrarParte(7) && (
+              /* 10. Normas de la estadía */
+              <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1353,10 +1549,7 @@ export default function NuevaPropiedadPage() {
                   </svg>
                 </div>
                 <h2 className="text-sm font-bold text-[#0A193D]">
-                  10. Normas de la estadía{" "}
-                  <span className="text-xs font-normal text-slate-400">
-                    (mostrar solo si la categoría es &quot;Alquiler temporario&quot;)
-                  </span>
+                  10. Normas de la estadía
                 </h2>
               </div>
 
@@ -1393,14 +1586,15 @@ export default function NuevaPropiedadPage() {
                   <span className="leading-tight">Respetar descanso tras 22:00 hs</span>
                 </div>
               </div>
-            </div>
+              </div>
+            )}
 
             {/* Footer de navegación Paso 2 */}
             <div className="flex items-center justify-between pt-2">
-              <div className="flex items-center gap-3">
+              {!modoEdicion && <div className="flex items-center gap-3">
                 <button
                   type="button"
-                  onClick={() => setPasoActual(1)}
+                  onClick={retrocederPaso}
                   className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
                 >
                   ← Volver
@@ -1413,13 +1607,14 @@ export default function NuevaPropiedadPage() {
                 >
                   Cancelar
                 </button>
-              </div>
+              </div>}
 
               <button
-                type="submit"
+                type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
+                onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
                 className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
               >
-                {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : "Publicar propiedad →"}
+                {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
               </button>
               {mensaje && <p className="text-xs text-red-600">{mensaje}</p>}
             </div>

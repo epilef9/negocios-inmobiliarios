@@ -55,6 +55,8 @@ export type ApiProperty = {
 	minimoNoches?: number;
 	huespedesMaximos?: number;
 	costoLimpiezaUSD?: number;
+	duracionAlquilerMeses?: number;
+	unidadDuracionAlquiler?: "meses" | "años";
 	checkInDesde?: string;
 	checkOutHasta?: string;
 	checkInFlexible?: string;
@@ -79,6 +81,9 @@ export const uploadPropertyImages = async (files: File[]) => {
 		body: formData,
 	});
 };
+
+export const resolveMapsLink = (url: string) =>
+	request<{ latitud: string; longitud: string }>(`/properties/maps/resolve?url=${encodeURIComponent(url)}`);
 
 export const createProperty = (property: Omit<ApiProperty, "_id">) =>
 	request<ApiProperty>("/properties", { method: "POST", body: JSON.stringify(property) });
