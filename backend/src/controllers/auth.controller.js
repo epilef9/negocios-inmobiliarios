@@ -54,6 +54,7 @@ exports.me = async (req, res) => {
             telefono: user.telefono,
             email: user.email,
             role: user.role,
+            checklistRequisitos: user.checklistRequisitos || [],
             createdAt: user.createdAt
         };
         res.status(200).json({
@@ -62,6 +63,42 @@ exports.me = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener usuario autenticado' });
+    }
+};
+
+// Obtener checklist del usuario autenticado
+exports.getChecklist = async (req, res) => {
+    try {
+        const user = req.user;
+        res.status(200).json({
+            message: 'Checklist obtenido exitosamente',
+            data: user.checklistRequisitos || []
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener el checklist del usuario' });
+    }
+};
+
+// Actualizar checklist del usuario autenticado
+exports.updateChecklist = async (req, res) => {
+    try {
+        const { checklist } = req.body;
+        if (!Array.isArray(checklist)) {
+            return res.status(400).json({ message: 'El checklist debe ser una lista de identificadores' });
+        }
+
+        const cleanChecklist = checklist.filter((item) => typeof item === 'string');
+
+        const user = req.user;
+        user.checklistRequisitos = cleanChecklist;
+        await user.save();
+
+        res.status(200).json({
+            message: 'Checklist actualizado exitosamente',
+            data: user.checklistRequisitos
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar el checklist del usuario' });
     }
 };
 

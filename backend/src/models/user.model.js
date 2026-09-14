@@ -33,6 +33,10 @@ const userSchema = new mongoose.Schema({
         enum: ['admin', 'cliente', 'user'],
         default: 'cliente'
     },
+    checklistRequisitos: {
+        type: [String],
+        default: []
+    },
     createdAt: {
         type: Date,
         default: Date.now
