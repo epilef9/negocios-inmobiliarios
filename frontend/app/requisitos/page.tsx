@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Navbar from "@/components/Navbar";
 
 interface RequirementItem {
   id: string;
@@ -268,50 +269,9 @@ export default function RequisitosPage() {
   return (
     <div className="min-h-screen bg-[#f4f7fb] text-[#141a2b] font-sans flex flex-col selection:bg-red-600 selection:text-white">
       {/* 1. Header / Navbar */}
-      <header className="sticky top-0 z-50 bg-[#092454] text-white shadow-md">
-        <div className="mx-auto flex h-[64px] max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
-          {/* Logo */}
-          <Link href="/" className="flex items-center gap-2.5 transition hover:opacity-95">
-            <span className="relative flex h-10 w-11 items-end justify-center border-b-[3px] border-white pb-0.5">
-              <span className="absolute -top-1 h-7 w-7 rotate-45 border-l-[4px] border-t-[4px] border-white" />
-              <span className="relative z-10 mb-0.5 grid h-4 w-4 grid-cols-2 gap-0.5 bg-red-600 p-0.5">
-                <i className="bg-white/90" />
-                <i className="bg-white/90" />
-                <i className="bg-white/90" />
-                <i className="bg-white/90" />
-              </span>
-            </span>
-            <span className="leading-[0.9]">
-              <strong className="block text-[17px] font-bold tracking-[0.06em] text-white">NEGOCIOS</strong>
-              <b className="block text-[14px] font-bold tracking-[0.04em] text-red-500">INMOBILIARIOS</b>
-            </span>
-          </Link>
-
-          {/* Navigation links */}
-          <nav className="hidden items-center gap-8 text-[14px] font-semibold md:flex">
-            <Link href="/" className="py-2 text-white/80 transition hover:text-white">
-              Inicio
-            </Link>
-            <Link
-              href="/requisitos"
-              className="border-b-2 border-red-500 py-2 text-white font-bold"
-            >
-              Requisitos
-            </Link>
-            <Link href="/contacto" className="py-2 text-white/80 transition hover:text-white">
-              Contacto
-            </Link>
-            <Link
-              href="/admin"
-              className="flex items-center gap-1.5 rounded-lg bg-red-600 px-5 py-2 text-white font-bold shadow-sm transition hover:bg-red-500 active:scale-95"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-              </svg>
-              Ingresar
-            </Link>
-          </nav>
-        </div>
+      <header className="relative h-20 bg-[#10265A] font-sans selection:bg-red-600 selection:text-white">
+              <Navbar />
+        
       </header>
 
       {/* 2. Main content container */}

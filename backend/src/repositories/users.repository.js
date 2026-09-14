@@ -14,6 +14,10 @@ class UserRepository {
         return await User.findById(userId);
     }
 
+    async findByEmail(email) {
+        return await User.findOne({ email: email.toLowerCase().trim() });
+    }
+
     async updateUser(userId, userData) {
         return await User.findByIdAndUpdate(userId, userData, { new: true });
     }

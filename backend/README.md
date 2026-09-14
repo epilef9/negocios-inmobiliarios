@@ -121,6 +121,8 @@ Para el correcto funcionamiento del backend, se recomienda instalar las siguient
 
 ## Desarrollo
 
+Crea `backend/.env` a partir de `.env.example` y configura `MONGODB_URI` con la cadena de conexión de tu clúster de MongoDB. El backend no usa una base local como respaldo para evitar mostrar datos distintos de los remotos.
+
 Se recomienda seguir el siguiente orden para desarrollar el backend:
 
 1. Configuración inicial del servidor y middleware (CORS, body-parser).
