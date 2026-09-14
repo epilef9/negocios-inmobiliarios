@@ -1,19 +1,17 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const dns = require('node:dns');
 
 dotenv.config();
 
-const dnsServers = (process.env.DNS_SERVERS || '1.1.1.1,8.8.8.8')
-    .split(',')
-    .map((server) => server.trim())
-    .filter(Boolean);
-
-dns.setServers(dnsServers);
-
 const connectDB = async () => {
     try {
-        await mongoose.connect(process.env.MONGODB_URI, {
+        const mongoUri = process.env.MONGODB_URI || process.env.DB_URI;
+
+        if (!mongoUri || /TU_USUARIO|TU_PASSWORD|TU_CLUSTER/.test(mongoUri)) {
+            throw new Error('MONGODB_URI no está configurada. Reemplaza los valores de ejemplo en backend/.env por la URI real de MongoDB Atlas.');
+        }
+
+        await mongoose.connect(mongoUri, {
             serverSelectionTimeoutMS: 10000,
         });
         console.log('MongoDB connected successfully');
