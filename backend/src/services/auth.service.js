@@ -49,6 +49,7 @@ const authService = {
             telefono: newUser.telefono,
             email: newUser.email,
             role: newUser.role,
+            checklistRequisitos: newUser.checklistRequisitos || [],
             createdAt: newUser.createdAt
         };
 
@@ -92,6 +93,7 @@ const authService = {
             telefono: user.telefono,
             email: user.email,
             role: user.role,
+            checklistRequisitos: user.checklistRequisitos || [],
             createdAt: user.createdAt
         };
 
