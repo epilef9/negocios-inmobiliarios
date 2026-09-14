@@ -1,15 +1,7 @@
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
-const dns = require('node:dns');
 
 dotenv.config();
-
-const dnsServers = (process.env.DNS_SERVERS || '1.1.1.1,8.8.8.8')
-    .split(',')
-    .map((server) => server.trim())
-    .filter(Boolean);
-
-dns.setServers(dnsServers);
 
 const connectDB = async () => {
     try {
