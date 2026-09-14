@@ -13,11 +13,16 @@ const uniqueNumbers = (values: number[]) => [...new Set(values)].sort((a, b) => 
 const operationOptions = ["venta", "alquiler", "temporario"];
 const propertyTypeOptions = ["departamento", "local", "casa", "monoambiente", "terreno"];
 const statusOptions = ["disponible", "reservado", "alquilado", "vendido"];
+const getInitialFilters = (): PropertyFilters => {
+	if (typeof window === "undefined") return initialFilters;
+	const operation = new URLSearchParams(window.location.search).get("operacion") || "";
+	return operationOptions.includes(operation) ? { ...initialFilters, operation } : initialFilters;
+};
 
 export default function PropiedadesPage() {
 	const [properties, setProperties] = useState<ApiProperty[]>([]);
-	const [filters, setFilters] = useState(initialFilters);
-	const [appliedFilters, setAppliedFilters] = useState(initialFilters);
+	const [filters, setFilters] = useState(getInitialFilters);
+	const [appliedFilters, setAppliedFilters] = useState(getInitialFilters);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 

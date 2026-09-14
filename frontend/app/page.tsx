@@ -94,10 +94,10 @@ export default function Home() {
               <Link href="/propiedades" className="inline-flex items-center justify-center rounded-lg bg-[#071a52] px-5 py-3 text-sm font-semibold text-white transition hover:bg-red-600">Ver catálogo completo <span className="ml-2">→</span></Link>
             </div>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {[["Comprar", "Encontrá propiedades para invertir o construir el hogar que imaginás, con información clara y asesoramiento personalizado."], 
-              ["Alquilar", "Elegí un espacio que se adapte a tu ritmo de vida, con opciones disponibles en distintas zonas y para diferentes necesidades."], 
-              ["Temporario", "Disfrutá una estadía cómoda y práctica en propiedades listas para recibirte, por pocos días o períodos más extensos."]].map(([label, description]) => (
-                <Link key={label} href="/propiedades" className="group rounded-xl border border-[#dbe5f6] bg-white/70 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-lg hover:shadow-red-900/10">
+              {[["Comprar", "venta", "Encontrá propiedades para invertir o construir el hogar que imaginás, con información clara y asesoramiento personalizado."], 
+              ["Alquilar", "alquiler", "Elegí un espacio que se adapte a tu ritmo de vida, con opciones disponibles en distintas zonas y para diferentes necesidades."], 
+              ["Temporario", "temporario", "Disfrutá una estadía cómoda y práctica en propiedades listas para recibirte, por pocos días o períodos más extensos."]].map(([label, operation, description]) => (
+                <Link key={label} href={`/propiedades?operacion=${operation}`} className="group rounded-xl border border-[#dbe5f6] bg-white/70 p-4 transition hover:-translate-y-1 hover:border-red-300 hover:shadow-lg hover:shadow-red-900/10">
                   <div className="flex items-center justify-between"><span className="text-base font-bold">{label}</span><span className="text-xl text-red-600 transition group-hover:translate-x-1">↗</span></div>
                   <p className="mt-2 text-xs text-slate-500">{description}</p>
                 </Link>
