@@ -49,31 +49,34 @@ export default function PropiedadesPage() {
 	};
 
 	return <main className="min-h-dvh bg-[#f7f8fa] font-sans text-[#141a2b]">
-		
-		<section className="relative overflow-hidden bg-[#071a52] px-5 pb-14 pt-32 text-white sm:px-8 lg:px-12">
+		<section className="relative overflow-hidden bg-[#071a52] px-5 pb-16 pt-32 text-white sm:px-8 lg:px-12 lg:pb-20">
 			<Navbar />
-			<div className="relative mx-auto max-w-7xl">
-				<p className="mb-3 text-xs font-bold uppercase tracking-[0.22em] text-[#f47e73]">Catálogo inmobiliario</p>
-				<h1 className="font-fraunces text-4xl font-semibold tracking-tight sm:text-5xl">Todas las propiedades</h1>
-				<p className="mt-4 max-w-xl text-base leading-relaxed text-white/70">Encontrá espacios pensados para tu próxima etapa, con información clara y asesoramiento cuando lo necesites.</p></div>
-				</section>
-				<section className="mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12 lg:py-14">
-					<div className="grid gap-8 lg:grid-cols-[260px_minmax(0,1fr)]">
-						<Filtros filters={filters} onChange={setFilters} onApply={(event) => { event.preventDefault(); setAppliedFilters(filters); }} onClear={() => { setFilters(initialFilters); setAppliedFilters(initialFilters); }} options={options} />
-							<div><div className="mb-6 flex items-end justify-between border-b border-[#dfe5ef] pb-4">
-								<div><p className="text-xs font-bold uppercase tracking-[0.16em] text-[#d9382b]">Resultados</p>
-								<h2 className="mt-1 text-2xl font-bold text-[#141a2b]">Propiedades disponibles</h2>
-								</div>
-								<span className="text-sm text-[#69707f]">
-									<strong className="text-[#141a2b]">{filteredProperties.length}</strong> encontradas</span></div>
-									{loading ? <div className="rounded-2xl border border-[#dfe5ef] bg-white p-12 text-center text-sm text-[#69707f]">Cargando propiedades...</div>
-									 : error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">{error}</div> 
-									 : filteredProperties.length === 0 ? <div className="rounded-2xl border border-dashed border-[#bdccef] bg-white p-12 text-center">
-										<h3 className="text-lg font-bold text-[#141a2b]">No encontramos propiedades</h3>
-										<p className="mt-2 text-sm text-[#69707f]">Probá cambiar los filtros para ampliar la búsqueda.</p>
-										</div> : <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">{filteredProperties.map((property) => <PropiedadCard key={property._id} property={property} />)}</div>}
-										</div>
-										</div>
-										</section>
-										</main>;
+			<div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
+				<div>
+					<p className="mb-4 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-[#f47e73]"><span className="h-px w-8 bg-[#f47e73]" />Catálogo inmobiliario</p>
+					<h1 className="max-w-3xl font-fraunces text-5xl font-semibold leading-[0.98] tracking-tight sm:text-6xl lg:text-7xl">Encontrá un lugar que se sienta tuyo.</h1>
+					<p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">Explorá nuestra selección de propiedades y encontrá el espacio que acompaña tu próxima etapa.</p>
+				</div>
+				<div className="relative border-l border-white/20 pl-5 text-sm text-white/70">
+				</div>
+			</div>
+			<div className="absolute -bottom-20 -right-12 h-64 w-64 rounded-full border border-white/10" aria-hidden="true" />
+			<div className="absolute bottom-0 left-0 h-px w-1/3 bg-[#d9382b]" aria-hidden="true" />
+		</section>
+		<section className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12 lg:py-16">
+			<div className="mb-8 flex flex-col gap-4 border-b border-[#dfe5ef] pb-6 sm:flex-row sm:items-end sm:justify-between">
+				<div><p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#d9382b]">Explorá a tu ritmo</p><h2 className="font-fraunces text-3xl font-semibold text-[#071a52] sm:text-4xl">Propiedades disponibles</h2></div>
+				<p className="text-sm text-[#69707f]"><strong className="text-xl text-[#071a52]">{filteredProperties.length}</strong><span className="ml-1">resultados</span></p>
+			</div>
+			<div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
+				<Filtros filters={filters} onChange={setFilters} onApply={(event) => { event.preventDefault(); setAppliedFilters(filters); }} onClear={() => { setFilters(initialFilters); setAppliedFilters(initialFilters); }} options={options} />
+				<div>
+					{loading ? <div className="rounded-2xl border border-[#dfe5ef] bg-white p-12 text-center text-sm text-[#69707f]">Cargando propiedades...</div>
+					 : error ? <div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">{error}</div>
+					 : filteredProperties.length === 0 ? <div className="rounded-2xl border border-dashed border-[#bdccef] bg-white p-12 text-center"><h3 className="text-lg font-bold text-[#141a2b]">No encontramos propiedades</h3><p className="mt-2 text-sm text-[#69707f]">Probá cambiar los filtros para ampliar la búsqueda.</p></div>
+					 : <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">{filteredProperties.map((property) => <PropiedadCard key={property._id} property={property} />)}</div>}
+				</div>
+			</div>
+		</section>
+	</main>;
 }
