@@ -69,7 +69,15 @@ export type ApiProperty = {
 	expenses?: number;
 };
 
+export type ApiLocalidad = {
+	_id: string;
+	nombre: string;
+	provincia: "entre_rios";
+};
+
 export const getProperties = () => request<ApiProperty[]>("/properties");
+
+export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");
 
 export const getPropertyById = (id: string) => request<ApiProperty>(`/properties/${id}`);
 
