@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createProperty, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
+import { createProperty, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
@@ -70,6 +70,7 @@ export default function NuevaPropiedadPage() {
   const [cargandoPropiedad, setCargandoPropiedad] = useState(false);
   const [arrastrandoImagenes, setArrastrandoImagenes] = useState(false);
   const [resolviendoMapa, setResolviendoMapa] = useState(false);
+  const [localidades, setLocalidades] = useState<string[]>([]);
 
   const esVivienda = formData.tipoInmueble === "casa" || formData.tipoInmueble === "departamento";
   const esTerreno = formData.tipoInmueble === "terreno";
@@ -99,6 +100,10 @@ export default function NuevaPropiedadPage() {
   };
 
   useEffect(() => {
+    getLocalidades()
+      .then((items) => setLocalidades(items.map((item) => item.nombre)))
+      .catch(() => setMensaje("No se pudieron cargar las localidades"));
+
     const id = new URLSearchParams(window.location.search).get("editar");
     if (!id) return;
 
@@ -296,8 +301,12 @@ export default function NuevaPropiedadPage() {
 
   const avanzarPaso = () => {
     if (!validarPaso(pasoActual)) return;
-    setPasosCompletados((current) => [...new Set([...current, pasoActual])]);
-    setPasoActual((pasoActual < 7 ? pasoActual + 1 : 7) as typeof pasoActual);
+    const pasosActualizados = esTerreno && pasoActual === 3
+      ? [pasoActual, 4]
+      : [pasoActual];
+    setPasosCompletados((current) => [...new Set([...current, ...pasosActualizados])]);
+    const siguientePaso = esTerreno && pasoActual === 3 ? 5 : pasoActual < 7 ? pasoActual + 1 : 7;
+    setPasoActual(siguientePaso as typeof pasoActual);
   };
   const retrocederPaso = () => setPasoActual((pasoActual > 1 ? pasoActual - 1 : 1) as typeof pasoActual);
   const seleccionarParte = (parte: typeof pasoActual) => {
@@ -308,7 +317,11 @@ export default function NuevaPropiedadPage() {
   const mostrarParte = (parte: typeof pasoActual) =>
     pasoActual === parte || (modoEdicion && mostrarTodoEdicion);
 
-  const pasoCompletado = (paso: number) => pasosCompletados.includes(paso);
+  const pasoCompletado = (paso: number) => pasosCompletados.includes(paso) || (esTerreno && paso === 4);
+  const primerPasoPendiente = [1, 2, 3, 4, 5, 6, 7].find((paso) => !pasoCompletado(paso)) ?? 7;
+  const puedeSeleccionarPaso = (paso: number) =>
+    pasoCompletado(paso) || paso === primerPasoPendiente;
+  const numeroVisiblePaso = (paso: number) => esTerreno && paso >= 5 ? paso - 1 : paso;
 
   const mapQuery = formData.latitud && formData.longitud
     ? `${formData.latitud},${formData.longitud}`
@@ -368,8 +381,8 @@ export default function NuevaPropiedadPage() {
         categoria_operacion: formData.categoriaOperacion as "venta" | "alquiler" | "temporario",
         tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
         cantidad_ambientes: Number(formData.cantidadAmbientes),
-        comodidades: comodidadesSeleccionadas,
-        otrasComodidades: formData.otrasComodidades,
+        comodidades: esTerreno ? [] : comodidadesSeleccionadas,
+        otrasComodidades: esTerreno ? "" : formData.otrasComodidades,
         expensas: formData.expensas,
         montoExpensas: Number(formData.montoExpensas) || 0,
         estado: "disponible" as const,
@@ -486,7 +499,7 @@ export default function NuevaPropiedadPage() {
             <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
             </svg>
-            {modoEdicion ? "Edición completa" : `Parte ${pasoActual} de 7`}
+            {modoEdicion ? "Edición completa" : `Parte ${numeroVisiblePaso(pasoActual)} de ${esTerreno ? 6 : 7}`}
             </div>
           </div>
         </div>
@@ -524,7 +537,7 @@ export default function NuevaPropiedadPage() {
 
             {/* Paso 2 */}
             <div
-              onClick={() => (modoEdicion || pasoActual >= 2) && seleccionarParte(2)}
+              onClick={() => puedeSeleccionarPaso(2) && seleccionarParte(2)}
               className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === 2 ? "opacity-100" : "opacity-60"}`}
             >
               <div
@@ -545,12 +558,16 @@ export default function NuevaPropiedadPage() {
               )}
             </div>
 
-            {["Características", "Comodidades", "Descripción", "Imágenes", "Condiciones"].map((label, index) => {
+            {[['Características', 'Superficie y distribución'], ['Comodidades', 'Servicios y equipamiento'], ['Descripción', 'Detalles de la publicación'], ['Imágenes', 'Fotos del inmueble'], ['Condiciones', 'Datos finales de la operación']].map(([label, description], index) => {
               const step = (index + 3) as typeof pasoActual;
+              if (esTerreno && label === "Comodidades") return null;
               return (
-                <div key={label} onClick={() => (modoEdicion || step <= pasoActual) && seleccionarParte(step)} className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === step ? "opacity-100" : "opacity-60"}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(step) || pasoActual === step ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}>{pasoCompletado(step) ? "✓" : step}</div>
-                  <div><h3 className="text-xs font-bold text-[#0A193D]">{step}. {label}</h3></div>
+                <div key={label} onClick={() => puedeSeleccionarPaso(step) && seleccionarParte(step)} className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === step ? "opacity-100" : "opacity-60"}`}>
+                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(step) || pasoActual === step ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}>{pasoCompletado(step) ? "✓" : numeroVisiblePaso(step)}</div>
+                  <div>
+                    <h3 className="text-xs font-bold text-[#0A193D]">{numeroVisiblePaso(step)}. {label}</h3>
+                    <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">{description}</p>
+                  </div>
                   {pasoActual === step && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />}
                 </div>
               );
@@ -648,15 +665,21 @@ export default function NuevaPropiedadPage() {
                 {/* Ciudad / Zona / Barrio */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Ciudad / Zona / Barrio <span className="text-red-500">*</span>
+                    Localidad <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Centro"
+                  <select
                     value={formData.ciudadZonaBarrio}
                     onChange={(e) => actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
-                  />
+                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                  >
+                    <option value="">Seleccionar localidad</option>
+                    {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && (
+                      <option value={formData.ciudadZonaBarrio}>{formData.ciudadZonaBarrio}</option>
+                    )}
+                    {localidades.map((localidad) => (
+                      <option key={localidad} value={localidad}>{localidad}</option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Provincia */}
@@ -664,23 +687,19 @@ export default function NuevaPropiedadPage() {
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Provincia <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    value={formData.provincia}
-                    disabled
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 bg-slate-100 text-slate-700"
-                  >
-                    <option value="entre_rios">Entre Ríos</option>
-                  </select>
+                  <div className="w-full text-xs py-2.5 text-slate-700">
+                    Entre Ríos
+                  </div>
                 </div>
 
                 {/* Dirección completa */}
                 <div className="md:col-span-2">
                   <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Dirección completa <span className="text-red-500">*</span>
+                    Dirección <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: San Martin 1200, Paraná, Entre Ríos"
+                    placeholder="Ej: San Martin 1200"
                     value={formData.direccionCompleta}
                     onChange={(e) => actualizarUbicacionTexto("direccionCompleta", e.target.value)}
                     className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
@@ -928,7 +947,7 @@ export default function NuevaPropiedadPage() {
               </div>
 
               {/* 4. Comodidades y equipamiento */}
-              <div className={`${mostrarParte(4) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
+              <div className={`${esTerreno || !mostrarParte(4) ? "!hidden" : ""} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
                 <div className="flex items-center gap-2 mb-4">
                   <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
