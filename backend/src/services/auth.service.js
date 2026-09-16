@@ -3,7 +3,7 @@ const bcrypt = require('bcrypt');
 const userRepository = require('../repositories/users.repository');
 const config = require('../config/env');
 
-const getJwtSecret = () => process.env.JWT_SECRET || config.JWT_SECRET || 'inmobiliaria_super_secret_jwt_key_2024';
+const getJwtSecret = () => process.env.JWT_SECRET || config.JWT_SECRET || 'inmobiliaria_token_key';
 
 const authService = {
     register: async (userData) => {
