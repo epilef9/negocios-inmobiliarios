@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createProperty, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
+import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
@@ -73,6 +73,9 @@ export default function NuevaPropiedadPage() {
   const [resolviendoMapa, setResolviendoMapa] = useState(false);
   const [localidades, setLocalidades] = useState<string[]>([]);
   const [erroresCampos, setErroresCampos] = useState<Record<string, string>>({});
+  const [cotizacionBlue, setCotizacionBlue] = useState<number | null>(null);
+  const [fechaCotizacionBlue, setFechaCotizacionBlue] = useState<string | null>(null);
+  const [estadoCotizacionBlue, setEstadoCotizacionBlue] = useState<"inicial" | "cargando" | "disponible" | "error">("inicial");
 
   const limpiarErrorCampo = (campo: string) => {
     setErroresCampos((prev) => {
@@ -182,6 +185,27 @@ export default function NuevaPropiedadPage() {
       .catch((error) => setMensaje(error instanceof Error ? error.message : "No se pudo cargar la propiedad"))
       .finally(() => setCargandoPropiedad(false));
   }, []);
+
+  useEffect(() => {
+    if (pasoActual !== 2 && !modoEdicion) return;
+
+    let activo = true;
+    getDolarBlueQuote()
+      .then((quote) => {
+        if (!activo) return;
+        setCotizacionBlue(quote.venta);
+        setFechaCotizacionBlue(quote.fechaActualizacion ?? null);
+        setFormData((current) => ({ ...current, cotizacionDolar: String(quote.venta) }));
+        setEstadoCotizacionBlue("disponible");
+      })
+      .catch(() => {
+        if (activo) setEstadoCotizacionBlue("error");
+      });
+
+    return () => {
+      activo = false;
+    };
+  }, [modoEdicion, pasoActual]);
 
   const eliminarImagen = (indexAEliminar: number) => {
     setImagenes((prev) => prev.filter((_, idx) => idx !== indexAEliminar));
@@ -480,6 +504,13 @@ export default function NuevaPropiedadPage() {
     ? `${formData.latitud},${formData.longitud}`
     : formData.linkGoogleMaps || formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`;
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+  const precioUSD = Number(formData.precioUSD);
+  const valorReferencialARS = cotizacionBlue && Number.isFinite(precioUSD) && precioUSD > 0
+    ? precioUSD * cotizacionBlue
+    : null;
+  const fechaCotizacionFormateada = fechaCotizacionBlue && !Number.isNaN(Date.parse(fechaCotizacionBlue))
+    ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(fechaCotizacionBlue))
+    : null;
 
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -968,20 +999,43 @@ export default function NuevaPropiedadPage() {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Equivalente en {formData.moneda === "ARS" ? "USD" : "ARS"}
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: 96.840.000"
-                      value={formData.moneda === "ARS"
-                        ? (Number(formData.precioARS || 0) / (Number(formData.cotizacionDolar) || 1370)).toFixed(2)
-                        : (Number(formData.precioUSD || 0) * (Number(formData.cotizacionDolar) || 1370)).toFixed(2)}
-                      readOnly
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                    />
-                  </div>
+                  {formData.moneda === "USD" ? (
+                    <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2.5">
+                      {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
+                        <>
+                          <p className="text-[11px] font-semibold text-slate-700">
+                            Cotización Dólar Blue: ${cotizacionBlue.toLocaleString("es-AR")}
+                          </p>
+                          {valorReferencialARS !== null && (
+                            <p className="mt-1 text-sm font-bold text-[#004bb7]">
+                              ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 2 })} ARS
+                            </p>
+                          )}
+                          <p className="mt-1 text-[10px] text-slate-500">
+                            {fechaCotizacionFormateada ? `Actualizado: ${fechaCotizacionFormateada}. ` : ""}
+                            Valor referencial calculado según la cotización vigente del dólar Blue. Puede variar según la cotización actual.
+                          </p>
+                        </>
+                      ) : estadoCotizacionBlue === "inicial" || estadoCotizacionBlue === "cargando" ? (
+                        <p className="text-[10px] text-slate-500">Consultando cotización del Dólar Blue...</p>
+                      ) : estadoCotizacionBlue === "error" ? (
+                        <p className="text-[10px] text-slate-500">No se pudo calcular temporalmente el equivalente en ARS. El precio en USD sigue disponible.</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Equivalente en USD
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Ej: 72000"
+                        value={(Number(formData.precioARS || 0) / (Number(formData.cotizacionDolar) || 1370)).toFixed(2)}
+                        readOnly
+                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -990,8 +1044,13 @@ export default function NuevaPropiedadPage() {
                     <input
                       type="number"
                       min="1"
-                      value={formData.cotizacionDolar}
-                      onChange={(e) => handleNonNegativeNumberChange("cotizacionDolar", e.target.value)}
+                      value={formData.moneda === "USD" && cotizacionBlue ? cotizacionBlue : formData.cotizacionDolar}
+                      readOnly={formData.moneda === "USD" && cotizacionBlue !== null}
+                      onChange={(e) => {
+                        if (formData.moneda === "ARS" || cotizacionBlue === null) {
+                          handleNonNegativeNumberChange("cotizacionDolar", e.target.value);
+                        }
+                      }}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
                     />
                     <p className="mt-1 text-[10px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
