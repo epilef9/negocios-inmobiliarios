@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --watch src/server.js",
     "start": "node src/server.js",
+    "seed:localidades": "node src/seed-localidades.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -18,7 +19,8 @@
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
     "jsonwebtoken": "^9.0.3",
+    "mongodb": "^7.6.0",
     "mongoose": "^9.9.4",
-    "multer": "^2.3.0"
+    "multer": "^2.4.0"
   }
 }

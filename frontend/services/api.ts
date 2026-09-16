@@ -55,6 +55,8 @@ export type ApiProperty = {
 	minimoNoches?: number;
 	huespedesMaximos?: number;
 	costoLimpiezaUSD?: number;
+	duracionAlquilerMeses?: number;
+	unidadDuracionAlquiler?: "meses" | "años";
 	checkInDesde?: string;
 	checkOutHasta?: string;
 	checkInFlexible?: string;
@@ -67,7 +69,15 @@ export type ApiProperty = {
 	expenses?: number;
 };
 
+export type ApiLocalidad = {
+	_id: string;
+	nombre: string;
+	provincia: "entre_rios";
+};
+
 export const getProperties = () => request<ApiProperty[]>("/properties");
+
+export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");
 
 export const getPropertyById = (id: string) => request<ApiProperty>(`/properties/${id}`);
 
@@ -79,6 +89,9 @@ export const uploadPropertyImages = async (files: File[]) => {
 		body: formData,
 	});
 };
+
+export const resolveMapsLink = (url: string) =>
+	request<{ latitud: string; longitud: string }>(`/properties/maps/resolve?url=${encodeURIComponent(url)}`);
 
 export const createProperty = (property: Omit<ApiProperty, "_id">) =>
 	request<ApiProperty>("/properties", { method: "POST", body: JSON.stringify(property) });
