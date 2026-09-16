@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
-import { createProperty, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
+import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 const SelectorUbicacionMapa = dynamic(
   () => import("../../../../components/SelectorUbicacionMapa"),
@@ -516,8 +516,12 @@ export default function NuevaPropiedadPage() {
     : formData.linkGoogleMaps || formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`;
   const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
   const precioUSD = Number(formData.precioUSD);
+  const precioARS = Number(formData.precioARS);
   const valorReferencialARS = cotizacionBlue && Number.isFinite(precioUSD) && precioUSD > 0
     ? precioUSD * cotizacionBlue
+    : null;
+  const valorReferencialUSD = cotizacionBlue && Number.isFinite(precioARS) && precioARS > 0
+    ? precioARS / cotizacionBlue
     : null;
   const fechaCotizacionFormateada = fechaCotizacionBlue && !Number.isNaN(Date.parse(fechaCotizacionBlue))
     ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(fechaCotizacionBlue))
@@ -1010,43 +1014,33 @@ export default function NuevaPropiedadPage() {
                     </div>
                   </div>
 
-                  {formData.moneda === "USD" ? (
-                    <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2.5">
-                      {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
-                        <>
-                          <p className="text-[11px] font-semibold text-slate-700">
-                            Cotización Dólar Blue: ${cotizacionBlue.toLocaleString("es-AR")}
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2.5">
+                    {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
+                      <>
+                        <p className="text-[11px] font-semibold text-slate-700">
+                          Cotización Dólar Blue venta: ${cotizacionBlue.toLocaleString("es-AR")}
+                        </p>
+                        {formData.moneda === "USD" && valorReferencialARS !== null && (
+                          <p className="mt-1 text-sm font-bold text-[#004bb7]">
+                            Valor referencial: ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 2 })} ARS
                           </p>
-                          {valorReferencialARS !== null && (
-                            <p className="mt-1 text-sm font-bold text-[#004bb7]">
-                              ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 2 })} ARS
-                            </p>
-                          )}
-                          <p className="mt-1 text-[10px] text-slate-500">
-                            {fechaCotizacionFormateada ? `Actualizado: ${fechaCotizacionFormateada}. ` : ""}
-                            Valor referencial calculado según la cotización vigente del dólar Blue. Puede variar según la cotización actual.
+                        )}
+                        {formData.moneda === "ARS" && valorReferencialUSD !== null && (
+                          <p className="mt-1 text-sm font-bold text-[#004bb7]">
+                            Valor referencial: ≈ USD ${valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
                           </p>
-                        </>
-                      ) : estadoCotizacionBlue === "inicial" || estadoCotizacionBlue === "cargando" ? (
-                        <p className="text-[10px] text-slate-500">Consultando cotización del Dólar Blue...</p>
-                      ) : estadoCotizacionBlue === "error" ? (
-                        <p className="text-[10px] text-slate-500">No se pudo calcular temporalmente el equivalente en ARS. El precio en USD sigue disponible.</p>
-                      ) : null}
-                    </div>
-                  ) : (
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Equivalente en USD
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: 72000"
-                        value={(Number(formData.precioARS || 0) / (Number(formData.cotizacionDolar) || 1370)).toFixed(2)}
-                        readOnly
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                      />
-                    </div>
-                  )}
+                        )}
+                        <p className="mt-1 text-[10px] text-slate-500">
+                          {fechaCotizacionFormateada ? `Actualizado: ${fechaCotizacionFormateada}. ` : ""}
+                          Valor referencial calculado según la cotización vigente del dólar Blue. Puede variar según la cotización actual.
+                        </p>
+                      </>
+                    ) : estadoCotizacionBlue === "inicial" || estadoCotizacionBlue === "cargando" ? (
+                      <p className="text-[10px] text-slate-500">Consultando cotización del Dólar Blue...</p>
+                    ) : (
+                      <p className="text-[10px] text-slate-500">No se pudo calcular temporalmente el equivalente. El precio en {formData.moneda} sigue disponible.</p>
+                    )}
+                  </div>
 
                   <div>
                     <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1055,10 +1049,10 @@ export default function NuevaPropiedadPage() {
                     <input
                       type="number"
                       min="1"
-                      value={formData.moneda === "USD" && cotizacionBlue ? cotizacionBlue : formData.cotizacionDolar}
-                      readOnly={formData.moneda === "USD" && cotizacionBlue !== null}
+                      value={cotizacionBlue ?? formData.cotizacionDolar}
+                      readOnly={cotizacionBlue !== null}
                       onChange={(e) => {
-                        if (formData.moneda === "ARS" || cotizacionBlue === null) {
+                        if (cotizacionBlue === null) {
                           handleNonNegativeNumberChange("cotizacionDolar", e.target.value);
                         }
                       }}
