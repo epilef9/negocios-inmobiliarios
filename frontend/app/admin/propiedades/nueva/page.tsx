@@ -3,7 +3,20 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
+import dynamic from "next/dynamic";
+import { createProperty, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
+
+const SelectorUbicacionMapa = dynamic(
+  () => import("../../../../components/SelectorUbicacionMapa"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-80 w-full bg-slate-100 animate-pulse rounded-xl flex items-center justify-center text-xs text-slate-400">
+        Cargando mapa interactivo...
+      </div>
+    ),
+  }
+);
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
@@ -227,8 +240,6 @@ export default function NuevaPropiedadPage() {
     setFormData((current) => ({
       ...current,
       [field]: value,
-      latitud: "",
-      longitud: "",
     }));
   };
 
@@ -1414,20 +1425,20 @@ export default function NuevaPropiedadPage() {
                     </div>
                   </div>
 
-                  <div className="relative w-full h-64 rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                    <iframe
-                      key={mapEmbedUrl}
-                      title="Mapa de ubicación de la propiedad"
-                      src={mapEmbedUrl}
-                      className="w-full h-full border-0"
-                      loading="lazy"
-                      allowFullScreen
-                      referrerPolicy="no-referrer-when-downgrade"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-500">
-                    Podés mover el mapa, acercar o alejar la vista y usar pantalla completa sin salir del formulario.
-                  </p>
+                  <SelectorUbicacionMapa
+                    latitud={formData.latitud}
+                    longitud={formData.longitud}
+                    onChange={(lat, lng) => {
+                      setFormData((current) => ({
+                        ...current,
+                        latitud: lat,
+                        longitud: lng,
+                      }));
+                    }}
+                    direccionSugerida={formData.direccionCompleta}
+                    ciudadSugerida={formData.ciudadZonaBarrio}
+                    provinciaSugerida={formData.provincia}
+                  />
                 </div>
               </div>
             </div>
