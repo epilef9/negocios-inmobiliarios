@@ -218,7 +218,8 @@ export default function RequisitosPage() {
   // Cargar checklist al iniciar o cambiar de cuenta (desde BD si está logueado o storage aislado)
   useEffect(() => {
     let isMounted = true;
-    const storageKey = user ? `checklist_requisitos_${user.id}` : "checklist_requisitos_guest";
+    const userId = user ? (user.id || (user as any)._id || user.email) : null;
+    const storageKey = userId ? `checklist_requisitos_${userId}` : "checklist_requisitos_guest";
 
     async function initializeChecklist() {
       // 1. Cargar caché local inmediato según el usuario actual
@@ -278,9 +279,12 @@ export default function RequisitosPage() {
     };
   }, [user, isAuthLoading]);
 
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
   // Persistir cambios en localStorage aislado y en base de datos si el usuario tiene sesión
-  const persistChecklist = async (updated: Record<string, boolean>) => {
-    const storageKey = user ? `checklist_requisitos_${user.id}` : "checklist_requisitos_guest";
+  const persistChecklist = (updated: Record<string, boolean>) => {
+    const userId = user ? (user.id || (user as any)._id || user.email) : null;
+    const storageKey = userId ? `checklist_requisitos_${userId}` : "checklist_requisitos_guest";
 
     if (typeof window !== "undefined") {
       localStorage.setItem(storageKey, JSON.stringify(updated));
@@ -288,13 +292,18 @@ export default function RequisitosPage() {
 
     if (user) {
       setSyncStatus("saving");
-      try {
-        const activeIds = Object.keys(updated).filter((k) => updated[k]);
-        await saveUserChecklist(activeIds);
-        setSyncStatus("synced");
-      } catch (err) {
-        setSyncStatus("local");
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          const activeIds = Object.keys(updated).filter((k) => updated[k]);
+          await saveUserChecklist(activeIds);
+          setSyncStatus("synced");
+        } catch (err) {
+          setSyncStatus("local");
+        }
+      }, 250);
     } else {
       setSyncStatus("local");
     }

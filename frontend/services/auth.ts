@@ -113,7 +113,7 @@ export async function getUserChecklist(): Promise<string[]> {
     const data = await authRequest<string[]>("/auth/checklist");
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error al obtener checklist de usuario:", error);
+    console.warn("No se pudo obtener el checklist remoto:", error);
     return [];
   }
 }
@@ -127,7 +127,7 @@ export async function saveUserChecklist(items: string[]): Promise<string[]> {
     });
     return Array.isArray(data) ? data : [];
   } catch (error) {
-    console.error("Error al guardar checklist de usuario:", error);
+    console.warn("No se pudo guardar el checklist remoto:", error);
     return items;
   }
 }
