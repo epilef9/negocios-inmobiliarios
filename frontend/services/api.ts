@@ -78,6 +78,34 @@ export type ApiLocalidad = {
 	provincia: "entre_rios";
 };
 
+export type DolarBlueQuote = {
+	venta: number;
+	fechaActualizacion?: string;
+};
+
+let dolarBlueQuotePromise: Promise<DolarBlueQuote> | null = null;
+
+export const getDolarBlueQuote = () => {
+	if (dolarBlueQuotePromise) return dolarBlueQuotePromise;
+
+	dolarBlueQuotePromise = fetch("https://dolarapi.com/v1/dolares/blue")
+		.then(async (response) => {
+			if (!response.ok) throw new Error("No se pudo consultar la cotización del dólar Blue");
+			const data = await response.json() as { venta?: number | string; fechaActualizacion?: string };
+			const venta = Number(data.venta);
+			if (!Number.isFinite(venta) || venta <= 0) {
+				throw new Error("La cotización del dólar Blue no es válida");
+			}
+			return { venta, fechaActualizacion: data.fechaActualizacion };
+		})
+		.catch((error) => {
+			dolarBlueQuotePromise = null;
+			throw error;
+		});
+
+	return dolarBlueQuotePromise;
+};
+
 export const getProperties = () => request<ApiProperty[]>("/properties");
 
 export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");
