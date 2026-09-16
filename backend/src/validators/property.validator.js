@@ -25,6 +25,7 @@ const allowedFields = new Set([
     'precioPorNocheUSD', 'minimoNoches', 'huespedesMaximos', 'costoLimpiezaUSD',
     'duracionAlquilerMeses', 'unidadDuracionAlquiler', 'checkInDesde', 'checkOutHasta',
     'checkInFlexible', 'estado', 'images',
+    'bedrooms', 'bathrooms', 'area',
 ]);
 const stringLimits = {
     title: 160, codigoInterno: 60, description: 3000, location: 240, ciudad: 100,
@@ -39,6 +40,14 @@ const validateProperty = (req, res, next) => {
 
     if (!req.body || typeof req.body !== 'object' || Array.isArray(req.body)) {
         return res.status(400).json({ message: 'El cuerpo de la propiedad debe ser un objeto' });
+    }
+
+    if (isUpdate) {
+        delete req.body._id;
+        delete req.body.id;
+        delete req.body.createdAt;
+        delete req.body.updatedAt;
+        delete req.body.__v;
     }
 
     const unknownFields = Object.keys(req.body).filter((field) =>

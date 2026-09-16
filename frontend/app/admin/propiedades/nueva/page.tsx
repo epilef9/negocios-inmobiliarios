@@ -66,11 +66,23 @@ export default function NuevaPropiedadPage() {
   const [imagenes, setImagenes] = useState<string[]>([]);
 
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [estadoPropiedad, setEstadoPropiedad] = useState<"disponible" | "reservado" | "alquilado" | "vendido">("disponible");
   const [mostrarTodoEdicion, setMostrarTodoEdicion] = useState(true);
   const [cargandoPropiedad, setCargandoPropiedad] = useState(false);
   const [arrastrandoImagenes, setArrastrandoImagenes] = useState(false);
   const [resolviendoMapa, setResolviendoMapa] = useState(false);
   const [localidades, setLocalidades] = useState<string[]>([]);
+  const [erroresCampos, setErroresCampos] = useState<Record<string, string>>({});
+
+  const limpiarErrorCampo = (campo: string) => {
+    setErroresCampos((prev) => {
+      if (!prev[campo]) return prev;
+      const next = { ...prev };
+      delete next[campo];
+      return next;
+    });
+    setMensaje("");
+  };
 
   const esVivienda = formData.tipoInmueble === "casa" || formData.tipoInmueble === "departamento";
   const esTerreno = formData.tipoInmueble === "terreno";
@@ -110,6 +122,9 @@ export default function NuevaPropiedadPage() {
     getPropertyById(id)
       .then((property) => {
         setModoEdicion(true);
+        if (property.estado) {
+          setEstadoPropiedad(property.estado);
+        }
         setFormData((current) => ({
           ...current,
           titulo: property.title ?? "",
@@ -245,58 +260,156 @@ export default function NuevaPropiedadPage() {
     await subirArchivos(Array.from(e.dataTransfer.files));
   };
 
-  const validarPaso = (paso: number) => {
-    const requiredFields = paso === 1
-      ? [
-          ["título", formData.titulo],
-          ["tipo de inmueble", formData.tipoInmueble],
-          ["categoría / operación", formData.categoriaOperacion],
-          ["ciudad / zona / barrio", formData.ciudadZonaBarrio],
-          ["provincia", formData.provincia],
-          ["dirección completa", formData.direccionCompleta],
-        ]
-      : paso === 2
-        ? [
-            ["precio", formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD],
-          ]
-          : paso === 3
-          ? [
-              ["superficie total", formData.superficieTotal],
-              ...(esTerreno ? [] : [["cantidad de ambientes", formData.cantidadAmbientes]]),
-              ...(esVivienda ? [["dormitorios", formData.dormitorios], ["baños", formData.banos]] : []),
-            ]
-          : paso === 7 && formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario
-              ? [
-                  ["precio por noche", formData.precioPorNocheUSD],
-                  ["mínimo de noches", formData.minimoNoches],
-                  ["huéspedes máximos", formData.huespedesMaximos],
-                ]
-              : [];
-
-    const missingField = requiredFields.find(([, value]) => !value.trim());
-    if (missingField) {
-      setMensaje(`Completá el campo ${missingField[0]} antes de continuar`);
-      return false;
+  const validarDetallePaso = (paso: number): { valid: boolean; error?: string; field?: string } => {
+    if (paso === 1) {
+      if (!formData.titulo.trim()) {
+        return { valid: false, error: "El título de publicación es obligatorio", field: "titulo" };
+      }
+      if (formData.titulo.trim().length < 5) {
+        return { valid: false, error: "El título debe tener al menos 5 caracteres", field: "titulo" };
+      }
+      if (!formData.tipoInmueble) {
+        return { valid: false, error: "Seleccioná el tipo de inmueble", field: "tipoInmueble" };
+      }
+      if (!formData.categoriaOperacion) {
+        return { valid: false, error: "Seleccioná la categoría u operación", field: "categoriaOperacion" };
+      }
+      if (!formData.ciudadZonaBarrio.trim()) {
+        return { valid: false, error: "Seleccioná la localidad", field: "ciudadZonaBarrio" };
+      }
+      if (!formData.direccionCompleta.trim()) {
+        return { valid: false, error: "La dirección es obligatoria", field: "direccionCompleta" };
+      }
+      return { valid: true };
     }
 
-    const numericFields = requiredFields.filter(([field]) =>
-      ["precio", "cotización del dólar", "superficie total", "cantidad de ambientes", "dormitorios", "baños", "precio por noche", "mínimo de noches", "huéspedes máximos"].includes(field)
-    );
-    const invalidField = numericFields.find(([, value]) => Number(value) < 0 || !Number.isFinite(Number(value)));
-    if (invalidField) {
-      setMensaje(`El campo ${invalidField[0]} debe ser un número válido y no negativo`);
-      return false;
+    if (paso === 2) {
+      const precioStr = formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD;
+      if (!precioStr || !precioStr.trim()) {
+        return { valid: false, error: `El precio en ${formData.moneda} es obligatorio`, field: "precio" };
+      }
+      const precioNum = Number(precioStr);
+      if (!Number.isFinite(precioNum) || precioNum <= 0) {
+        return { valid: false, error: "El precio debe ser un número mayor a 0", field: "precio" };
+      }
+      if (formData.cotizacionDolar && (Number(formData.cotizacionDolar) <= 0 || !Number.isFinite(Number(formData.cotizacionDolar)))) {
+        return { valid: false, error: "La cotización del dólar debe ser mayor a 0", field: "cotizacionDolar" };
+      }
+      if (formData.montoExpensas && (Number(formData.montoExpensas) < 0 || !Number.isFinite(Number(formData.montoExpensas)))) {
+        return { valid: false, error: "El monto de expensas no puede ser negativo", field: "montoExpensas" };
+      }
+      return { valid: true };
     }
 
-    setMensaje("");
-    return true;
+    if (paso === 3) {
+      if (!formData.superficieTotal || !formData.superficieTotal.trim()) {
+        return { valid: false, error: "La superficie total es obligatoria", field: "superficieTotal" };
+      }
+      const areaNum = Number(formData.superficieTotal);
+      if (!Number.isFinite(areaNum) || areaNum <= 0) {
+        return { valid: false, error: "La superficie total debe ser un número mayor a 0 m²", field: "superficieTotal" };
+      }
+      if (esVivienda) {
+        if (!formData.cantidadAmbientes || !formData.cantidadAmbientes.trim()) {
+          return { valid: false, error: "La cantidad de ambientes es obligatoria", field: "cantidadAmbientes" };
+        }
+        if (Number(formData.cantidadAmbientes) < 1 || !Number.isFinite(Number(formData.cantidadAmbientes))) {
+          return { valid: false, error: "La cantidad de ambientes debe ser al menos 1", field: "cantidadAmbientes" };
+        }
+        if (!formData.dormitorios || !formData.dormitorios.trim()) {
+          return { valid: false, error: "La cantidad de dormitorios es obligatoria", field: "dormitorios" };
+        }
+        if (Number(formData.dormitorios) < 0 || !Number.isFinite(Number(formData.dormitorios))) {
+          return { valid: false, error: "La cantidad de dormitorios no puede ser negativa", field: "dormitorios" };
+        }
+        if (!formData.banos || !formData.banos.trim()) {
+          return { valid: false, error: "La cantidad de baños es obligatoria", field: "banos" };
+        }
+        if (Number(formData.banos) < 1 || !Number.isFinite(Number(formData.banos))) {
+          return { valid: false, error: "La cantidad de baños debe ser al menos 1", field: "banos" };
+        }
+      }
+      return { valid: true };
+    }
+
+    if (paso === 4) {
+      return { valid: true };
+    }
+
+    if (paso === 5) {
+      if (formData.descripcion && formData.descripcion.length > 3000) {
+        return { valid: false, error: "La descripción no puede superar los 3.000 caracteres", field: "descripcion" };
+      }
+      if (formData.latitud && (isNaN(Number(formData.latitud)) || Number(formData.latitud) < -90 || Number(formData.latitud) > 90)) {
+        return { valid: false, error: "La latitud debe ser un valor válido entre -90 y 90", field: "latitud" };
+      }
+      if (formData.longitud && (isNaN(Number(formData.longitud)) || Number(formData.longitud) < -180 || Number(formData.longitud) > 180)) {
+        return { valid: false, error: "La longitud debe ser un valor válido entre -180 y 180", field: "longitud" };
+      }
+      return { valid: true };
+    }
+
+    if (paso === 6) {
+      if (imagenes.length > 20) {
+        return { valid: false, error: "No podés subir más de 20 imágenes", field: "imagenes" };
+      }
+      if (!formData.permitirVisita && !formData.permitirWhatsApp && !formData.permitirEmail) {
+        return { valid: false, error: "Debés habilitar al menos una opción de contacto (visita, WhatsApp o email)", field: "contacto" };
+      }
+      return { valid: true };
+    }
+
+    if (paso === 7) {
+      if (formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario) {
+        if (!formData.precioPorNocheUSD || !formData.precioPorNocheUSD.trim()) {
+          return { valid: false, error: "El precio por noche es obligatorio", field: "precioPorNocheUSD" };
+        }
+        if (Number(formData.precioPorNocheUSD) <= 0 || !Number.isFinite(Number(formData.precioPorNocheUSD))) {
+          return { valid: false, error: "El precio por noche debe ser mayor a 0", field: "precioPorNocheUSD" };
+        }
+        if (!formData.minimoNoches || !formData.minimoNoches.trim()) {
+          return { valid: false, error: "El mínimo de noches es obligatorio", field: "minimoNoches" };
+        }
+        if (Number(formData.minimoNoches) < 1 || !Number.isFinite(Number(formData.minimoNoches))) {
+          return { valid: false, error: "El mínimo de noches debe ser al menos 1", field: "minimoNoches" };
+        }
+        if (!formData.huespedesMaximos || !formData.huespedesMaximos.trim()) {
+          return { valid: false, error: "La cantidad de huéspedes es obligatoria", field: "huespedesMaximos" };
+        }
+        if (Number(formData.huespedesMaximos) < 1 || !Number.isFinite(Number(formData.huespedesMaximos))) {
+          return { valid: false, error: "La cantidad de huéspedes debe ser al menos 1", field: "huespedesMaximos" };
+        }
+        if (formData.costoLimpiezaUSD && (Number(formData.costoLimpiezaUSD) < 0 || !Number.isFinite(Number(formData.costoLimpiezaUSD)))) {
+          return { valid: false, error: "El costo de limpieza no puede ser negativo", field: "costoLimpiezaUSD" };
+        }
+      }
+      if (formData.categoriaOperacion === "alquiler") {
+        if (formData.unidadDuracionAlquiler === "meses" && Number(formData.duracionAlquilerMeses) > 11) {
+          return { valid: false, error: "La duración en meses no puede superar los 11 meses", field: "duracionAlquilerMeses" };
+        }
+        if (formData.duracionAlquilerMeses && Number(formData.duracionAlquilerMeses) <= 0) {
+          return { valid: false, error: "La duración del alquiler debe ser mayor a 0", field: "duracionAlquilerMeses" };
+        }
+      }
+      return { valid: true };
+    }
+
+    return { valid: true };
   };
 
-  const avanzarAlPasoDos = () => {
-    if (validarPaso(1)) {
-      setPasosCompletados((current) => [...new Set([...current, 1])]);
-      setPasoActual(2);
+  const validarPaso = (paso: number): boolean => {
+    const res = validarDetallePaso(paso);
+    if (!res.valid) {
+      const msg = res.error || "Completá los campos obligatorios antes de continuar";
+      setMensaje(msg);
+      if (res.field) {
+        setErroresCampos({ [res.field]: msg });
+      }
+      return false;
     }
+    setMensaje("");
+    setErroresCampos({});
+    return true;
   };
 
   const avanzarPaso = () => {
@@ -307,20 +420,60 @@ export default function NuevaPropiedadPage() {
     setPasosCompletados((current) => [...new Set([...current, ...pasosActualizados])]);
     const siguientePaso = esTerreno && pasoActual === 3 ? 5 : pasoActual < 7 ? pasoActual + 1 : 7;
     setPasoActual(siguientePaso as typeof pasoActual);
+    setMensaje("");
+    setErroresCampos({});
   };
-  const retrocederPaso = () => setPasoActual((pasoActual > 1 ? pasoActual - 1 : 1) as typeof pasoActual);
+
+  const retrocederPaso = () => {
+    setMensaje("");
+    setErroresCampos({});
+    if (esTerreno && pasoActual === 5) {
+      setPasoActual(3);
+    } else {
+      setPasoActual((pasoActual > 1 ? pasoActual - 1 : 1) as typeof pasoActual);
+    }
+  };
+
   const seleccionarParte = (parte: typeof pasoActual) => {
+    if (modoEdicion) {
+      setPasoActual(parte);
+      setMostrarTodoEdicion(false);
+      return;
+    }
+    if (parte <= pasoActual) {
+      setMensaje("");
+      setErroresCampos({});
+      setPasoActual(parte);
+      return;
+    }
+    for (let p = 1; p < parte; p++) {
+      if (esTerreno && p === 4) continue;
+      if (!validarPaso(p)) {
+        setPasoActual(p as typeof pasoActual);
+        return;
+      }
+    }
+    setMensaje("");
+    setErroresCampos({});
     setPasoActual(parte);
-    if (modoEdicion) setMostrarTodoEdicion(false);
   };
 
   const mostrarParte = (parte: typeof pasoActual) =>
     pasoActual === parte || (modoEdicion && mostrarTodoEdicion);
 
-  const pasoCompletado = (paso: number) => pasosCompletados.includes(paso) || (esTerreno && paso === 4);
-  const primerPasoPendiente = [1, 2, 3, 4, 5, 6, 7].find((paso) => !pasoCompletado(paso)) ?? 7;
-  const puedeSeleccionarPaso = (paso: number) =>
-    pasoCompletado(paso) || paso === primerPasoPendiente;
+  const pasoCompletado = (paso: number) => {
+    if (esTerreno && paso === 4) return true;
+    return pasosCompletados.includes(paso) && validarDetallePaso(paso).valid;
+  };
+  const puedeSeleccionarPaso = (paso: number) => {
+    if (modoEdicion) return true;
+    if (paso <= pasoActual) return true;
+    for (let p = 1; p < paso; p++) {
+      if (esTerreno && p === 4) continue;
+      if (!validarDetallePaso(p).valid) return false;
+    }
+    return true;
+  };
   const numeroVisiblePaso = (paso: number) => esTerreno && paso >= 5 ? paso - 1 : paso;
 
   const mapQuery = formData.latitud && formData.longitud
@@ -330,6 +483,15 @@ export default function NuevaPropiedadPage() {
 
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
+    for (let p = 1; p <= 7; p++) {
+      if (esTerreno && p === 4) continue;
+      if (!validarPaso(p)) {
+        if (!modoEdicion) {
+          setPasoActual(p as typeof pasoActual);
+        }
+        return;
+      }
+    }
     try {
       const propertyId = new URLSearchParams(window.location.search).get("editar");
       const numericFields = [
@@ -385,7 +547,7 @@ export default function NuevaPropiedadPage() {
         otrasComodidades: esTerreno ? "" : formData.otrasComodidades,
         expensas: formData.expensas,
         montoExpensas: Number(formData.montoExpensas) || 0,
-        estado: "disponible" as const,
+        estado: modoEdicion ? estadoPropiedad : ("disponible" as const),
         bedrooms: Number(formData.dormitorios),
         bathrooms: Number(formData.banos),
         area: Number(formData.superficieTotal),
@@ -577,7 +739,7 @@ export default function NuevaPropiedadPage() {
 
         {/* CONTENIDO PASO 1 */}
         {(modoEdicion || pasoActual <= 4) && (
-          <form className="space-y-6">
+          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); avanzarPaso(); }}>
             {/* 1. Información principal */}
             <div className={`${mostrarParte(1) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
               <div className="flex items-center gap-2.5 mb-5">
@@ -599,9 +761,13 @@ export default function NuevaPropiedadPage() {
                     type="text"
                     placeholder="Ej: Departamento 2 ambientes con cochera – Centro"
                     value={formData.titulo}
-                    onChange={(e) => setFormData({ ...formData, titulo: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
+                    onChange={(e) => {
+                      limpiarErrorCampo("titulo");
+                      setFormData({ ...formData, titulo: e.target.value });
+                    }}
+                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.titulo ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
                   />
+                  {erroresCampos.titulo && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.titulo}</p>}
                 </div>
 
                 {/* Código interno */}
@@ -626,6 +792,7 @@ export default function NuevaPropiedadPage() {
                   <select
                     value={formData.tipoInmueble}
                     onChange={(e) => {
+                      limpiarErrorCampo("tipoInmueble");
                       const tipoInmueble = e.target.value;
                       setFormData({
                         ...formData,
@@ -635,7 +802,7 @@ export default function NuevaPropiedadPage() {
                           : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
                       });
                     }}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.tipoInmueble ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
                   >
                     <option value="">Seleccionar tipo</option>
                     <option value="departamento">Departamento</option>
@@ -643,6 +810,7 @@ export default function NuevaPropiedadPage() {
                     <option value="local">Local comercial</option>
                     <option value="terreno">Terreno</option>
                   </select>
+                  {erroresCampos.tipoInmueble && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.tipoInmueble}</p>}
                 </div>
 
                 {/* Categoría / Operación */}
@@ -652,15 +820,38 @@ export default function NuevaPropiedadPage() {
                   </label>
                   <select
                     value={formData.categoriaOperacion}
-                    onChange={(e) => setFormData({ ...formData, categoriaOperacion: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                    onChange={(e) => {
+                      limpiarErrorCampo("categoriaOperacion");
+                      setFormData({ ...formData, categoriaOperacion: e.target.value });
+                    }}
+                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.categoriaOperacion ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
                   >
                     <option value="">Seleccionar</option>
                     <option value="venta">Venta</option>
                     <option value="alquiler">Alquiler</option>
                     {permiteAlquilerTemporario && <option value="temporario">Alquiler temporario</option>}
                   </select>
+                  {erroresCampos.categoriaOperacion && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.categoriaOperacion}</p>}
                 </div>
+
+                {/* Estado (solo en edición) */}
+                {modoEdicion && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Estado de la propiedad
+                    </label>
+                    <select
+                      value={estadoPropiedad}
+                      onChange={(e) => setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")}
+                      className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                    >
+                      <option value="disponible">Disponible</option>
+                      <option value="reservado">Reservado</option>
+                      <option value="alquilado">Alquilado</option>
+                      <option value="vendido">Vendido</option>
+                    </select>
+                  </div>
+                )}
 
                 {/* Ciudad / Zona / Barrio */}
                 <div>
@@ -669,8 +860,11 @@ export default function NuevaPropiedadPage() {
                   </label>
                   <select
                     value={formData.ciudadZonaBarrio}
-                    onChange={(e) => actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                    onChange={(e) => {
+                      limpiarErrorCampo("ciudadZonaBarrio");
+                      actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value);
+                    }}
+                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.ciudadZonaBarrio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
                   >
                     <option value="">Seleccionar localidad</option>
                     {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && (
@@ -680,6 +874,7 @@ export default function NuevaPropiedadPage() {
                       <option key={localidad} value={localidad}>{localidad}</option>
                     ))}
                   </select>
+                  {erroresCampos.ciudadZonaBarrio && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.ciudadZonaBarrio}</p>}
                 </div>
 
                 {/* Provincia */}
@@ -701,9 +896,13 @@ export default function NuevaPropiedadPage() {
                     type="text"
                     placeholder="Ej: San Martin 1200"
                     value={formData.direccionCompleta}
-                    onChange={(e) => actualizarUbicacionTexto("direccionCompleta", e.target.value)}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
+                    onChange={(e) => {
+                      limpiarErrorCampo("direccionCompleta");
+                      actualizarUbicacionTexto("direccionCompleta", e.target.value);
+                    }}
+                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.direccionCompleta ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
                   />
+                  {erroresCampos.direccionCompleta && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.direccionCompleta}</p>}
                 </div>
 
                 {/* Referencias */}
@@ -746,9 +945,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder={formData.moneda === "ARS" ? "Ej: 98640000" : "Ej: 72000"}
                         value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
-                        onChange={(e) => handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("precio");
+                          handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.precio && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precio}</p>}
                     </div>
                     <div className="col-span-2">
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -851,9 +1054,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 80"
                         value={formData.superficieTotal}
-                        onChange={(e) => handleNonNegativeNumberChange("superficieTotal", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("superficieTotal");
+                          handleNonNegativeNumberChange("superficieTotal", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.superficieTotal ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.superficieTotal && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.superficieTotal}</p>}
                     </div>
                     {!esTerreno && <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -864,9 +1071,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 2"
                         value={formData.cantidadAmbientes}
-                        onChange={(e) => handleNonNegativeNumberChange("cantidadAmbientes", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("cantidadAmbientes");
+                          handleNonNegativeNumberChange("cantidadAmbientes", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.cantidadAmbientes ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.cantidadAmbientes && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.cantidadAmbientes}</p>}
                     </div>}
                   </div>
 
@@ -880,9 +1091,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 1"
                         value={formData.dormitorios}
-                        onChange={(e) => handleNonNegativeNumberChange("dormitorios", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("dormitorios");
+                          handleNonNegativeNumberChange("dormitorios", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.dormitorios ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.dormitorios && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.dormitorios}</p>}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -893,9 +1108,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 1"
                         value={formData.banos}
-                        onChange={(e) => handleNonNegativeNumberChange("banos", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("banos");
+                          handleNonNegativeNumberChange("banos", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.banos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.banos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.banos}</p>}
                     </div>
                   </div>}
 
@@ -995,23 +1214,42 @@ export default function NuevaPropiedadPage() {
               </div>
             </div>
 
-            {/* Footer de navegación Paso 1 */}
-            {!modoEdicion && <div className="flex items-center justify-between pt-2">
-              <Link
-                href="/admin"
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-              >
-                ← Volver
-              </Link>
+            {/* Footer de navegación Form 1 */}
+            {!modoEdicion && (
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
+                {pasoActual > 1 ? (
+                  <button
+                    type="button"
+                    onClick={retrocederPaso}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                  >
+                    ← Volver
+                  </button>
+                ) : (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                  >
+                    ← Volver
+                  </Link>
+                )}
 
-              <button
-                type="button"
-                onClick={() => pasoActual === 1 ? avanzarAlPasoDos() : avanzarPaso()}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
-              >
-                Siguiente →
-              </button>
-            </div>}
+                <div className="flex items-center gap-3 justify-end flex-1">
+                  {mensaje && (
+                    <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
+                      {mensaje}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={avanzarPaso}
+                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
+                  >
+                    Siguiente →
+                  </button>
+                </div>
+              </div>
+            )}
           </form>
         )}
 
@@ -1366,9 +1604,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 85"
                         value={formData.precioPorNocheUSD}
-                        onChange={(e) => handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("precioPorNocheUSD");
+                          handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precioPorNocheUSD ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.precioPorNocheUSD && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precioPorNocheUSD}</p>}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1379,9 +1621,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 2"
                         value={formData.minimoNoches}
-                        onChange={(e) => handleNonNegativeNumberChange("minimoNoches", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("minimoNoches");
+                          handleNonNegativeNumberChange("minimoNoches", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.minimoNoches ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.minimoNoches && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.minimoNoches}</p>}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1392,9 +1638,13 @@ export default function NuevaPropiedadPage() {
                         min="0"
                         placeholder="Ej: 2"
                         value={formData.huespedesMaximos}
-                        onChange={(e) => handleNonNegativeNumberChange("huespedesMaximos", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        onChange={(e) => {
+                          limpiarErrorCampo("huespedesMaximos");
+                          handleNonNegativeNumberChange("huespedesMaximos", e.target.value);
+                        }}
+                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.huespedesMaximos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
                       />
+                      {erroresCampos.huespedesMaximos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.huespedesMaximos}</p>}
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
@@ -1608,34 +1858,45 @@ export default function NuevaPropiedadPage() {
               </div>
             )}
 
-            {/* Footer de navegación Paso 2 */}
-            <div className="flex items-center justify-between pt-2">
-              {!modoEdicion && <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={retrocederPaso}
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                >
-                  ← Volver
-                </button>
+            {/* Footer de navegación Form 2 */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
+              {!modoEdicion && (
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={retrocederPaso}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                  >
+                    ← Volver
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => setPasoActual(1)}
-                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
-                >
-                  Cancelar
-                </button>
-              </div>}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMensaje("");
+                      setPasoActual(1);
+                    }}
+                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
+                  >
+                    Inicio
+                  </button>
+                </div>
+              )}
 
-              <button
-                type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
-                onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
-                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
-              >
-                {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
-              </button>
-              {mensaje && <p className="text-xs text-red-600">{mensaje}</p>}
+              <div className="flex items-center gap-3 justify-end flex-1">
+                {mensaje && (
+                  <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
+                    {mensaje}
+                  </p>
+                )}
+                <button
+                  type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
+                  onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
+                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
+                >
+                  {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
+                </button>
+              </div>
             </div>
           </form>
         )}
