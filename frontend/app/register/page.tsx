@@ -47,6 +47,12 @@ export default function RegistroPage() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(formData.email.trim())) {
+      setError('El correo electronico no es valido.');
+      return;
+    }
+
     if (formData.password.length < 8) {
       setError('La contrasena debe tener al menos 8 caracteres.');
       return;

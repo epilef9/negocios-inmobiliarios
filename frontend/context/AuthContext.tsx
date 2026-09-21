@@ -27,20 +27,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function initAuth() {
       try {
         const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-        if (storedUser) {
+        const hasToken = typeof window !== 'undefined' ? Boolean(localStorage.getItem('token')) : false;
+
+        if (storedUser && hasToken) {
           try {
             setUser(JSON.parse(storedUser));
-          } catch (e) {
+          } catch {
             // Error al parsear JSON almacenado
           }
         }
 
         const currentUser = await getCurrentUser();
         if (isMounted) {
-          setUser(currentUser);
+          // Mantener usuario local si la API no pudo responder (red/temporal).
+          // Solo limpiar sesion cuando getCurrentUser devolvio null (sin token o 401).
+          if (currentUser) {
+            setUser(currentUser);
+          } else if (!hasToken) {
+            setUser(null);
+          } else {
+            const stillHasToken = Boolean(localStorage.getItem('token'));
+            if (!stillHasToken) {
+              setUser(null);
+            }
+          }
         }
-      } catch (error) {
-        if (isMounted) {
+      } catch {
+        // Ante fallos inesperados no forzar logout si todavia hay token local
+        if (isMounted && typeof window !== 'undefined' && !localStorage.getItem('token')) {
           setUser(null);
         }
       } finally {

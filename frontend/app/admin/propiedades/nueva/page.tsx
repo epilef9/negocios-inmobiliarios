@@ -687,6 +687,21 @@ export default function NuevaPropiedadPage() {
             Configuración
           </button>
         </nav>
+
+        <div className="px-3 pb-5 space-y-1.5 border-t border-[#152e69] pt-4">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
+          >
+            Ver sitio
+          </Link>
+          <Link
+            href="/propiedades"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
+          >
+            Catálogo público
+          </Link>
+        </div>
       </aside>
 
       {/* Main Content Area */}

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { getPropertyById, resolveMapsLink, type ApiProperty } from "@/services/api";
+import { useAuth } from "@/context/AuthContext";
 
 const SelectorUbicacionMapa = dynamic(() => import("@/components/SelectorUbicacionMapa"), {
   ssr: false,
@@ -41,6 +42,7 @@ const amenityLabels: Record<string, string> = {
 export default function PropertyDetail() {
   const params = useParams<{ id: string }>();
   const propertyId = Array.isArray(params.id) ? params.id[0] : params.id;
+  const { user, isLoading: isAuthLoading, logout } = useAuth();
   const [property, setProperty] = useState<ApiProperty | null>(null);
   const [activeImage, setActiveImage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -92,7 +94,53 @@ export default function PropertyDetail() {
 
   return (
     <main className="min-h-dvh bg-[#f5f7fa] font-sans text-[#092454]">
-      <header className="h-[62px] bg-[#092454] text-white shadow-md"><div className="mx-auto flex h-full max-w-[1260px] items-center justify-between px-5 lg:px-0"><Link href="/" className="flex items-center gap-2.5"><span className="relative flex h-10 w-11 items-end justify-center border-b-[3px] border-white"><span className="absolute -top-1 h-7 w-7 rotate-45 border-l-[4px] border-t-[4px] border-white" /><span className="relative z-10 grid h-4 w-4 grid-cols-2 gap-0.5 bg-red-600 p-0.5"><i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" /></span></span><span className="leading-[0.9]"><strong className="block text-[17px] font-bold tracking-[0.06em]">NEGOCIOS</strong><b className="block text-[14px] font-bold tracking-[0.04em] text-red-500">INMOBILIARIOS</b></span></Link><nav className="hidden items-center gap-10 text-[14px] font-semibold md:flex"><Link href="/" className="py-5 text-white/85 transition hover:text-white">Inicio</Link><Link href="/requisitos" className="py-5 text-white/85 transition hover:text-white">Requisitos</Link><Link href="/contacto" className="py-5 text-white/85 transition hover:text-white">Contacto</Link><Link href="/admin" className="ml-4 rounded-md bg-red-600 px-5 py-2.5 transition hover:bg-red-500">Ingresar</Link></nav></div></header>
+      <header className="h-[62px] bg-[#092454] text-white shadow-md">
+        <div className="mx-auto flex h-full max-w-[1260px] items-center justify-between px-5 lg:px-0">
+          <Link href="/" className="flex items-center gap-2.5">
+            <span className="relative flex h-10 w-11 items-end justify-center border-b-[3px] border-white">
+              <span className="absolute -top-1 h-7 w-7 rotate-45 border-l-[4px] border-t-[4px] border-white" />
+              <span className="relative z-10 grid h-4 w-4 grid-cols-2 gap-0.5 bg-red-600 p-0.5">
+                <i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" /><i className="bg-white/80" />
+              </span>
+            </span>
+            <span className="leading-[0.9]">
+              <strong className="block text-[17px] font-bold tracking-[0.06em]">NEGOCIOS</strong>
+              <b className="block text-[14px] font-bold tracking-[0.04em] text-red-500">INMOBILIARIOS</b>
+            </span>
+          </Link>
+          <nav className="hidden items-center gap-8 text-[14px] font-semibold md:flex">
+            <Link href="/" className="py-5 text-white/85 transition hover:text-white">Inicio</Link>
+            <Link href="/propiedades" className="py-5 text-white/85 transition hover:text-white">Propiedades</Link>
+            <Link href="/requisitos" className="py-5 text-white/85 transition hover:text-white">Requisitos</Link>
+            <Link href="/contacto" className="py-5 text-white/85 transition hover:text-white">Contacto</Link>
+            {isAuthLoading ? (
+              <span className="ml-2 h-8 w-24 rounded-md bg-white/10 animate-pulse" aria-hidden="true" />
+            ) : user ? (
+              <div className="ml-2 flex items-center gap-2">
+                {user.role === "admin" && (
+                  <Link href="/admin" className="rounded-md bg-slate-800 px-4 py-2 text-xs transition hover:bg-slate-700">
+                    Panel Admin
+                  </Link>
+                )}
+                <span className="rounded-md border border-red-500/80 bg-black/30 px-3 py-1.5 text-xs">
+                  {user.nombre ? `${user.nombre} ${user.apellido || ""}`.trim() : user.email}
+                </span>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="rounded-md bg-red-600 px-4 py-2 text-xs transition hover:bg-red-500"
+                >
+                  Cerrar Sesión
+                </button>
+              </div>
+            ) : (
+              <Link href="/login" className="ml-4 rounded-md bg-red-600 px-5 py-2.5 transition hover:bg-red-500">
+                Ingresar
+              </Link>
+            )}
+          </nav>
+        </div>
+      </header>
 
       <section className="mx-auto max-w-[1260px] px-4 pb-12 pt-5 sm:px-6 lg:px-0"><div className="mb-4 flex items-center gap-2 text-xs text-slate-500"><Link href="/propiedades" className="transition hover:text-[#092454]">Propiedades</Link><span>/</span><span>Detalle</span></div><div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0">

@@ -27,6 +27,12 @@ export default function LoginPage() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('El correo electronico no es valido.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
