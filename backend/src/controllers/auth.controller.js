@@ -2,6 +2,7 @@
 // Controlador para endpoints de autenticacion
 
 const authService = require('../services/auth.service');
+const User = require('../models/user.model');
 
 // Registro de nuevo usuario (HU-05)
 exports.register = async (req, res) => {
@@ -54,6 +55,7 @@ exports.me = async (req, res) => {
             telefono: user.telefono,
             email: user.email,
             role: user.role,
+            checklistRequisitos: user.checklistRequisitos || [],
             createdAt: user.createdAt
         };
         res.status(200).json({
@@ -62,6 +64,59 @@ exports.me = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener usuario autenticado' });
+    }
+};
+
+// Obtener checklist del usuario autenticado
+exports.getChecklist = async (req, res) => {
+    try {
+        const userId = req.user._id || req.user.id;
+        const user = await User.findById(userId).select('checklistRequisitos');
+        res.status(200).json({
+            message: 'Checklist obtenido exitosamente',
+            data: (user && user.checklistRequisitos) ? user.checklistRequisitos : []
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al obtener el checklist del usuario' });
+    }
+};
+
+// Actualizar checklist del usuario autenticado de forma atomica
+exports.updateChecklist = async (req, res) => {
+    try {
+        const { checklist } = req.body;
+        if (!Array.isArray(checklist)) {
+            return res.status(400).json({ message: 'El checklist debe ser una lista de identificadores' });
+        }
+
+        const cleanChecklist = checklist.filter((item) => typeof item === 'string');
+        const userId = req.user._id || req.user.id;
+
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                $set: {
+                    checklistRequisitos: cleanChecklist,
+                    updatedAt: Date.now()
+                }
+            },
+            { new: true }
+        ).select('checklistRequisitos');
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        res.status(200).json({
+            message: 'Checklist actualizado exitosamente',
+            data: updatedUser.checklistRequisitos || []
+        });
+    } catch (error) {
+        console.error('Error al actualizar checklist en base de datos:', error);
+        res.status(500).json({ 
+            message: 'Error al actualizar el checklist del usuario',
+            error: error.message 
+        });
     }
 };
 

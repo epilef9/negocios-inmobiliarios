@@ -31,6 +31,11 @@ const validateRegister = (req, res, next) => {
         errors.push('Las contrasenas no coinciden');
     }
 
+    // Ignorar cualquier intento de autoasignarse rol desde el cliente
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'role')) {
+        delete req.body.role;
+    }
+
     if (errors.length > 0) {
         return res.status(400).json({
             message: 'Datos de registro invalidos',

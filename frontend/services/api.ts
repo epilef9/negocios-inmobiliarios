@@ -1,5 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
+// Función base para comunicarse con la API
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
@@ -12,7 +13,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 		},
 	});
 	const body = await response.json().catch(() => ({}));
-	if (!response.ok) throw new Error(body.message ?? "No se pudo completar la operación");
+	if (!response.ok) {
+		const details = Array.isArray(body.errors) ? `: ${body.errors.join("; ")}` : "";
+		throw new Error(`${body.message ?? "No se pudo completar la operación"}${details}`);
+	}
 	return body.data as T;
 }
 
@@ -55,6 +59,8 @@ export type ApiProperty = {
 	minimoNoches?: number;
 	huespedesMaximos?: number;
 	costoLimpiezaUSD?: number;
+	duracionAlquilerMeses?: number;
+	unidadDuracionAlquiler?: "meses" | "años";
 	checkInDesde?: string;
 	checkOutHasta?: string;
 	checkInFlexible?: string;
@@ -67,7 +73,45 @@ export type ApiProperty = {
 	expenses?: number;
 };
 
+export type ApiLocalidad = {
+	_id: string;
+	nombre: string;
+	provincia: "entre_rios";
+};
+
+export type DolarBlueQuote = {
+	venta: number;
+	fechaActualizacion?: string;
+};
+
+let dolarBlueQuotePromise: Promise<DolarBlueQuote> | null = null;
+
+// Consultar la cotización y reutilizar la petición mientras está pendiente
+export const getDolarBlueQuote = () => {
+	if (dolarBlueQuotePromise) return dolarBlueQuotePromise;
+
+	dolarBlueQuotePromise = fetch("https://dolarapi.com/v1/dolares/blue")
+		.then(async (response) => {
+			if (!response.ok) throw new Error("No se pudo consultar la cotización del dólar Blue");
+			const data = await response.json() as { venta?: number | string; fechaActualizacion?: string };
+			const venta = Number(data.venta);
+			if (!Number.isFinite(venta) || venta <= 0) {
+				throw new Error("La cotización del dólar Blue no es válida");
+			}
+			return { venta, fechaActualizacion: data.fechaActualizacion };
+		})
+		.catch((error) => {
+			dolarBlueQuotePromise = null;
+			throw error;
+		});
+
+	return dolarBlueQuotePromise;
+};
+
+// Operaciones principales sobre propiedades y localidades
 export const getProperties = () => request<ApiProperty[]>("/properties");
+
+export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");
 
 export const getPropertyById = (id: string) => request<ApiProperty>(`/properties/${id}`);
 
@@ -79,6 +123,9 @@ export const uploadPropertyImages = async (files: File[]) => {
 		body: formData,
 	});
 };
+
+export const resolveMapsLink = (url: string) =>
+	request<{ latitud: string; longitud: string }>(`/properties/maps/resolve?url=${encodeURIComponent(url)}`);
 
 export const createProperty = (property: Omit<ApiProperty, "_id">) =>
 	request<ApiProperty>("/properties", { method: "POST", body: JSON.stringify(property) });

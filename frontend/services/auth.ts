@@ -10,6 +10,7 @@ export interface User {
   telefono?: string;
   email: string;
   role: string;
+  checklistRequisitos?: string[];
   createdAt?: string;
 }
 
@@ -32,6 +33,16 @@ export interface LoginPayload {
   password: string;
 }
 
+export class AuthRequestError extends Error {
+  status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "AuthRequestError";
+    this.status = status;
+  }
+}
+
 // Peticion HTTP generica para autenticacion
 async function authRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -48,14 +59,14 @@ async function authRequest<T>(path: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorMessage = body.message || (Array.isArray(body.errors) ? body.errors[0] : "Ocurrio un error en la solicitud");
-    throw new Error(errorMessage);
+    throw new AuthRequestError(errorMessage, response.status);
   }
 
   // Devolver body.data si existe (segun patron del backend) o body directamente
   return (body.data !== undefined ? body.data : body) as T;
 }
 
-// Iniciar sesion
+// Iniciar sesión y guardar los datos recibidos
 export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   const data = await authRequest<AuthResponse>("/auth/login", {
     method: "POST",
@@ -70,7 +81,7 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   return data;
 }
 
-// Registrar nuevo usuario
+// Registrar un usuario y guardar su sesión
 export async function registerUser(payload: RegisterPayload): Promise<AuthResponse> {
   const data = await authRequest<AuthResponse>("/auth/register", {
     method: "POST",
@@ -85,6 +96,17 @@ export async function registerUser(payload: RegisterPayload): Promise<AuthRespon
   return data;
 }
 
+function readStoredUser(): User | null {
+  if (typeof window === "undefined") return null;
+  const storedUser = localStorage.getItem("user");
+  if (!storedUser) return null;
+  try {
+    return JSON.parse(storedUser) as User;
+  } catch {
+    return null;
+  }
+}
+
 // Obtener datos del usuario actual
 export async function getCurrentUser(): Promise<User | null> {
   const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
@@ -97,12 +119,42 @@ export async function getCurrentUser(): Promise<User | null> {
     }
     return user;
   } catch (error) {
-    // Si el token es invalido o expiro, limpiar almacenamiento local
-    if (typeof window !== "undefined") {
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+    // Solo cerrar sesion si el backend rechaza el token (401).
+    // Errores de red o temporales no deben borrar la cuenta al recargar (F5).
+    if (error instanceof AuthRequestError && error.status === 401) {
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("token");
+        localStorage.removeItem("user");
+      }
+      return null;
     }
-    return null;
+
+    return readStoredUser();
+  }
+}
+
+// Obtener checklist de requisitos del usuario autenticado
+export async function getUserChecklist(): Promise<string[]> {
+  try {
+    const data = await authRequest<string[]>("/auth/checklist");
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.warn("No se pudo obtener el checklist remoto:", error);
+    return [];
+  }
+}
+
+// Guardar checklist de requisitos del usuario autenticado
+export async function saveUserChecklist(items: string[]): Promise<string[]> {
+  try {
+    const data = await authRequest<string[]>("/auth/checklist", {
+      method: "PUT",
+      body: JSON.stringify({ checklist: items }),
+    });
+    return Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.warn("No se pudo guardar el checklist remoto:", error);
+    return items;
   }
 }
 

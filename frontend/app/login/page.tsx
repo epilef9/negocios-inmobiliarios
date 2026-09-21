@@ -1,7 +1,7 @@
 'use client';
 
 // frontend/app/login/page.tsx
-// Vista de Inicio de Sesion (HU-09) - Diseno basado en Prototipo 14.2
+// Vista de Inicio de Sesion 
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -12,18 +12,26 @@ export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
 
+  // Datos y estados del formulario de inicio de sesión
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Validar los datos e iniciar sesión
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
     if (!email.trim() || !password.trim()) {
       setError('Por favor ingresa tu correo y contrasena.');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('El correo electronico no es valido.');
       return;
     }
 

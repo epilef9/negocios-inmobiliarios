@@ -13,6 +13,10 @@ router.post('/login', validateLogin, authController.login);
 // Endpoint para obtener datos del usuario autenticado actual
 router.get('/me', authMiddleware, authController.me);
 
+// Endpoints para persistencia del checklist de requisitos del usuario
+router.get('/checklist', authMiddleware, authController.getChecklist);
+router.put('/checklist', authMiddleware, authController.updateChecklist);
+
 // Endpoint para cierre de sesion
 router.post('/logout', authController.logout);
 

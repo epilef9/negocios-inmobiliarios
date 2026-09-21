@@ -32,9 +32,11 @@ export default function GestionPropiedadesPage() {
   const [propiedadAEliminar, setPropiedadAEliminar] = useState<PropiedadAdmin | null>(null);
   const [mensaje, setMensaje] = useState("");
 
+  // Cargar las propiedades y adaptarlas al formato de la vista admin
   useEffect(() => {
     getProperties()
         .then((properties) => setPropiedades(properties.map((property) => {
+          // Convertir la respuesta de la API al formato que usa esta pantalla
           const categoria = property.categoria_operacion ?? "venta";
           const etiquetasCategoria: Record<string, string> = {
             venta: "Venta",
@@ -67,7 +69,7 @@ export default function GestionPropiedadesPage() {
     setFiltroEstado("todos");
   };
 
-  // Filtrado reactivo
+  // Filtrar la lista según la búsqueda y los selectores
   const propiedadesFiltradas = propiedades.filter((p) => {
     const coincideTexto =
       p.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
@@ -84,7 +86,8 @@ export default function GestionPropiedadesPage() {
   const totalReservadas = propiedades.filter((p) => p.estado === "reservado").length;
   const totalAlquiladas = propiedades.filter((p) => p.estado === "alquilado").length;
 
-  // Manejador para eliminar
+  // El modal se abre antes de confirmar para evitar eliminaciones accidentales
+  // Eliminar la propiedad seleccionada y actualizar la lista
   const confirmarEliminacion = async () => {
     if (propiedadAEliminar) {
       try {
@@ -98,7 +101,7 @@ export default function GestionPropiedadesPage() {
     }
   };
 
-  // Manejador para guardar edición
+  // Guardar los cambios hechos desde el modal de edición
   const guardarEdicion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (propiedadAEditar) {
@@ -174,6 +177,21 @@ export default function GestionPropiedadesPage() {
             Configuración
           </button>
         </nav>
+
+        <div className="px-3 pb-5 space-y-1.5 border-t border-[#152e69] pt-4">
+          <Link
+            href="/"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
+          >
+            Ver sitio
+          </Link>
+          <Link
+            href="/propiedades"
+            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
+          >
+            Catálogo público
+          </Link>
+        </div>
       </aside>
 
       {/* Contenido Principal */}

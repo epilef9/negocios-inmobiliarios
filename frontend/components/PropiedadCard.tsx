@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ApiProperty } from "@/services/api";
 
 const PLACEHOLDER_IMAGE = "https://images.unsplash.com/photo-1564013799919-ab600027ffc6?auto=format&fit=crop&w=900&q=85";
@@ -10,6 +11,7 @@ type PropiedadCardProps = {
 const formatPrice = (value: number, currency: string) =>
 	`${currency} ${value.toLocaleString("es-AR")}`;
 
+// Elegir un ícono según el tipo de inmueble
 function PropertyTypeIcon({ type }: { type: string }) {
 	const normalizedType = type.toLocaleLowerCase("es");
 
@@ -28,6 +30,7 @@ function PropertyTypeIcon({ type }: { type: string }) {
 	return <path d="M5 20V5h14v15M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2" />;
 }
 
+// Íconos para mostrar ambientes, baños y superficie
 function FeatureIcon({ kind }: { kind: "rooms" | "bathrooms" | "area" }) {
 	if (kind === "rooms") {
 		return <path d="M4 16v-4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M4 16h16M6 16v2M18 16v2M7 10V7h4v3M17 10V8h2v2" />;
@@ -41,6 +44,8 @@ function FeatureIcon({ kind }: { kind: "rooms" | "bathrooms" | "area" }) {
 }
 
 export default function PropiedadCard({ property }: PropiedadCardProps) {
+	const router = useRouter();
+	// Preparar los datos que se muestran en la tarjeta
 	const image = property.images?.[0] || PLACEHOLDER_IMAGE;
 	const operation = property.categoria_operacion || property.operation || property.category || "Propiedad";
 	const type = property.tipo_inmueble || property.propertyType || "Inmueble";
@@ -51,7 +56,19 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 	const statusIsAvailable = status.toLocaleLowerCase("es") === "disponible";
 
 	return (
-		<article className="group overflow-hidden rounded-2xl border border-[#d9e1ef] bg-white shadow-[0_12px_30px_rgba(7,26,82,0.08)] transition duration-300 hover:-translate-y-1.5 hover:border-[#b9c9e7] hover:shadow-[0_20px_42px_rgba(7,26,82,0.16)]">
+		// La tarjeta completa funciona como enlace a los detalles
+		<article
+			className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#d9e1ef] bg-white shadow-[0_12px_30px_rgba(7,26,82,0.08)] transition duration-300 hover:-translate-y-1.5 hover:border-[#b9c9e7] hover:shadow-[0_20px_42px_rgba(7,26,82,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9382b] focus-visible:ring-offset-2"
+			role="link"
+			tabIndex={0}
+			onClick={() => router.push(`/propiedades/${property._id}`)}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					router.push(`/propiedades/${property._id}`);
+				}
+			}}
+		>
 			<div className="relative aspect-[16/10] overflow-hidden bg-[#e9edf4]">
 				<img src={image} alt={property.title} className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-105" />
 				<div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#071a52]/75 to-transparent" aria-hidden="true" />
@@ -65,7 +82,7 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 					{operation}
 				</span>
 			</div>
-			<div className="p-5">
+			<div className="flex flex-1 flex-col p-5">
 				<p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#d9382b]">
 					<svg className="h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 						<PropertyTypeIcon type={type} />
@@ -85,13 +102,13 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="bathrooms" /></svg>{property.bathrooms} baño{property.bathrooms === 1 ? "" : "s"}</span>
 					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="area" /></svg>{property.area} m²</span>
 				</div>
-				<div className="mt-4 flex items-end justify-between gap-3">
+				<div className="mt-auto flex items-end justify-between gap-3 pt-5">
 					<div>
 						<p className="text-xl font-bold tracking-tight text-[#071a52]">{formatPrice(property.price, currency)}</p>
 						{property.priceARS !== undefined && <p className="mt-1 text-xs text-[#69707f]">{formatPrice(property.priceARS, "ARS")}</p>}
 						{property.expenses !== undefined && <p className="mt-1 text-[11px] text-[#69707f]">Expensas {formatPrice(property.expenses, "ARS")}</p>}
 					</div>
-					<Link href={`/propiedades/${property._id}`} className="shrink-0 rounded-lg bg-[#071a52] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#d9382b]">Ver detalle</Link>
+					<Link href={`/propiedades/${property._id}`} onClick={(event) => event.stopPropagation()} className="shrink-0 rounded-lg bg-[#071a52] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#d9382b]">Ver detalle</Link>
 				</div>
 			</div>
 		</article>

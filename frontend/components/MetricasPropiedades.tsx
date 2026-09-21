@@ -9,12 +9,14 @@ const metricDefinitions = [
   { key: "temporario", label: "Alquileres temporarios" },
 ] as const;
 
+// Solo se cuentan propiedades que siguen disponibles
 const isAvailable = (property: ApiProperty) =>
   !property.estado || property.estado === "disponible";
 
 export default function MetricasPropiedades() {
   const [properties, setProperties] = useState<ApiProperty[]>([]);
 
+  // Obtener las propiedades para calcular las métricas
   useEffect(() => {
     getProperties().then(setProperties).catch(() => setProperties([]));
   }, []);

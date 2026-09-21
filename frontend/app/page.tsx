@@ -3,7 +3,9 @@ import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import PropiedadesDestacadas from "@/components/PropiedadesDestacadas";
 import MetricasPropiedades from "@/components/MetricasPropiedades";
+import HomePublicarLink from "@/components/HomePublicarLink";
 
+// Pasos que se muestran en la sección de acompañamiento
 const steps = [
   ["01", "Contanos qué buscás", "Explorá opciones de venta, alquiler o temporario y filtrá por zona, tipo, ambientes y comodidades."],
   ["02", "Explorá con claridad", "Revisá fotos, ubicación, precio y características para conocer cada propiedad antes de decidir."],
@@ -13,9 +15,10 @@ const steps = [
 export default function Home() {
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#050b18] font-sans selection:bg-red-600 selection:text-white">
+      {/* Navbar */}
       <Navbar />
 
-      {/* 2. HERO */}
+      {/* Sección principal */}
       <section className="relative w-full min-h-dvh flex items-center justify-center overflow-hidden">
         
         {/* Video de fondo */}
@@ -82,6 +85,7 @@ export default function Home() {
         </a>
       </section>
 
+      {/* Búsqueda y propiedades destacadas */}
       <section id="explorar" className="relative bg-[#f3f7ff] px-5 py-16 text-[#07133a] sm:px-8 lg:px-12 lg:py-24">
         <div className="mx-auto max-w-7xl">
           <div className="rounded-2xl border border-white/70 bg-white/80 p-5 shadow-2xl shadow-[#081b52]/15 backdrop-blur-xl sm:p-7">
@@ -120,12 +124,14 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Cómo acompañamos al cliente */}
       <section className="relative overflow-hidden bg-[#071a52] px-5 py-20 text-white sm:px-8 lg:px-12 lg:py-24">
         <div className="absolute -right-24 top-0 h-80 w-80 rounded-full bg-sky-400/10 blur-3xl" aria-hidden="true" />
         <div className="relative mx-auto max-w-7xl"><div className="max-w-2xl"><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-sky-300">Una forma más simple</p><h2 className="text-3xl font-bold tracking-tight sm:text-4xl">Tu próxima decisión, acompañada.</h2><p className="mt-4 leading-relaxed text-white/65">Desde la primera búsqueda hasta la visita, te acompañamos con información clara y atención personalizada para que decidas con confianza.</p></div><div className="mt-12 grid gap-8 md:grid-cols-3">{steps.map(([number, title, description]) => <div key={number} className="border-t border-white/20 pt-5"><span className="text-sm font-bold text-red-400">{number}</span><h3 className="mt-7 text-lg font-bold">{title}</h3><p className="mt-2 text-sm leading-relaxed text-white/60">{description}</p></div>)}</div></div>
       </section>
 
-      <section className="bg-[#f3f7ff] px-5 py-16 sm:px-8 lg:px-12 lg:py-20"><div className="mx-auto flex max-w-7xl flex-col gap-8 rounded-2xl border border-[#d5e0f4] bg-white/60 p-7 shadow-xl shadow-[#071a52]/5 backdrop-blur-xl sm:p-10 lg:flex-row lg:items-center lg:justify-between"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-red-600">Hablemos</p><h2 className="text-2xl font-bold text-[#071a52] sm:text-3xl">¿Ya tenés una propiedad en mente?</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">[Descripción pendiente de definir por el cliente]</p></div><div className="flex flex-col gap-3 sm:flex-row"><Link href="/contacto" className="rounded-lg bg-red-600 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#071a52]">Contactar a un asesor</Link><Link href="/admin/propiedades/nueva" className="rounded-lg border border-[#bdccef] px-6 py-3 text-center text-sm font-semibold text-[#071a52] transition hover:border-red-500 hover:text-red-600">Publicar propiedad</Link></div></div></section>
+      {/* Cierre con accesos para contactar o publicar */}
+      <section className="bg-[#f3f7ff] px-5 py-16 sm:px-8 lg:px-12 lg:py-20"><div className="mx-auto flex max-w-7xl flex-col gap-8 rounded-2xl border border-[#d5e0f4] bg-white/60 p-7 shadow-xl shadow-[#071a52]/5 backdrop-blur-xl sm:p-10 lg:flex-row lg:items-center lg:justify-between"><div><p className="mb-2 text-xs font-bold uppercase tracking-[0.2em] text-red-600">Hablemos</p><h2 className="text-2xl font-bold text-[#071a52] sm:text-3xl">¿Ya tenés una propiedad en mente?</h2><p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-600">[Descripción pendiente de definir por el cliente]</p></div><div className="flex flex-col gap-3 sm:flex-row"><Link href="/contacto" className="rounded-lg bg-red-600 px-6 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#071a52]">Contactar a un asesor</Link><HomePublicarLink /></div></div></section>
     </main>
   );
 }

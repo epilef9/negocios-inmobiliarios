@@ -1,8 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
+import { useAuth } from "@/context/AuthContext";
+import { getUserChecklist, saveUserChecklist } from "@/services/auth";
 
 interface RequirementItem {
   id: string;
@@ -24,6 +26,7 @@ interface RequirementCard {
   sections: RequirementSection[];
 }
 
+// Requisitos agrupados según el tipo de operación
 const requirementCards: RequirementCard[] = [
   {
     id: "alquilar",
@@ -138,6 +141,7 @@ const requirementCards: RequirementCard[] = [
   },
 ];
 
+// Muestra el ícono correspondiente a cada tipo de requisito
 function RenderIcon({ type }: { type: string }) {
   switch (type) {
     case "key":
@@ -207,19 +211,121 @@ function RenderIcon({ type }: { type: string }) {
 }
 
 export default function RequisitosPage() {
+  const { user, isLoading: isAuthLoading } = useAuth();
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   const [filtroActivo, setFiltroActivo] = useState<"todos" | "alquilar" | "comprar" | "publicar">("todos");
   const [avisoPublicar, setAvisoPublicar] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<"synced" | "saving" | "local" | "idle">("idle");
+
+  // Cargar checklist al iniciar o cambiar de cuenta (desde BD si está logueado o storage aislado)
+  useEffect(() => {
+    let isMounted = true;
+    const userId = user ? (user.id || (user as any)._id || user.email) : null;
+    const storageKey = userId ? `checklist_requisitos_${userId}` : "checklist_requisitos_guest";
+
+    async function initializeChecklist() {
+      // 1. Cargar caché local inmediato según el usuario actual
+      let localMap: Record<string, boolean> = {};
+      try {
+        const stored = typeof window !== "undefined" ? localStorage.getItem(storageKey) : null;
+        if (stored) {
+          localMap = JSON.parse(stored);
+        }
+      } catch (err) {
+        console.error("Error al leer de localStorage:", err);
+      }
+
+      if (user) {
+        // Inicializar con la caché del usuario para evitar saltos visuales
+        if (isMounted) {
+          setCheckedItems(localMap);
+          setSyncStatus("saving");
+        }
+
+        try {
+          // 2. Obtener la fuente de verdad de la base de datos para esta cuenta específica
+          const remoteList = await getUserChecklist();
+          if (isMounted) {
+            const remoteMap: Record<string, boolean> = {};
+            remoteList.forEach((id) => {
+              remoteMap[id] = true;
+            });
+
+            setCheckedItems(remoteMap);
+            if (typeof window !== "undefined") {
+              localStorage.setItem(storageKey, JSON.stringify(remoteMap));
+            }
+            setSyncStatus("synced");
+          }
+        } catch (error) {
+          if (isMounted) {
+            setCheckedItems(localMap);
+            setSyncStatus("local");
+          }
+        }
+      } else {
+        // Modo invitado (sin sesión): cada invitado tiene su storage aislado
+        if (isMounted) {
+          setCheckedItems(localMap);
+          setSyncStatus("local");
+        }
+      }
+    }
+
+    if (!isAuthLoading) {
+      initializeChecklist();
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [user, isAuthLoading]);
+
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Persistir cambios en localStorage aislado y en base de datos si el usuario tiene sesión
+  const persistChecklist = (updated: Record<string, boolean>) => {
+    const userId = user ? (user.id || (user as any)._id || user.email) : null;
+    const storageKey = userId ? `checklist_requisitos_${userId}` : "checklist_requisitos_guest";
+
+    if (typeof window !== "undefined") {
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+    }
+
+    if (user) {
+      setSyncStatus("saving");
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
+      }
+      debounceTimerRef.current = setTimeout(async () => {
+        try {
+          const activeIds = Object.keys(updated).filter((k) => updated[k]);
+          await saveUserChecklist(activeIds);
+          setSyncStatus("synced");
+        } catch (err) {
+          setSyncStatus("local");
+        }
+      }, 250);
+    } else {
+      setSyncStatus("local");
+    }
+  };
 
   const toggleCheck = (id: string) => {
-    setCheckedItems((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }));
+    setCheckedItems((prev) => {
+      const updated = {
+        ...prev,
+        [id]: !prev[id],
+      };
+      persistChecklist(updated);
+      return updated;
+    });
   };
 
   const deseleccionarTodos = () => {
-    setCheckedItems({});
+    const empty: Record<string, boolean> = {};
+    setCheckedItems(empty);
+    persistChecklist(empty);
   };
 
   const cardsToDisplay = filtroActivo === "todos"
@@ -456,6 +562,44 @@ export default function RequisitosPage() {
                 className={`h-full rounded-full transition-all duration-500 ease-out bg-gradient-to-r ${activeStats.colorClass}`}
                 style={{ width: `${activeStats.percent}%` }}
               />
+            </div>
+
+            {/* Sync status indicator */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 text-xs">
+              <div className="flex items-center gap-1.5">
+                {user ? (
+                  syncStatus === "saving" ? (
+                    <span className="inline-flex items-center gap-1.5 text-blue-600 font-medium animate-pulse">
+                      <span className="w-2 h-2 rounded-full bg-blue-500" />
+                      Sincronizando con tu cuenta...
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 text-emerald-700 font-medium">
+                      <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Progreso guardado en tu cuenta ({user.nombre || user.email})
+                    </span>
+                  )
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-slate-500">
+                    <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                    </svg>
+                    Guardado en este navegador.{" "}
+                    <Link href="/login" className="text-blue-600 hover:text-blue-800 font-semibold underline">
+                      Iniciá sesión
+                    </Link>{" "}
+                    para sincronizarlo en la nube y acceder desde cualquier dispositivo.
+                  </span>
+                )}
+              </div>
+
+              {activeStats.checked > 0 && (
+                <span className="text-slate-400 font-normal">
+                  {activeStats.checked} {activeStats.checked === 1 ? "requisito seleccionado" : "requisitos seleccionados"}
+                </span>
+              )}
             </div>
           </div>
         </section>
