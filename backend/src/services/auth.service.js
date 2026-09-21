@@ -18,7 +18,8 @@ const authService = {
         // Hashear contrasena
         const hashedPassword = await bcrypt.hash(userData.password, 10);
 
-        // Crear usuario en base de datos mediante el repositorio
+        // Crear usuario en base de datos mediante el repositorio.
+        // El registro publico siempre crea clientes; nunca aceptar role del request (escalada de privilegios).
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
@@ -26,7 +27,7 @@ const authService = {
             username: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),
             password: hashedPassword,
-            role: userData.role || 'cliente'
+            role: 'cliente'
         });
 
         // Generar token para inicio de sesion automatico segun criterio de HU-05
