@@ -1,7 +1,15 @@
+const dns = require('dns');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 
 dotenv.config();
+
+// Resuelve registros SRV de MongoDB Atlas usando DNS públicos para evitar ECONNREFUSED en redes locales
+try {
+    dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {
+    console.warn('No se pudieron configurar los DNS personalizados:', e.message);
+}
 
 const connectDB = async () => {
     try {
