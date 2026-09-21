@@ -71,6 +71,8 @@ export type ApiProperty = {
 	status?: string;
 	amenities?: string[];
 	expenses?: number;
+	createdAt?: string;
+	updatedAt?: string;
 };
 
 export type ApiLocalidad = {

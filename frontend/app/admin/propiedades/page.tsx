@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { deleteProperty, getProperties, updateProperty } from "../../../services/api";
 
@@ -14,10 +14,13 @@ interface PropiedadAdmin {
   precio: string;
   estado: "disponible" | "reservado" | "alquilado";
   imagen: string;
+  createdAt?: string;
 }
 
 export default function GestionPropiedadesPage() {
   const [propiedades, setPropiedades] = useState<PropiedadAdmin[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [periodoMeses, setPeriodoMeses] = useState<number>(6);
 
   // Filtros y búsqueda
   const [busqueda, setBusqueda] = useState("");
@@ -34,31 +37,38 @@ export default function GestionPropiedadesPage() {
 
   // Cargar las propiedades y adaptarlas al formato de la vista admin
   useEffect(() => {
+    setCargando(true);
     getProperties()
-        .then((properties) => setPropiedades(properties.map((property) => {
-          // Convertir la respuesta de la API al formato que usa esta pantalla
-          const categoria = property.categoria_operacion ?? "venta";
-          const etiquetasCategoria: Record<string, string> = {
-            venta: "Venta",
-            alquiler: "Alquiler",
-            temporario: "Alquiler temporario",
-          };
+      .then((properties) => setPropiedades(properties.map((property) => {
+        const categoria = property.categoria_operacion ?? "venta";
+        const etiquetasCategoria: Record<string, string> = {
+          venta: "Venta",
+          alquiler: "Alquiler",
+          temporario: "Alquiler temporario",
+        };
 
-          return {
-        id: property._id,
-        titulo: property.title,
-        direccion: property.location,
+        return {
+          id: property._id,
+          titulo: property.title,
+          direccion: property.location,
           tipo: property.tipo_inmueble ?? "Propiedad",
           categoria,
           operacion: etiquetasCategoria[categoria] ?? categoria,
-        precio: property.moneda === "ARS"
-          ? `ARS ${(property.priceARS ?? 0).toLocaleString("es-AR")}`
-          : `USD ${property.price.toLocaleString("es-AR")}`,
-        estado: "disponible",
-        imagen: property.images?.[0] ?? "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500",
+          precio:
+            property.moneda === "ARS"
+              ? `ARS ${(property.priceARS ?? 0).toLocaleString("es-AR")}`
+              : `USD ${property.price.toLocaleString("es-AR")}`,
+          estado: (property.estado as PropiedadAdmin["estado"]) ?? "disponible",
+          imagen:
+            property.images?.[0] ??
+            "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500",
+          createdAt: property.createdAt,
         };
-      })))
-      .catch((error: Error) => setMensaje(error.message));
+      })
+      )
+      )
+      .catch((error: Error) => setMensaje(error.message))
+      .finally(() => setCargando(false));
   }, []);
 
   // Limpiar filtros
@@ -85,6 +95,44 @@ export default function GestionPropiedadesPage() {
   const totalDisponibles = propiedades.filter((p) => p.estado === "disponible").length;
   const totalReservadas = propiedades.filter((p) => p.estado === "reservado").length;
   const totalAlquiladas = propiedades.filter((p) => p.estado === "alquilado").length;
+
+  // Cálculo de evolución mensual para el mini gráfico KPI
+  const datosGrafico = useMemo(() => {
+    const nombresMesesCortos = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+    const nombresMesesCompletos = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ];
+
+    const ahora = new Date();
+    const meses = Array.from({ length: periodoMeses }, (_, i) => {
+      // Desde el más antiguo hasta el mes actual
+      const d = new Date(ahora.getFullYear(), ahora.getMonth() - (periodoMeses - 1 - i), 1);
+      const mesIndex = d.getMonth();
+      const anio = d.getFullYear();
+      const label = nombresMesesCortos[mesIndex];
+      const nombreCompleto = nombresMesesCompletos[mesIndex];
+
+      const cantidad = propiedades.filter((p) => {
+        if (!p.createdAt) return false;
+        const fecha = new Date(p.createdAt);
+        return fecha.getFullYear() === anio && fecha.getMonth() === mesIndex;
+      }).length;
+
+      return {
+        label,
+        nombreCompleto,
+        mesIndex,
+        anio,
+        cantidad,
+        esMesActual: i === periodoMeses - 1,
+      };
+    });
+
+    const maxCantidad = Math.max(...meses.map((m) => m.cantidad), 1);
+
+    return { meses, maxCantidad };
+  }, [propiedades, periodoMeses]);
 
   // El modal se abre antes de confirmar para evitar eliminaciones accidentales
   // Eliminar la propiedad seleccionada y actualizar la lista
@@ -213,12 +261,16 @@ export default function GestionPropiedadesPage() {
 
         {/* 4 Tarjetas de Métricas KPI */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* Card 1: Total de propiedades con mini gráfico */}
+          {/* Card 1: Total de propiedades con mini gráfico funcional */}
           <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-start justify-between">
+            <div className="flex items-start justify-between gap-2">
               <div>
                 <div className="text-3xl font-extrabold text-[#0A193D] leading-none">
-                  24
+                  {cargando ? (
+                    <span className="inline-block w-8 h-7 bg-slate-100 animate-pulse rounded" />
+                  ) : (
+                    propiedades.length
+                  )}
                 </div>
                 <h3 className="text-xs font-bold text-slate-800 mt-1.5">
                   Total de propiedades
@@ -229,39 +281,76 @@ export default function GestionPropiedadesPage() {
               </div>
 
               <div className="flex flex-col items-end">
-                <div className="flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-100 px-2 py-0.5 rounded cursor-pointer mb-3">
-                  <span>Últimos 6 meses</span>
-                  <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {/* Selector de período funcional */}
+                <div className="relative mb-3">
+                  <select
+                    value={periodoMeses}
+                    onChange={(e) => setPeriodoMeses(Number(e.target.value))}
+                    aria-label="Filtrar período de propiedades"
+                    className="appearance-none text-[10px] text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-100 pl-2 pr-5 py-0.5 rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium transition"
+                  >
+                    <option value={3}>Últimos 3 meses</option>
+                    <option value={6}>Últimos 6 meses</option>
+                    <option value={12}>Últimos 12 meses</option>
+                  </select>
+                  <svg
+                    className="w-2.5 h-2.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                   </svg>
                 </div>
 
-                {/* Mini Gráfico de barras */}
+                {/* Mini Gráfico de barras funcional */}
                 <div className="flex items-end gap-1.5 h-10">
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-blue-200 rounded-t h-4" />
-                    <span className="text-[8px] text-slate-400">Dic</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-blue-200 rounded-t h-6" />
-                    <span className="text-[8px] text-slate-400">Ene</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-blue-300 rounded-t h-8" />
-                    <span className="text-[8px] text-slate-400">Feb</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-blue-400 rounded-t h-10" />
-                    <span className="text-[8px] text-slate-400">Mar</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-blue-300 rounded-t h-7" />
-                    <span className="text-[8px] text-slate-400">Abr</span>
-                  </div>
-                  <div className="flex flex-col items-center gap-0.5">
-                    <div className="w-1.5 bg-[#004bb7] rounded-t h-9" />
-                    <span className="text-[8px] text-slate-400">May</span>
-                  </div>
+                  {datosGrafico.meses.map((m) => {
+                    const alturaPx =
+                      m.cantidad > 0
+                        ? Math.max(8, Math.round((m.cantidad / datosGrafico.maxCantidad) * 36))
+                        : 4;
+
+                    // Colores armónicos según volumen y si es el mes actual
+                    let colorBarra = "bg-blue-100";
+                    if (m.cantidad > 0) {
+                      if (m.esMesActual) {
+                        colorBarra = "bg-[#004bb7]";
+                      } else if (m.cantidad === datosGrafico.maxCantidad) {
+                        colorBarra = "bg-blue-500";
+                      } else if (m.cantidad >= datosGrafico.maxCantidad * 0.5) {
+                        colorBarra = "bg-blue-400";
+                      } else {
+                        colorBarra = "bg-blue-200";
+                      }
+                    }
+
+                    return (
+                      <div
+                        key={`${m.anio}-${m.mesIndex}`}
+                        className="group relative flex flex-col items-center gap-0.5 cursor-pointer"
+                      >
+                        {/* Tooltip con información del mes */}
+                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-1.5 py-0.5 bg-[#0A193D] text-white text-[9px] font-semibold rounded shadow-md whitespace-nowrap z-20 pointer-events-none">
+                          {m.nombreCompleto} {m.anio}: {m.cantidad} {m.cantidad === 1 ? "propiedad" : "propiedades"}
+                        </div>
+
+                        {/* Barra del gráfico */}
+                        <div
+                          style={{ height: `${alturaPx}px` }}
+                          className={`w-1.5 rounded-t transition-all duration-300 ${colorBarra} group-hover:opacity-80`}
+                        />
+
+                        {/* Etiqueta del mes */}
+                        <span
+                          className={`text-[8px] transition-colors ${m.esMesActual ? "text-[#004bb7] font-bold" : "text-slate-400"
+                            }`}
+                        >
+                          {m.label}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -279,7 +368,11 @@ export default function GestionPropiedadesPage() {
               <div>
                 <span className="text-[11px] text-slate-500 font-medium">Disponibles</span>
                 <div className="text-2xl font-extrabold text-emerald-600 leading-tight">
-                  {totalDisponibles}
+                  {cargando ? (
+                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
+                  ) : (
+                    totalDisponibles
+                  )}
                 </div>
               </div>
             </div>
@@ -300,7 +393,11 @@ export default function GestionPropiedadesPage() {
               <div>
                 <span className="text-[11px] text-slate-500 font-medium">Reservadas</span>
                 <div className="text-2xl font-extrabold text-amber-600 leading-tight">
-                  {totalReservadas}
+                  {cargando ? (
+                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
+                  ) : (
+                    totalReservadas
+                  )}
                 </div>
               </div>
             </div>
@@ -321,7 +418,11 @@ export default function GestionPropiedadesPage() {
               <div>
                 <span className="text-[11px] text-slate-500 font-medium">Alquiladas</span>
                 <div className="text-2xl font-extrabold text-blue-600 leading-tight">
-                  {totalAlquiladas}
+                  {cargando ? (
+                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
+                  ) : (
+                    totalAlquiladas
+                  )}
                 </div>
               </div>
             </div>

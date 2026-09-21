@@ -60,7 +60,7 @@ export default function NuevaPropiedadPage() {
     permitirEmail: true,
     horarioAtencion: "",
     telefonoWhatsApp: "",
-    
+
     // Alquiler temporario
     precioPorNocheUSD: "",
     minimoNoches: "",
@@ -537,7 +537,6 @@ export default function NuevaPropiedadPage() {
     ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(fechaCotizacionBlue))
     : null;
 
-  // Validar todo el formulario y crear o actualizar la propiedad
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
     for (let p = 1; p <= 7; p++) {
@@ -560,11 +559,11 @@ export default function NuevaPropiedadPage() {
         ...(esVivienda ? [["dormitorios", formData.dormitorios], ["baños", formData.banos]] : []),
         ...(formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario
           ? [
-              ["precio por noche", formData.precioPorNocheUSD],
-              ["mínimo de noches", formData.minimoNoches],
-              ["huéspedes máximos", formData.huespedesMaximos],
-              ["costo de limpieza", formData.costoLimpiezaUSD],
-            ]
+            ["precio por noche", formData.precioPorNocheUSD],
+            ["mínimo de noches", formData.minimoNoches],
+            ["huéspedes máximos", formData.huespedesMaximos],
+            ["costo de limpieza", formData.costoLimpiezaUSD],
+          ]
           : []),
         ["duración del alquiler", formData.duracionAlquilerMeses],
       ] as const;
@@ -719,23 +718,78 @@ export default function NuevaPropiedadPage() {
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto px-8 py-7">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <div>
+            {modoEdicion && (
+              <Link
+                href="/admin/propiedades"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#004bb7] transition mb-1.5"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+                </svg>
+                Volver al listado de propiedades
+              </Link>
+            )}
             <h1 className="text-2xl font-extrabold text-[#0A193D] tracking-tight">
               {modoEdicion ? "Editar propiedad" : "Nueva propiedad"}
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {modoEdicion ? "Actualizá los datos de la propiedad" : "Completá los datos para publicar un inmueble"}
+              {modoEdicion ? "Actualizá los datos de la publicación en tiempo real" : "Completá los datos para publicar un inmueble"}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-2xs">
-            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            {modoEdicion ? "Edición completa" : `Parte ${numeroVisiblePaso(pasoActual)} de ${esTerreno ? 6 : 7}`}
-            </div>
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {modoEdicion ? (
+              <>
+                {/* Selector rápido de estado */}
+                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-2xs">
+                  <span
+                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${estadoPropiedad === "disponible"
+                        ? "bg-emerald-500"
+                        : estadoPropiedad === "reservado"
+                          ? "bg-amber-500"
+                          : estadoPropiedad === "alquilado"
+                            ? "bg-blue-500"
+                            : "bg-slate-400"
+                      }`}
+                  />
+                  <span className="text-[11px] font-semibold text-slate-500">Estado:</span>
+                  <select
+                    value={estadoPropiedad}
+                    onChange={(e) =>
+                      setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")
+                    }
+                    className="text-xs font-bold text-[#0A193D] bg-transparent border-0 focus:outline-none focus:ring-0 p-0 cursor-pointer capitalize"
+                  >
+                    <option value="disponible">Disponible</option>
+                    <option value="reservado">Reservado</option>
+                    <option value="alquilado">Alquilado</option>
+                    <option value="vendido">Vendido</option>
+                  </select>
+                </div>
+
+                {/* Botón rápido Guardar Cambios en la cabecera */}
+                <button
+                  type="button"
+                  onClick={publicarPropiedad}
+                  disabled={cargandoPropiedad}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold rounded-lg transition shadow-sm active:scale-95 disabled:opacity-50"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  {cargandoPropiedad ? "Guardando..." : "Guardar cambios"}
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-2xs">
+                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Parte {numeroVisiblePaso(pasoActual)} de {esTerreno ? 6 : 7}
+              </div>
+            )}
           </div>
         </div>
 
@@ -810,201 +864,207 @@ export default function NuevaPropiedadPage() {
           </div>
         </div>}
 
-        {/* CONTENIDO PASO 1 */}
-        {(modoEdicion || pasoActual <= 4) && (
-          <form className="space-y-6" onSubmit={(e) => { e.preventDefault(); avanzarPaso(); }}>
-            {/* 1. Información principal */}
-            <div className={`${mostrarParte(1) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-              <div className="flex items-center gap-2.5 mb-5">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
-                  i
-                </div>
-                <h2 className="text-base font-bold text-[#0A193D]">
-                  1. Información principal
-                </h2>
+        {/* FORMULARIO PRINCIPAL */}
+        <form
+          className="space-y-6"
+          onSubmit={modoEdicion || pasoActual === 7 ? publicarPropiedad : (e) => { e.preventDefault(); avanzarPaso(); }}
+        >
+          {/* 1. Información principal */}
+          <div className={`${mostrarParte(1) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
+            <div className="flex items-center gap-2.5 mb-5">
+              <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
+                i
               </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Título de publicación */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Título de publicación <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Departamento 2 ambientes con cochera – Centro"
-                    value={formData.titulo}
-                    onChange={(e) => {
-                      limpiarErrorCampo("titulo");
-                      setFormData({ ...formData, titulo: e.target.value });
-                    }}
-                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.titulo ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
-                  />
-                  {erroresCampos.titulo && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.titulo}</p>}
-                </div>
-
-                {/* Código interno */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Código interno (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: DEP-000123"
-                    value={formData.codigoInterno}
-                    onChange={(e) => setFormData({ ...formData, codigoInterno: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
-                  />
-                </div>
-
-                {/* Tipo de inmueble */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Tipo de inmueble <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.tipoInmueble}
-                    onChange={(e) => {
-                      limpiarErrorCampo("tipoInmueble");
-                      const tipoInmueble = e.target.value;
-                      setFormData({
-                        ...formData,
-                        tipoInmueble,
-                        categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
-                          ? formData.categoriaOperacion
-                          : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
-                      });
-                    }}
-                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.tipoInmueble ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                  >
-                    <option value="">Seleccionar tipo</option>
-                    <option value="departamento">Departamento</option>
-                    <option value="casa">Casa</option>
-                    <option value="local">Local comercial</option>
-                    <option value="terreno">Terreno</option>
-                  </select>
-                  {erroresCampos.tipoInmueble && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.tipoInmueble}</p>}
-                </div>
-
-                {/* Categoría / Operación */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Categoría / Operación <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.categoriaOperacion}
-                    onChange={(e) => {
-                      limpiarErrorCampo("categoriaOperacion");
-                      setFormData({ ...formData, categoriaOperacion: e.target.value });
-                    }}
-                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.categoriaOperacion ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                  >
-                    <option value="">Seleccionar</option>
-                    <option value="venta">Venta</option>
-                    <option value="alquiler">Alquiler</option>
-                    {permiteAlquilerTemporario && <option value="temporario">Alquiler temporario</option>}
-                  </select>
-                  {erroresCampos.categoriaOperacion && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.categoriaOperacion}</p>}
-                </div>
-
-                {/* Estado (solo en edición) */}
-                {modoEdicion && (
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      Estado de la propiedad
-                    </label>
-                    <select
-                      value={estadoPropiedad}
-                      onChange={(e) => setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")}
-                      className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
-                    >
-                      <option value="disponible">Disponible</option>
-                      <option value="reservado">Reservado</option>
-                      <option value="alquilado">Alquilado</option>
-                      <option value="vendido">Vendido</option>
-                    </select>
-                  </div>
-                )}
-
-                {/* Ciudad / Zona / Barrio */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Localidad <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={formData.ciudadZonaBarrio}
-                    onChange={(e) => {
-                      limpiarErrorCampo("ciudadZonaBarrio");
-                      actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value);
-                    }}
-                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.ciudadZonaBarrio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                  >
-                    <option value="">Seleccionar localidad</option>
-                    {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && (
-                      <option value={formData.ciudadZonaBarrio}>{formData.ciudadZonaBarrio}</option>
-                    )}
-                    {localidades.map((localidad) => (
-                      <option key={localidad} value={localidad}>{localidad}</option>
-                    ))}
-                  </select>
-                  {erroresCampos.ciudadZonaBarrio && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.ciudadZonaBarrio}</p>}
-                </div>
-
-                {/* Provincia */}
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Provincia <span className="text-red-500">*</span>
-                  </label>
-                  <div className="w-full text-xs py-2.5 text-slate-700">
-                    Entre Ríos
-                  </div>
-                </div>
-
-                {/* Dirección completa */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Dirección <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: San Martin 1200"
-                    value={formData.direccionCompleta}
-                    onChange={(e) => {
-                      limpiarErrorCampo("direccionCompleta");
-                      actualizarUbicacionTexto("direccionCompleta", e.target.value);
-                    }}
-                    className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.direccionCompleta ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
-                  />
-                  {erroresCampos.direccionCompleta && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.direccionCompleta}</p>}
-                </div>
-
-                {/* Referencias */}
-                <div className="md:col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Referencias / Detalles de ubicación (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: A metros de Av. Principal, cerca de plazas y comercios"
-                    value={formData.referenciasUbicacion}
-                    onChange={(e) => setFormData({ ...formData, referenciasUbicacion: e.target.value })}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
-                  />
-                </div>
-              </div>
+              <h2 className="text-base font-bold text-[#0A193D]">
+                1. Información principal
+              </h2>
             </div>
 
-            {/* Tres tarjetas inferiores en columnas */}
-            <div className={`${modoEdicion || pasoActual >= 2 && pasoActual <= 4 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-3 gap-6 items-start`}>
-              {/* 2. Precio y operación */}
-              <div className={`${mostrarParte(2) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Título de publicación */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Título de publicación <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Departamento 2 ambientes con cochera – Centro"
+                  value={formData.titulo}
+                  onChange={(e) => {
+                    limpiarErrorCampo("titulo");
+                    setFormData({ ...formData, titulo: e.target.value });
+                  }}
+                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.titulo ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
+                />
+                {erroresCampos.titulo && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.titulo}</p>}
+              </div>
+
+              {/* Código interno */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Código interno (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: DEP-000123"
+                  value={formData.codigoInterno}
+                  onChange={(e) => setFormData({ ...formData, codigoInterno: e.target.value })}
+                  className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
+                />
+              </div>
+
+              {/* Tipo de inmueble */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Tipo de inmueble <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.tipoInmueble}
+                  onChange={(e) => {
+                    limpiarErrorCampo("tipoInmueble");
+                    const tipoInmueble = e.target.value;
+                    setFormData({
+                      ...formData,
+                      tipoInmueble,
+                      categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
+                        ? formData.categoriaOperacion
+                        : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
+                    });
+                  }}
+                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.tipoInmueble ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
+                >
+                  <option value="">Seleccionar tipo</option>
+                  <option value="departamento">Departamento</option>
+                  <option value="casa">Casa</option>
+                  <option value="local">Local comercial</option>
+                  <option value="terreno">Terreno</option>
+                </select>
+                {erroresCampos.tipoInmueble && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.tipoInmueble}</p>}
+              </div>
+
+              {/* Categoría / Operación */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Categoría / Operación <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.categoriaOperacion}
+                  onChange={(e) => {
+                    limpiarErrorCampo("categoriaOperacion");
+                    setFormData({ ...formData, categoriaOperacion: e.target.value });
+                  }}
+                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.categoriaOperacion ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
+                >
+                  <option value="">Seleccionar</option>
+                  <option value="venta">Venta</option>
+                  <option value="alquiler">Alquiler</option>
+                  {permiteAlquilerTemporario && <option value="temporario">Alquiler temporario</option>}
+                </select>
+                {erroresCampos.categoriaOperacion && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.categoriaOperacion}</p>}
+              </div>
+
+              {/* Estado (solo en edición) */}
+              {modoEdicion && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                    Estado de la propiedad
+                  </label>
+                  <select
+                    value={estadoPropiedad}
+                    onChange={(e) => setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")}
+                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
+                  >
+                    <option value="disponible">Disponible</option>
+                    <option value="reservado">Reservado</option>
+                    <option value="alquilado">Alquilado</option>
+                    <option value="vendido">Vendido</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Ciudad / Zona / Barrio */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Localidad <span className="text-red-500">*</span>
+                </label>
+                <select
+                  value={formData.ciudadZonaBarrio}
+                  onChange={(e) => {
+                    limpiarErrorCampo("ciudadZonaBarrio");
+                    actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value);
+                  }}
+                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.ciudadZonaBarrio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
+                >
+                  <option value="">Seleccionar localidad</option>
+                  {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && (
+                    <option value={formData.ciudadZonaBarrio}>{formData.ciudadZonaBarrio}</option>
+                  )}
+                  {localidades.map((localidad) => (
+                    <option key={localidad} value={localidad}>{localidad}</option>
+                  ))}
+                </select>
+                {erroresCampos.ciudadZonaBarrio && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.ciudadZonaBarrio}</p>}
+              </div>
+
+              {/* Provincia */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Provincia <span className="text-red-500">*</span>
+                </label>
+                <div className="w-full text-xs py-2.5 text-slate-700">
+                  Entre Ríos
+                </div>
+              </div>
+
+              {/* Dirección completa */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Dirección <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: San Martin 1200"
+                  value={formData.direccionCompleta}
+                  onChange={(e) => {
+                    limpiarErrorCampo("direccionCompleta");
+                    actualizarUbicacionTexto("direccionCompleta", e.target.value);
+                  }}
+                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.direccionCompleta ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
+                />
+                {erroresCampos.direccionCompleta && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.direccionCompleta}</p>}
+              </div>
+
+              {/* Referencias */}
+              <div className="md:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Referencias / Detalles de ubicación (opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: A metros de Av. Principal, cerca de plazas y comercios"
+                  value={formData.referenciasUbicacion}
+                  onChange={(e) => setFormData({ ...formData, referenciasUbicacion: e.target.value })}
+                  className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Fila 2: 2. Precio y operación & 3. Características del inmueble */}
+          <div className={`${modoEdicion ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch" : (pasoActual === 2 || pasoActual === 3 ? "block" : "!hidden")}`}>
+            {/* 2. Precio y operación */}
+            <div className={`${mostrarParte(2) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
+                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
                     $
                   </div>
-                  <h2 className="text-sm font-bold text-[#0A193D]">
-                    2. Precio y operación
-                  </h2>
+                  <div>
+                    <h2 className="text-sm font-bold text-[#0A193D]">
+                      2. Precio y operación
+                    </h2>
+                    <p className="text-[10px] text-slate-400">Valores, moneda y expensas</p>
+                  </div>
                 </div>
 
                 <div className="space-y-3.5">
@@ -1036,36 +1096,45 @@ export default function NuevaPropiedadPage() {
                         className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
                       >
                         <option value="USD">Dólar (USD)</option>
-                        <option value="ARS">Peso argentino (ARS)</option>
+                        <option value="ARS">Peso (ARS)</option>
                       </select>
                     </div>
                   </div>
 
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 px-3 py-2.5">
+                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3">
                     {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
                       <>
-                        <p className="text-[11px] font-semibold text-slate-700">
-                          Cotización Dólar Blue venta: ${cotizacionBlue.toLocaleString("es-AR")}
-                        </p>
+                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
+                          <span>Cotización Dólar Blue</span>
+                          <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
+                            ${cotizacionBlue.toLocaleString("es-AR")}
+                          </span>
+                        </div>
                         {formData.moneda === "USD" && valorReferencialARS !== null && (
-                          <p className="mt-1 text-sm font-bold text-[#004bb7]">
-                            Valor referencial: ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 2 })} ARS
-                          </p>
+                          <div className="mt-1.5 pt-1.5 border-t border-blue-100 flex items-baseline justify-between">
+                            <span className="text-[10px] text-slate-500 font-medium">Equivalente:</span>
+                            <span className="text-xs font-extrabold text-[#004bb7]">
+                              ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
+                            </span>
+                          </div>
                         )}
                         {formData.moneda === "ARS" && valorReferencialUSD !== null && (
-                          <p className="mt-1 text-sm font-bold text-[#004bb7]">
-                            Valor referencial: ≈ USD ${valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 2 })}
-                          </p>
+                          <div className="mt-1.5 pt-1.5 border-t border-blue-100 flex items-baseline justify-between">
+                            <span className="text-[10px] text-slate-500 font-medium">Equivalente:</span>
+                            <span className="text-xs font-extrabold text-[#004bb7]">
+                              ≈ USD ${valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
                         )}
-                        <p className="mt-1 text-[10px] text-slate-500">
+                        <p className="mt-1 text-[9px] text-slate-400 leading-tight">
                           {fechaCotizacionFormateada ? `Actualizado: ${fechaCotizacionFormateada}. ` : ""}
-                          Valor referencial calculado según la cotización vigente del dólar Blue. Puede variar según la cotización actual.
+                          Calculado según cotización vigente de mercado.
                         </p>
                       </>
                     ) : estadoCotizacionBlue === "inicial" || estadoCotizacionBlue === "cargando" ? (
                       <p className="text-[10px] text-slate-500">Consultando cotización del Dólar Blue...</p>
                     ) : (
-                      <p className="text-[10px] text-slate-500">No se pudo calcular temporalmente el equivalente. El precio en {formData.moneda} sigue disponible.</p>
+                      <p className="text-[10px] text-slate-500">Cotización Blue no disponible temporalmente.</p>
                     )}
                   </div>
 
@@ -1083,9 +1152,9 @@ export default function NuevaPropiedadPage() {
                           handleNonNegativeNumberChange("cotizacionDolar", e.target.value);
                         }
                       }}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/40"
                     />
-                    <p className="mt-1 text-[10px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
+                    <p className="mt-1 text-[9px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2">
@@ -1098,15 +1167,15 @@ export default function NuevaPropiedadPage() {
                         onChange={(e) => setFormData({ ...formData, expensas: e.target.value })}
                         className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
                       >
-                        <option value="">Seleccionar (opcional)</option>
-                        <option value="no_incluye">No incluye expensas</option>
+                        <option value="">Seleccionar</option>
+                        <option value="no_incluye">No incluye</option>
                         <option value="incluye">Incluye expensas</option>
                         <option value="sin_expensas">Sin expensas</option>
                       </select>
                     </div>
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Monto de expensas (ARS)
+                        Monto expensas (ARS)
                       </label>
                       <input
                         type="number"
@@ -1120,18 +1189,23 @@ export default function NuevaPropiedadPage() {
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* 3. Características del inmueble */}
-              <div className={`${mostrarParte(3) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
+            {/* 3. Características del inmueble */}
+            <div className={`${mostrarParte(3) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
+                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
                     </svg>
                   </div>
-                  <h2 className="text-sm font-bold text-[#0A193D]">
-                    3. Características del inmueble
-                  </h2>
+                  <div>
+                    <h2 className="text-sm font-bold text-[#0A193D]">
+                      3. Características del inmueble
+                    </h2>
+                    <p className="text-[10px] text-slate-400">Superficie, ambientes y distribución</p>
+                  </div>
                 </div>
 
                 <div className="space-y-3.5">
@@ -1153,120 +1227,134 @@ export default function NuevaPropiedadPage() {
                       />
                       {erroresCampos.superficieTotal && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.superficieTotal}</p>}
                     </div>
-                    {!esTerreno && <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Cantidad de ambientes {esVivienda && <span className="text-red-500">*</span>}
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 2"
-                        value={formData.cantidadAmbientes}
-                        onChange={(e) => {
-                          limpiarErrorCampo("cantidadAmbientes");
-                          handleNonNegativeNumberChange("cantidadAmbientes", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.cantidadAmbientes ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.cantidadAmbientes && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.cantidadAmbientes}</p>}
-                    </div>}
+                    {!esTerreno && (
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Cantidad ambientes {esVivienda && <span className="text-red-500">*</span>}
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 2"
+                          value={formData.cantidadAmbientes}
+                          onChange={(e) => {
+                            limpiarErrorCampo("cantidadAmbientes");
+                            handleNonNegativeNumberChange("cantidadAmbientes", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.cantidadAmbientes ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.cantidadAmbientes && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.cantidadAmbientes}</p>}
+                      </div>
+                    )}
                   </div>
 
-                  {esVivienda && <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Dormitorios <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 1"
-                        value={formData.dormitorios}
-                        onChange={(e) => {
-                          limpiarErrorCampo("dormitorios");
-                          handleNonNegativeNumberChange("dormitorios", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.dormitorios ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.dormitorios && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.dormitorios}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Baños <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 1"
-                        value={formData.banos}
-                        onChange={(e) => {
-                          limpiarErrorCampo("banos");
-                          handleNonNegativeNumberChange("banos", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.banos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.banos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.banos}</p>}
-                    </div>
-                  </div>}
-
-                  {!esTerreno && <div className="grid grid-cols-2 gap-2 items-center pt-1">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                        Cochera
-                      </label>
-                      <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="cochera"
-                            value="si"
-                            checked={formData.cochera === "si"}
-                            onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>Sí</span>
+                  {esVivienda && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Dormitorios <span className="text-red-500">*</span>
                         </label>
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="cochera"
-                            value="no"
-                            checked={formData.cochera === "no"}
-                            onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>No</span>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 1"
+                          value={formData.dormitorios}
+                          onChange={(e) => {
+                            limpiarErrorCampo("dormitorios");
+                            handleNonNegativeNumberChange("dormitorios", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.dormitorios ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.dormitorios && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.dormitorios}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Baños <span className="text-red-500">*</span>
                         </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 1"
+                          value={formData.banos}
+                          onChange={(e) => {
+                            limpiarErrorCampo("banos");
+                            handleNonNegativeNumberChange("banos", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.banos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.banos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.banos}</p>}
                       </div>
                     </div>
+                  )}
 
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Piso / Unidad (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: Piso 3, Unidad A"
-                        value={formData.pisoUnidad}
-                        onChange={(e) => setFormData({ ...formData, pisoUnidad: e.target.value })}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                      />
+                  {!esTerreno && (
+                    <div className="grid grid-cols-2 gap-2 items-center pt-1">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
+                          Cochera
+                        </label>
+                        <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="cochera"
+                              value="si"
+                              checked={formData.cochera === "si"}
+                              onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Sí</span>
+                          </label>
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="cochera"
+                              value="no"
+                              checked={formData.cochera === "no"}
+                              onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>No</span>
+                          </label>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Piso / Unidad (opcional)
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="Ej: Piso 3, Unidad A"
+                          value={formData.pisoUnidad}
+                          onChange={(e) => setFormData({ ...formData, pisoUnidad: e.target.value })}
+                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        />
+                      </div>
                     </div>
-                  </div>}
+                  )}
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* 4. Comodidades y equipamiento */}
-              <div className={`${esTerreno || !mostrarParte(4) ? "!hidden" : ""} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col h-full`}>
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="w-5 h-5 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
+          {/* Fila 3: 4. Comodidades y equipamiento & 5. Descripción */}
+          <div className={`${modoEdicion ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch" : (pasoActual === 4 || pasoActual === 5 ? "block" : "!hidden")}`}>
+            {/* 4. Comodidades y equipamiento */}
+            <div className={`${esTerreno || !mostrarParte(4) ? "!hidden" : ""} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
+                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
                     </svg>
                   </div>
-                  <h2 className="text-sm font-bold text-[#0A193D]">
-                    4. Comodidades y equipamiento
-                  </h2>
+                  <div>
+                    <h2 className="text-sm font-bold text-[#0A193D]">
+                      4. Comodidades y equipamiento
+                    </h2>
+                    <p className="text-[10px] text-slate-400">Servicios y comodidades ofrecidas</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-3 gap-1.5 mb-3.5">
@@ -1277,11 +1365,10 @@ export default function NuevaPropiedadPage() {
                         key={item.id}
                         type="button"
                         onClick={() => toggleComodidad(item.id)}
-                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-medium text-left transition-all ${
-                          isSelected
-                            ? "border-[#004bb7] bg-blue-50/80 text-[#004bb7] shadow-2xs"
+                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-medium text-left transition-all ${isSelected
+                            ? "border-[#004bb7] bg-blue-50/80 text-[#004bb7] font-semibold shadow-2xs"
                             : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                        }`}
+                          }`}
                       >
                         <span className="text-xs shrink-0">{item.icon}</span>
                         <span className="truncate leading-tight">{item.label}</span>
@@ -1290,69 +1377,26 @@ export default function NuevaPropiedadPage() {
                   })}
                 </div>
 
-                <div className="mt-auto">
+                <div className="pt-3 border-t border-slate-100">
                   <label className="block text-[11px] font-semibold text-slate-700 mb-1">
                     Otras comodidades (opcional)
                   </label>
                   <input
                     type="text"
-                    placeholder="Ej: Gimnasio, SUM, Playroom, etc."
+                    placeholder="Ej: Patio amplio, quincho, lavadero, etc."
                     value={formData.otrasComodidades}
                     onChange={(e) => setFormData({ ...formData, otrasComodidades: e.target.value })}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
                   />
                 </div>
               </div>
             </div>
 
-            {/* Footer de navegación Form 1 */}
-            {!modoEdicion && (
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
-                {pasoActual > 1 ? (
-                  <button
-                    type="button"
-                    onClick={retrocederPaso}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                  >
-                    ← Volver
-                  </button>
-                ) : (
-                  <Link
-                    href="/admin"
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                  >
-                    ← Volver
-                  </Link>
-                )}
-
-                <div className="flex items-center gap-3 justify-end flex-1">
-                  {mensaje && (
-                    <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
-                      {mensaje}
-                    </p>
-                  )}
-                  <button
-                    type="button"
-                    onClick={avanzarPaso}
-                    className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
-                  >
-                    Siguiente →
-                  </button>
-                </div>
-              </div>
-            )}
-          </form>
-        )}
-
-        {/* CONTENIDO PASO 2 */}
-        {(modoEdicion || pasoActual >= 5) && (
-          <form className="space-y-6" onSubmit={publicarPropiedad}>
-            {/* Grilla superior: 5. Descripción y 6. Ubicación */}
-            <div className={`${modoEdicion || pasoActual === 5 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6`}>
-              {/* 5. Descripción */}
-              <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col`}>
-                <div className="flex items-start gap-2.5 mb-4">
-                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
+            {/* 5. Descripción */}
+            <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
+                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
@@ -1361,547 +1405,558 @@ export default function NuevaPropiedadPage() {
                     <h2 className="text-sm font-bold text-[#0A193D]">
                       5. Descripción
                     </h2>
-                    <p className="text-xs text-slate-500">
-                      Contanos más sobre tu propiedad.
+                    <p className="text-[10px] text-slate-400">
+                      Detalles y características para el comprador o inquilino
                     </p>
                   </div>
                 </div>
 
-                <div className="flex-1 flex flex-col">
+                <div className="flex flex-col">
                   <textarea
-                    rows={8}
                     placeholder="Describí las características del inmueble, entorno, estado general, ventajas, etc."
                     value={formData.descripcion}
                     onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
                     maxLength={3000}
-                    className="w-full flex-1 text-xs p-3.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/20 placeholder:text-slate-400 resize-none leading-relaxed"
+                    rows={7}
+                    className="w-full text-xs p-3.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/20 placeholder:text-slate-400 resize-none leading-relaxed"
                   />
                   <div className="text-right mt-2 text-[11px] text-slate-400 font-medium">
                     {formData.descripcion.length} / 3.000
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
 
-              {/* 6. Ubicación */}
-              <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col`}>
+          {/* Fila 4: 6. Ubicación */}
+          <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs`}>
+            <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
+              <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-sm font-bold text-[#0A193D]">
+                  6. Ubicación
+                </h2>
+                <p className="text-[10px] text-slate-400">
+                  Coordenadas precisas y mapa interactivo
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              {/* Columna izquierda: Enlace Google Maps y Coordenadas */}
+              <div className="lg:col-span-5 space-y-4">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Referencia de Google Maps (opcional)
+                  </label>
+                  <input
+                    type="url"
+                    placeholder="Ej: https://maps.app.goo.gl/..."
+                    value={formData.linkGoogleMaps}
+                    onChange={(e) => actualizarUbicacionTexto("linkGoogleMaps", e.target.value)}
+                    onBlur={(e) => completarCoordenadasDesdeLink(e.target.value.trim())}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
+                  />
+                  <p className="mt-1 text-[10px] text-slate-400">
+                    {resolviendoMapa ? "Buscando coordenadas..." : "Al salir del campo se completan latitud y longitud automáticamente."}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Latitud (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: -31.731706"
+                      value={formData.latitud}
+                      onChange={(e) => setFormData({ ...formData, latitud: e.target.value })}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                      Longitud (opcional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej: -60.52318"
+                      value={formData.longitud}
+                      onChange={(e) => setFormData({ ...formData, longitud: e.target.value })}
+                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
+                    />
+                  </div>
+                </div>
+
+                <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3 text-[11px] text-slate-600 leading-relaxed">
+                  <span className="font-semibold text-[#004bb7] block mb-1">Tip de ubicación:</span>
+                  Podés buscar la dirección en el mapa interactivo a la derecha o hacer clic directamente sobre el mapa para marcar el pin exacto de la propiedad.
+                </div>
+              </div>
+
+              {/* Columna derecha: Buscador y Mapa */}
+              <div className="lg:col-span-7">
+                <SelectorUbicacionMapa
+                  latitud={formData.latitud}
+                  longitud={formData.longitud}
+                  onChange={(lat, lng) => {
+                    setFormData((current) => ({
+                      ...current,
+                      latitud: lat,
+                      longitud: lng,
+                    }));
+                  }}
+                  direccionSugerida={formData.direccionCompleta}
+                  ciudadSugerida={formData.ciudadZonaBarrio}
+                  provinciaSugerida={formData.provincia}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Grilla intermedia: 7. Imágenes y 8. Configuración de contacto */}
+          <div className={`${modoEdicion || pasoActual === 6 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch`}>
+            {/* 7. Imágenes */}
+            <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
+              <div>
                 <div className="flex items-start gap-2.5 mb-4">
                   <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
                     <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                   </div>
                   <div>
                     <h2 className="text-sm font-bold text-[#0A193D]">
-                      6. Ubicación
+                      7. Imágenes
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Ubicación exacta para mostrar en el mapa.
+                      Subí fotos de la propiedad (hasta 20 imágenes).
                     </p>
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                {/* Dropzone */}
+                <label
+                  onDragEnter={(e) => {
+                    e.preventDefault();
+                    setArrastrandoImagenes(true);
+                  }}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    setArrastrandoImagenes(false);
+                  }}
+                  onDrop={handleSoltarImagenes}
+                  className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition group ${arrastrandoImagenes
+                      ? "border-[#004bb7] bg-blue-50"
+                      : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
+                    } cursor-pointer`}
+                >
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleSubirImagenes}
+                    className="hidden"
+                  />
+                  <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-blue-50 flex items-center justify-center text-slate-400 group-hover:text-[#004bb7] transition mb-2">
+                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                    </svg>
+                  </div>
+                  <p className="text-xs font-semibold text-slate-700">
+                    {arrastrandoImagenes ? "Soltá las imágenes aquí" : <>Arrastrá las imágenes aquí o <span className="text-[#004bb7]">hacé clic para seleccionar</span></>}
+                  </p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    JPG, PNG, WEBP — hasta 20 MB por archivo
+                  </p>
+                </label>
+
+                {/* Galería de miniaturas */}
+                {imagenes.length > 0 && (
+                  <div className="grid grid-cols-5 gap-2 mt-4">
+                    {imagenes.map((imgUrl, index) => (
+                      <div
+                        key={index}
+                        className="relative aspect-4/3 rounded-lg overflow-hidden border border-slate-200 group shadow-2xs"
+                      >
+                        <img
+                          src={imgUrl}
+                          alt={`Foto ${index + 1}`}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => eliminarImagen(index)}
+                          className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-black text-white rounded-full flex items-center justify-center text-[10px] transition"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
+                <svg className="w-3.5 h-3.5 text-[#004bb7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>La primera imagen será la imagen principal.</span>
+              </div>
+            </div>
+
+            {/* 8. Configuración de contacto */}
+            <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
+              <div>
+                <div className="flex items-start gap-2.5 mb-4">
+                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                    </svg>
+                  </div>
                   <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Referencia de Google Maps (opcional)
-                    </label>
-                    <input
-                      type="url"
-                      placeholder="Ej: https://maps.app.goo.gl/..."
-                      value={formData.linkGoogleMaps}
-                      onChange={(e) => actualizarUbicacionTexto("linkGoogleMaps", e.target.value)}
-                      onBlur={(e) => completarCoordenadasDesdeLink(e.target.value.trim())}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                    />
-                    <p className="mt-1 text-[10px] text-slate-400">
-                      {resolviendoMapa ? "Buscando coordenadas..." : "Al salir del campo se completan latitud y longitud automáticamente."}
+                    <h2 className="text-sm font-bold text-[#0A193D]">
+                      8. Configuración de contacto
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Elegí cómo los interesados podrán contactarte.
                     </p>
                   </div>
+                </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                {/* Checkboxes con descripción */}
+                <div className="space-y-3 mb-5">
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.permitirVisita}
+                      onChange={(e) => setFormData({ ...formData, permitirVisita: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                    />
                     <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Latitud (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: -31.731706"
-                        value={formData.latitud}
-                        onChange={(e) => setFormData({ ...formData, latitud: e.target.value })}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                      />
+                      <span className="text-xs font-semibold text-slate-800 block">
+                        Permitir agendar visita
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Los usuarios pueden solicitar una visita al inmueble.
+                      </span>
                     </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Longitud (opcional)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="Ej: -60.52318"
-                        value={formData.longitud}
-                        onChange={(e) => setFormData({ ...formData, longitud: e.target.value })}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                      />
-                    </div>
-                  </div>
+                  </label>
 
-                  <SelectorUbicacionMapa
-                    latitud={formData.latitud}
-                    longitud={formData.longitud}
-                    onChange={(lat, lng) => {
-                      setFormData((current) => ({
-                        ...current,
-                        latitud: lat,
-                        longitud: lng,
-                      }));
-                    }}
-                    direccionSugerida={formData.direccionCompleta}
-                    ciudadSugerida={formData.ciudadZonaBarrio}
-                    provinciaSugerida={formData.provincia}
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.permitirWhatsApp}
+                      onChange={(e) => setFormData({ ...formData, permitirWhatsApp: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 block">
+                        Permitir contacto por WhatsApp
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Mostrar botón de WhatsApp en la publicación.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.permitirEmail}
+                      onChange={(e) => setFormData({ ...formData, permitirEmail: e.target.checked })}
+                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
+                    />
+                    <div>
+                      <span className="text-xs font-semibold text-slate-800 block">
+                        Permitir envío de consulta por email
+                      </span>
+                      <span className="text-[11px] text-slate-500">
+                        Los usuarios podrán enviarte consultas.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Campos de Horario y Teléfono */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Horario de atención (opcional)
+                  </label>
+                  <select
+                    value={formData.horarioAtencion}
+                    onChange={(e) => setFormData({ ...formData, horarioAtencion: e.target.value })}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700 truncate"
+                  >
+                    <option value="Lun a Vie 9 - 18 h • Sáb 9 - 13 h">Lun a Vie 9 - 18 h • Sáb 9 - 13 h</option>
+                    <option value="Lun a Vie 8 - 17 h">Lun a Vie 8 - 17 h</option>
+                    <option value="Todos los días 9 - 20 h">Todos los días 9 - 20 h</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Teléfono / WhatsApp (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ej: +54 9 343 4449922"
+                    value={formData.telefonoWhatsApp}
+                    onChange={(e) => setFormData({ ...formData, telefonoWhatsApp: e.target.value })}
+                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                   />
                 </div>
               </div>
             </div>
+          </div>
 
-            {/* Grilla intermedia: 7. Imágenes y 8. Configuración de contacto */}
-            <div className={`${modoEdicion || pasoActual === 6 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6`}>
-              {/* 7. Imágenes */}
-              <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
-                <div>
-                  <div className="flex items-start gap-2.5 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
+          {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
+            <>
+              {/* 9. Datos de alquiler temporario */}
+              <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
+                <div className="flex items-center gap-2 mb-5">
+                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h2 className="text-sm font-bold text-[#0A193D]">
+                    9. Datos de alquiler temporario{" "}
+                    <span className="text-xs font-normal text-slate-400">
+
+                    </span>
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+                  {/* Campos inputs a la izquierda */}
+                  <div className="lg:col-span-9 space-y-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Precio por noche (USD) <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 85"
+                          value={formData.precioPorNocheUSD}
+                          onChange={(e) => {
+                            limpiarErrorCampo("precioPorNocheUSD");
+                            handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precioPorNocheUSD ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.precioPorNocheUSD && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precioPorNocheUSD}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Mínimo de noches <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 2"
+                          value={formData.minimoNoches}
+                          onChange={(e) => {
+                            limpiarErrorCampo("minimoNoches");
+                            handleNonNegativeNumberChange("minimoNoches", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.minimoNoches ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.minimoNoches && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.minimoNoches}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Huéspedes máximos <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 2"
+                          value={formData.huespedesMaximos}
+                          onChange={(e) => {
+                            limpiarErrorCampo("huespedesMaximos");
+                            handleNonNegativeNumberChange("huespedesMaximos", e.target.value);
+                          }}
+                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.huespedesMaximos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
+                        />
+                        {erroresCampos.huespedesMaximos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.huespedesMaximos}</p>}
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Costo de limpieza (USD)
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="Ej: 25"
+                          value={formData.costoLimpiezaUSD}
+                          onChange={(e) => handleNonNegativeNumberChange("costoLimpiezaUSD", e.target.value)}
+                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-[#0A193D]">
-                        7. Imágenes
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Subí fotos de la propiedad (hasta 20 imágenes).
-                      </p>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Check-in desde
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.checkInDesde}
+                            onChange={(e) => setFormData({ ...formData, checkInDesde: e.target.value })}
+                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                          />
+                          <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                          Check-out hasta
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={formData.checkOutHasta}
+                            onChange={(e) => setFormData({ ...formData, checkOutHasta: e.target.value })}
+                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
+                          />
+                          <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
+                          Check-in flexible
+                        </label>
+                        <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="checkInFlexible"
+                              value="si"
+                              checked={formData.checkInFlexible === "si"}
+                              onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Sí</span>
+                          </label>
+                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                            <input
+                              type="radio"
+                              name="checkInFlexible"
+                              value="no"
+                              checked={formData.checkInFlexible === "no"}
+                              onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
+                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>No</span>
+                          </label>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Dropzone */}
-                  <label
-                    onDragEnter={(e) => {
-                      e.preventDefault();
-                      setArrastrandoImagenes(true);
-                    }}
-                    onDragOver={(e) => e.preventDefault()}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setArrastrandoImagenes(false);
-                    }}
-                    onDrop={handleSoltarImagenes}
-                    className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition group ${
-                      arrastrandoImagenes
-                        ? "border-[#004bb7] bg-blue-50"
-                        : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
-                    } cursor-pointer`}
-                  >
-                    <input
-                      type="file"
-                      multiple
-                      accept="image/*"
-                      onChange={handleSubirImagenes}
-                      className="hidden"
-                    />
-                    <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-blue-50 flex items-center justify-center text-slate-400 group-hover:text-[#004bb7] transition mb-2">
-                      <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                      </svg>
+                  {/* Resumen Total Estimado */}
+                  <div className="lg:col-span-3 bg-[#eef4ff] border border-blue-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
+                    <span className="text-[11px] font-medium text-slate-500 mb-1">
+                      Total estimado
+                    </span>
+                    <div className="text-lg font-bold text-[#0A193D]">
+                      USD 255 <span className="text-xs font-normal text-slate-500">/ 3 noches</span>
                     </div>
-                    <p className="text-xs font-semibold text-slate-700">
-                      {arrastrandoImagenes ? "Soltá las imágenes aquí" : <>Arrastrá las imágenes aquí o <span className="text-[#004bb7]">hacé clic para seleccionar</span></>}
-                    </p>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      JPG, PNG, WEBP — hasta 20 MB por archivo
-                    </p>
-                  </label>
-
-                  {/* Galería de miniaturas */}
-                  {imagenes.length > 0 && (
-                    <div className="grid grid-cols-5 gap-2 mt-4">
-                      {imagenes.map((imgUrl, index) => (
-                        <div
-                          key={index}
-                          className="relative aspect-4/3 rounded-lg overflow-hidden border border-slate-200 group shadow-2xs"
-                        >
-                          <img
-                            src={imgUrl}
-                            alt={`Foto ${index + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => eliminarImagen(index)}
-                            className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-black text-white rounded-full flex items-center justify-center text-[10px] transition"
-                          >
-                            ✕
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
-                  <svg className="w-3.5 h-3.5 text-[#004bb7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>La primera imagen será la imagen principal.</span>
+                    <span className="text-[11px] font-medium text-slate-500 mt-0.5">
+                      ≈ $306.000 ARS
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              {/* 8. Configuración de contacto */}
-              <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
-                <div>
-                  <div className="flex items-start gap-2.5 mb-4">
-                    <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
-                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h2 className="text-sm font-bold text-[#0A193D]">
-                        8. Configuración de contacto
-                      </h2>
-                      <p className="text-xs text-slate-500">
-                        Elegí cómo los interesados podrán contactarte.
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Checkboxes con descripción */}
-                  <div className="space-y-3 mb-5">
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.permitirVisita}
-                        onChange={(e) => setFormData({ ...formData, permitirVisita: e.target.checked })}
-                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                      />
-                      <div>
-                        <span className="text-xs font-semibold text-slate-800 block">
-                          Permitir agendar visita
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          Los usuarios pueden solicitar una visita al inmueble.
-                        </span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.permitirWhatsApp}
-                        onChange={(e) => setFormData({ ...formData, permitirWhatsApp: e.target.checked })}
-                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                      />
-                      <div>
-                        <span className="text-xs font-semibold text-slate-800 block">
-                          Permitir contacto por WhatsApp
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          Mostrar botón de WhatsApp en la publicación.
-                        </span>
-                      </div>
-                    </label>
-
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={formData.permitirEmail}
-                        onChange={(e) => setFormData({ ...formData, permitirEmail: e.target.checked })}
-                        className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                      />
-                      <div>
-                        <span className="text-xs font-semibold text-slate-800 block">
-                          Permitir envío de consulta por email
-                        </span>
-                        <span className="text-[11px] text-slate-500">
-                          Los usuarios podrán enviarte consultas.
-                        </span>
-                      </div>
-                    </label>
-                  </div>
+            </>
+          ) : (
+            <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
+              <h2 className="text-sm font-bold text-[#0A193D]">
+                {formData.categoriaOperacion === "venta" ? "9. Condiciones de venta" : "9. Condiciones de alquiler"}
+              </h2>
+              <p className="text-xs text-slate-500 mt-1">
+                {formData.categoriaOperacion === "venta"
+                  ? "La publicación mostrará el precio de venta y la moneda seleccionada."
+                  : "La publicación mostrará el precio mensual y las expensas configuradas."}
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                  <span className="block text-[11px] font-semibold text-slate-500">Precio {formData.categoriaOperacion === "venta" ? "de venta" : "mensual"}</span>
+                  <span className="text-sm font-bold text-[#0A193D]">
+                    {formData.moneda} {Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD || 0).toLocaleString("es-AR")}
+                  </span>
                 </div>
-
-                {/* Campos de Horario y Teléfono */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Horario de atención (opcional)
-                    </label>
-                    <select
-                      value={formData.horarioAtencion}
-                      onChange={(e) => setFormData({ ...formData, horarioAtencion: e.target.value })}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700 truncate"
-                    >
-                      <option value="Lun a Vie 9 - 18 h • Sáb 9 - 13 h">Lun a Vie 9 - 18 h • Sáb 9 - 13 h</option>
-                      <option value="Lun a Vie 8 - 17 h">Lun a Vie 8 - 17 h</option>
-                      <option value="Todos los días 9 - 20 h">Todos los días 9 - 20 h</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Teléfono / WhatsApp (opcional)
-                    </label>
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                  <span className="block text-[11px] font-semibold text-slate-500">Expensas</span>
+                  <span className="text-sm font-bold text-[#0A193D]">
+                    {formData.expensas === "sin_expensas" ? "Sin expensas" : `ARS ${Number(formData.montoExpensas || 0).toLocaleString("es-AR")}`}
+                  </span>
+                </div>
+              </div>
+              {formData.categoriaOperacion === "alquiler" && (
+                <div className="mt-4 max-w-sm">
+                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                    Duración del contrato (opcional)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
                     <input
-                      type="text"
-                      placeholder="Ej: +54 9 343 4449922"
-                      value={formData.telefonoWhatsApp}
-                      onChange={(e) => setFormData({ ...formData, telefonoWhatsApp: e.target.value })}
+                      type="number"
+                      min="0"
+                      max={formData.unidadDuracionAlquiler === "meses" ? "11" : undefined}
+                      placeholder={formData.unidadDuracionAlquiler === "meses" ? "Ej: 6" : "Ej: 1"}
+                      value={formData.duracionAlquilerMeses}
+                      onChange={(e) => {
+                        const value = Number(e.target.value);
+                        const maxMeses = formData.unidadDuracionAlquiler === "meses" ? 11 : Number.MAX_SAFE_INTEGER;
+                        handleNonNegativeNumberChange("duracionAlquilerMeses", e.target.value === "" ? "" : String(Math.min(value, maxMeses)));
+                      }}
                       className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
                     />
+                    <select
+                      value={formData.unidadDuracionAlquiler}
+                      onChange={(e) => {
+                        const unidad = e.target.value;
+                        setFormData((current) => ({
+                          ...current,
+                          unidadDuracionAlquiler: unidad,
+                          duracionAlquilerMeses: unidad === "meses" && Number(current.duracionAlquilerMeses) > 11 ? "11" : current.duracionAlquilerMeses,
+                        }));
+                      }}
+                      className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white"
+                    >
+                      <option value="meses">Meses</option>
+                      <option value="años">Años</option>
+                    </select>
                   </div>
+                  <p className="mt-1 text-[10px] text-slate-400">Dejalo vacío si el contrato no tiene un plazo definido.</p>
                 </div>
-              </div>
+              )}
             </div>
+          )}
 
-            {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
-              <>
-                {/* 9. Datos de alquiler temporario */}
-                <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-              <div className="flex items-center gap-2 mb-5">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </div>
-                <h2 className="text-sm font-bold text-[#0A193D]">
-                  9. Datos de alquiler temporario{" "}
-                  <span className="text-xs font-normal text-slate-400">
-                    
-                  </span>
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                {/* Campos inputs a la izquierda */}
-                <div className="lg:col-span-9 space-y-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Precio por noche (USD) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 85"
-                        value={formData.precioPorNocheUSD}
-                        onChange={(e) => {
-                          limpiarErrorCampo("precioPorNocheUSD");
-                          handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precioPorNocheUSD ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.precioPorNocheUSD && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precioPorNocheUSD}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Mínimo de noches <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 2"
-                        value={formData.minimoNoches}
-                        onChange={(e) => {
-                          limpiarErrorCampo("minimoNoches");
-                          handleNonNegativeNumberChange("minimoNoches", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.minimoNoches ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.minimoNoches && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.minimoNoches}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Huéspedes máximos <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 2"
-                        value={formData.huespedesMaximos}
-                        onChange={(e) => {
-                          limpiarErrorCampo("huespedesMaximos");
-                          handleNonNegativeNumberChange("huespedesMaximos", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.huespedesMaximos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.huespedesMaximos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.huespedesMaximos}</p>}
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Costo de limpieza (USD)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 25"
-                        value={formData.costoLimpiezaUSD}
-                        onChange={(e) => handleNonNegativeNumberChange("costoLimpiezaUSD", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Check-in desde
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={formData.checkInDesde}
-                          onChange={(e) => setFormData({ ...formData, checkInDesde: e.target.value })}
-                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
-                        />
-                        <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Check-out hasta
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={formData.checkOutHasta}
-                          onChange={(e) => setFormData({ ...formData, checkOutHasta: e.target.value })}
-                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
-                        />
-                        <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                        Check-in flexible
-                      </label>
-                      <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="checkInFlexible"
-                            value="si"
-                            checked={formData.checkInFlexible === "si"}
-                            onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>Sí</span>
-                        </label>
-                        <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                          <input
-                            type="radio"
-                            name="checkInFlexible"
-                            value="no"
-                            checked={formData.checkInFlexible === "no"}
-                            onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
-                            className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span>No</span>
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Resumen Total Estimado */}
-                <div className="lg:col-span-3 bg-[#eef4ff] border border-blue-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                  <span className="text-[11px] font-medium text-slate-500 mb-1">
-                    Total estimado
-                  </span>
-                  <div className="text-lg font-bold text-[#0A193D]">
-                    USD 255 <span className="text-xs font-normal text-slate-500">/ 3 noches</span>
-                  </div>
-                  <span className="text-[11px] font-medium text-slate-500 mt-0.5">
-                    ≈ $306.000 ARS
-                  </span>
-                </div>
-              </div>
-            </div>
-              </>
-            ) : (
-              <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-                <h2 className="text-sm font-bold text-[#0A193D]">
-                  {formData.categoriaOperacion === "venta" ? "9. Condiciones de venta" : "9. Condiciones de alquiler"}
-                </h2>
-                <p className="text-xs text-slate-500 mt-1">
-                  {formData.categoriaOperacion === "venta"
-                    ? "La publicación mostrará el precio de venta y la moneda seleccionada."
-                    : "La publicación mostrará el precio mensual y las expensas configuradas."}
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-                    <span className="block text-[11px] font-semibold text-slate-500">Precio {formData.categoriaOperacion === "venta" ? "de venta" : "mensual"}</span>
-                    <span className="text-sm font-bold text-[#0A193D]">
-                      {formData.moneda} {Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD || 0).toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                  <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-                    <span className="block text-[11px] font-semibold text-slate-500">Expensas</span>
-                    <span className="text-sm font-bold text-[#0A193D]">
-                      {formData.expensas === "sin_expensas" ? "Sin expensas" : `ARS ${Number(formData.montoExpensas || 0).toLocaleString("es-AR")}`}
-                    </span>
-                  </div>
-                </div>
-                {formData.categoriaOperacion === "alquiler" && (
-                  <div className="mt-4 max-w-sm">
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Duración del contrato (opcional)
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <input
-                        type="number"
-                        min="0"
-                        max={formData.unidadDuracionAlquiler === "meses" ? "11" : undefined}
-                        placeholder={formData.unidadDuracionAlquiler === "meses" ? "Ej: 6" : "Ej: 1"}
-                        value={formData.duracionAlquilerMeses}
-                        onChange={(e) => {
-                          const value = Number(e.target.value);
-                          const maxMeses = formData.unidadDuracionAlquiler === "meses" ? 11 : Number.MAX_SAFE_INTEGER;
-                          handleNonNegativeNumberChange("duracionAlquilerMeses", e.target.value === "" ? "" : String(Math.min(value, maxMeses)));
-                        }}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                      />
-                      <select
-                        value={formData.unidadDuracionAlquiler}
-                        onChange={(e) => {
-                          const unidad = e.target.value;
-                          setFormData((current) => ({
-                            ...current,
-                            unidadDuracionAlquiler: unidad,
-                            duracionAlquilerMeses: unidad === "meses" && Number(current.duracionAlquilerMeses) > 11 ? "11" : current.duracionAlquilerMeses,
-                          }));
-                        }}
-                        className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white"
-                      >
-                        <option value="meses">Meses</option>
-                        <option value="años">Años</option>
-                      </select>
-                    </div>
-                    <p className="mt-1 text-[10px] text-slate-400">Dejalo vacío si el contrato no tiene un plazo definido.</p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario && mostrarParte(7) && (
-              /* 10. Normas de la estadía */
-              <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
+          {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario && mostrarParte(7) && (
+            /* 10. Normas de la estadía */
+            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
               <div className="flex items-center gap-2 mb-4">
                 <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -1946,13 +2001,14 @@ export default function NuevaPropiedadPage() {
                   <span className="leading-tight">Respetar descanso tras 22:00 hs</span>
                 </div>
               </div>
-              </div>
-            )}
+            </div>
+          )}
 
-            {/* Footer de navegación Form 2 */}
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
-              {!modoEdicion && (
-                <div className="flex items-center gap-3">
+          {/* Footer de navegación */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
+            {!modoEdicion ? (
+              <div className="flex items-center gap-3">
+                {pasoActual > 1 ? (
                   <button
                     type="button"
                     onClick={retrocederPaso}
@@ -1960,7 +2016,16 @@ export default function NuevaPropiedadPage() {
                   >
                     ← Volver
                   </button>
+                ) : (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+                  >
+                    ← Volver
+                  </Link>
+                )}
 
+                {pasoActual > 1 && (
                   <button
                     type="button"
                     onClick={() => {
@@ -1971,26 +2036,34 @@ export default function NuevaPropiedadPage() {
                   >
                     Inicio
                   </button>
-                </div>
-              )}
-
-              <div className="flex items-center gap-3 justify-end flex-1">
-                {mensaje && (
-                  <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
-                    {mensaje}
-                  </p>
                 )}
-                <button
-                  type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
-                  onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
-                  className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95"
-                >
-                  {cargandoPropiedad ? "Cargando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
-                </button>
               </div>
+            ) : (
+              <Link
+                href="/admin/propiedades"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
+              >
+                ← Volver al listado
+              </Link>
+            )}
+
+            <div className="flex items-center gap-3 justify-end flex-1">
+              {mensaje && (
+                <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
+                  {mensaje}
+                </p>
+              )}
+              <button
+                type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
+                onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
+                disabled={cargandoPropiedad}
+                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95 disabled:opacity-50"
+              >
+                {cargandoPropiedad ? "Guardando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
+              </button>
             </div>
-          </form>
-        )}
+          </div>
+        </form>
       </main>
     </div>
   );
