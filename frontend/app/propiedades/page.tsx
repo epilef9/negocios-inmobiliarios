@@ -6,6 +6,7 @@ import Filtros, { type PropertyFilters } from "@/components/Filtros";
 import PropiedadCard from "@/components/PropiedadCard";
 import { getProperties, type ApiProperty } from "@/services/api";
 
+// Valores y opciones que usan los filtros del catálogo
 const initialFilters: PropertyFilters = { operation: "", location: "", propertyType: "", minPrice: "", maxPrice: "", rooms: "", amenities: "", status: "" };
 const normalize = (value: string) => value.toLocaleLowerCase("es").trim();
 const unique = (values: (string | undefined)[]) => [...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) => a.localeCompare(b, "es"));
@@ -13,6 +14,8 @@ const uniqueNumbers = (values: number[]) => [...new Set(values)].sort((a, b) => 
 const operationOptions = ["venta", "alquiler", "temporario"];
 const propertyTypeOptions = ["departamento", "local", "casa", "monoambiente", "terreno"];
 const statusOptions = ["disponible", "reservado", "alquilado", "vendido"];
+
+// Mantener el filtro de operación si viene desde otra página
 const getInitialFilters = (): PropertyFilters => {
 	if (typeof window === "undefined") return initialFilters;
 	const operation = new URLSearchParams(window.location.search).get("operacion") || "";
@@ -26,10 +29,12 @@ export default function PropiedadesPage() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 
+	// Cargar las propiedades cuando se abre el catálogo
 	useEffect(() => {
 		getProperties().then(setProperties).catch((reason: unknown) => setError(reason instanceof Error ? reason.message : "No se pudieron obtener las propiedades.")).finally(() => setLoading(false));
 	}, []);
 
+	// Aplicar los filtros seleccionados sobre las propiedades obtenidas
 	const filteredProperties = properties.filter((property) => {
 		const operation = property.categoria_operacion || property.operation || property.category || "";
 		const type = property.tipo_inmueble || property.propertyType || "";
@@ -39,6 +44,7 @@ export default function PropiedadesPage() {
 		return (!appliedFilters.operation || normalize(operation) === normalize(appliedFilters.operation)) && (!appliedFilters.location || normalize(property.ciudad || "") === normalize(appliedFilters.location)) && (!appliedFilters.propertyType || normalize(type) === normalize(appliedFilters.propertyType)) && (!appliedFilters.minPrice || property.price >= Number(appliedFilters.minPrice)) && (!appliedFilters.maxPrice || property.price <= Number(appliedFilters.maxPrice)) && (!appliedFilters.rooms || (rooms !== undefined && rooms === Number(appliedFilters.rooms))) && (!appliedFilters.amenities || amenities.some((amenity) => normalize(amenity) === normalize(appliedFilters.amenities))) && (!appliedFilters.status || normalize(status) === normalize(appliedFilters.status));
 	});
 
+	// Armar las opciones disponibles según los datos cargados
 	const options = {
 		operations: operationOptions,
 		locations: unique(properties.map((property) => property.ciudad)),
@@ -49,6 +55,7 @@ export default function PropiedadesPage() {
 	};
 
 	return <main className="min-h-dvh bg-[#f7f8fa] font-sans text-[#141a2b]">
+		{/* Encabezado del catálogo */}
 		<section className="relative overflow-hidden bg-[#071a52] px-5 pb-16 pt-32 text-white sm:px-8 lg:px-12 lg:pb-20">
 			<Navbar />
 			<div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
@@ -63,6 +70,7 @@ export default function PropiedadesPage() {
 			<div className="absolute -bottom-20 -right-12 h-64 w-64 rounded-full border border-white/10" aria-hidden="true" />
 			<div className="absolute bottom-0 left-0 h-px w-1/3 bg-[#d9382b]" aria-hidden="true" />
 		</section>
+		{/* Filtros y resultados */}
 		<section className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12 lg:py-16">
 			<div className="mb-8 flex flex-col gap-4 border-b border-[#dfe5ef] pb-6 sm:flex-row sm:items-end sm:justify-between">
 				<div><p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#d9382b]">Explorá a tu ritmo</p><h2 className="font-fraunces text-3xl font-semibold text-[#071a52] sm:text-4xl">Propiedades disponibles</h2></div>

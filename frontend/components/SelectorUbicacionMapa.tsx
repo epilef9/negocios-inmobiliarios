@@ -55,6 +55,7 @@ export default function SelectorUbicacionMapa({
   ciudadSugerida = "",
   provinciaSugerida = "entre_rios",
 }: SelectorUbicacionMapaProps) {
+	// Referencias al mapa, marcador y búsquedas pendientes
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<L.Map | null>(null);
   const markerRef = useRef<L.Marker | null>(null);

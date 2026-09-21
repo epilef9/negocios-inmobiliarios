@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
+	// Estado del menú en pantallas chicas y sesión actual
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { user, isLoading, logout } = useAuth();
 
@@ -30,7 +31,7 @@ export default function Navbar() {
             </span>
           </Link>
           
-          {/* Desktop Navigation */}
+          {/* Navegación para escritorio */}
           <div className="hidden lg:flex space-x-8 items-center">
             <Link href="/" className="text-white/80 hover:text-white font-medium transition-colors">Inicio</Link>
             <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Propiedades</Link>
@@ -86,7 +87,7 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Botón del menú móvil */}
           <div className="lg:hidden flex items-center">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -101,7 +102,7 @@ export default function Navbar() {
         </div>
       </div>
 
-      {/* Mobile Dropdown */}
+      {/* Menú desplegable móvil */}
       {isMobileMenuOpen && (
         <div className="lg:hidden bg-black/95 backdrop-blur-xl border-b border-white/10 absolute w-full animate-fade-in-down">
           <div className="px-4 pt-4 pb-6 space-y-3">

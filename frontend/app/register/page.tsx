@@ -1,7 +1,7 @@
 'use client';
 
 // frontend/app/registro/page.tsx
-// Vista de Registro de Usuario (HU-05) - Diseno basado en Prototipo 14.1
+// Vista de Registro de Usuario
 
 import React, { useState } from 'react';
 import Link from 'next/link';
@@ -12,6 +12,7 @@ export default function RegistroPage() {
   const router = useRouter();
   const { register } = useAuth();
 
+  // Datos que se van completando en el formulario
   const [formData, setFormData] = useState({
     nombre: '',
     apellido: '',
@@ -26,12 +27,14 @@ export default function RegistroPage() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Actualizar el campo y borrar el error cuando el usuario vuelve a escribir
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
     if (error) setError(null);
   };
 
+  // Validar los datos y crear la cuenta
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);

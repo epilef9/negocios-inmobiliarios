@@ -12,6 +12,7 @@ const SelectorUbicacionMapa = dynamic(() => import("@/components/SelectorUbicaci
   loading: () => <div className="h-80 w-full animate-pulse rounded-xl bg-slate-100" />,
 });
 
+// Íconos para las acciones de contacto de la propiedad
 function ActionIcon({ type }: { type: "calendar" | "whatsapp" | "mail" }) {
   const paths = {
     calendar: <><rect x="3" y="4" width="18" height="17" rx="2" /><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01" /></>,
@@ -49,6 +50,7 @@ export default function PropertyDetail() {
   const [error, setError] = useState("");
   const [mapCoordinates, setMapCoordinates] = useState<{ latitud: string; longitud: string } | null>(null);
 
+  // Obtener los datos de la propiedad y preparar su ubicación
   useEffect(() => {
     if (!propertyId) return;
 
@@ -75,6 +77,7 @@ export default function PropertyDetail() {
   if (loading || property?._id !== propertyId) return <main className="min-h-dvh bg-[#f5f7fa] font-sans text-[#092454]"><p className="mx-auto max-w-[1260px] px-4 py-16 text-center text-sm text-slate-500">Cargando propiedad...</p></main>;
   if (error || !property) return <main className="min-h-dvh bg-[#f5f7fa] font-sans text-[#092454]"><section className="mx-auto max-w-[1260px] px-4 py-16 text-center"><h1 className="text-2xl font-bold">Propiedad no encontrada</h1><p className="mt-3 text-sm text-slate-500">{error || "No existe una propiedad asociada a este identificador."}</p><Link href="/propiedades" className="mt-6 inline-block rounded-md bg-[#092454] px-5 py-2.5 text-sm font-semibold text-white">Volver a propiedades</Link></section></main>;
 
+  // Preparar la información que se muestra en el detalle
   const gallery = property.images ?? [];
   const details = [
     property.cantidad_ambientes !== undefined ? `${property.cantidad_ambientes} ambientes` : null,
@@ -94,6 +97,7 @@ export default function PropertyDetail() {
 
   return (
     <main className="min-h-dvh bg-[#f5f7fa] font-sans text-[#092454]">
+      {/* Navegación de la propiedad */}
       <header className="h-[62px] bg-[#092454] text-white shadow-md">
         <div className="mx-auto flex h-full max-w-[1260px] items-center justify-between px-5 lg:px-0">
           <Link href="/" className="flex items-center gap-2.5">
@@ -142,6 +146,7 @@ export default function PropertyDetail() {
         </div>
       </header>
 
+      {/* Galería, información y ubicación */}
       <section className="mx-auto max-w-[1260px] px-4 pb-12 pt-5 sm:px-6 lg:px-0"><div className="mb-4 flex items-center gap-2 text-xs text-slate-500"><Link href="/propiedades" className="transition hover:text-[#092454]">Propiedades</Link><span>/</span><span>Detalle</span></div><div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_350px]">
         <div className="min-w-0">
           {gallery.length > 0 ? <><div className="relative aspect-[16/7] overflow-hidden rounded-lg bg-slate-200 shadow-sm sm:aspect-[16/6.5]"><img src={gallery[activeImage]} alt={property.title} className="h-full w-full object-cover transition-opacity duration-300" />{gallery.length > 1 && <><button type="button" onClick={() => moveImage(-1)} aria-label="Imagen anterior" className="absolute left-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xl text-[#092454] shadow-md transition hover:bg-red-600 hover:text-white">‹</button><button type="button" onClick={() => moveImage(1)} aria-label="Imagen siguiente" className="absolute right-4 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-white text-xl text-[#092454] shadow-md transition hover:bg-red-600 hover:text-white">›</button></>}<span className="absolute right-3 top-3 rounded-full bg-black/65 px-3 py-1 text-xs font-semibold text-white">{activeImage + 1} / {gallery.length}</span></div><div className="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-6">{gallery.map((image, index) => <button type="button" key={image} onClick={() => setActiveImage(index)} className={`aspect-[1.55] overflow-hidden rounded-md border-2 bg-white ${activeImage === index ? "border-[#092454]" : "border-transparent"}`}><img src={image} alt={`Miniatura ${index + 1} de ${property.title}`} className="h-full w-full object-cover" /></button>)}</div></> : <div className="flex aspect-[16/7] items-center justify-center rounded-lg bg-slate-200 text-sm text-slate-500 sm:aspect-[16/6.5]">Esta propiedad no tiene imágenes cargadas.</div>}

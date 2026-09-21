@@ -1,6 +1,6 @@
 'use client';
 
-// Boton de publicar propiedad: solo visible para administradores (RF-01 / roles del PDF)
+// Boton de publicar propiedad: solo visible para administradores 
 
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
@@ -8,6 +8,7 @@ import { useAuth } from '../context/AuthContext';
 export default function HomePublicarLink() {
   const { user, isLoading } = useAuth();
 
+  // Este acceso solo se muestra a usuarios administradores
   if (isLoading || user?.role !== 'admin') {
     return null;
   }
