@@ -26,13 +26,16 @@ type FiltrosProps = {
 	};
 };
 
+// Estilos y nombres que se reutilizan en los filtros
 const inputClass = "mt-2 w-full rounded-lg border border-[#dfe5ef] bg-white px-3 py-2.5 text-sm text-[#141a2b] outline-none transition placeholder:text-[#9aa2b2] focus:border-[#d9382b] focus:ring-2 focus:ring-[#d9382b]/10";
 const label = (value: string) => value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 
 export default function Filtros({ filters, onChange, onApply, onClear, options }: FiltrosProps) {
+	// Actualizar un filtro sin perder los demás valores
 	const update = (key: keyof PropertyFilters, value: string) => onChange({ ...filters, [key]: value });
 
 	return (
+		/* Panel para elegir y aplicar los filtros */
 		<form onSubmit={onApply} className="rounded-2xl border border-[#d7e0ef] bg-white p-5 shadow-[0_16px_36px_rgba(7,26,82,0.08)] lg:sticky lg:top-6">
 			<div className="flex items-start justify-between border-b border-[#edf0f4] pb-5"><div><span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#d9382b]">Encontrá tu lugar</span><h2 className="text-lg font-bold text-[#071a52]">Filtrar propiedades</h2></div><button type="button" onClick={onClear} className="mt-1 text-xs font-semibold text-[#d9382b] transition hover:text-[#071a52] hover:underline">Borrar filtros</button></div>
 			<div className="space-y-5 pt-5">

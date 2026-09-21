@@ -66,7 +66,7 @@ async function authRequest<T>(path: string, options: RequestInit = {}): Promise<
   return (body.data !== undefined ? body.data : body) as T;
 }
 
-// Iniciar sesion
+// Iniciar sesión y guardar los datos recibidos
 export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   const data = await authRequest<AuthResponse>("/auth/login", {
     method: "POST",
@@ -81,7 +81,7 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   return data;
 }
 
-// Registrar nuevo usuario
+// Registrar un usuario y guardar su sesión
 export async function registerUser(payload: RegisterPayload): Promise<AuthResponse> {
   const data = await authRequest<AuthResponse>("/auth/register", {
     method: "POST",

@@ -71,6 +71,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
+  // Iniciar sesión y guardar el usuario en el contexto
   const handleLogin = async (data: LoginPayload): Promise<User> => {
     setIsLoading(true);
     try {
@@ -82,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Registrar la cuenta y dejarla activa después del registro
   const handleRegister = async (data: RegisterPayload): Promise<User> => {
     setIsLoading(true);
     try {
@@ -93,6 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Cerrar sesión y limpiar el usuario actual
   const handleLogout = () => {
     logoutUser();
     setUser(null);

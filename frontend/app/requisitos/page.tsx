@@ -26,6 +26,7 @@ interface RequirementCard {
   sections: RequirementSection[];
 }
 
+// Requisitos agrupados según el tipo de operación
 const requirementCards: RequirementCard[] = [
   {
     id: "alquilar",
@@ -140,6 +141,7 @@ const requirementCards: RequirementCard[] = [
   },
 ];
 
+// Muestra el ícono correspondiente a cada tipo de requisito
 function RenderIcon({ type }: { type: string }) {
   switch (type) {
     case "key":

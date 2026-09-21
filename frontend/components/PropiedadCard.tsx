@@ -11,6 +11,7 @@ type PropiedadCardProps = {
 const formatPrice = (value: number, currency: string) =>
 	`${currency} ${value.toLocaleString("es-AR")}`;
 
+// Elegir un ícono según el tipo de inmueble
 function PropertyTypeIcon({ type }: { type: string }) {
 	const normalizedType = type.toLocaleLowerCase("es");
 
@@ -29,6 +30,7 @@ function PropertyTypeIcon({ type }: { type: string }) {
 	return <path d="M5 20V5h14v15M8 8h2M14 8h2M8 12h2M14 12h2M8 16h2M14 16h2" />;
 }
 
+// Íconos para mostrar ambientes, baños y superficie
 function FeatureIcon({ kind }: { kind: "rooms" | "bathrooms" | "area" }) {
 	if (kind === "rooms") {
 		return <path d="M4 16v-4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v4M4 16h16M6 16v2M18 16v2M7 10V7h4v3M17 10V8h2v2" />;
@@ -43,6 +45,7 @@ function FeatureIcon({ kind }: { kind: "rooms" | "bathrooms" | "area" }) {
 
 export default function PropiedadCard({ property }: PropiedadCardProps) {
 	const router = useRouter();
+	// Preparar los datos que se muestran en la tarjeta
 	const image = property.images?.[0] || PLACEHOLDER_IMAGE;
 	const operation = property.categoria_operacion || property.operation || property.category || "Propiedad";
 	const type = property.tipo_inmueble || property.propertyType || "Inmueble";
@@ -53,6 +56,7 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 	const statusIsAvailable = status.toLocaleLowerCase("es") === "disponible";
 
 	return (
+		// La tarjeta completa funciona como enlace a los detalles
 		<article
 			className="group flex h-full cursor-pointer flex-col overflow-hidden rounded-2xl border border-[#d9e1ef] bg-white shadow-[0_12px_30px_rgba(7,26,82,0.08)] transition duration-300 hover:-translate-y-1.5 hover:border-[#b9c9e7] hover:shadow-[0_20px_42px_rgba(7,26,82,0.16)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#d9382b] focus-visible:ring-offset-2"
 			role="link"

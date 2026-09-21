@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import Navbar from "@/components/Navbar";
 
 export default function ContactoPage() {
+  // Datos del formulario y estado de confirmación
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -12,6 +13,7 @@ export default function ContactoPage() {
   });
   const [submitted, setSubmitted] = useState(false);
 
+  // Validar que la consulta esté completa antes de enviarla
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.nombre.trim() || !formData.email.trim() || !formData.mensaje.trim()) return;

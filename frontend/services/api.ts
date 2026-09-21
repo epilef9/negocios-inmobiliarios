@@ -1,5 +1,6 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
+// Función base para comunicarse con la API
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
@@ -85,6 +86,7 @@ export type DolarBlueQuote = {
 
 let dolarBlueQuotePromise: Promise<DolarBlueQuote> | null = null;
 
+// Consultar la cotización y reutilizar la petición mientras está pendiente
 export const getDolarBlueQuote = () => {
 	if (dolarBlueQuotePromise) return dolarBlueQuotePromise;
 
@@ -106,6 +108,7 @@ export const getDolarBlueQuote = () => {
 	return dolarBlueQuotePromise;
 };
 
+// Operaciones principales sobre propiedades y localidades
 export const getProperties = () => request<ApiProperty[]>("/properties");
 
 export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");

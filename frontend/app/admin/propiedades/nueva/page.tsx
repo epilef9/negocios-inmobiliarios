@@ -21,7 +21,7 @@ const SelectorUbicacionMapa = dynamic(
 export default function NuevaPropiedadPage() {
   const router = useRouter();
   const [mensaje, setMensaje] = useState("");
-  // Control de paso (1 o 2)
+  // Paso actual del formulario y pasos que ya fueron completados
   const [pasoActual, setPasoActual] = useState<1 | 2 | 3 | 4 | 5 | 6 | 7>(1);
   const [pasosCompletados, setPasosCompletados] = useState<number[]>([]);
 
@@ -75,7 +75,7 @@ export default function NuevaPropiedadPage() {
 
   const [comodidadesSeleccionadas, setComodidadesSeleccionadas] = useState<string[]>([]);
 
-  // Lista de imágenes de ejemplo para el diseño de referencia
+  // Imágenes cargadas para la propiedad
   const [imagenes, setImagenes] = useState<string[]>([]);
 
   const [modoEdicion, setModoEdicion] = useState(false);
@@ -90,6 +90,7 @@ export default function NuevaPropiedadPage() {
   const [fechaCotizacionBlue, setFechaCotizacionBlue] = useState<string | null>(null);
   const [estadoCotizacionBlue, setEstadoCotizacionBlue] = useState<"inicial" | "cargando" | "disponible" | "error">("inicial");
 
+  // Quitar el mensaje de error cuando se corrige un campo
   const limpiarErrorCampo = (campo: string) => {
     setErroresCampos((prev) => {
       if (!prev[campo]) return prev;
@@ -104,6 +105,7 @@ export default function NuevaPropiedadPage() {
   const esTerreno = formData.tipoInmueble === "terreno";
   const permiteAlquilerTemporario = esVivienda;
 
+  // Obtener coordenadas desde un enlace de Google Maps
   const completarCoordenadasDesdeLink = async (link: string) => {
     const coordinates = link.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
       ?? link.match(/[?&](?:q|query)=(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
@@ -127,6 +129,7 @@ export default function NuevaPropiedadPage() {
     }
   };
 
+  // Cargar localidades y, si corresponde, los datos de la propiedad a editar
   useEffect(() => {
     getLocalidades()
       .then((items) => setLocalidades(items.map((item) => item.nombre)))
@@ -199,6 +202,7 @@ export default function NuevaPropiedadPage() {
       .finally(() => setCargandoPropiedad(false));
   }, []);
 
+  // Actualizar la cotización cuando se llega al paso de precios
   useEffect(() => {
     if (pasoActual !== 2 && !modoEdicion) return;
 
@@ -230,6 +234,7 @@ export default function NuevaPropiedadPage() {
     );
   };
 
+  // Evitar que se ingresen valores numéricos negativos
   const handleNonNegativeNumberChange = (field: string, value: string) => {
     if (value === "" || Number(value) >= 0) {
       setFormData((current) => ({ ...current, [field]: value }));
@@ -260,6 +265,7 @@ export default function NuevaPropiedadPage() {
 
   const subirArchivos = async (filesArray: File[]) => {
     if (filesArray.length > 0) {
+      // Revisar tamaño y formato antes de enviarlas al servidor
       const oversizedFile = filesArray.find((file) => file.size > 20 * 1024 * 1024);
 
       if (oversizedFile) {
@@ -295,6 +301,7 @@ export default function NuevaPropiedadPage() {
     await subirArchivos(Array.from(e.dataTransfer.files));
   };
 
+  // Validar los campos propios de cada paso del formulario
   const validarDetallePaso = (paso: number): { valid: boolean; error?: string; field?: string } => {
     if (paso === 1) {
       if (!formData.titulo.trim()) {
@@ -449,6 +456,7 @@ export default function NuevaPropiedadPage() {
 
   const avanzarPaso = () => {
     if (!validarPaso(pasoActual)) return;
+    // Los terrenos no usan el paso de comodidades
     const pasosActualizados = esTerreno && pasoActual === 3
       ? [pasoActual, 4]
       : [pasoActual];
@@ -459,6 +467,7 @@ export default function NuevaPropiedadPage() {
     setErroresCampos({});
   };
 
+  // Volver al paso anterior, teniendo en cuenta el caso de terrenos
   const retrocederPaso = () => {
     setMensaje("");
     setErroresCampos({});
@@ -511,6 +520,7 @@ export default function NuevaPropiedadPage() {
   };
   const numeroVisiblePaso = (paso: number) => esTerreno && paso >= 5 ? paso - 1 : paso;
 
+  // Datos auxiliares para el mapa y la conversión entre monedas
   const mapQuery = formData.latitud && formData.longitud
     ? `${formData.latitud},${formData.longitud}`
     : formData.linkGoogleMaps || formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`;
@@ -527,6 +537,7 @@ export default function NuevaPropiedadPage() {
     ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(fechaCotizacionBlue))
     : null;
 
+  // Validar todo el formulario y crear o actualizar la propiedad
   const publicarPropiedad = async (e: React.FormEvent) => {
     e.preventDefault();
     for (let p = 1; p <= 7; p++) {
@@ -573,6 +584,7 @@ export default function NuevaPropiedadPage() {
         ? precioIngresado
         : precioIngresado * cotizacionDolar;
 
+      // Armar el objeto con el formato que espera la API
       const propertyData = {
         title: formData.titulo,
         codigoInterno: formData.codigoInterno,

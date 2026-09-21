@@ -9,19 +9,23 @@ export default function EditarPropiedadRedirect() {
   const router = useRouter();
   const { user, isLoading } = useAuth();
 
+  // Verificar la sesión y enviar al usuario a la pantalla correspondiente
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
+      // Para editar una propiedad es necesario iniciar sesión
       router.replace("/login");
       return;
     }
 
     if (user.role !== "admin") {
+      // Solo los administradores pueden acceder a la edición
       router.replace("/");
       return;
     }
 
+    // El formulario de edición se encuentra dentro del panel de administración
     if (params?.id) {
       router.replace(`/admin/propiedades/nueva?editar=${params.id}`);
     } else {

@@ -8,6 +8,7 @@ export default function PropiedadesDestacadas() {
   const [properties, setProperties] = useState<ApiProperty[]>([]);
   const [error, setError] = useState<string | null>(null);
 
+  // Cargar solo las primeras propiedades para mostrar en el Home
   useEffect(() => {
     getProperties()
       .then((data) => setProperties(data.slice(0, 3)))
