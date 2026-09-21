@@ -26,4 +26,16 @@ const authMiddleware = async (req, res, next) => {
     }
 };
 
+// Restringe operaciones de administracion al rol admin (RF-09 / RNF-05)
+const requireAdmin = (req, res, next) => {
+    if (!req.user || req.user.role !== 'admin') {
+        return res.status(403).json({
+            message: 'Acceso denegado. Se requiere rol de administrador.'
+        });
+    }
+
+    next();
+};
+
 module.exports = authMiddleware;
+module.exports.requireAdmin = requireAdmin;

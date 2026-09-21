@@ -4,6 +4,8 @@ const path = require('node:path');
 const fs = require('node:fs');
 const propertiesController = require('../controllers/properties.controller');
 const { validateProperty, validatePropertyId } = require('../validators/property.validator');
+const authMiddleware = require('../middlewares/auth.middleware');
+const requireAdmin = authMiddleware.requireAdmin;
 
 const router = express.Router();
 
@@ -28,7 +30,7 @@ const upload = multer({
 	},
 });
 
-router.post('/images', (req, res, next) => {
+router.post('/images', authMiddleware, requireAdmin, (req, res, next) => {
 	upload.array('images', 20)(req, res, (error) => {
 		if (error) {
 			if (error.code === 'LIMIT_FILE_SIZE') {
@@ -56,13 +58,13 @@ router.get('/', propertiesController.getAllProperties);
 // Obtener una propiedad específica
 router.get('/:id', validatePropertyId, propertiesController.getPropertyById);
 
-// Crear una nueva propiedad
-router.post('/', validateProperty, propertiesController.createProperty);
+// Crear una nueva propiedad (solo administrador)
+router.post('/', authMiddleware, requireAdmin, validateProperty, propertiesController.createProperty);
 
-// Actualizar una propiedad existente
-router.put('/:id', validatePropertyId, validateProperty, propertiesController.updateProperty);
+// Actualizar una propiedad existente (solo administrador)
+router.put('/:id', authMiddleware, requireAdmin, validatePropertyId, validateProperty, propertiesController.updateProperty);
 
-// Eliminar una propiedad
-router.delete('/:id', validatePropertyId, propertiesController.deleteProperty);
+// Eliminar una propiedad (solo administrador)
+router.delete('/:id', authMiddleware, requireAdmin, validatePropertyId, propertiesController.deleteProperty);
 
 module.exports = router;

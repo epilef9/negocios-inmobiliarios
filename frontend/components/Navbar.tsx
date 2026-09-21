@@ -7,7 +7,7 @@ import { useAuth } from '../context/AuthContext';
 
 export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const { user, logout } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   return (
     <nav className="absolute top-0 left-0 w-full z-50 bg-black/15 backdrop-blur-md border-b border-white/10">
@@ -37,7 +37,9 @@ export default function Navbar() {
             <Link href="/requisitos" className="text-white/80 hover:text-white font-medium transition-colors">Requisitos</Link>
             <Link href="/contacto" className="text-white/80 hover:text-white font-medium transition-colors">Contacto</Link>
             
-            {user ? (
+            {isLoading ? (
+              <div className="h-8 w-28 rounded-lg bg-white/10 animate-pulse" aria-hidden="true" />
+            ) : user ? (
               <div className="flex items-center space-x-3">
                 {user.role === 'admin' && (
                   <Link 
@@ -108,7 +110,11 @@ export default function Navbar() {
             <Link href="/requisitos" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Requisitos</Link>
             <Link href="/contacto" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Contacto</Link>
             
-            {user ? (
+            {isLoading ? (
+              <div className="pt-2 border-t border-white/10">
+                <div className="h-10 rounded-lg bg-white/10 animate-pulse" aria-hidden="true" />
+              </div>
+            ) : user ? (
               <div className="pt-2 border-t border-white/10 space-y-2">
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/40 border border-red-500/80 text-white text-xs font-semibold">
                   <svg className="w-3.5 h-3.5 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
