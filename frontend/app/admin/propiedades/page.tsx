@@ -461,7 +461,7 @@ export default function GestionPropiedadesPage() {
                 <option value="departamento">Departamento</option>
                 <option value="casa">Casa</option>
                 <option value="local">Local</option>
-                <option value="monoambiente">Monoambiente</option>
+                <option value="terreno">Terreno</option>
               </select>
             </div>
 
