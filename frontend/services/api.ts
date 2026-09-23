@@ -111,7 +111,10 @@ export const getDolarBlueQuote = () => {
 };
 
 // Operaciones principales sobre propiedades y localidades
-export const getProperties = () => request<ApiProperty[]>("/properties");
+export const getProperties = (filters: { comodidad?: string } = {}) => {
+	const query = filters.comodidad ? `?comodidad=${encodeURIComponent(filters.comodidad)}` : "";
+	return request<ApiProperty[]>(`/properties${query}`);
+};
 
 export const getLocalidades = () => request<ApiLocalidad[]>("/localidades");
 

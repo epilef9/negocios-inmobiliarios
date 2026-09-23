@@ -21,7 +21,7 @@ type FiltrosProps = {
 		locations: string[];
 		types: string[];
 		rooms: number[];
-		amenities: string[];
+		amenities: { value: string; label: string }[];
 		statuses: string[];
 	};
 };
@@ -44,7 +44,7 @@ export default function Filtros({ filters, onChange, onApply, onClear, options }
 				<label className="block text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Tipo de inmueble<select value={filters.propertyType} onChange={(event) => update("propertyType", event.target.value)} className={inputClass}><option value="">Todos</option>{options.types.map((option) => <option key={option} value={option}>{label(option)}</option>)}</select></label>
 				<fieldset><legend className="text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Precio (USD)</legend><div className="mt-2 grid grid-cols-2 gap-2"><input type="number" min="0" value={filters.minPrice} onChange={(event) => update("minPrice", event.target.value)} className="w-full rounded-lg border border-[#dfe5ef] px-3 py-2.5 text-sm outline-none focus:border-[#d9382b]" placeholder="Mínimo" /><input type="number" min="0" value={filters.maxPrice} onChange={(event) => update("maxPrice", event.target.value)} className="w-full rounded-lg border border-[#dfe5ef] px-3 py-2.5 text-sm outline-none focus:border-[#d9382b]" placeholder="Máximo" /></div></fieldset>
 				<label className="block text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Ambientes<select value={filters.rooms} onChange={(event) => update("rooms", event.target.value)} className={inputClass}><option value="">Todos</option>{options.rooms.map((rooms) => <option key={rooms} value={rooms}>{rooms} dormitorios o más</option>)}</select></label>
-				<label className="block text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Comodidades<select value={filters.amenities} onChange={(event) => update("amenities", event.target.value)} className={inputClass} disabled={!options.amenities.length}><option value="">{options.amenities.length ? "Todas" : "Sin datos disponibles"}</option>{options.amenities.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>
+				<label className="block text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Comodidades<select value={filters.amenities} onChange={(event) => update("amenities", event.target.value)} className={inputClass} disabled={!options.amenities.length}><option value="">{options.amenities.length ? "Todas" : "Sin datos disponibles"}</option>{options.amenities.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
 				<label className="block text-xs font-bold uppercase tracking-[0.12em] text-[#69707f]">Estado<select value={filters.status} onChange={(event) => update("status", event.target.value)} className={inputClass}><option value="">Todos</option>{options.statuses.map((option) => <option key={option} value={option}>{label(option)}</option>)}</select></label>
 			</div>
 			<button type="submit" className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-[#071a52] px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-[#071a52]/15 transition hover:bg-[#d9382b]">Aplicar filtros <span aria-hidden="true">→</span></button>
