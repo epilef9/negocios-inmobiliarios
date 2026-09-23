@@ -14,6 +14,20 @@ const uniqueNumbers = (values: number[]) => [...new Set(values)].sort((a, b) => 
 const operationOptions = ["venta", "alquiler", "temporario"];
 const propertyTypeOptions = ["departamento", "local", "casa", "monoambiente", "terreno"];
 const statusOptions = ["disponible", "reservado", "alquilado", "vendido"];
+const amenityOptions = [
+	{ value: "aire", label: "Aire acondicionado" },
+	{ value: "ascensor", label: "Ascensor" },
+	{ value: "cocina", label: "Cocina equipada" },
+	{ value: "balcon", label: "Balcón" },
+	{ value: "wifi", label: "Wifi" },
+	{ value: "tv", label: "TV" },
+	{ value: "seguridad", label: "Seguridad 24h" },
+	{ value: "cochera_cubierta", label: "Cochera cubierta" },
+	{ value: "calefaccion", label: "Calefacción" },
+	{ value: "pileta", label: "Pileta" },
+	{ value: "parrilla", label: "Parrilla" },
+	{ value: "laundry", label: "Laundry" },
+];
 
 // Mantener el filtro de operación si viene desde otra página
 const getInitialFilters = (): PropertyFilters => {
@@ -41,7 +55,7 @@ export default function PropiedadesPage() {
 		const status = property.estado || property.status || "";
 		const amenities = property.comodidades || property.amenities || [];
 		const rooms = property.cantidad_ambientes;
-		return (!appliedFilters.operation || normalize(operation) === normalize(appliedFilters.operation)) && (!appliedFilters.location || normalize(property.ciudad || "") === normalize(appliedFilters.location)) && (!appliedFilters.propertyType || normalize(type) === normalize(appliedFilters.propertyType)) && (!appliedFilters.minPrice || property.price >= Number(appliedFilters.minPrice)) && (!appliedFilters.maxPrice || property.price <= Number(appliedFilters.maxPrice)) && (!appliedFilters.rooms || (rooms !== undefined && rooms === Number(appliedFilters.rooms))) && (!appliedFilters.amenities || amenities.some((amenity) => normalize(amenity) === normalize(appliedFilters.amenities))) && (!appliedFilters.status || normalize(status) === normalize(appliedFilters.status));
+		return (!appliedFilters.operation || normalize(operation) === normalize(appliedFilters.operation)) && (!appliedFilters.location || normalize(property.ciudad || "") === normalize(appliedFilters.location)) && (!appliedFilters.propertyType || normalize(type) === normalize(appliedFilters.propertyType)) && (!appliedFilters.minPrice || property.price >= Number(appliedFilters.minPrice)) && (!appliedFilters.maxPrice || property.price <= Number(appliedFilters.maxPrice)) && (!appliedFilters.rooms || (rooms !== undefined && rooms === Number(appliedFilters.rooms))) && (!appliedFilters.amenities || amenities.includes(appliedFilters.amenities)) && (!appliedFilters.status || normalize(status) === normalize(appliedFilters.status));
 	});
 
 	// Armar las opciones disponibles según los datos cargados
@@ -50,7 +64,7 @@ export default function PropiedadesPage() {
 		locations: unique(properties.map((property) => property.ciudad)),
 		types: propertyTypeOptions,
 		rooms: uniqueNumbers(properties.flatMap((property) => property.cantidad_ambientes === undefined ? [] : [property.cantidad_ambientes])),
-		amenities: unique(properties.flatMap((property) => property.comodidades || property.amenities || [])),
+		amenities: amenityOptions,
 		statuses: statusOptions,
 	};
 
