@@ -1,5 +1,6 @@
 // frontend/app/page.tsx
 import Link from "next/link";
+import HeroBackdrop from "@/components/HeroBackdrop";
 import Navbar from "@/components/Navbar";
 import PropiedadesDestacadas from "@/components/PropiedadesDestacadas";
 import MetricasPropiedades from "@/components/MetricasPropiedades";
@@ -21,17 +22,7 @@ export default function Home() {
       {/* Sección principal */}
       <section className="relative w-full min-h-dvh flex items-center justify-center overflow-hidden">
         
-        {/* Video de fondo */}
-        <video
-          className="absolute inset-0 w-full h-full object-cover"
-          src="/videos/home.mp4"
-          autoPlay
-          loop
-          muted
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-        />
+        <HeroBackdrop />
 
         <div className="absolute inset-0 bg-gradient-to-b from-[#03102c]/55 via-[#061533]/60 to-[#050b18]" aria-hidden="true" />
         <div className="relative z-10 flex flex-col items-center text-center gap-6 px-5 py-16 max-w-3xl sm:gap-7 md:gap-8 mt-12">
