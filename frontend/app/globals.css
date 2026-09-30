@@ -54,4 +54,31 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-public-sans), Arial, Helvetica, sans-serif;
-}
+}
+/* Slow camera movement over the original architectural artwork. */
+@keyframes hero-cinematic-drift {
+  from { transform: scale(1.04) translate3d(-0.5%, 0, 0); }
+  to { transform: scale(1.12) translate3d(0.5%, -0.75%, 0); }
+}
+
+.hero-cinematic-scene {
+  transform-origin: 58% 50%;
+  animation: hero-cinematic-drift 24s ease-in-out infinite alternate;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-cinematic-scene {
+    animation: none;
+    transform: none;
+  }
+
+  .hero-motion-control {
+    display: none;
+  }
+
+  .animate-fade-in-up {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

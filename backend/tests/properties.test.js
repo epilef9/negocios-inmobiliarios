@@ -73,6 +73,20 @@ describe('Properties API', () => {
             expect(res.statusCode).toEqual(200);
             expect(res.body.data).toEqual([]);
         });
+
+        it('should return every property that has the requested amenity', async () => {
+            await Property.create([
+                { ...propertyPayload, title: 'With air 1', comodidades: ['aire', 'wifi'] },
+                { ...propertyPayload, title: 'With air 2', comodidades: ['aire'] },
+                { ...propertyPayload, title: 'Without air', comodidades: ['pileta'] },
+            ]);
+
+            const res = await request(app).get('/api/properties?comodidad=aire');
+
+            expect(res.statusCode).toEqual(200);
+            expect(res.body.data.map((property) => property.title)).toEqual(expect.arrayContaining(['With air 1', 'With air 2']));
+            expect(res.body.data).toHaveLength(2);
+        });
     });
 
     describe('POST /api/properties', () => {

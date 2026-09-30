@@ -27,6 +27,11 @@ interface ResultadoBusqueda {
   score: number;
 }
 
+// Evitar coordenadas incompletas, infinitas o fuera del rango geográfico.
+const coordenadasValidas = (lat: number, lng: number) =>
+  Number.isFinite(lat) && Number.isFinite(lng) &&
+  Math.abs(lat) <= 90 && Math.abs(lng) <= 180;
+
 // Icono personalizado SVG de alta resolución con estilo moderno
 const createCustomPinIcon = () => {
   const svgHtml = `
@@ -76,9 +81,10 @@ export default function SelectorUbicacionMapa({
   const defaultLat = -31.7319;
   const defaultLng = -60.5238;
 
-  const parsedLat = latitud ? parseFloat(latitud) : null;
-  const parsedLng = longitud ? parseFloat(longitud) : null;
-  const hasValidCoords = parsedLat !== null && !isNaN(parsedLat) && parsedLng !== null && !isNaN(parsedLng);
+  const parsedLat = latitud.trim() ? Number(latitud) : null;
+  const parsedLng = longitud.trim() ? Number(longitud) : null;
+  const hasValidCoords = parsedLat !== null && parsedLng !== null &&
+    coordenadasValidas(parsedLat, parsedLng);
 
   const nombreProvincia = provinciaSugerida === "entre_rios" ? "Entre Ríos" : provinciaSugerida;
 
@@ -136,7 +142,18 @@ export default function SelectorUbicacionMapa({
       }
     }
 
+    // Los pasos del formulario ocultan el contenedor con CSS. Leaflet debe
+    // recalcular su tamaño cuando aparece o cambia el ancho de la pantalla.
+    const resizeObserver = new ResizeObserver(() => {
+      const container = mapContainerRef.current;
+      if (container && container.clientWidth > 0 && container.clientHeight > 0) {
+        mapInstanceRef.current?.invalidateSize({ animate: false });
+      }
+    });
+    resizeObserver.observe(mapContainerRef.current);
+
     return () => {
+      resizeObserver.disconnect();
       if (mapInstanceRef.current) {
         mapInstanceRef.current.remove();
         mapInstanceRef.current = null;
@@ -146,9 +163,9 @@ export default function SelectorUbicacionMapa({
   }, []);
 
   // Función para colocar o mover marcador
-  const colocarMarcador = (lat: number, lng: number, flyTo: boolean = true) => {
+  const colocarMarcador = (lat: number, lng: number, centrarMapa: boolean = true) => {
     const map = mapInstanceRef.current;
-    if (!map) return;
+    if (!map || !coordenadasValidas(lat, lng)) return;
 
     const pinIcon = createCustomPinIcon();
 
@@ -168,10 +185,11 @@ export default function SelectorUbicacionMapa({
       markerRef.current.setLatLng([lat, lng]);
     }
 
-    if (flyTo) {
-      map.flyTo([lat, lng], Math.max(map.getZoom(), 17), {
-        duration: 0.8,
-      });
+    if (centrarMapa) {
+      // flyTo calcula una trayectoria usando el tamaño del mapa. Si el paso
+      // está oculto (0 x 0), genera NaN incluso con coordenadas correctas.
+      map.invalidateSize({ animate: false });
+      map.setView([lat, lng], Math.max(map.getZoom(), 17), { animate: false });
     }
   };
 
@@ -219,6 +237,10 @@ export default function SelectorUbicacionMapa({
 
   // Función cuando el usuario selecciona una posición (clic, gps, búsqueda o drag)
   const actualizarPosicion = (lat: number, lng: number, centrarMapa: boolean = true) => {
+    if (!coordenadasValidas(lat, lng)) {
+      mostrarMensaje("La ubicación recibida no tiene coordenadas válidas.", "error");
+      return;
+    }
     const latStr = lat.toFixed(6);
     const lngStr = lng.toFixed(6);
 

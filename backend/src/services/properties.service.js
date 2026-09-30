@@ -2,6 +2,20 @@ const Property = require('../models/property.model');
 const propertiesRepository = require('../repositories/properties.repository');
 
 const DEFAULT_DOLLAR_RATE = 1370;
+const PROPERTY_AMENITIES = new Set([
+    'aire',
+    'ascensor',
+    'cocina',
+    'balcon',
+    'wifi',
+    'tv',
+    'seguridad',
+    'cochera_cubierta',
+    'calefaccion',
+    'pileta',
+    'parrilla',
+    'laundry',
+]);
 
 const normalizePropertyPrices = (propertyData) => {
     const normalized = { ...propertyData };
@@ -24,8 +38,14 @@ const normalizePropertyPrices = (propertyData) => {
     return normalized;
 };
 
-const getAllProperties = async (filters) => {
-    return propertiesRepository.getAllProperties(filters);
+const getAllProperties = async (filters = {}) => {
+    const query = {};
+    if (typeof filters.comodidad === 'string' && filters.comodidad.trim()) {
+        const amenity = filters.comodidad.trim();
+        query.comodidades = PROPERTY_AMENITIES.has(amenity) ? amenity : '__invalid_amenity__';
+    }
+
+    return propertiesRepository.getAllProperties(query);
 };
 
 const getPropertyById = async (id) => {
