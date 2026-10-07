@@ -6,8 +6,11 @@ import { useSearchParams } from 'next/navigation';
 import AdminSidebar from '../../../../components/AdminSidebar';
 import {
   Contrato,
-  getStoredContratos,
-  saveOrUpdateContrato,
+  ContratoInput,
+  getContratoById,
+  createContrato,
+  updateContrato,
+  generarNumeroContrato,
 } from '../../../../services/contratos';
 
 function GeneracionContratosForm() {
@@ -37,7 +40,11 @@ function GeneracionContratosForm() {
 
   const [locadora, setLocadora] = useState('Araceli Balbuena');
   const [estado, setEstado] = useState<'Borrador' | 'Listo' | 'Generado'>('Borrador');
-  const [ultimaActualizacion, setUltimaActualizacion] = useState('07/07/2026 16:45 hs');
+  const [ultimaActualizacion, setUltimaActualizacion] = useState('—');
+
+  // API state
+  const [guardando, setGuardando] = useState(false);
+  const [cargandoContrato, setCargandoContrato] = useState(false);
 
   // Preview & Zoom controls
   const [zoom, setZoom] = useState<number>(100);
@@ -47,26 +54,39 @@ function GeneracionContratosForm() {
 
   const documentRef = useRef<HTMLDivElement>(null);
 
-  // Pre-cargar si se pasa un ID por query param
+  // Pre-cargar si se pasa un ID por query param (carga desde la API)
   useEffect(() => {
     if (!contractId) return;
-    const contratos = getStoredContratos();
-    const encontrado = contratos.find((c) => c.id === contractId || c.numeroContrato === contractId);
-    if (encontrado) {
-      setClienteSeleccionado(encontrado.cliente.nombre);
-      setPropiedadSeleccionada(`${encontrado.propiedad.titulo} — ${encontrado.propiedad.direccion}`);
-      setFechaInicio(encontrado.fechaInicio);
-      setMontoMensual(encontrado.montoMensual);
-      if (encontrado.duracionMeses) setDuracionMeses(String(encontrado.duracionMeses));
-      if (encontrado.depositoGarantia) setDepositoGarantia(encontrado.depositoGarantia);
-      if (encontrado.tipoContrato) setTipoContrato(encontrado.tipoContrato);
-      if (encontrado.plantilla) setPlantilla(encontrado.plantilla);
-      if (encontrado.ajuste) setAjuste(encontrado.ajuste);
-      if (encontrado.comision) setComision(encontrado.comision);
-      if (encontrado.locadora) setLocadora(encontrado.locadora);
-      if (encontrado.observaciones) setObservaciones(encontrado.observaciones);
-      if (encontrado.ultimaActualizacion) setUltimaActualizacion(encontrado.ultimaActualizacion);
-    }
+
+    const cargar = async () => {
+      try {
+        setCargandoContrato(true);
+        const encontrado = await getContratoById(contractId);
+        setClienteSeleccionado(encontrado.cliente.nombre);
+        setPropiedadSeleccionada(`${encontrado.propiedad.titulo} — ${encontrado.propiedad.direccion}`);
+        setFechaInicio(encontrado.fechaInicio);
+        setMontoMensual(encontrado.montoMensual);
+        if (encontrado.duracionMeses) setDuracionMeses(String(encontrado.duracionMeses));
+        if (encontrado.depositoGarantia) setDepositoGarantia(encontrado.depositoGarantia);
+        if (encontrado.tipoContrato) setTipoContrato(encontrado.tipoContrato);
+        if (encontrado.plantilla) setPlantilla(encontrado.plantilla);
+        if (encontrado.ajuste) setAjuste(encontrado.ajuste);
+        if (encontrado.comision) setComision(encontrado.comision);
+        if (encontrado.locadora) setLocadora(encontrado.locadora);
+        if (encontrado.observaciones) setObservaciones(encontrado.observaciones);
+        if (encontrado.ultimaActualizacion) setUltimaActualizacion(encontrado.ultimaActualizacion);
+        if (encontrado.incluyeGarante !== undefined) setIncluyeGarante(encontrado.incluyeGarante);
+        if (encontrado.permitirEdicionManual !== undefined)
+          setPermitirEdicionManual(encontrado.permitirEdicionManual);
+      } catch (err) {
+        console.error('Error al cargar el contrato:', err);
+        mostrarToast('No se pudo cargar el contrato');
+      } finally {
+        setCargandoContrato(false);
+      }
+    };
+
+    cargar();
   }, [contractId]);
 
   const mostrarToast = (texto: string) => {
@@ -74,62 +94,101 @@ function GeneracionContratosForm() {
     setTimeout(() => setMensajeToast(null), 3000);
   };
 
-  const handleGuardarBorrador = () => {
+  const buildFechaStr = () => {
     const ahora = new Date();
-    const fechaStr = `${String(ahora.getDate()).padStart(2, '0')}/${String(
+    return `${String(ahora.getDate()).padStart(2, '0')}/${String(
       ahora.getMonth() + 1
     ).padStart(2, '0')}/${ahora.getFullYear()} ${String(ahora.getHours()).padStart(2, '0')}:${String(
       ahora.getMinutes()
     ).padStart(2, '0')} hs`;
-
-    setUltimaActualizacion(fechaStr);
-    setEstado('Borrador');
-
-    const nuevo: Contrato = {
-      id: contractId || `ct-${Date.now()}`,
-      numeroContrato: contractId ? `CT-${contractId.replace('ct-', '')}` : `CT-${Math.floor(10000 + Math.random() * 90000)}`,
-      codigoId: String(Math.floor(1000 + Math.random() * 9000)),
-      cliente: {
-        nombre: clienteSeleccionado,
-        telefono: '+54 9 343 555 5678',
-      },
-      propiedad: {
-        titulo: propiedadSeleccionada.split('—')[0]?.trim() || propiedadSeleccionada,
-        direccion: propiedadSeleccionada.split('—')[1]?.trim() || 'Paraná, Entre Ríos',
-      },
-      fechaInicio,
-      fechaFin: '31/07/2028',
-      montoMensual,
-      estado: 'activo',
-      tipoContrato,
-      plantilla,
-      duracionMeses: Number(duracionMeses) || 24,
-      depositoGarantia,
-      ajuste,
-      comision,
-      incluyeGarante,
-      permitirEdicionManual,
-      observaciones,
-      locadora,
-      ultimaActualizacion: fechaStr,
-    };
-
-    saveOrUpdateContrato(nuevo);
-    mostrarToast('Borrador guardado exitosamente');
   };
 
-  const handleGenerarDocumento = () => {
-    const ahora = new Date();
-    const fechaStr = `${String(ahora.getDate()).padStart(2, '0')}/${String(
-      ahora.getMonth() + 1
-    ).padStart(2, '0')}/${ahora.getFullYear()} ${String(ahora.getHours()).padStart(2, '0')}:${String(
-      ahora.getMinutes()
-    ).padStart(2, '0')} hs`;
+  // Datos comunes para crear o actualizar (sin numeroContrato para no pisar el existente al editar)
+  const buildCamposComunes = (fechaStr: string) => ({
+    cliente: {
+      nombre: clienteSeleccionado,
+      telefono: '+54 9 343 555 5678',
+    },
+    propiedad: {
+      titulo: propiedadSeleccionada.split('—')[0]?.trim() || propiedadSeleccionada,
+      direccion: propiedadSeleccionada.split('—')[1]?.trim() || 'Paraná, Entre Ríos',
+    },
+    fechaInicio,
+    fechaFin: calcularFechaFin(fechaInicio, Number(duracionMeses) || 24),
+    montoMensual,
+    estado: 'activo' as const,
+    tipoContrato,
+    plantilla,
+    duracionMeses: Number(duracionMeses) || 24,
+    depositoGarantia,
+    ajuste,
+    comision,
+    incluyeGarante,
+    permitirEdicionManual,
+    observaciones,
+    locadora,
+    ultimaActualizacion: fechaStr,
+  });
 
+  const calcularFechaFin = (inicio: string, meses: number): string => {
+    const partes = inicio.split('/');
+    if (partes.length !== 3) return inicio;
+    const [dia, mes, anio] = partes.map(Number);
+    const fecha = new Date(anio, mes - 1, dia);
+    fecha.setMonth(fecha.getMonth() + meses);
+    return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
+  };
+
+  const handleGuardarBorrador = async () => {
+    const fechaStr = buildFechaStr();
+    setUltimaActualizacion(fechaStr);
+    setEstado('Borrador');
+    setGuardando(true);
+
+    try {
+      const campos = buildCamposComunes(fechaStr);
+
+      if (contractId) {
+        // Actualización: NO enviamos numeroContrato para no romper el unique index
+        await updateContrato(contractId, campos);
+        mostrarToast('Borrador actualizado exitosamente');
+      } else {
+        // Creación: generamos el número una sola vez
+        const nuevo: ContratoInput = { ...campos, numeroContrato: generarNumeroContrato() };
+        await createContrato(nuevo);
+        mostrarToast('Borrador guardado exitosamente');
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al guardar';
+      mostrarToast(msg);
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const handleGenerarDocumento = async () => {
+    const fechaStr = buildFechaStr();
     setUltimaActualizacion(fechaStr);
     setEstado('Generado');
-    handleGuardarBorrador();
-    mostrarToast('Documento generado y listo para descargar');
+    setGuardando(true);
+
+    try {
+      const campos = buildCamposComunes(fechaStr);
+      campos.estado = 'activo';
+
+      if (contractId) {
+        await updateContrato(contractId, campos);
+      } else {
+        const nuevo: ContratoInput = { ...campos, numeroContrato: generarNumeroContrato() };
+        await createContrato(nuevo);
+      }
+      mostrarToast('Documento generado y listo para descargar');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al generar';
+      mostrarToast(msg);
+    } finally {
+      setGuardando(false);
+    }
   };
 
   const handleDescargarPDF = () => {
@@ -142,6 +201,23 @@ function GeneracionContratosForm() {
     }
     return propiedadSeleccionada + ', Paraná, Entre Ríos';
   };
+
+  if (cargandoContrato) {
+    return (
+      <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
+        <AdminSidebar activeSection="contratos" />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="flex items-center gap-3 text-slate-400">
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            <span className="text-sm font-medium">Cargando contrato...</span>
+          </div>
+        </main>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
@@ -489,23 +565,32 @@ function GeneracionContratosForm() {
               <button
                 type="button"
                 onClick={handleGuardarBorrador}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 font-bold text-xs shadow-sm transition active:scale-95"
+                disabled={guardando}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 font-bold text-xs shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                </svg>
-                Guardar borrador
+                {guardando ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                  </svg>
+                )}
+                {guardando ? 'Guardando...' : 'Guardar borrador'}
               </button>
 
               <button
                 type="button"
                 onClick={handleGenerarDocumento}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#cc1f26] hover:bg-[#b0171d] text-white font-bold text-xs shadow-sm transition active:scale-95"
+                disabled={guardando}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#cc1f26] hover:bg-[#b0171d] text-white font-bold text-xs shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                Generar documento
+                {guardando ? 'Generando...' : 'Generar documento'}
               </button>
             </div>
           </div>

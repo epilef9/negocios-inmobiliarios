@@ -1,7 +1,7 @@
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
 
 // Función base para comunicarse con la API
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
 	const response = await fetch(`${API_URL}${path}`, {
