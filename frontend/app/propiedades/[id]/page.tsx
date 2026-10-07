@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { getPropertyById, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
+import { createVisita } from "@/services/visitas";
 
 const MapaUbicacionPropiedad = dynamic(() => import("@/components/MapaUbicacionPropiedad"), {
   ssr: false,
@@ -49,6 +50,77 @@ export default function PropertyDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [mapCoordinates, setMapCoordinates] = useState<{ latitud: string; longitud: string } | null>(null);
+  const [modalVisita, setModalVisita] = useState(false);
+  const [visitaEnviada, setVisitaEnviada] = useState(false);
+  const [visitaCargando, setVisitaCargando] = useState(false);
+  const [visitaError, setVisitaError] = useState("");
+  const [formVisita, setFormVisita] = useState({
+    nombre: "",
+    telefono: "",
+    email: "",
+    fecha: "",
+    horario: "10:00 h",
+    nota: "",
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormVisita((prev) => ({
+        ...prev,
+        nombre: prev.nombre || user.name || "",
+        email: prev.email || user.email || "",
+      }));
+    }
+  }, [user]);
+
+  const handleAgendarVisita = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!property) return;
+    if (!formVisita.nombre || !formVisita.telefono || !formVisita.fecha) {
+      setVisitaError("Por favor completá nombre, teléfono y fecha.");
+      return;
+    }
+
+    let fechaFinal = formVisita.fecha;
+    if (formVisita.fecha.includes("-")) {
+      const [y, m, d] = formVisita.fecha.split("-");
+      fechaFinal = `${d}/${m}/${y}`;
+    }
+
+    let horarioFinal = formVisita.horario || "10:00 h";
+    if (!horarioFinal.includes("h")) {
+      horarioFinal = `${horarioFinal} h`;
+    }
+
+    setVisitaCargando(true);
+    setVisitaError("");
+    try {
+      await createVisita({
+        cliente: {
+          nombre: formVisita.nombre,
+          telefono: formVisita.telefono,
+          email: formVisita.email,
+          iniciales: formVisita.nombre.split(" ").slice(0, 2).map((n) => n[0]?.toUpperCase() ?? "").join("") || "CL",
+        },
+        propiedad: {
+          id: property._id,
+          titulo: property.title,
+          direccion: property.location,
+          precio: property.moneda === "ARS" ? `ARS ${property.priceARS ?? property.price}` : `USD ${property.price}`,
+        },
+        fecha: fechaFinal,
+        horario: horarioFinal,
+        estado: "pendiente",
+        notaAdicional: formVisita.nota,
+      });
+
+      setVisitaEnviada(true);
+    } catch (err: any) {
+      setVisitaError(err.message || "Error al agendar la visita.");
+    } finally {
+      setVisitaCargando(false);
+    }
+  };
 
   // Obtener los datos de la propiedad y preparar su ubicación
   useEffect(() => {
