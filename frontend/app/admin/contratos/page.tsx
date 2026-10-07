@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../../../components/AdminSidebar';
 import {
   Contrato,
   EstadoContrato,
-  getStoredContratos,
+  getContratos,
   deleteContrato,
 } from '../../../services/contratos';
 
 export default function GestionContratosPage() {
   const router = useRouter();
   const [contratos, setContratos] = useState<Contrato[]>([]);
+  const [cargando, setCargando] = useState(true);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroTab, setFiltroTab] = useState<'todos' | 'activos' | 'finalizados' | 'cancelados' | 'por_vencer'>('todos');
@@ -28,9 +30,23 @@ export default function GestionContratosPage() {
   const [contratoDetalle, setContratoDetalle] = useState<Contrato | null>(null);
   const [mensajeToast, setMensajeToast] = useState<{ texto: string; tipo: 'success' | 'info' | 'error' } | null>(null);
 
-  useEffect(() => {
-    setContratos(getStoredContratos());
+  const cargarContratos = useCallback(async () => {
+    try {
+      setCargando(true);
+      setErrorCarga(null);
+      const data = await getContratos();
+      setContratos(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al cargar contratos';
+      setErrorCarga(msg);
+    } finally {
+      setCargando(false);
+    }
   }, []);
+
+  useEffect(() => {
+    cargarContratos();
+  }, [cargarContratos]);
 
   const mostrarToast = (texto: string, tipo: 'success' | 'info' | 'error' = 'success') => {
     setMensajeToast({ texto, tipo });
@@ -52,7 +68,7 @@ export default function GestionContratosPage() {
       const coincideTexto =
         !q ||
         c.numeroContrato.toLowerCase().includes(q) ||
-        c.codigoId.toLowerCase().includes(q) ||
+        (c.codigoId ?? '').toLowerCase().includes(q) ||
         c.cliente.nombre.toLowerCase().includes(q) ||
         c.cliente.telefono.toLowerCase().includes(q) ||
         c.propiedad.titulo.toLowerCase().includes(q) ||
@@ -85,12 +101,16 @@ export default function GestionContratosPage() {
     return contratosFiltrados.slice(inicio, inicio + porPagina);
   }, [contratosFiltrados, paginaActual, porPagina]);
 
-  const handleEliminar = (id: string, num: string) => {
-    if (confirm(`¿Estás seguro de eliminar el contrato ${num}?`)) {
-      const updated = deleteContrato(id);
-      setContratos(updated);
+  const handleEliminar = async (id: string, num: string) => {
+    if (!confirm(`¿Estás seguro de eliminar el contrato ${num}?`)) return;
+    try {
+      await deleteContrato(id);
+      setContratos((prev) => prev.filter((c) => c._id !== id));
       setMenuAbiertoId(null);
       mostrarToast(`Contrato ${num} eliminado`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Error al eliminar';
+      mostrarToast(msg, 'error');
     }
   };
 
@@ -220,15 +240,9 @@ export default function GestionContratosPage() {
           <div className="flex items-center gap-6 overflow-x-auto pb-px">
             {/* Todos */}
             <button
-              onClick={() => {
-                setFiltroTab('todos');
-                setFiltroEstado('todos');
-                setPaginaActual(1);
-              }}
+              onClick={() => { setFiltroTab('todos'); setFiltroEstado('todos'); setPaginaActual(1); }}
               className={`flex items-center gap-2 py-3 text-sm font-semibold transition border-b-2 -mb-[2px] whitespace-nowrap ${
-                filtroTab === 'todos'
-                  ? 'border-[#cc1f26] text-[#cc1f26]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                filtroTab === 'todos' ? 'border-[#cc1f26] text-[#cc1f26]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -239,15 +253,9 @@ export default function GestionContratosPage() {
 
             {/* Activos */}
             <button
-              onClick={() => {
-                setFiltroTab('activos');
-                setFiltroEstado('activo');
-                setPaginaActual(1);
-              }}
+              onClick={() => { setFiltroTab('activos'); setFiltroEstado('activo'); setPaginaActual(1); }}
               className={`flex items-center gap-2 py-3 text-sm font-semibold transition border-b-2 -mb-[2px] whitespace-nowrap ${
-                filtroTab === 'activos'
-                  ? 'border-[#cc1f26] text-[#cc1f26]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                filtroTab === 'activos' ? 'border-[#cc1f26] text-[#cc1f26]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-100"></span>
@@ -256,15 +264,9 @@ export default function GestionContratosPage() {
 
             {/* Finalizados */}
             <button
-              onClick={() => {
-                setFiltroTab('finalizados');
-                setFiltroEstado('finalizado');
-                setPaginaActual(1);
-              }}
+              onClick={() => { setFiltroTab('finalizados'); setFiltroEstado('finalizado'); setPaginaActual(1); }}
               className={`flex items-center gap-2 py-3 text-sm font-semibold transition border-b-2 -mb-[2px] whitespace-nowrap ${
-                filtroTab === 'finalizados'
-                  ? 'border-[#cc1f26] text-[#cc1f26]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                filtroTab === 'finalizados' ? 'border-[#cc1f26] text-[#cc1f26]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -275,15 +277,9 @@ export default function GestionContratosPage() {
 
             {/* Cancelados */}
             <button
-              onClick={() => {
-                setFiltroTab('cancelados');
-                setFiltroEstado('cancelado');
-                setPaginaActual(1);
-              }}
+              onClick={() => { setFiltroTab('cancelados'); setFiltroEstado('cancelado'); setPaginaActual(1); }}
               className={`flex items-center gap-2 py-3 text-sm font-semibold transition border-b-2 -mb-[2px] whitespace-nowrap ${
-                filtroTab === 'cancelados'
-                  ? 'border-[#cc1f26] text-[#cc1f26]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                filtroTab === 'cancelados' ? 'border-[#cc1f26] text-[#cc1f26]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -294,15 +290,9 @@ export default function GestionContratosPage() {
 
             {/* Por vencer */}
             <button
-              onClick={() => {
-                setFiltroTab('por_vencer');
-                setFiltroEstado('por_vencer');
-                setPaginaActual(1);
-              }}
+              onClick={() => { setFiltroTab('por_vencer'); setFiltroEstado('por_vencer'); setPaginaActual(1); }}
               className={`flex items-center gap-2 py-3 text-sm font-semibold transition border-b-2 -mb-[2px] whitespace-nowrap ${
-                filtroTab === 'por_vencer'
-                  ? 'border-[#cc1f26] text-[#cc1f26]'
-                  : 'border-transparent text-slate-500 hover:text-slate-800'
+                filtroTab === 'por_vencer' ? 'border-[#cc1f26] text-[#cc1f26]' : 'border-transparent text-slate-500 hover:text-slate-800'
               }`}
             >
               <svg className="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -317,258 +307,289 @@ export default function GestionContratosPage() {
           </span>
         </div>
 
+        {/* Estado de carga y error */}
+        {cargando && (
+          <div className="flex items-center justify-center py-16 text-slate-400 gap-3">
+            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+            </svg>
+            <span className="text-sm font-medium">Cargando contratos...</span>
+          </div>
+        )}
+
+        {errorCarga && !cargando && (
+          <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 mb-6 flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full bg-rose-100 flex items-center justify-center shrink-0">
+              <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-rose-700">Error al cargar los contratos</p>
+              <p className="text-xs text-rose-500 mt-0.5">{errorCarga}</p>
+            </div>
+            <button
+              onClick={cargarContratos}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg transition"
+            >
+              Reintentar
+            </button>
+          </div>
+        )}
+
         {/* Tabla de Contratos */}
-        <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden mb-6">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                  <th className="py-3.5 px-5 font-semibold">N° Contrato</th>
-                  <th className="py-3.5 px-4 font-semibold">Cliente</th>
-                  <th className="py-3.5 px-4 font-semibold">Propiedad</th>
-                  <th className="py-3.5 px-4 font-semibold">Fecha inicio</th>
-                  <th className="py-3.5 px-4 font-semibold">Fecha fin</th>
-                  <th className="py-3.5 px-4 font-semibold">Monto mensual</th>
-                  <th className="py-3.5 px-4 font-semibold text-center">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-sm">
-                {contratosPaginados.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-400">
-                      <div className="flex flex-col items-center justify-center gap-2">
-                        <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p className="font-medium text-slate-600">No se encontraron contratos</p>
-                        <button
-                          onClick={limpiarFiltros}
-                          className="text-xs text-blue-600 hover:underline mt-1"
-                        >
-                          Restablecer filtros
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ) : (
-                  contratosPaginados.map((contrato) => (
-                    <tr
-                      key={contrato.id}
-                      className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
-                      onClick={() => setContratoDetalle(contrato)}
-                    >
-                      {/* N° Contrato con ícono */}
-                      <td className="py-4 px-5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 transition">
-                            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        {!cargando && !errorCarga && (
+          <>
+            <div className="bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden mb-6">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
+                      <th className="py-3.5 px-5 font-semibold">N° Contrato</th>
+                      <th className="py-3.5 px-4 font-semibold">Cliente</th>
+                      <th className="py-3.5 px-4 font-semibold">Propiedad</th>
+                      <th className="py-3.5 px-4 font-semibold">Fecha inicio</th>
+                      <th className="py-3.5 px-4 font-semibold">Fecha fin</th>
+                      <th className="py-3.5 px-4 font-semibold">Monto mensual</th>
+                      <th className="py-3.5 px-4 font-semibold text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-sm">
+                    {contratosPaginados.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                             </svg>
+                            <p className="font-medium text-slate-600">No se encontraron contratos</p>
+                            <button onClick={limpiarFiltros} className="text-xs text-blue-600 hover:underline mt-1">
+                              Restablecer filtros
+                            </button>
                           </div>
-                          <div>
-                            <span className="font-bold text-[#193B7B] block text-sm leading-tight hover:underline">
-                              {contrato.numeroContrato}
+                        </td>
+                      </tr>
+                    ) : (
+                      contratosPaginados.map((contrato) => (
+                        <tr
+                          key={contrato._id}
+                          className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
+                          onClick={() => setContratoDetalle(contrato)}
+                        >
+                          {/* N° Contrato con ícono */}
+                          <td className="py-4 px-5">
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 shrink-0 group-hover:bg-blue-50 group-hover:text-blue-600 transition">
+                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </div>
+                              <div>
+                                <span className="font-bold text-[#193B7B] block text-sm leading-tight hover:underline">
+                                  {contrato.numeroContrato}
+                                </span>
+                                {contrato.codigoId && (
+                                  <span className="text-xs text-slate-400 font-normal">
+                                    ID: {contrato.codigoId}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* Cliente */}
+                          <td className="py-4 px-4">
+                            <span className="font-semibold text-slate-900 block text-sm leading-tight">
+                              {contrato.cliente.nombre}
                             </span>
                             <span className="text-xs text-slate-400 font-normal">
-                              ID: {contrato.codigoId}
+                              {contrato.cliente.telefono}
                             </span>
-                          </div>
-                        </div>
-                      </td>
+                          </td>
 
-                      {/* Cliente */}
-                      <td className="py-4 px-4">
-                        <span className="font-semibold text-slate-900 block text-sm leading-tight">
-                          {contrato.cliente.nombre}
-                        </span>
-                        <span className="text-xs text-slate-400 font-normal">
-                          {contrato.cliente.telefono}
-                        </span>
-                      </td>
+                          {/* Propiedad */}
+                          <td className="py-4 px-4">
+                            <span className="font-semibold text-slate-800 block text-sm leading-tight">
+                              {contrato.propiedad.titulo}
+                            </span>
+                            <span className="text-xs text-slate-400 font-normal">
+                              {contrato.propiedad.direccion}
+                            </span>
+                          </td>
 
-                      {/* Propiedad */}
-                      <td className="py-4 px-4">
-                        <span className="font-semibold text-slate-800 block text-sm leading-tight">
-                          {contrato.propiedad.titulo}
-                        </span>
-                        <span className="text-xs text-slate-400 font-normal">
-                          {contrato.propiedad.direccion}
-                        </span>
-                      </td>
+                          {/* Fecha inicio */}
+                          <td className="py-4 px-4 text-xs font-medium text-slate-800 whitespace-nowrap">
+                            {contrato.fechaInicio}
+                          </td>
 
-                      {/* Fecha inicio */}
-                      <td className="py-4 px-4 text-xs font-medium text-slate-800 whitespace-nowrap">
-                        {contrato.fechaInicio}
-                      </td>
+                          {/* Fecha fin */}
+                          <td className="py-4 px-4 text-xs font-medium text-slate-800 whitespace-nowrap">
+                            {contrato.fechaFin}
+                          </td>
 
-                      {/* Fecha fin */}
-                      <td className="py-4 px-4 text-xs font-medium text-slate-800 whitespace-nowrap">
-                        {contrato.fechaFin}
-                      </td>
+                          {/* Monto mensual */}
+                          <td className="py-4 px-4 font-bold text-slate-900 text-sm whitespace-nowrap">
+                            {contrato.montoMensual}
+                          </td>
 
-                      {/* Monto mensual */}
-                      <td className="py-4 px-4 font-bold text-slate-900 text-sm whitespace-nowrap">
-                        {contrato.montoMensual}
-                      </td>
-
-                      {/* Acciones */}
-                      <td className="py-4 px-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-center gap-1.5 relative">
-                          {/* Botón Ver (Ojo) */}
-                          <button
-                            type="button"
-                            title="Ver detalles"
-                            onClick={() => setContratoDetalle(contrato)}
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 hover:border-blue-200 transition"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                            </svg>
-                          </button>
-
-                          {/* Botón Editar / Generar (Lápiz) */}
-                          <Link
-                            href={`/admin/contratos/generar?id=${contrato.id}`}
-                            title="Editar contrato"
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 hover:border-blue-200 transition inline-block"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                          </Link>
-
-                          {/* Botón 3 puntos (Más acciones) */}
-                          <button
-                            type="button"
-                            title="Más opciones"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setMenuAbiertoId(menuAbiertoId === contrato.id ? null : contrato.id);
-                            }}
-                            className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
-                          >
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                            </svg>
-                          </button>
-
-                          {/* Menú desplegable */}
-                          {menuAbiertoId === contrato.id && (
-                            <div
-                              className="absolute right-0 top-10 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-left text-xs font-medium text-slate-700 animate-in fade-in"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <Link
-                                href={`/admin/contratos/generar?id=${contrato.id}`}
-                                className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                          {/* Acciones */}
+                          <td className="py-4 px-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-center gap-1.5 relative">
+                              {/* Botón Ver (Ojo) */}
+                              <button
+                                type="button"
+                                title="Ver detalles"
+                                onClick={() => setContratoDetalle(contrato)}
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 hover:border-blue-200 transition"
                               >
-                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                 </svg>
-                                Abrir generador
+                              </button>
+
+                              {/* Botón Editar / Generar (Lápiz) */}
+                              <Link
+                                href={`/admin/contratos/generar?id=${contrato._id}`}
+                                title="Editar contrato"
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-blue-600 hover:bg-blue-50/60 hover:border-blue-200 transition inline-block"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                </svg>
                               </Link>
 
+                              {/* Botón 3 puntos (Más acciones) */}
                               <button
-                                onClick={() => {
-                                  setContratoDetalle(contrato);
-                                  setMenuAbiertoId(null);
+                                type="button"
+                                title="Más opciones"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setMenuAbiertoId(menuAbiertoId === contrato._id ? null : contrato._id);
                                 }}
-                                className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                                className="p-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition"
                               >
-                                <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
                                 </svg>
-                                Descargar documento
                               </button>
 
-                              <div className="border-t border-slate-100 my-1"></div>
+                              {/* Menú desplegable */}
+                              {menuAbiertoId === contrato._id && (
+                                <div
+                                  className="absolute right-0 top-10 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-left text-xs font-medium text-slate-700 animate-in fade-in"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Link
+                                    href={`/admin/contratos/generar?id=${contrato._id}`}
+                                    className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                                  >
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                    </svg>
+                                    Abrir generador
+                                  </Link>
 
-                              <button
-                                onClick={() => handleEliminar(contrato.id, contrato.numeroContrato)}
-                                className="w-full px-4 py-2 hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
-                              >
-                                <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                                Eliminar
-                              </button>
+                                  <button
+                                    onClick={() => { setContratoDetalle(contrato); setMenuAbiertoId(null); }}
+                                    className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
+                                  >
+                                    <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                    </svg>
+                                    Descargar documento
+                                  </button>
+
+                                  <div className="border-t border-slate-100 my-1"></div>
+
+                                  <button
+                                    onClick={() => handleEliminar(contrato._id, contrato.numeroContrato)}
+                                    className="w-full px-4 py-2 hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
+                                  >
+                                    <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                    </svg>
+                                    Eliminar
+                                  </button>
+                                </div>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
 
-        {/* Paginación Inferior */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-medium text-slate-500">
-          <div>
-            Mostrando{' '}
-            <strong className="text-slate-800">
-              {contratosFiltrados.length === 0 ? 0 : (paginaActual - 1) * porPagina + 1}
-            </strong>{' '}
-            a{' '}
-            <strong className="text-slate-800">
-              {Math.min(paginaActual * porPagina, contratosFiltrados.length)}
-            </strong>{' '}
-            de <strong className="text-slate-800">{contratosFiltrados.length}</strong> contratos
-          </div>
+            {/* Paginación Inferior */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-medium text-slate-500">
+              <div>
+                Mostrando{' '}
+                <strong className="text-slate-800">
+                  {contratosFiltrados.length === 0 ? 0 : (paginaActual - 1) * porPagina + 1}
+                </strong>{' '}
+                a{' '}
+                <strong className="text-slate-800">
+                  {Math.min(paginaActual * porPagina, contratosFiltrados.length)}
+                </strong>{' '}
+                de <strong className="text-slate-800">{contratosFiltrados.length}</strong> contratos
+              </div>
 
-          <div className="flex items-center gap-1.5 self-center">
-            {/* Botón Anterior */}
-            <button
-              onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
-              disabled={paginaActual === 1}
-              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              ‹
-            </button>
+              <div className="flex items-center gap-1.5 self-center">
+                {/* Botón Anterior */}
+                <button
+                  onClick={() => setPaginaActual((p) => Math.max(p - 1, 1))}
+                  disabled={paginaActual === 1}
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  ‹
+                </button>
 
-            {/* Números de página */}
-            {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((num) => (
-              <button
-                key={num}
-                onClick={() => setPaginaActual(num)}
-                className={`w-8 h-8 rounded-lg font-bold text-xs transition ${
-                  paginaActual === num
-                    ? 'bg-[#cc1f26] text-white shadow-sm'
-                    : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
-                }`}
-              >
-                {num}
-              </button>
-            ))}
+                {/* Números de página */}
+                {Array.from({ length: totalPaginas }, (_, i) => i + 1).map((num) => (
+                  <button
+                    key={num}
+                    onClick={() => setPaginaActual(num)}
+                    className={`w-8 h-8 rounded-lg font-bold text-xs transition ${
+                      paginaActual === num
+                        ? 'bg-[#cc1f26] text-white shadow-sm'
+                        : 'border border-slate-200 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    {num}
+                  </button>
+                ))}
 
-            {/* Botón Siguiente */}
-            <button
-              onClick={() => setPaginaActual((p) => Math.min(p + 1, totalPaginas))}
-              disabled={paginaActual === totalPaginas}
-              className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              ›
-            </button>
-          </div>
+                {/* Botón Siguiente */}
+                <button
+                  onClick={() => setPaginaActual((p) => Math.min(p + 1, totalPaginas))}
+                  disabled={paginaActual === totalPaginas}
+                  className="w-8 h-8 rounded-lg border border-slate-200 flex items-center justify-center text-slate-500 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                >
+                  ›
+                </button>
+              </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <select
-              value={porPagina}
-              onChange={(e) => {
-                setPorPagina(Number(e.target.value));
-                setPaginaActual(1);
-              }}
-              className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-            >
-              <option value={5}>5 por página</option>
-              <option value={10}>10 por página</option>
-              <option value={20}>20 por página</option>
-            </select>
-          </div>
-        </div>
+              <div className="flex items-center gap-2 self-end sm:self-auto">
+                <select
+                  value={porPagina}
+                  onChange={(e) => {
+                    setPorPagina(Number(e.target.value));
+                    setPaginaActual(1);
+                  }}
+                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                >
+                  <option value={5}>5 por página</option>
+                  <option value={10}>10 por página</option>
+                  <option value={20}>20 por página</option>
+                </select>
+              </div>
+            </div>
+          </>
+        )}
       </main>
 
       {/* Modal de Detalle de Contrato */}
@@ -600,6 +621,12 @@ export default function GestionContratosPage() {
                   <span className="text-slate-400 font-medium">Teléfono:</span>
                   <span className="text-slate-700">{contratoDetalle.cliente.telefono}</span>
                 </div>
+                {contratoDetalle.cliente.email && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400 font-medium">Email:</span>
+                    <span className="text-slate-700">{contratoDetalle.cliente.email}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-slate-400 font-medium">Propiedad:</span>
                   <span className="font-bold text-slate-800">{contratoDetalle.propiedad.titulo}</span>
@@ -627,7 +654,7 @@ export default function GestionContratosPage() {
 
             <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
               <Link
-                href={`/admin/contratos/generar?id=${contratoDetalle.id}`}
+                href={`/admin/contratos/generar?id=${contratoDetalle._id}`}
                 className="px-4 py-2 bg-[#cc1f26] hover:bg-[#b0171d] text-white rounded-xl text-xs font-semibold shadow-sm transition"
               >
                 Abrir en generador
