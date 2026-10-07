@@ -6,15 +6,18 @@ import AdminSidebar from '../../../components/AdminSidebar';
 import {
   Visita,
   EstadoVisita,
-  getStoredVisitas,
+  getVisitas,
   updateVisitaEstado,
-  addVisita,
+  createVisita,
   deleteVisita,
   resetVisitasToDefault,
 } from '../../../services/visitas';
+import { getProperties, ApiProperty } from '../../../services/api';
 
 export default function GestionVisitasPage() {
   const [visitas, setVisitas] = useState<Visita[]>([]);
+  const [propiedadesDisponibles, setPropiedadesDisponibles] = useState<ApiProperty[]>([]);
+  const [cargando, setCargando] = useState(true);
   const [filtroTexto, setFiltroTexto] = useState('');
   const [filtroEstado, setFiltroEstado] = useState<string>('todos');
   const [filtroTab, setFiltroTab] = useState<'todas' | 'pendientes' | 'confirmadas' | 'rechazadas'>('todas');
@@ -33,6 +36,7 @@ export default function GestionVisitasPage() {
   const [visitaDetalle, setVisitaDetalle] = useState<Visita | null>(null);
 
   const [modalNuevaVisita, setModalNuevaVisita] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [nuevaVisitaForm, setNuevaVisitaForm] = useState({
     nombre: '',
     telefono: '',
@@ -47,16 +51,33 @@ export default function GestionVisitasPage() {
   const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
   const [mensajeToast, setMensajeToast] = useState<{ texto: string; tipo: 'success' | 'info' | 'error' } | null>(null);
 
-  useEffect(() => {
-    setVisitas(getStoredVisitas());
-  }, []);
-
   const mostrarToast = (texto: string, tipo: 'success' | 'info' | 'error' = 'success') => {
     setMensajeToast({ texto, tipo });
     setTimeout(() => {
       setMensajeToast(null);
     }, 3500);
   };
+
+  const cargarDatos = async () => {
+    setCargando(true);
+    try {
+      const [visitasData, propsData] = await Promise.all([
+        getVisitas(),
+        getProperties().catch(() => []),
+      ]);
+      setVisitas(visitasData);
+      setPropiedadesDisponibles(propsData || []);
+    } catch (error: any) {
+      console.error('Error al cargar visitas:', error);
+      mostrarToast(error.message || 'Error al conectar con la base de datos', 'error');
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarDatos();
+  }, []);
 
   // Métricas calculadas
   const metricas = useMemo(() => {
@@ -115,26 +136,34 @@ export default function GestionVisitasPage() {
   }, [visitas]);
 
   // Manejo de Aceptar visita
-  const handleAceptarVisita = (visita: Visita) => {
-    const updated = updateVisitaEstado(visita.id, 'confirmada');
-    setVisitas(updated);
-    setVisitaAAceptar(null);
-    setMenuAbiertoId(null);
-    mostrarToast(`Visita de ${visita.cliente.nombre} confirmada`);
+  const handleAceptarVisita = async (visita: Visita) => {
+    try {
+      const updated = await updateVisitaEstado(visita.id, 'confirmada');
+      setVisitas((prev) => prev.map((v) => (v.id === visita.id ? updated : v)));
+      setVisitaAAceptar(null);
+      setMenuAbiertoId(null);
+      mostrarToast(`Visita de ${visita.cliente.nombre} confirmada`);
+    } catch (error: any) {
+      mostrarToast(error.message || 'Error al confirmar la visita', 'error');
+    }
   };
 
   // Manejo de Rechazar visita
-  const handleConfirmarRechazo = () => {
+  const handleConfirmarRechazo = async () => {
     if (!visitaARechazar) return;
-    const updated = updateVisitaEstado(visitaARechazar.id, 'rechazada', { motivo: motivoRechazo });
-    setVisitas(updated);
-    setVisitaARechazar(null);
-    setMenuAbiertoId(null);
-    mostrarToast(`Visita de ${visitaARechazar.cliente.nombre} rechazada`, 'info');
+    try {
+      const updated = await updateVisitaEstado(visitaARechazar.id, 'rechazada', { motivo: motivoRechazo });
+      setVisitas((prev) => prev.map((v) => (v.id === visitaARechazar.id ? updated : v)));
+      setVisitaARechazar(null);
+      setMenuAbiertoId(null);
+      mostrarToast(`Visita de ${visitaARechazar.cliente.nombre} rechazada`, 'info');
+    } catch (error: any) {
+      mostrarToast(error.message || 'Error al rechazar la visita', 'error');
+    }
   };
 
   // Manejo de Reprogramar visita
-  const handleConfirmarReprogramacion = () => {
+  const handleConfirmarReprogramacion = async () => {
     if (!visitaAReprogramar || !nuevaFecha || !nuevoHorario) {
       alert('Por favor completá la fecha y el horario.');
       return;
@@ -151,22 +180,26 @@ export default function GestionVisitasPage() {
       horarioFinal = `${horarioFinal} h`;
     }
 
-    const updated = updateVisitaEstado(visitaAReprogramar.id, 'reprogramada', {
-      nuevaFecha: fechaFinal,
-      nuevoHorario: horarioFinal,
-      motivo: notaReprogramacion,
-    });
-    setVisitas(updated);
-    setVisitaAReprogramar(null);
-    setNuevaFecha('');
-    setNuevoHorario('');
-    setNotaReprogramacion('');
-    setMenuAbiertoId(null);
-    mostrarToast(`Visita reprogramada para el ${fechaFinal} a las ${horarioFinal}`);
+    try {
+      const updated = await updateVisitaEstado(visitaAReprogramar.id, 'reprogramada', {
+        nuevaFecha: fechaFinal,
+        nuevoHorario: horarioFinal,
+        motivo: notaReprogramacion,
+      });
+      setVisitas((prev) => prev.map((v) => (v.id === visitaAReprogramar.id ? updated : v)));
+      setVisitaAReprogramar(null);
+      setNuevaFecha('');
+      setNuevoHorario('');
+      setNotaReprogramacion('');
+      setMenuAbiertoId(null);
+      mostrarToast(`Visita reprogramada para el ${fechaFinal} a las ${horarioFinal}`);
+    } catch (error: any) {
+      mostrarToast(error.message || 'Error al reprogramar la visita', 'error');
+    }
   };
 
   // Manejo de crear nueva visita
-  const handleCrearNuevaVisita = (e: React.FormEvent) => {
+  const handleCrearNuevaVisita = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nuevaVisitaForm.nombre || !nuevaVisitaForm.propiedad || !nuevaVisitaForm.fecha) {
       alert('Por favor completá nombre, propiedad y fecha.');
@@ -190,43 +223,82 @@ export default function GestionVisitasPage() {
       .map((n) => n[0]?.toUpperCase() ?? '')
       .join('');
 
-    const updated = addVisita({
-      cliente: {
-        nombre: nuevaVisitaForm.nombre,
-        telefono: nuevaVisitaForm.telefono || '+54 9 343 000 0000',
-        email: nuevaVisitaForm.email,
-        iniciales: iniciales || 'CL',
-      },
-      propiedad: {
-        titulo: nuevaVisitaForm.propiedad,
-      },
-      fecha: fechaFinal,
-      horario: horarioFinal,
-      estado: 'pendiente',
-      notaAdicional: nuevaVisitaForm.nota,
-    });
+    // Si coincide con alguna propiedad cargada, asociamos sus datos
+    const propMatch = propiedadesDisponibles.find(
+      (p) => p.title.toLowerCase() === nuevaVisitaForm.propiedad.toLowerCase() || p._id === nuevaVisitaForm.propiedad
+    );
 
-    setVisitas(updated);
-    setModalNuevaVisita(false);
-    setNuevaVisitaForm({
-      nombre: '',
-      telefono: '',
-      email: '',
-      propiedad: '',
-      fecha: '',
-      horario: '10:00 h',
-      nota: '',
-    });
-    mostrarToast('Nueva visita agendada correctamente');
+    setGuardando(true);
+    try {
+      const nuevaVisita = await createVisita({
+        cliente: {
+          nombre: nuevaVisitaForm.nombre,
+          telefono: nuevaVisitaForm.telefono || '+54 9 343 000 0000',
+          email: nuevaVisitaForm.email,
+          iniciales: iniciales || 'CL',
+        },
+        propiedad: {
+          id: propMatch?._id || '',
+          titulo: propMatch?.title || nuevaVisitaForm.propiedad,
+          direccion: propMatch?.location || '',
+          precio: propMatch
+            ? propMatch.moneda === 'ARS'
+              ? `ARS ${propMatch.priceARS ?? propMatch.price}`
+              : `USD ${propMatch.price}`
+            : '',
+        },
+        fecha: fechaFinal,
+        horario: horarioFinal,
+        estado: 'pendiente',
+        notaAdicional: nuevaVisitaForm.nota,
+      });
+
+      setVisitas((prev) => [nuevaVisita, ...prev]);
+      setModalNuevaVisita(false);
+      setNuevaVisitaForm({
+        nombre: '',
+        telefono: '',
+        email: '',
+        propiedad: '',
+        fecha: '',
+        horario: '10:00 h',
+        nota: '',
+      });
+      mostrarToast('Nueva visita agendada correctamente');
+    } catch (error: any) {
+      mostrarToast(error.message || 'Error al agendar la visita', 'error');
+    } finally {
+      setGuardando(false);
+    }
   };
 
   // Eliminar visita
-  const handleEliminarVisita = (id: string, nombre: string) => {
+  const handleEliminarVisita = async (id: string, nombre: string) => {
     if (confirm(`¿Estás seguro de eliminar la visita de ${nombre}?`)) {
-      const updated = deleteVisita(id);
-      setVisitas(updated);
-      setMenuAbiertoId(null);
-      mostrarToast('Visita eliminada');
+      try {
+        await deleteVisita(id);
+        setVisitas((prev) => prev.filter((v) => v.id !== id));
+        setMenuAbiertoId(null);
+        mostrarToast('Visita eliminada de la base de datos');
+      } catch (error: any) {
+        mostrarToast(error.message || 'Error al eliminar la visita', 'error');
+      }
+    }
+  };
+
+  // Restablecer visitas a las de prueba
+  const handleRestablecerVisitas = async () => {
+    if (confirm('¿Deseás reiniciar las visitas en la base de datos a los valores de prueba por defecto?')) {
+      setCargando(true);
+      try {
+        const resetData = await resetVisitasToDefault();
+        setVisitas(resetData);
+        mostrarToast('Visitas reiniciadas con éxito');
+      } catch (error: any) {
+        mostrarToast(error.message || 'Error al reiniciar visitas', 'error');
+      } finally {
+        setCargando(false);
+      }
     }
   };
 
@@ -279,8 +351,29 @@ export default function GestionVisitasPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             <button
+              type="button"
+              onClick={cargarDatos}
+              disabled={cargando}
+              title="Recargar visitas desde la base de datos"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
+            >
+              <svg className={`w-4 h-4 ${cargando ? 'animate-spin text-blue-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span>{cargando ? 'Cargando...' : 'Actualizar'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRestablecerVisitas}
+              title="Restablecer datos de prueba en la base de datos"
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition"
+            >
+              Restablecer datos
+            </button>
+            <button
+              type="button"
               onClick={() => setModalNuevaVisita(true)}
               className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#193B7B] hover:bg-[#122756] text-white text-sm font-semibold rounded-xl shadow-sm transition active:scale-95"
             >
@@ -535,7 +628,16 @@ export default function GestionVisitasPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm">
-                  {visitasFiltradas.length === 0 ? (
+                  {cargando ? (
+                    <tr>
+                      <td colSpan={6} className="py-16 text-center text-slate-500">
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                          <p className="text-sm font-medium">Cargando visitas desde la base de datos...</p>
+                        </div>
+                      </td>
+                    </tr>
+                  ) : visitasFiltradas.length === 0 ? (
                     <tr>
                       <td colSpan={6} className="py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center justify-center gap-2">
@@ -1198,11 +1300,19 @@ export default function GestionVisitasPage() {
                 <input
                   type="text"
                   required
-                  placeholder="Ej: Casa 3 dorm. Oro Verde o Dpto. 2 amb. Centro"
+                  list="propiedades-sugeridas"
+                  placeholder="Ej: Seleccioná o escribí el título del inmueble"
                   value={nuevaVisitaForm.propiedad}
                   onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, propiedad: e.target.value })}
                   className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
                 />
+                <datalist id="propiedades-sugeridas">
+                  {propiedadesDisponibles.map((p) => (
+                    <option key={p._id} value={p.title}>
+                      {p.location} {p.moneda === 'ARS' ? `(ARS ${p.priceARS ?? p.price})` : `(USD ${p.price})`}
+                    </option>
+                  ))}
+                </datalist>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1249,9 +1359,17 @@ export default function GestionVisitasPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl font-semibold bg-[#193B7B] hover:bg-[#122756] text-white shadow-sm transition active:scale-95"
+                  disabled={guardando}
+                  className="px-5 py-2 rounded-xl font-semibold bg-[#193B7B] hover:bg-[#122756] text-white shadow-sm transition active:scale-95 disabled:opacity-60 flex items-center gap-2"
                 >
-                  Agendar visita
+                  {guardando ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                      <span>Agendando...</span>
+                    </>
+                  ) : (
+                    <span>Agendar visita</span>
+                  )}
                 </button>
               </div>
             </form>
