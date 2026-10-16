@@ -326,7 +326,7 @@ export default function GestionVisitasPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
+    <div className="admin-themed-page flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
       {/* Toast Notification */}
       {mensajeToast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg bg-[#0A193D] text-white text-sm font-medium animate-in fade-in slide-in-from-bottom-4">
@@ -504,7 +504,7 @@ export default function GestionVisitasPage() {
                   else if (e.target.value === 'confirmada' || e.target.value === 'reprogramada') setFiltroTab('confirmadas');
                   else if (e.target.value === 'rechazada') setFiltroTab('rechazadas');
                 }}
-                className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
               >
                 <option value="todos">Todos</option>
                 <option value="pendiente">Pendientes</option>
@@ -524,7 +524,7 @@ export default function GestionVisitasPage() {
                 <select
                   value={filtroFecha}
                   onChange={(e) => setFiltroFecha(e.target.value)}
-                  className="w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
+                  className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
                 >
                   <option value="todas">Todas</option>
                   {fechasDisponibles.map((f) => (

@@ -37,6 +37,17 @@ const userSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    preferencias: {
+        tema: {
+            type: String,
+            enum: ['light', 'dark'],
+            default: 'light'
+        },
+        paleta: {
+            type: String,
+            default: 'corporativo'
+        }
+    },
     createdAt: {
         type: Date,
         default: Date.now

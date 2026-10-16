@@ -11,7 +11,13 @@ export interface User {
   email: string;
   role: string;
   checklistRequisitos?: string[];
+  preferencias?: UserPreferences;
   createdAt?: string;
+}
+
+export interface UserPreferences {
+  tema: "light" | "dark";
+  paleta: string;
 }
 
 export interface AuthResponse {
@@ -141,6 +147,25 @@ export async function getUserChecklist(): Promise<string[]> {
   } catch (error) {
     console.warn("No se pudo obtener el checklist remoto:", error);
     return [];
+  }
+}
+
+export async function getUserPreferences(): Promise<UserPreferences | null> {
+  try {
+    return await authRequest<UserPreferences>("/auth/preferences");
+  } catch {
+    return null;
+  }
+}
+
+export async function saveUserPreferences(preferences: UserPreferences): Promise<UserPreferences | null> {
+  try {
+    return await authRequest<UserPreferences>("/auth/preferences", {
+      method: "PUT",
+      body: JSON.stringify(preferences),
+    });
+  } catch {
+    return null;
   }
 }
 

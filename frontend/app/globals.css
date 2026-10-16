@@ -1,32 +1,182 @@
 @import "tailwindcss";
 
+/* El tema se controla desde ThemeContext, no desde la preferencia del sistema. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
 
   /* Identidad Visual Negocios Inmobiliarios */
-  --paper: #F7F8FA;
-  --ink: #141A2B;
-  --ink-soft: #69707F;
-  --line: #E1E4EA;
+  --paper: #f8fafc;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --line: #cbd5e1;
   --green: #10265A;
   --green-soft: #EBEEF6;
   --gold: #D9382B;
   --gold-soft: #FBEAE8;
   --whatsapp: #25A85A;
+
+  /* Colores Corporativos Dinámicos y Panel Admin */
+  --brand-primary: #0A193D;
+  --brand-primary-hover: #14295c;
+  --brand-accent: #CC1F26;
+  --brand-accent-hover: #b3171d;
+  --brand-accent-soft: #fee2e2;
+  --admin-sidebar-bg: #0A193D;
+  --admin-card-bg: #ffffff;
+  --admin-card-border: #cbd5e1;
+}
+
+html[data-theme="dark"], html.dark {
+  --background: #090e1a;
+  --foreground: #f8fafc;
+  --paper: #0f172a;
+  --ink: #f8fafc;
+  --ink-soft: #94a3b8;
+  --line: #1e293b;
+  --green-soft: #172554;
+  --gold-soft: #3f1d1d;
+  --admin-sidebar-bg: #050b18;
+  --admin-card-bg: #0f172a;
+  --admin-card-border: #1e293b;
 }
 
 @theme inline {
   --color-background: var(--background);
-  --color-foreground: var(--foreground);
   --font-sans: var(--font-public-sans), var(--font-geist-sans), sans-serif;
   --font-serif: var(--font-fraunces), serif;
+}
+
+/* Colores base del body — light mode por defecto (SSR) */
+body {
+  background-color: #f8fafc;
+  color: #0f172a;
+  font-family: var(--font-public-sans), Arial, Helvetica, sans-serif;
+}
+
+/* Dark mode: texto claro sobre fondo oscuro */
+html.dark body,
+html[data-theme="dark"] body {
+  color: #f1f5f9;
+  background-color: #090e1a;
+}
+
+/* Vistas antiguas del panel: sus clases originales son claras por defecto. */
+html.dark .admin-themed-page,
+html[data-theme="dark"] .admin-themed-page {
+  background-color: #090e1a !important;
+  color: #f1f5f9;
+}
+
+html.dark .admin-themed-page main [class*="bg-white"],
+html[data-theme="dark"] .admin-themed-page main [class*="bg-white"],
+html.dark .admin-themed-page main [class*="bg-slate-50"],
+html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-50"],
+html.dark .admin-themed-page main [class*="bg-slate-100"],
+html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-100"] {
+  background-color: #0f172a !important;
+}
+
+html.dark .admin-themed-page main [class*="border-slate-100"],
+html[data-theme="dark"] .admin-themed-page main [class*="border-slate-100"],
+html.dark .admin-themed-page main [class*="border-slate-200"],
+html[data-theme="dark"] .admin-themed-page main [class*="border-slate-200"],
+html.dark .admin-themed-page main [class*="border-slate-300"],
+html[data-theme="dark"] .admin-themed-page main [class*="border-slate-300"] {
+  border-color: #1e293b !important;
+}
+
+html.dark .admin-themed-page main [class*="text-[#0A193D]"],
+html[data-theme="dark"] .admin-themed-page main [class*="text-[#0A193D]"],
+html.dark .admin-themed-page main [class*="text-slate-900"],
+html[data-theme="dark"] .admin-themed-page main [class*="text-slate-900"],
+html.dark .admin-themed-page main [class*="text-slate-800"],
+html[data-theme="dark"] .admin-themed-page main [class*="text-slate-800"] {
+  color: #f8fafc !important;
+}
+
+html.dark .admin-themed-page main [class*="text-slate-700"],
+html[data-theme="dark"] .admin-themed-page main [class*="text-slate-700"],
+html.dark .admin-themed-page main [class*="text-slate-600"],
+html[data-theme="dark"] .admin-themed-page main [class*="text-slate-600"] {
+  color: #cbd5e1 !important;
+}
+
+html.dark .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
+html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
+html.dark .admin-themed-page main [class*="hover:bg-slate-100"]:hover,
+html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-100"]:hover {
+  background-color: #1e293b !important;
+}
+
+.filter-select-contrast,
+.filter-select-contrast option {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  background-color: #ffffff !important;
+  opacity: 1 !important;
+  color-scheme: light !important;
+}
+
+html.dark .filter-select-contrast,
+html[data-theme="dark"] .filter-select-contrast,
+html.dark .filter-select-contrast option,
+html[data-theme="dark"] .filter-select-contrast option {
+  color: #f8fafc !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  background-color: #0f172a !important;
+  color-scheme: dark !important;
+}
+
+.admin-tabs-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.admin-tabs-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* Animaciones fluidas y limpias para reordenamiento de catálogo */
+.reorder-card {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, opacity 0.15s ease, border-color 0.15s ease;
+  will-change: transform, box-shadow;
+}
+
+.reorder-card:hover {
+  transform: translateY(-2px);
+}
+
+.reorder-card.dragging-active {
+  opacity: 0.35;
+  transform: scale(0.98);
+  border-style: dashed !important;
+}
+
+.drop-slot-indicator {
+  height: 48px;
+  border-radius: 14px;
+  background: repeating-linear-gradient(
+    -45deg,
+    rgba(59, 130, 246, 0.08),
+    rgba(59, 130, 246, 0.08) 10px,
+    rgba(59, 130, 246, 0.16) 10px,
+    rgba(59, 130, 246, 0.16) 20px
+  );
+  border: 2px dashed #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: drop-slot-pulse 1.2s ease-in-out infinite;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes fade-in-up {
   from {
     opacity: 0;
-    transform: translateY(22px) scale(0.98);
+    transform: translateY(16px) scale(0.98);
   }
   to {
     opacity: 1;
@@ -34,8 +184,19 @@
   }
 }
 
+@keyframes drop-slot-pulse {
+  0%, 100% {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    border-color: #2563eb;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  }
+}
+
 .animate-fade-in-up {
-  animation: fade-in-up 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
 button, a {
@@ -50,11 +211,6 @@ button, a {
   font-family: var(--font-public-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-public-sans), Arial, Helvetica, sans-serif;
-}
 /* Slow camera movement over the original architectural artwork. */
 @keyframes hero-cinematic-drift {
   from { transform: scale(1.04) translate3d(-0.5%, 0, 0); }

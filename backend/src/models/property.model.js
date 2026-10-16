@@ -66,6 +66,10 @@ const propertySchema = new mongoose.Schema({
         enum: ['disponible', 'reservado', 'alquilado', 'vendido'],
         default: 'disponible',
     },
+    orden: {
+        type: Number,
+        default: 0,
+    },
     bedrooms: {
         type: Number,
         required: true,

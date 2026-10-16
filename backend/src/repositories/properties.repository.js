@@ -2,7 +2,18 @@ const Property = require('../models/property.model');
 
 class PropertyRepository {
     async getAllProperties(filters = {}) {
-        return Property.find(filters).sort({ createdAt: -1 });
+        return Property.find(filters).sort({ orden: 1, createdAt: -1 });
+    }
+
+    async reorderProperties(items) {
+        if (!Array.isArray(items) || items.length === 0) return [];
+        const operations = items.map((item) => ({
+            updateOne: {
+                filter: { _id: item.id },
+                update: { $set: { orden: Number(item.orden) || 0 } },
+            },
+        }));
+        return Property.bulkWrite(operations);
     }
 
     async getPropertyById(id) {
