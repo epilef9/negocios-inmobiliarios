@@ -5,6 +5,7 @@ const clientsRoutes = require('./clients.routes');
 const authRoutes = require('./auth.routes');
 const localidadesRoutes = require('./localidades.routes');
 const contratosRoutes = require('./contratos.routes');
+const visitasRoutes = require('./visitas.routes');
 
 const router = express.Router();
 
@@ -14,5 +15,6 @@ router.use('/clients', clientsRoutes);
 router.use('/auth', authRoutes);
 router.use('/localidades', localidadesRoutes);
 router.use('/contratos', contratosRoutes);
+router.use('/visitas', visitasRoutes);
 
 module.exports = router;
