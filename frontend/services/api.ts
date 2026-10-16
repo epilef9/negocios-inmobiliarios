@@ -65,6 +65,7 @@ export type ApiProperty = {
 	checkOutHasta?: string;
 	checkInFlexible?: string;
 	estado?: "disponible" | "reservado" | "alquilado" | "vendido";
+	orden?: number;
 	operation?: string;
 	category?: string;
 	propertyType?: string;
@@ -140,3 +141,10 @@ export const updateProperty = (id: string, property: Partial<Omit<ApiProperty, "
 
 export const deleteProperty = (id: string) =>
 	request<void>(`/properties/${id}`, { method: "DELETE" });
+
+export const reorderProperties = (items: { id: string; orden: number }[]) =>
+	request<{ success: boolean; message?: string }>("/properties/reorder", {
+		method: "PATCH",
+		body: JSON.stringify({ items }),
+	});
+

@@ -1,26 +1,45 @@
-// config/db.js
-const dns = require("dns");
 const mongoose = require("mongoose");
+const dotenv = require("dotenv");
 
-try {
-  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
-} catch (e) {
-  // Ignorar si falla
-}
+dotenv.config();
 
 async function connectDB() {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI, {
-      // opciones por defecto en versiones recientes de mongoose (>=6) no son necesarias,
-      // pero las dejamos comentadas por si usás una versión vieja:
-      // useNewUrlParser: true,
-      // useUnifiedTopology: true,
-    });
-    console.log("✅ Conectado a MongoDB Atlas - negocios_inmobiliarios");
-  } catch (error) {
-    console.error("❌ Error al conectar a MongoDB:", error.message);
-    process.exit(1);
+  const mongoUri = process.env.MONGODB_URI;
+
+  if (!mongoUri || /TU_USUARIO|TU_PASSWORD|TU_CLUSTER/.test(mongoUri)) {
+    throw new Error('MONGODB_URI no está configurada.');
   }
+
+  try {
+    await mongoose.connect(mongoUri, {
+      family: 4,
+      serverSelectionTimeoutMS: 4000,
+    });
+    console.log("✅ Conectado a MongoDB Atlas (SRV) - negocios_inmobiliarios");
+    return;
+  } catch (err) {
+    console.warn("⚠️ Conexión SRV lenta/fallida, probando conexión directa...");
+  }
+
+  const directHosts = [
+    'mongodb://felipecorreacamio_db_user:17BsGMggeZwtdUim@ac-cecx9rx-shard-00-01.92retae.mongodb.net:27017/inmobiliaria_db?ssl=true&authSource=admin&directConnection=true',
+    'mongodb://felipecorreacamio_db_user:17BsGMggeZwtdUim@ac-cecx9rx-shard-00-00.92retae.mongodb.net:27017/inmobiliaria_db?ssl=true&authSource=admin&directConnection=true'
+  ];
+
+  for (const hostUri of directHosts) {
+    try {
+      await mongoose.connect(hostUri, {
+        family: 4,
+        serverSelectionTimeoutMS: 4000,
+      });
+      console.log("✅ Conectado a MongoDB Atlas (Direct Node) - negocios_inmobiliarios");
+      return;
+    } catch (e) {
+      // probar siguiente
+    }
+  }
+
+  throw new Error("No se pudo conectar a MongoDB Atlas");
 }
 
 module.exports = connectDB;

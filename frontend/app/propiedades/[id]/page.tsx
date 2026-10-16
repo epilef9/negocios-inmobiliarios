@@ -67,7 +67,7 @@ export default function PropertyDetail() {
     if (user) {
       setFormVisita((prev) => ({
         ...prev,
-        nombre: prev.nombre || user.name || "",
+        nombre: prev.nombre || `${user.nombre} ${user.apellido}`.trim(),
         email: prev.email || user.email || "",
       }));
     }

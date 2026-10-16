@@ -55,6 +55,9 @@ router.get('/maps/resolve', propertiesController.resolveMapsLink);
 // Obtener todas las propiedades
 router.get('/', propertiesController.getAllProperties);
 
+// Reordenar propiedades (solo administrador)
+router.patch('/reorder', authMiddleware, requireAdmin, propertiesController.reorderProperties);
+
 // Obtener una propiedad específica
 router.get('/:id', validatePropertyId, propertiesController.getPropertyById);
 

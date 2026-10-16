@@ -115,7 +115,7 @@ export default function GestionContratosPage() {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
+    <div className="admin-themed-page flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
       {/* Toast Notification */}
       {mensajeToast && (
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg bg-[#0A193D] text-white text-sm font-medium animate-in fade-in">
@@ -186,13 +186,13 @@ export default function GestionContratosPage() {
                   setFiltroFecha(e.target.value);
                   setPaginaActual(1);
                 }}
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-100 focus:outline-none cursor-pointer"
               >
-                <option value="todas">Fecha</option>
-                <option value="2026">Año 2026</option>
-                <option value="2025">Año 2025</option>
-                <option value="08/2026">Agosto 2026</option>
-                <option value="06/2026">Junio 2026</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="todas">Fecha</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="2026">Año 2026</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="2025">Año 2025</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="08/2026">Agosto 2026</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="06/2026">Junio 2026</option>
               </select>
             </div>
 
@@ -212,13 +212,13 @@ export default function GestionContratosPage() {
                   else if (e.target.value === 'por_vencer') setFiltroTab('por_vencer');
                   setPaginaActual(1);
                 }}
-                className="w-full bg-transparent text-sm font-semibold text-slate-700 focus:outline-none cursor-pointer"
+                className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-700 dark:text-slate-100 focus:outline-none cursor-pointer"
               >
-                <option value="todos">Estado</option>
-                <option value="activo">Activos</option>
-                <option value="finalizado">Finalizados</option>
-                <option value="cancelado">Cancelados</option>
-                <option value="por_vencer">Por vencer</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="todos">Estado</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="activo">Activos</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="finalizado">Finalizados</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="cancelado">Cancelados</option>
+                <option className="bg-white text-slate-800 dark:bg-slate-900 dark:text-slate-100" value="por_vencer">Por vencer</option>
               </select>
             </div>
 
@@ -237,7 +237,7 @@ export default function GestionContratosPage() {
 
         {/* Pestañas de Estado con Línea Roja Activa + Contador */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-200/80 mb-6 gap-3">
-          <div className="flex items-center gap-6 overflow-x-auto pb-px">
+          <div className="admin-tabs-scroll flex items-center gap-6 overflow-x-auto overflow-y-hidden pb-px">
             {/* Todos */}
             <button
               onClick={() => { setFiltroTab('todos'); setFiltroEstado('todos'); setPaginaActual(1); }}
