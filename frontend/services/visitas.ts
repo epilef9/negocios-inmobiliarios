@@ -85,8 +85,15 @@ export async function getVisitas(filtros: VisitaFiltros = {}): Promise<Visita[]>
   }
 
   const query = params.toString() ? `?${params.toString()}` : '';
-  const data = await request<any[]>(`/visitas${query}`);
-  return Array.isArray(data) ? data.map(normalizeVisita) : [];
+  try {
+    const data = await request<any[]>(`/visitas${query}`);
+    return Array.isArray(data) ? data.map(normalizeVisita) : [];
+  } catch (error) {
+    if (error instanceof Error && error.message === 'Not Found') {
+      return [];
+    }
+    throw error;
+  }
 }
 
 /**

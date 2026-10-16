@@ -31,6 +31,24 @@ export const metadata: Metadata = {
 };
 
 import { AuthProvider } from "../context/AuthContext";
+import { ThemeProvider } from "../context/ThemeContext";
+
+// Script que se inyecta SINCRÓNICO antes de que React hidrate.
+// Elimina la clase "dark" de html si el usuario guardó "light" en localStorage.
+// Esto evita el flash de texto blanco sobre fondo claro.
+const themeScript = `(function(){
+  try {
+    var t = localStorage.getItem('inmobiliaria_theme');
+    var root = document.documentElement;
+    if (t === 'dark') {
+      root.classList.add('dark');
+      root.setAttribute('data-theme','dark');
+    } else {
+      root.classList.remove('dark');
+      root.setAttribute('data-theme','light');
+    }
+  } catch(e){}
+})();`;
 
 export default function RootLayout({
   children,
@@ -40,10 +58,21 @@ export default function RootLayout({
   return (
     <html
       lang="es"
+      suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${publicSans.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <AuthProvider>{children}</AuthProvider>
+        {/*
+          Script SINCRÓNICO: el navegador lo ejecuta ANTES de pintar cualquier cosa.
+          Garantiza que html.dark coincida con lo que el usuario guardó en localStorage.
+          Sin esto, Tailwind dark: classes se aplican al fondo claro → texto blanco invisible.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <AuthProvider>
+          <ThemeProvider>
+            {children}
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

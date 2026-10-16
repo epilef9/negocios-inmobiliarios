@@ -104,3 +104,17 @@ exports.deleteProperty = async (req, res) => {
         res.status(500).json({ message: 'Error al eliminar la propiedad' });
     }
 };
+
+// Reordenar catálogo de propiedades (solo administrador)
+exports.reorderProperties = async (req, res) => {
+    try {
+        const { items } = req.body;
+        if (!Array.isArray(items)) {
+            return res.status(400).json({ message: 'El campo items debe ser una lista de propiedades con su orden' });
+        }
+        await PropertyService.reorderProperties(items);
+        res.status(200).json({ success: true, message: 'Orden de propiedades actualizado exitosamente' });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al actualizar el orden de las propiedades', error: error.message });
+    }
+};

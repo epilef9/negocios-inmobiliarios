@@ -56,6 +56,7 @@ exports.me = async (req, res) => {
             email: user.email,
             role: user.role,
             checklistRequisitos: user.checklistRequisitos || [],
+            preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },
             createdAt: user.createdAt
         };
         res.status(200).json({
@@ -123,4 +124,34 @@ exports.updateChecklist = async (req, res) => {
 // Cierre de sesion
 exports.logout = (req, res) => {
     res.status(200).json({ message: 'Cierre de sesion exitoso' });
+};
+
+// Obtener preferencias visuales del usuario autenticado
+exports.getPreferences = async (req, res) => {
+    const preferencias = req.user.preferencias || { tema: 'light', paleta: 'corporativo' };
+    res.status(200).json({ data: preferencias });
+};
+
+// Guardar preferencias visuales del usuario autenticado
+exports.updatePreferences = async (req, res) => {
+    const { tema, paleta } = req.body || {};
+    if (!['light', 'dark'].includes(tema) || typeof paleta !== 'string' || !paleta.trim()) {
+        return res.status(400).json({ message: 'Las preferencias visuales no son válidas' });
+    }
+
+    try {
+        const updatedUser = await User.findByIdAndUpdate(
+            req.user._id,
+            { $set: { 'preferencias.tema': tema, 'preferencias.paleta': paleta, updatedAt: Date.now() } },
+            { new: true }
+        ).select('preferencias');
+
+        if (!updatedUser) {
+            return res.status(404).json({ message: 'Usuario no encontrado' });
+        }
+
+        res.status(200).json({ data: updatedUser.preferencias });
+    } catch (error) {
+        res.status(500).json({ message: 'Error al guardar las preferencias visuales' });
+    }
 };

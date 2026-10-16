@@ -64,10 +64,15 @@ const deleteProperty = async (id) => {
     return propertiesRepository.deleteProperty(id);
 };
 
+const reorderProperties = async (items) => {
+    return propertiesRepository.reorderProperties(items);
+};
+
 module.exports = {
     getAllProperties,
     getPropertyById,
     createProperty,
     updateProperty,
     deleteProperty,
+    reorderProperties,
 };
