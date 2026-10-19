@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Navbar from "@/components/Navbar";
 import Filtros, { type PropertyFilters } from "@/components/Filtros";
@@ -44,20 +45,43 @@ const amenityOptions = [
 	{ value: "laundry", label: "Laundry" },
 ];
 
-// Mantener el filtro de operación si viene desde otra página
-const getInitialFilters = (): PropertyFilters => {
-	if (typeof window === "undefined") return initialFilters;
-	const operation = new URLSearchParams(window.location.search).get("operacion") || "";
-	return operationOptions.includes(operation) ? { ...initialFilters, operation } : initialFilters;
+// Filtros que llegan en la dirección desde otra página (por ejemplo, el buscador del Home)
+const filtersFromParams = (params: URLSearchParams): PropertyFilters => {
+	const operation = params.get("operacion") || "";
+	const propertyType = params.get("tipo") || "";
+	const location = (params.get("ubicacion") || "").slice(0, 100);
+	return {
+		...initialFilters,
+		operation: operationOptions.includes(operation) ? operation : "",
+		propertyType: propertyTypeOptions.includes(propertyType) ? propertyType : "",
+		location,
+	};
 };
 
+// La dirección se lee con useSearchParams: al navegar desde otra página, window.location
+// todavía no está actualizada durante el render, y los filtros se perdían.
 export default function PropiedadesPage() {
+	return (
+		<Suspense fallback={<main className="min-h-dvh bg-[#f7f8fa]" />}>
+			<PropiedadesConFiltros />
+		</Suspense>
+	);
+}
+
+function PropiedadesConFiltros() {
+	const searchParams = useSearchParams();
+	const clave = searchParams.toString();
+	// La clave remonta el catálogo cuando cambian los filtros de la dirección
+	return <PropiedadesContenido key={clave} filtrosIniciales={filtersFromParams(new URLSearchParams(clave))} />;
+}
+
+function PropiedadesContenido({ filtrosIniciales }: { filtrosIniciales: PropertyFilters }) {
 	const { user } = useAuth();
 	const { currentPalette } = useTheme();
 
 	const [properties, setProperties] = useState<ApiProperty[]>([]);
-	const [filters, setFilters] = useState(getInitialFilters);
-	const [appliedFilters, setAppliedFilters] = useState(getInitialFilters);
+	const [filters, setFilters] = useState(filtrosIniciales);
+	const [appliedFilters, setAppliedFilters] = useState(filtrosIniciales);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState("");
 
