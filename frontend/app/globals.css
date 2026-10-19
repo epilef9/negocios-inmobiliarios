@@ -47,6 +47,7 @@ html[data-theme="dark"], html.dark {
   --color-background: var(--background);
   --font-sans: var(--font-public-sans), var(--font-geist-sans), sans-serif;
   --font-serif: var(--font-fraunces), serif;
+  --font-display: var(--font-instrument), Georgia, serif;
 }
 
 /* Colores base del body — light mode por defecto (SSR) */
@@ -237,4 +238,96 @@ button, a {
     opacity: 1;
     transform: none;
   }
+}
+
+/* ===== Home: dirección "Calma" ===== */
+/* Lo que se anima queda oculto hasta que GSAP lo muestra; si el JS no corre, aparece igual a los 3 s */
+html.motion-ok [data-motion-hide] {
+  visibility: hidden;
+  animation: calma-mostrar 0s 3s forwards;
+}
+@keyframes calma-mostrar {
+  to { visibility: visible; }
+}
+
+.calma-micro {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+/* Enlace con línea roja fija y una línea clara que se dibuja al pasar el mouse */
+.calma-link {
+  position: relative;
+  display: inline-block;
+  padding-bottom: 6px;
+}
+.calma-link::before,
+.calma-link::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 1px;
+}
+.calma-link::before { background: #d9382b; }
+.calma-link-sutil::before { display: none; }
+.calma-link::after {
+  background: currentColor;
+  transform: scaleX(0);
+  transform-origin: right;
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.calma-link:hover::after,
+.calma-link:focus-visible::after,
+a:hover > .calma-link::after {
+  transform: scaleX(1);
+  transform-origin: left;
+}
+
+.calma-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: #d9382b;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+a:hover > .calma-dot,
+button:hover > .calma-dot { transform: scale(1.8); }
+
+@media (prefers-reduced-motion: reduce) {
+  .calma-link::after,
+  .calma-dot { transition: none; }
+}
+
+/* Superficies del navegador en el Home */
+html.home-calma {
+  scrollbar-color: #2b4677 #071733;
+  caret-color: #d9382b;
+}
+html.home-calma ::-webkit-scrollbar { width: 10px; }
+html.home-calma ::-webkit-scrollbar-track { background: #071733; }
+html.home-calma ::-webkit-scrollbar-thumb { background: #2b4677; border-radius: 999px; border: 2px solid #071733; }
+.home-calma-raiz :focus-visible {
+  outline: 2px solid #efe9df;
+  outline-offset: 4px;
+  border-radius: 2px;
+}
+
+/* Carga: un brillo que recorre el bloque en lugar de parpadear */
+.calma-brillo {
+  background: linear-gradient(100deg, #0e2652 30%, #16336a 50%, #0e2652 70%);
+  background-size: 300% 100%;
+  animation: calma-brillo 1.4s ease-in-out infinite;
+}
+@keyframes calma-brillo {
+  from { background-position: 100% 0; }
+  to { background-position: 0 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calma-brillo { animation: none; background: #0e2652; }
 }
