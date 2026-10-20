@@ -546,9 +546,9 @@ export default function SelectorUbicacionMapa({
       {/* Barra de Búsqueda y Herramientas */}
       <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2" ref={dropdownRef}>
         <div className="relative flex-1">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-panel-tenue">
             {buscando ? (
-              <svg className="animate-spin w-4 h-4 text-[#004bb7]" fill="none" viewBox="0 0 24 24">
+              <svg className="animate-spin w-4 h-4 text-panel-acento" fill="none" viewBox="0 0 24 24">
                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
               </svg>
@@ -578,7 +578,7 @@ export default function SelectorUbicacionMapa({
                 void buscarDireccionesInteligente(busquedaTexto);
               }
             }}
-            className="w-full text-xs pl-9 pr-8 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/40 placeholder:text-slate-400 shadow-2xs font-normal"
+            className="w-full text-xs pl-9 pr-8 py-2.5 rounded-lg border border-panel-borde focus:outline-none focus:ring-2 focus:ring-panel-acento-suave focus:border-panel-acento transition bg-panel-hundido placeholder:text-panel-tenue shadow-2xs font-normal"
           />
 
           {busquedaTexto && (
@@ -589,7 +589,7 @@ export default function SelectorUbicacionMapa({
                 setResultados([]);
                 setMostrarResultados(false);
               }}
-              className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-slate-400 hover:text-slate-600"
+              className="absolute inset-y-0 right-0 pr-2.5 flex items-center text-panel-tenue hover:text-panel-suave"
               title="Limpiar búsqueda"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -600,37 +600,37 @@ export default function SelectorUbicacionMapa({
 
           {/* Menú de resultados flotante con etiquetas de precisión */}
           {mostrarResultados && resultados.length > 0 && (
-            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-xl z-[1000] overflow-hidden max-h-72 overflow-y-auto animate-fade-in-up">
-              <div className="px-3.5 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500 font-medium">
+            <div className="absolute top-full left-0 right-0 mt-1 bg-panel-superficie border border-panel-borde rounded-xl shadow-xl z-[1000] overflow-hidden max-h-72 overflow-y-auto animate-fade-in-up">
+              <div className="px-3.5 py-2 bg-panel-hundido border-b border-panel-borde flex items-center justify-between text-[11px] text-panel-suave font-medium">
                 <div className="flex items-center gap-1.5">
                   <span>Direcciones encontradas</span>
-                  <span className="px-1.5 py-0.5 rounded-full bg-blue-100 text-[#004bb7] text-[10px] font-bold">
+                  <span className="px-1.5 py-0.5 rounded-full bg-panel-acento-suave text-panel-acento text-[10px] font-bold">
                     {resultados.length}
                   </span>
                 </div>
                 <button
                   type="button"
                   onClick={() => setMostrarResultados(false)}
-                  className="text-slate-400 hover:text-slate-600 font-bold px-1"
+                  className="text-panel-tenue hover:text-panel-suave font-bold px-1"
                 >
                   ✕
                 </button>
               </div>
 
-              <ul className="divide-y divide-slate-100">
+              <ul className="divide-y divide-panel-borde">
                 {resultados.map((item) => (
                   <li key={item.id}>
                     <button
                       type="button"
                       onClick={() => seleccionarResultado(item)}
-                      className="w-full text-left px-3.5 py-2.5 hover:bg-blue-50/70 transition flex items-start gap-2.5 text-xs group"
+                      className="w-full text-left px-3.5 py-2.5 hover:bg-panel-hundido transition flex items-start gap-2.5 text-xs group"
                     >
-                      <span className="text-[#004bb7] mt-0.5 shrink-0 text-sm group-hover:scale-110 transition-transform">
+                      <span className="text-panel-acento mt-0.5 shrink-0 text-sm group-hover:scale-110 transition-transform">
                         {item.tipo === "altura_exacta" ? "🏠" : item.tipo === "calle" ? "🛣️" : "📍"}
                       </span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-bold text-slate-900 truncate">
+                          <span className="font-bold text-panel-texto truncate">
                             {item.titulo}
                           </span>
                           {item.tipo === "altura_exacta" && (
@@ -639,12 +639,12 @@ export default function SelectorUbicacionMapa({
                             </span>
                           )}
                           {item.esEntreRios && (
-                            <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                            <span className="px-1.5 py-0.2 rounded text-[9px] font-semibold bg-panel-hundido text-panel-suave border border-panel-borde shrink-0">
                               Entre Ríos
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                        <p className="text-[11px] text-panel-suave truncate mt-0.5">
                           {item.subtitulo || item.displayCompleto}
                         </p>
                       </div>
@@ -664,7 +664,7 @@ export default function SelectorUbicacionMapa({
             if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
             void buscarDireccionesInteligente(busquedaTexto);
           }}
-          className="px-4 py-2.5 bg-[#004bb7] hover:bg-[#003c94] disabled:opacity-50 text-white rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs active:scale-[0.98]"
+          className="px-4 py-2.5 bg-panel-marca hover:opacity-90 disabled:opacity-50 text-panel-marca-texto rounded-lg text-xs font-semibold transition flex items-center justify-center gap-1.5 shrink-0 shadow-2xs active:scale-[0.98]"
         >
           {buscando ? (
             <>
@@ -714,17 +714,17 @@ export default function SelectorUbicacionMapa({
 
       {/* Sugerencia rápida con la dirección cargada en el formulario */}
       {(direccionSugerida || ciudadSugerida) && (
-        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-600 bg-blue-50/40 px-3 py-1.5 rounded-lg border border-blue-100">
+        <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-panel-suave bg-panel-hundido px-3 py-1.5 rounded-lg border border-panel-borde">
           <div className="flex items-center gap-1.5 truncate">
             <span>💡 <strong>Dirección del formulario:</strong></span>
-            <span className="text-slate-800 font-semibold truncate max-w-sm">
+            <span className="text-panel-texto font-semibold truncate max-w-sm">
               {[direccionSugerida, ciudadSugerida, nombreProvincia].filter(Boolean).join(", ")}
             </span>
           </div>
           <button
             type="button"
             onClick={buscarDireccionDelFormulario}
-            className="text-[#004bb7] hover:underline font-bold shrink-0 flex items-center gap-1"
+            className="text-panel-acento hover:underline font-bold shrink-0 flex items-center gap-1"
           >
             <span>Buscar en mapa</span>
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -742,7 +742,7 @@ export default function SelectorUbicacionMapa({
               ? "bg-rose-50 text-rose-700 border border-rose-200"
               : notificacion.tipo === "exito"
               ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-              : "bg-blue-50 text-[#004bb7] border border-blue-200"
+              : "bg-panel-acento-suave text-panel-acento border border-transparent"
           }`}
         >
           <span className="leading-snug">{notificacion.texto}</span>
@@ -757,27 +757,27 @@ export default function SelectorUbicacionMapa({
       )}
 
       {/* Contenedor del Mapa Interactivo */}
-      <div className="relative w-full h-80 rounded-xl overflow-hidden border border-slate-200 shadow-inner bg-slate-100">
+      <div className="relative w-full h-80 rounded-xl overflow-hidden border border-panel-borde shadow-inner bg-panel-hundido">
         <div ref={mapContainerRef} className="w-full h-full z-0" />
 
         {/* Badge de coordenadas e información de punto seleccionado */}
         <div className="absolute bottom-2 left-2 right-2 sm:right-auto z-[400] pointer-events-none max-w-md">
-          <div className="bg-white/95 backdrop-blur-xs px-3 py-2 rounded-xl border border-slate-200/90 shadow-md text-[11px] text-slate-700 flex flex-col gap-0.5">
+          <div className="bg-panel-superficie/95 backdrop-blur-xs px-3 py-2 rounded-xl border border-panel-borde/90 shadow-md text-[11px] text-panel-texto flex flex-col gap-0.5">
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full shrink-0 ${hasValidCoords ? "bg-emerald-500" : "bg-amber-500 animate-ping"}`} />
               {hasValidCoords ? (
-                <span className="font-semibold text-slate-900 truncate">
+                <span className="font-semibold text-panel-texto truncate">
                   📍 {parsedLat?.toFixed(5)}, {parsedLng?.toFixed(5)}
                 </span>
               ) : (
-                <span className="text-slate-600 font-medium">
+                <span className="text-panel-suave font-medium">
                   👉 Hacé clic en el mapa o buscá tu dirección
                 </span>
               )}
             </div>
 
             {hasValidCoords && (
-              <p className="text-[10px] text-slate-500 truncate">
+              <p className="text-[10px] text-panel-suave truncate">
                 {reversoCargando
                   ? "Identificando calle y altura..."
                   : direccionDetectada
@@ -789,7 +789,7 @@ export default function SelectorUbicacionMapa({
         </div>
       </div>
 
-      <div className="flex items-center justify-between text-[11px] text-slate-400">
+      <div className="flex items-center justify-between text-[11px] text-panel-tenue">
         <span>
           📌 <strong>Tip:</strong> Podés buscar calle y altura exacta, o hacer clic y arrastrar el pin para ajustar la posición.
         </span>

@@ -7,10 +7,24 @@ const { errorHandler, notFoundHandler } = require('./middlewares/error.middlewar
 
 dotenv.config();
 
+const { origenesPermitidos } = require('./config/env');
+
 const app = express();
 
-// Middleware
-app.use(cors());
+// Detrás del proxy del hosting (Render, Vercel): para que req.protocol sea https
+app.set('trust proxy', 1);
+
+// Orígenes que pueden usar la API. Sin CORS_ORIGIN (desarrollo) se acepta cualquiera.
+const patrones = origenesPermitidos().map(
+    (origen) => new RegExp(`^${origen.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^.]+')}$`)
+);
+app.use(
+    cors(
+        patrones.length
+            ? { origin: (origen, listo) => listo(null, !origen || patrones.some((patron) => patron.test(origen))) }
+            : undefined
+    )
+);
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));

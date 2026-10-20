@@ -2,7 +2,11 @@ require("dotenv").config();
 
 const connectDB = require('./config/database');
 const app = require('./app');
+const { validarConfiguracion } = require('./config/env');
 const port = Number(process.env.PORT) || 4000;
+
+// En producción no arranca si falta una variable imprescindible (clave de sesiones, base, dirección del frontend)
+validarConfiguracion();
 
 connectDB()
     .then(() => {

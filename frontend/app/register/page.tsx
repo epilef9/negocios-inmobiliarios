@@ -61,7 +61,7 @@ function FormularioRegistro() {
         password: datos.password,
         confirmPassword: datos.confirmPassword,
       });
-      router.push(volver ?? (usuario.role === 'admin' ? '/admin' : '/'));
+      router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
       if (/registrado|existe/i.test(mensaje)) {
