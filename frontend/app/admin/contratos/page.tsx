@@ -3,7 +3,6 @@
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import AdminSidebar from '../../../components/AdminSidebar';
 import {
   Contrato,
   EstadoContrato,
@@ -125,7 +124,6 @@ export default function GestionContratosPage() {
       )}
 
       {/* Sidebar Admin con Contratos activo */}
-      <AdminSidebar activeSection="contratos" />
 
       {/* Contenido Principal */}
       <main className="flex-1 overflow-y-auto px-8 py-7" onClick={() => setMenuAbiertoId(null)}>

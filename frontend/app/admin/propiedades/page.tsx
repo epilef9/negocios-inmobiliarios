@@ -1,772 +1,304 @@
-"use client";
+'use client';
 
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import AdminSidebar from "@/components/AdminSidebar";
-import { deleteProperty, getProperties, updateProperty } from "../../../services/api";
+import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
+import { deleteProperty, getProperties, updateProperty, type ApiProperty } from '@/services/api';
+import { etiquetaTipo, precioDePropiedad } from '@/components/sitio/precio';
+import { etiquetaOperacion } from '@/components/sitio/datos';
+import Icono from '@/components/panel/Icono';
+import { Alerta, Boton, BotonLink, Encabezado, Esqueleto, EstadoVacio, control, useAviso, useConfirmar } from '@/components/panel/ui';
+import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
 
-interface PropiedadAdmin {
-  id: string;
-  titulo: string;
-  direccion: string;
-  tipo: string;
-  operacion: string;
-  categoria: string;
-  precio: string;
-  estado: "disponible" | "reservado" | "alquilado";
-  imagen: string;
-  createdAt?: string;
+type Filtros = { texto: string; tipo: string; operacion: string; estado: string };
+const SIN_FILTROS: Filtros = { texto: '', tipo: '', operacion: '', estado: '' };
+
+const ESTADOS = Object.entries(ESTADO_PROPIEDAD).map(([valor, { texto }]) => ({ valor, texto }));
+
+const TONO_SELECT: Record<string, string> = {
+  exito: 'text-emerald-700 dark:text-emerald-300',
+  aviso: 'text-amber-700 dark:text-amber-300',
+  info: 'text-sky-700 dark:text-sky-300',
+  neutro: 'text-panel-suave',
+};
+
+function Miniatura({ src, alt }: { src?: string; alt: string }) {
+  const [rota, setRota] = useState(false);
+  if (!src || rota) {
+    return (
+      <span className="flex h-12 w-16 shrink-0 items-center justify-center rounded-md bg-panel-hundido text-panel-tenue" title="Sin fotos">
+        <Icono nombre="imagen" className="h-5 w-5" />
+      </span>
+    );
+  }
+  // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen del backend o de Cloudinary
+  return <img src={src} alt={alt} loading="lazy" onError={() => setRota(true)} className="h-12 w-16 shrink-0 rounded-md object-cover" />;
 }
 
-export default function GestionPropiedadesPage() {
-  const [propiedades, setPropiedades] = useState<PropiedadAdmin[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [periodoMeses, setPeriodoMeses] = useState<number>(6);
+// Selector de estado en la misma fila: cambia el estado sin entrar al formulario
+function SelectorEstado({ propiedad, alCambiar }: { propiedad: ApiProperty; alCambiar: (estado: string) => void }) {
+  const actual = estadoDe(ESTADO_PROPIEDAD, propiedad.estado || 'disponible');
+  return (
+    <select
+      value={propiedad.estado || 'disponible'}
+      onChange={(e) => alCambiar(e.target.value)}
+      aria-label={`Estado de ${propiedad.title}`}
+      className={`h-8 cursor-pointer rounded-md border border-panel-borde bg-panel-superficie pl-2 pr-7 text-[13px] font-medium hover:border-panel-borde-fuerte focus:border-panel-acento focus:outline-none ${TONO_SELECT[actual.tono] ?? ''}`}
+    >
+      {ESTADOS.map((e) => (
+        <option key={e.valor} value={e.valor}>
+          {e.texto}
+        </option>
+      ))}
+    </select>
+  );
+}
 
-  // Filtros y búsqueda
-  const [busqueda, setBusqueda] = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("todos");
-  const [filtroCategoria, setFiltroCategoria] = useState("todas");
-  const [filtroEstado, setFiltroEstado] = useState("todos");
+export default function PropiedadesAdminPage() {
+  const [propiedades, setPropiedades] = useState<ApiProperty[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<Filtros>(SIN_FILTROS);
+  const { mostrar, aviso } = useAviso();
+  const { confirmar, dialogoConfirmar } = useConfirmar();
 
-  // Estado para modal de edición
-  const [propiedadAEditar, setPropiedadAEditar] = useState<PropiedadAdmin | null>(null);
-
-  // Estado para modal de confirmación de eliminación
-  const [propiedadAEliminar, setPropiedadAEliminar] = useState<PropiedadAdmin | null>(null);
-  const [mensaje, setMensaje] = useState("");
-
-  // Cargar las propiedades y adaptarlas al formato de la vista admin
-  useEffect(() => {
-    setCargando(true);
+  const cargar = useCallback(() => {
     getProperties()
-      .then((properties) => setPropiedades(properties.map((property) => {
-        const categoria = property.categoria_operacion ?? "venta";
-        const etiquetasCategoria: Record<string, string> = {
-          venta: "Venta",
-          alquiler: "Alquiler",
-          temporario: "Alquiler temporario",
-        };
-
-        return {
-          id: property._id,
-          titulo: property.title,
-          direccion: property.location,
-          tipo: property.tipo_inmueble ?? "Propiedad",
-          categoria,
-          operacion: etiquetasCategoria[categoria] ?? categoria,
-          precio:
-            property.moneda === "ARS"
-              ? `ARS ${(property.priceARS ?? 0).toLocaleString("es-AR")}`
-              : `USD ${property.price.toLocaleString("es-AR")}`,
-          estado: (property.estado as PropiedadAdmin["estado"]) ?? "disponible",
-          imagen:
-            property.images?.[0] ??
-            "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=500",
-          createdAt: property.createdAt,
-        };
+      .then((lista) => {
+        setPropiedades(lista);
+        setError(null);
       })
-      )
-      )
-      .catch((error: Error) => setMensaje(error.message))
-      .finally(() => setCargando(false));
+      .catch((e: Error) => setError(e.message || 'No se pudieron cargar las propiedades'));
   }, []);
 
-  // Limpiar filtros
-  const limpiarFiltros = () => {
-    setBusqueda("");
-    setFiltroTipo("todos");
-    setFiltroCategoria("todas");
-    setFiltroEstado("todos");
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
+
+  const reintentar = () => {
+    setError(null);
+    setPropiedades(null);
+    cargar();
   };
 
-  // Filtrar la lista según la búsqueda y los selectores
-  const propiedadesFiltradas = propiedades.filter((p) => {
-    const coincideTexto =
-      p.titulo.toLowerCase().includes(busqueda.toLowerCase()) ||
-      p.direccion.toLowerCase().includes(busqueda.toLowerCase());
-    const coincideTipo = filtroTipo === "todos" || p.tipo.toLowerCase() === filtroTipo.toLowerCase();
-    const coincideCategoria = filtroCategoria === "todas" || p.categoria === filtroCategoria;
-    const coincideEstado = filtroEstado === "todos" || p.estado.toLowerCase() === filtroEstado.toLowerCase();
+  const cambiarEstado = async (propiedad: ApiProperty, estado: string) => {
+    const anterior = propiedad.estado;
+    setPropiedades((lista) => lista?.map((p) => (p._id === propiedad._id ? { ...p, estado: estado as ApiProperty['estado'] } : p)) ?? null);
+    try {
+      await updateProperty(propiedad._id, { estado: estado as ApiProperty['estado'] });
+      mostrar(`"${propiedad.title}" ahora figura como ${estadoDe(ESTADO_PROPIEDAD, estado).texto.toLowerCase()}.`);
+    } catch (e) {
+      setPropiedades((lista) => lista?.map((p) => (p._id === propiedad._id ? { ...p, estado: anterior } : p)) ?? null);
+      mostrar(e instanceof Error ? e.message : 'No se pudo cambiar el estado', 'peligro');
+    }
+  };
 
-    return coincideTexto && coincideTipo && coincideCategoria && coincideEstado;
-  });
-
-  // Conteo para métricas
-  const totalDisponibles = propiedades.filter((p) => p.estado === "disponible").length;
-  const totalReservadas = propiedades.filter((p) => p.estado === "reservado").length;
-  const totalAlquiladas = propiedades.filter((p) => p.estado === "alquilado").length;
-
-  // Cálculo de evolución mensual para el mini gráfico KPI
-  const datosGrafico = useMemo(() => {
-    const nombresMesesCortos = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
-    const nombresMesesCompletos = [
-      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
-    ];
-
-    const ahora = new Date();
-    const meses = Array.from({ length: periodoMeses }, (_, i) => {
-      // Desde el más antiguo hasta el mes actual
-      const d = new Date(ahora.getFullYear(), ahora.getMonth() - (periodoMeses - 1 - i), 1);
-      const mesIndex = d.getMonth();
-      const anio = d.getFullYear();
-      const label = nombresMesesCortos[mesIndex];
-      const nombreCompleto = nombresMesesCompletos[mesIndex];
-
-      const cantidad = propiedades.filter((p) => {
-        if (!p.createdAt) return false;
-        const fecha = new Date(p.createdAt);
-        return fecha.getFullYear() === anio && fecha.getMonth() === mesIndex;
-      }).length;
-
-      return {
-        label,
-        nombreCompleto,
-        mesIndex,
-        anio,
-        cantidad,
-        esMesActual: i === periodoMeses - 1,
-      };
+  const borrar = async (propiedad: ApiProperty) => {
+    const ok = await confirmar(`¿Borrar "${propiedad.title}"?`, {
+      texto: 'Deja de verse en el sitio y no se puede recuperar. Si solo dejó de estar disponible, cambiale el estado.',
+      accion: 'Borrar propiedad',
     });
-
-    const maxCantidad = Math.max(...meses.map((m) => m.cantidad), 1);
-
-    return { meses, maxCantidad };
-  }, [propiedades, periodoMeses]);
-
-  // El modal se abre antes de confirmar para evitar eliminaciones accidentales
-  // Eliminar la propiedad seleccionada y actualizar la lista
-  const confirmarEliminacion = async () => {
-    if (propiedadAEliminar) {
-      try {
-        await deleteProperty(propiedadAEliminar.id);
-        setPropiedades((prev) => prev.filter((p) => p.id !== propiedadAEliminar.id));
-        setPropiedadAEliminar(null);
-        setMensaje("Propiedad eliminada correctamente");
-      } catch (error) {
-        setMensaje(error instanceof Error ? error.message : "No se pudo eliminar la propiedad");
-      }
+    if (!ok) return;
+    try {
+      await deleteProperty(propiedad._id);
+      setPropiedades((lista) => lista?.filter((p) => p._id !== propiedad._id) ?? null);
+      mostrar(`Se borró "${propiedad.title}".`);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo borrar la propiedad', 'peligro');
     }
   };
 
-  // Guardar los cambios hechos desde el modal de edición
-  const guardarEdicion = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (propiedadAEditar) {
-      try {
-        await updateProperty(propiedadAEditar.id, {
-          title: propiedadAEditar.titulo,
-          location: propiedadAEditar.direccion,
-          price: Number(propiedadAEditar.precio.replace(/[^0-9]/g, "")),
-        });
-        setPropiedades((prev) => prev.map((p) => (p.id === propiedadAEditar.id ? propiedadAEditar : p)));
-        setPropiedadAEditar(null);
-        setMensaje("Propiedad actualizada correctamente");
-      } catch (error) {
-        setMensaje(error instanceof Error ? error.message : "No se pudo actualizar la propiedad");
-      }
-    }
-  };
+  const cambiarFiltro = (campo: keyof Filtros, valor: string) => setFiltros((f) => ({ ...f, [campo]: valor }));
+  const hayFiltros = Object.values(filtros).some(Boolean);
+  const texto = filtros.texto.trim().toLowerCase();
+
+  const lista = propiedades ?? [];
+  const visibles = lista.filter(
+    (p) =>
+      (!texto || [p.title, p.location, p.ciudad, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto))) &&
+      (!filtros.tipo || p.tipo_inmueble === filtros.tipo) &&
+      (!filtros.operacion || (p.categoria_operacion || 'venta') === filtros.operacion) &&
+      (!filtros.estado || (p.estado || 'disponible') === filtros.estado)
+  );
+  const disponibles = lista.filter((p) => !p.estado || p.estado === 'disponible').length;
 
   return (
-    <div className="admin-themed-page flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-      {/* Sidebar - Panel Admin */}
-      <AdminSidebar activeSection="propiedades" />
+    <>
+      <Encabezado
+        titulo="Propiedades"
+        descripcion={propiedades ? `${lista.length} en total · ${disponibles} disponibles` : 'Todas las propiedades cargadas en el sitio.'}
+        acciones={
+          <>
+            <BotonLink href="/admin/catalogo" icono="catalogo">
+              Ordenar catálogo
+            </BotonLink>
+            <BotonLink href="/admin/propiedades/nueva" variante="principal" icono="mas">
+              Nueva propiedad
+            </BotonLink>
+          </>
+        }
+      />
 
-      {/* Contenido Principal */}
-      <main className="flex-1 overflow-y-auto px-8 py-7">
-        {mensaje && <p className="mb-4 rounded-lg bg-blue-50 px-4 py-3 text-xs text-blue-700">{mensaje}</p>}
-        {/* Encabezado */}
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-extrabold text-[#0A193D] tracking-tight">
-            Gestión de propiedades
-          </h1>
-
-          <div className="flex items-center gap-2">
-            <Link
-              href="/admin/catalogo"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold rounded-lg transition shadow-sm active:scale-95"
-            >
-              <span>🔀</span> Organizar Catálogo
-            </Link>
-            <Link
-              href="/admin/propiedades/nueva"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold rounded-lg transition shadow-sm active:scale-95"
-            >
-              <span className="text-base leading-none font-bold">+</span> Nueva propiedad
-            </Link>
-          </div>
+      <div className="flex flex-col gap-4">
+        <div role="search" className="grid gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
+          <label className="relative sm:col-span-2 lg:col-span-1">
+            <span className="sr-only">Buscar</span>
+            <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
+            <input
+              type="search"
+              value={filtros.texto}
+              onChange={(e) => cambiarFiltro('texto', e.target.value)}
+              placeholder="Buscar por título, ubicación o código"
+              className={`${control} pl-10`}
+            />
+          </label>
+          <select value={filtros.tipo} onChange={(e) => cambiarFiltro('tipo', e.target.value)} aria-label="Tipo" className={control}>
+            <option value="">Todos los tipos</option>
+            {Object.entries(etiquetaTipo).map(([valor, nombre]) => (
+              <option key={valor} value={valor}>
+                {nombre}
+              </option>
+            ))}
+          </select>
+          <select value={filtros.operacion} onChange={(e) => cambiarFiltro('operacion', e.target.value)} aria-label="Operación" className={control}>
+            <option value="">Toda operación</option>
+            <option value="venta">Venta</option>
+            <option value="alquiler">Alquiler</option>
+            <option value="temporario">Por días</option>
+          </select>
+          <select value={filtros.estado} onChange={(e) => cambiarFiltro('estado', e.target.value)} aria-label="Estado" className={control}>
+            <option value="">Todo estado</option>
+            {ESTADOS.map((e) => (
+              <option key={e.valor} value={e.valor}>
+                {e.texto}
+              </option>
+            ))}
+          </select>
+          <Boton variante="fantasma" onClick={() => setFiltros(SIN_FILTROS)} disabled={!hayFiltros}>
+            Limpiar
+          </Boton>
         </div>
 
-        {/* 4 Tarjetas de Métricas KPI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          {/* Card 1: Total de propiedades con mini gráfico funcional */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs flex flex-col justify-between">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <div className="text-3xl font-extrabold text-[#0A193D] leading-none">
-                  {cargando ? (
-                    <span className="inline-block w-8 h-7 bg-slate-100 animate-pulse rounded" />
-                  ) : (
-                    propiedades.length
-                  )}
+        {error && (
+          <Alerta tono="peligro" titulo="No se pudieron cargar las propiedades" accion={<Boton tamano="sm" onClick={reintentar}>Reintentar</Boton>}>
+            {error}
+          </Alerta>
+        )}
+
+        <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
+          {!propiedades && !error ? (
+            <div className="flex flex-col divide-y divide-panel-borde">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-3">
+                  <Esqueleto className="h-12 w-16" />
+                  <div className="flex flex-1 flex-col gap-2">
+                    <Esqueleto className="h-4 w-1/3" />
+                    <Esqueleto className="h-3 w-1/4" />
+                  </div>
                 </div>
-                <h3 className="text-xs font-bold text-slate-800 mt-1.5">
-                  Total de propiedades
-                </h3>
-                <p className="text-[10px] text-slate-400 mt-0.5 max-w-[140px] leading-tight">
-                  Resumen general de tu cartera inmobiliaria.
-                </p>
-              </div>
-
-              <div className="flex flex-col items-end">
-                {/* Selector de período funcional */}
-                <div className="relative mb-3">
-                  <select
-                    value={periodoMeses}
-                    onChange={(e) => setPeriodoMeses(Number(e.target.value))}
-                    aria-label="Filtrar período de propiedades"
-                    className="appearance-none text-[10px] text-slate-500 bg-slate-50 hover:bg-slate-100 border border-slate-100 pl-2 pr-5 py-0.5 rounded cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-500 font-medium transition"
-                  >
-                    <option value={3}>Últimos 3 meses</option>
-                    <option value={6}>Últimos 6 meses</option>
-                    <option value={12}>Últimos 12 meses</option>
-                  </select>
-                  <svg
-                    className="w-2.5 h-2.5 text-slate-400 absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                  </svg>
-                </div>
-
-                {/* Mini Gráfico de barras funcional */}
-                <div className="flex items-end gap-1.5 h-10">
-                  {datosGrafico.meses.map((m) => {
-                    const alturaPx =
-                      m.cantidad > 0
-                        ? Math.max(8, Math.round((m.cantidad / datosGrafico.maxCantidad) * 36))
-                        : 4;
-
-                    // Colores armónicos según volumen y si es el mes actual
-                    let colorBarra = "bg-blue-100";
-                    if (m.cantidad > 0) {
-                      if (m.esMesActual) {
-                        colorBarra = "bg-[#004bb7]";
-                      } else if (m.cantidad === datosGrafico.maxCantidad) {
-                        colorBarra = "bg-blue-500";
-                      } else if (m.cantidad >= datosGrafico.maxCantidad * 0.5) {
-                        colorBarra = "bg-blue-400";
-                      } else {
-                        colorBarra = "bg-blue-200";
-                      }
-                    }
-
-                    return (
-                      <div
-                        key={`${m.anio}-${m.mesIndex}`}
-                        className="group relative flex flex-col items-center gap-0.5 cursor-pointer"
-                      >
-                        {/* Tooltip con información del mes */}
-                        <div className="absolute -top-7 left-1/2 -translate-x-1/2 hidden group-hover:flex items-center px-1.5 py-0.5 bg-[#0A193D] text-white text-[9px] font-semibold rounded shadow-md whitespace-nowrap z-20 pointer-events-none">
-                          {m.nombreCompleto} {m.anio}: {m.cantidad} {m.cantidad === 1 ? "propiedad" : "propiedades"}
+              ))}
+            </div>
+          ) : propiedades && lista.length === 0 ? (
+            <EstadoVacio
+              icono="propiedades"
+              titulo="Todavía no hay propiedades"
+              texto="Cargá la primera y va a aparecer en el catálogo del sitio."
+              accion={
+                <BotonLink href="/admin/propiedades/nueva" variante="principal" icono="mas">
+                  Nueva propiedad
+                </BotonLink>
+              }
+            />
+          ) : propiedades && visibles.length === 0 ? (
+            <EstadoVacio icono="buscar" titulo="Ninguna propiedad coincide" texto="Probá con otra búsqueda o sacá algún filtro." accion={<Boton onClick={() => setFiltros(SIN_FILTROS)}>Limpiar filtros</Boton>} />
+          ) : propiedades ? (
+            <>
+              {/* Tabla en pantallas medianas y grandes */}
+              <table className="hidden w-full border-collapse text-left md:table">
+                <thead>
+                  <tr className="border-b border-panel-borde bg-panel-hundido text-[12.5px] text-panel-suave">
+                    <th scope="col" className="px-4 py-2.5 font-medium">Propiedad</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Operación</th>
+                    <th scope="col" className="px-4 py-2.5 text-right font-medium">Precio</th>
+                    <th scope="col" className="px-4 py-2.5 font-medium">Estado</th>
+                    <th scope="col" className="px-4 py-2.5"><span className="sr-only">Acciones</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-panel-borde">
+                  {visibles.map((p) => (
+                    <tr key={p._id} className="transition-colors hover:bg-panel-hundido/60">
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <Miniatura src={p.images?.[0]} alt={p.title} />
+                          <div className="min-w-0">
+                            <Link href={`/admin/propiedades/nueva?editar=${p._id}`} className="block truncate text-[14px] font-medium hover:underline">
+                              {p.title}
+                            </Link>
+                            <span className="block truncate text-[13px] text-panel-suave">
+                              {[etiquetaTipo[p.tipo_inmueble || ''], p.ciudad || p.location].filter(Boolean).join(' · ')}
+                            </span>
+                          </div>
                         </div>
+                      </td>
+                      <td className="px-4 py-3 text-[13.5px] text-panel-suave">{etiquetaOperacion[p.categoria_operacion || 'venta'] ?? 'Venta'}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</td>
+                      <td className="px-4 py-3">
+                        <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex justify-end gap-1">
+                          <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.title} en el sitio`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                            <Icono nombre="ojo" className="h-[18px] w-[18px]" />
+                          </Link>
+                          <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                            <Icono nombre="editar" className="h-[18px] w-[18px]" />
+                          </Link>
+                          <button type="button" onClick={() => borrar(p)} title="Borrar" aria-label={`Borrar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                            <Icono nombre="borrar" className="h-[18px] w-[18px]" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
 
-                        {/* Barra del gráfico */}
-                        <div
-                          style={{ height: `${alturaPx}px` }}
-                          className={`w-1.5 rounded-t transition-all duration-300 ${colorBarra} group-hover:opacity-80`}
-                        />
-
-                        {/* Etiqueta del mes */}
-                        <span
-                          className={`text-[8px] transition-colors ${m.esMesActual ? "text-[#004bb7] font-bold" : "text-slate-400"
-                            }`}
-                        >
-                          {m.label}
+              {/* Lista en celulares */}
+              <ul className="m-0 list-none divide-y divide-panel-borde p-0 md:hidden">
+                {visibles.map((p) => (
+                  <li key={p._id} className="flex flex-col gap-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <Miniatura src={p.images?.[0]} alt={p.title} />
+                      <div className="min-w-0 flex-1">
+                        <Link href={`/admin/propiedades/nueva?editar=${p._id}`} className="block text-[14px] font-medium">
+                          {p.title}
+                        </Link>
+                        <span className="block text-[13px] text-panel-suave">
+                          {[etiquetaOperacion[p.categoria_operacion || 'venta'], p.ciudad || p.location].filter(Boolean).join(' · ')}
                         </span>
+                        <span className="tabular block text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</span>
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Disponibles */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-emerald-500 rounded-l-xl" />
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-medium">Disponibles</span>
-                <div className="text-2xl font-extrabold text-emerald-600 leading-tight">
-                  {cargando ? (
-                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
-                  ) : (
-                    totalDisponibles
-                  )}
-                </div>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2">
-              Propiedades disponibles para comercializar.
-            </p>
-          </div>
-
-          {/* Card 3: Reservadas */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500 rounded-l-xl" />
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-medium">Reservadas</span>
-                <div className="text-2xl font-extrabold text-amber-600 leading-tight">
-                  {cargando ? (
-                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
-                  ) : (
-                    totalReservadas
-                  )}
-                </div>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2">
-              Propiedades reservadas en proceso.
-            </p>
-          </div>
-
-          {/* Card 4: Alquiladas */}
-          <div className="bg-white border border-slate-200/90 rounded-xl p-4 shadow-2xs relative overflow-hidden flex flex-col justify-between">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 rounded-l-xl" />
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-[11px] text-slate-500 font-medium">Alquiladas</span>
-                <div className="text-2xl font-extrabold text-blue-600 leading-tight">
-                  {cargando ? (
-                    <span className="inline-block w-6 h-6 bg-slate-100 animate-pulse rounded" />
-                  ) : (
-                    totalAlquiladas
-                  )}
-                </div>
-              </div>
-            </div>
-            <p className="text-[10px] text-slate-400 mt-2">
-              Propiedades actualmente alquiladas.
-            </p>
-          </div>
-        </div>
-
-        {/* Barra de Búsqueda y Filtros */}
-        <div className="bg-white border border-slate-200/90 rounded-xl p-3.5 mb-6 shadow-2xs">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            {/* Input de Búsqueda */}
-            <div className="md:col-span-5 relative">
-              <input
-                type="text"
-                placeholder="Buscar por nombre o dirección..."
-                value={busqueda}
-                onChange={(e) => setBusqueda(e.target.value)}
-                className="w-full text-xs pl-8 pr-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-              />
-              <svg className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-
-            {/* Filtro Tipo */}
-            <div className="md:col-span-2">
-              <label className="block text-[10px] text-slate-700 font-bold -mt-1 mb-0.5">Tipo</label>
-              <select
-                value={filtroTipo}
-                onChange={(e) => setFiltroTipo(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-900 font-semibold"
-              >
-                <option value="todos">Todos</option>
-                <option value="departamento">Departamento</option>
-                <option value="casa">Casa</option>
-                <option value="local">Local</option>
-                <option value="terreno">Terreno</option>
-              </select>
-            </div>
-
-            {/* Filtro Categoría */}
-            <div className="md:col-span-2">
-              <label className="block text-[10px] text-slate-700 font-bold -mt-1 mb-0.5">Categoría</label>
-              <select
-                value={filtroCategoria}
-                onChange={(e) => setFiltroCategoria(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-900 font-semibold"
-              >
-                <option value="todas">Todas</option>
-                <option value="venta">Venta</option>
-                <option value="alquiler">Alquiler</option>
-                <option value="temporario">Temporario</option>
-              </select>
-            </div>
-
-            {/* Filtro Estado */}
-            <div className="md:col-span-2">
-              <label className="block text-[10px] text-slate-700 font-bold -mt-1 mb-0.5">Estado</label>
-              <select
-                value={filtroEstado}
-                onChange={(e) => setFiltroEstado(e.target.value)}
-                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-900 font-semibold"
-              >
-                <option value="todos">Todos</option>
-                <option value="disponible">Disponible</option>
-                <option value="reservado">Reservado</option>
-                <option value="alquilado">Alquilado</option>
-              </select>
-            </div>
-
-            {/* Botón Limpiar filtros */}
-            <div className="md:col-span-1 flex items-end">
-              <button
-                type="button"
-                onClick={limpiarFiltros}
-                className="w-full flex items-center justify-center gap-1 text-[11px] font-medium text-slate-600 hover:text-slate-900 border border-slate-200 hover:bg-slate-50 py-1.5 px-2 rounded-lg transition"
-              >
-                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                </svg>
-                <span className="hidden xl:inline">Limpiar</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Grilla de Tarjetas de Propiedades (2 columnas) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {propiedadesFiltradas.length === 0 ? (
-            <div className="col-span-2 bg-white border border-slate-200 rounded-xl p-8 text-center text-slate-400 text-xs">
-              No se encontraron propiedades con los filtros seleccionados.
-            </div>
-          ) : (
-            propiedadesFiltradas.map((prop) => (
-              <div
-                key={prop.id}
-                className="bg-white border border-slate-200/90 rounded-xl p-3.5 shadow-2xs flex gap-3.5 hover:shadow-xs transition"
-              >
-                {/* Imagen */}
-                <div className="w-36 h-28 shrink-0 rounded-lg overflow-hidden border border-slate-100 relative">
-                  <img
-                    src={prop.imagen}
-                    alt={prop.titulo}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-
-                {/* Información y Acciones */}
-                <div className="flex-1 flex flex-col justify-between">
-                  <div>
-                    {/* Fila superior: Título y Badge de estado */}
-                    <div className="flex items-start justify-between gap-2">
-                      <h3 className="text-xs font-bold text-[#0A193D] line-clamp-1">
-                        {prop.titulo}
-                      </h3>
-
-                      {/* Badge de Estado */}
-                      {prop.estado === "disponible" && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          Disponible
-                        </span>
-                      )}
-                      {prop.estado === "reservado" && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
-                          Reservado
-                        </span>
-                      )}
-                      {prop.estado === "alquilado" && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-blue-700 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full shrink-0">
-                          <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                          Alquilado
-                        </span>
-                      )}
                     </div>
-
-                    {/* Ubicación */}
-                    <div className="flex items-center gap-1 text-[11px] text-slate-500 mt-1">
-                      <svg className="w-3 h-3 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      <span className="truncate">{prop.direccion}</span>
+                    <div className="flex items-center justify-between gap-2">
+                      <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
+                      <div className="flex gap-1">
+                        <BotonLink href={`/admin/propiedades/nueva?editar=${p._id}`} tamano="sm" icono="editar">
+                          Editar
+                        </BotonLink>
+                        <Boton tamano="sm" variante="fantasma" icono="borrar" onClick={() => borrar(p)} aria-label={`Borrar ${p.title}`} />
+                      </div>
                     </div>
+                  </li>
+                ))}
+              </ul>
 
-                    {/* Características: Tipo, Operación y Precio */}
-                    <div className="flex items-center gap-2 text-[10px] text-slate-600 mt-1.5 flex-wrap">
-                      <span className="flex items-center gap-0.5">
-                        <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                        </svg>
-                        {prop.tipo}
-                      </span>
-                      <span>•</span>
-                      <span className="flex items-center gap-0.5">
-                        <svg className="w-3 h-3 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
-                        </svg>
-                        {prop.operacion}
-                      </span>
-                      <span>•</span>
-                      <span className="font-bold text-slate-800">{prop.precio}</span>
-                    </div>
-                  </div>
-
-                  {/* Botones de Acción (Modificar y Eliminar) */}
-                  <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-slate-50">
-                    {/* Botón Editar */}
-                    <Link
-                      href={`/admin/propiedades/nueva?editar=${prop.id}`}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-md border border-blue-300 text-blue-600 hover:bg-blue-50 text-[11px] font-semibold transition"
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                      </svg>
-                      Editar
-                    </Link>
-
-                    {/* Botón Eliminar */}
-                    <button
-                      type="button"
-                      onClick={() => setPropiedadAEliminar(prop)}
-                      className="inline-flex items-center gap-1 px-3 py-1 rounded-md border border-red-200 text-red-600 hover:bg-red-50 text-[11px] font-semibold transition"
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Eliminar
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        {/* Footer con Paginación */}
-        <div className="flex items-center justify-between text-xs text-slate-500 pt-2">
-          <span>
-            Mostrando {propiedadesFiltradas.length} de {propiedades.length} propiedades
-          </span>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className="w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 disabled:opacity-50"
-            >
-              &lt;
-            </button>
-            <button
-              type="button"
-              className="w-7 h-7 flex items-center justify-center rounded bg-[#0A193D] text-white font-bold"
-            >
-              1
-            </button>
-            <button
-              type="button"
-              className="w-7 h-7 flex items-center justify-center rounded border border-slate-200 bg-white hover:bg-slate-50 text-slate-600"
-            >
-              &gt;
-            </button>
-          </div>
-        </div>
-
-        {/* MODAL DE EDICIÓN (MODIFICAR PROPIEDAD) */}
-        {propiedadAEditar && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 animate-fade-in-up">
-              <div className="flex items-center justify-between pb-4 border-b border-slate-100">
-                <h3 className="text-base font-bold text-[#0A193D]">
-                  Modificar propiedad
-                </h3>
-                <button
-                  type="button"
-                  onClick={() => setPropiedadAEditar(null)}
-                  className="text-slate-400 hover:text-slate-600 text-lg leading-none"
-                >
-                  ✕
-                </button>
-              </div>
-
-              <form onSubmit={guardarEdicion} className="space-y-3.5 mt-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Título
-                  </label>
-                  <input
-                    type="text"
-                    value={propiedadAEditar.titulo}
-                    onChange={(e) =>
-                      setPropiedadAEditar({ ...propiedadAEditar, titulo: e.target.value })
-                    }
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Dirección
-                    </label>
-                    <input
-                      type="text"
-                      value={propiedadAEditar.direccion}
-                      onChange={(e) =>
-                        setPropiedadAEditar({ ...propiedadAEditar, direccion: e.target.value })
-                      }
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Precio
-                    </label>
-                    <input
-                      type="text"
-                      value={propiedadAEditar.precio}
-                      onChange={(e) =>
-                        setPropiedadAEditar({ ...propiedadAEditar, precio: e.target.value })
-                      }
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Tipo
-                    </label>
-                    <select
-                      value={propiedadAEditar.tipo}
-                      onChange={(e) =>
-                        setPropiedadAEditar({ ...propiedadAEditar, tipo: e.target.value })
-                      }
-                      className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-                    >
-                      <option value="Departamento">Departamento</option>
-                      <option value="Casa">Casa</option>
-                      <option value="Local">Local</option>
-                      <option value="Monoambiente">Monoambiente</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Operación
-                    </label>
-                    <select
-                      value={propiedadAEditar.operacion}
-                      onChange={(e) =>
-                        setPropiedadAEditar({ ...propiedadAEditar, operacion: e.target.value })
-                      }
-                      className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-                    >
-                      <option value="Venta">Venta</option>
-                      <option value="Alquiler">Alquiler</option>
-                      <option value="Temporario">Temporario</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      Estado
-                    </label>
-                    <select
-                      value={propiedadAEditar.estado}
-                      onChange={(e) =>
-                        setPropiedadAEditar({
-                          ...propiedadAEditar,
-                          estado: e.target.value as "disponible" | "reservado" | "alquilado",
-                        })
-                      }
-                      className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 bg-white"
-                    >
-                      <option value="disponible">Disponible</option>
-                      <option value="reservado">Reservado</option>
-                      <option value="alquilado">Alquilado</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-end gap-2 pt-4 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setPropiedadAEditar(null)}
-                    className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-5 py-2 rounded-lg bg-[#004bb7] hover:bg-[#003d96] text-white text-xs font-semibold transition shadow-sm"
-                  >
-                    Guardar cambios
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
-
-        {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
-        {propiedadAEliminar && (
-          <div className="fixed inset-0 bg-black/50 backdrop-blur-xs flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm p-5 animate-fade-in-up text-center">
-              <div className="w-12 h-12 rounded-full bg-red-50 text-red-600 mx-auto flex items-center justify-center mb-3">
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </div>
-
-              <h3 className="text-sm font-bold text-[#0A193D]">
-                ¿Eliminar propiedad?
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                ¿Estás seguro de que deseas eliminar <br />
-                <span className="font-semibold text-slate-700">&quot;{propiedadAEliminar.titulo}&quot;</span>?
-                Esta acción no se puede deshacer.
+              <p className="m-0 border-t border-panel-borde px-4 py-2.5 text-[13px] text-panel-suave">
+                {hayFiltros ? `Mostrando ${visibles.length} de ${lista.length}` : `${lista.length} ${lista.length === 1 ? 'propiedad' : 'propiedades'}`}
               </p>
-
-              <div className="flex items-center justify-center gap-2.5 mt-5">
-                <button
-                  type="button"
-                  onClick={() => setPropiedadAEliminar(null)}
-                  className="px-4 py-2 rounded-lg border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmarEliminacion}
-                  className="px-5 py-2 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm"
-                >
-                  Sí, eliminar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </div>
+            </>
+          ) : null}
+        </div>
+      </div>
+      {aviso}
+      {dialogoConfirmar}
+    </>
   );
 }

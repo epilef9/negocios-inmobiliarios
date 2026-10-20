@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef, Suspense } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import AdminSidebar from '../../../../components/AdminSidebar';
 import {
   Contrato,
   ContratoInput,
@@ -205,7 +204,6 @@ function GeneracionContratosForm() {
   if (cargandoContrato) {
     return (
       <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-        <AdminSidebar activeSection="contratos" />
         <main className="flex-1 flex items-center justify-center">
           <div className="flex items-center gap-3 text-slate-400">
             <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
@@ -230,7 +228,6 @@ function GeneracionContratosForm() {
       )}
 
       {/* Sidebar Admin */}
-      <AdminSidebar activeSection="contratos" />
 
       {/* Contenido Principal */}
       <main className="flex-1 overflow-y-auto px-8 py-7">

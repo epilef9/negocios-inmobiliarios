@@ -1,5 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/auth.middleware');
+const { requireAdmin } = authMiddleware;
+
+// Contratos: solo el administrador (RF-09 / RNF-05)
+router.use(authMiddleware, requireAdmin);
 const contratosController = require('../controllers/contratos.controller');
 
 // Obtener todos los contratos (acepta ?estado=activo|finalizado|cancelado|por_vencer|borrador)

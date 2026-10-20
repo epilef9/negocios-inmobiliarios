@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
+import Icono from "@/components/panel/Icono";
+import { Boton, BotonLink, Campo, Encabezado, Esqueleto, Tarjeta, areaTexto, control } from "@/components/panel/ui";
 import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
 const SelectorUbicacionMapa = dynamic(
@@ -81,7 +82,9 @@ export default function NuevaPropiedadPage() {
   const [modoEdicion, setModoEdicion] = useState(false);
   const [estadoPropiedad, setEstadoPropiedad] = useState<"disponible" | "reservado" | "alquilado" | "vendido">("disponible");
   const [mostrarTodoEdicion, setMostrarTodoEdicion] = useState(true);
-  const [cargandoPropiedad, setCargandoPropiedad] = useState(false);
+  // Al editar, se muestra un esqueleto hasta que llegan los datos de la propiedad
+  const [cargandoPropiedad, setCargandoPropiedad] = useState(() => typeof window !== "undefined" && new URLSearchParams(window.location.search).has("editar"));
+  const [guardando, setGuardando] = useState(false);
   const [arrastrandoImagenes, setArrastrandoImagenes] = useState(false);
   const [resolviendoMapa, setResolviendoMapa] = useState(false);
   const [localidades, setLocalidades] = useState<string[]>([]);
@@ -226,6 +229,11 @@ export default function NuevaPropiedadPage() {
 
   const eliminarImagen = (indexAEliminar: number) => {
     setImagenes((prev) => prev.filter((_, idx) => idx !== indexAEliminar));
+  };
+
+  // La primera foto es la portada: mueve la elegida al principio
+  const hacerPortada = (indice: number) => {
+    setImagenes((prev) => [prev[indice], ...prev.filter((_, idx) => idx !== indice)]);
   };
 
   const toggleComodidad = (item: string) => {
@@ -518,13 +526,8 @@ export default function NuevaPropiedadPage() {
     }
     return true;
   };
-  const numeroVisiblePaso = (paso: number) => esTerreno && paso >= 5 ? paso - 1 : paso;
 
-  // Datos auxiliares para el mapa y la conversión entre monedas
-  const mapQuery = formData.latitud && formData.longitud
-    ? `${formData.latitud},${formData.longitud}`
-    : formData.linkGoogleMaps || formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`;
-  const mapEmbedUrl = `https://www.google.com/maps?q=${encodeURIComponent(mapQuery)}&output=embed`;
+  // Datos auxiliares para la conversión entre monedas
   const precioUSD = Number(formData.precioUSD);
   const precioARS = Number(formData.precioARS);
   const valorReferencialARS = cotizacionBlue && Number.isFinite(precioUSD) && precioUSD > 0
@@ -548,6 +551,7 @@ export default function NuevaPropiedadPage() {
         return;
       }
     }
+    setGuardando(true);
     try {
       const propertyId = new URLSearchParams(window.location.search).get("editar");
       const numericFields = [
@@ -638,1433 +642,602 @@ export default function NuevaPropiedadPage() {
       router.push("/admin/propiedades");
     } catch (error) {
       setMensaje(error instanceof Error ? error.message : "No se pudo publicar la propiedad");
+    } finally {
+      setGuardando(false);
     }
   };
 
+  const PASOS = [
+    { n: 1, titulo: "Información principal", texto: "Tipo, operación y ubicación" },
+    { n: 2, titulo: "Precio", texto: "Valor, moneda y expensas" },
+    { n: 3, titulo: "Características", texto: "Superficie y distribución" },
+    { n: 4, titulo: "Comodidades", texto: "Servicios y equipamiento" },
+    { n: 5, titulo: "Descripción y ubicación", texto: "Texto y punto en el mapa" },
+    { n: 6, titulo: "Fotos y contacto", texto: "Imágenes y canales" },
+    { n: 7, titulo: "Condiciones", texto: "Datos finales de la operación" },
+  ].filter((paso) => !(esTerreno && paso.n === 4));
+
+  const error = (campo: string) => erroresCampos[campo] ?? null;
+  const conError = (campo: string) => Boolean(erroresCampos[campo]);
+  const mensajeEsError = Object.keys(erroresCampos).length > 0 || /^(no |la imagen|el archivo|el campo|debés)/i.test(mensaje);
+  const pasoInfo = PASOS.find((p) => p.n === pasoActual);
+  const posicion = PASOS.findIndex((p) => p.n === pasoActual) + 1;
+
+  // Estimación honesta del alquiler temporario con los datos cargados
+  const noche = Number(formData.precioPorNocheUSD) || 0;
+  const noches = Math.max(Number(formData.minimoNoches) || 1, 1);
+  const limpieza = Number(formData.costoLimpiezaUSD) || 0;
+  const totalEstadia = noche > 0 ? noche * noches + limpieza : 0;
+
+  const radio = (nombre: string, valor: string, actual: string, texto: string, alCambiar: (v: string) => void) => (
+    <label key={valor} className={`flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg border text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-panel-acento ${actual === valor ? "border-panel-marca bg-panel-marca text-panel-marca-texto" : "border-panel-borde-fuerte bg-panel-superficie text-panel-suave hover:bg-panel-hundido"}`}>
+      <input type="radio" name={nombre} value={valor} checked={actual === valor} onChange={(e) => alCambiar(e.target.value)} className="sr-only" />
+      {texto}
+    </label>
+  );
+
+  const casilla = (campo: "permitirVisita" | "permitirWhatsApp" | "permitirEmail", titulo: string, texto: string) => (
+    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-panel-borde p-3 transition-colors hover:bg-panel-hundido">
+      <input
+        type="checkbox"
+        checked={formData[campo]}
+        onChange={(e) => {
+          limpiarErrorCampo("contacto");
+          setFormData({ ...formData, [campo]: e.target.checked });
+        }}
+        className="mt-0.5 h-4 w-4 accent-[var(--p-acento)]"
+      />
+      <span>
+        <span className="block text-sm font-medium">{titulo}</span>
+        <span className="block text-[13px] text-panel-suave">{texto}</span>
+      </span>
+    </label>
+  );
+
+  // Si algo no pasa la validación, se lleva la vista al campo a corregir
+  useEffect(() => {
+    if (!Object.keys(erroresCampos).length) return;
+    const campo = document.querySelector<HTMLElement>('form [aria-invalid="true"]');
+    campo?.scrollIntoView({ behavior: "smooth", block: "center" });
+    campo?.focus({ preventScroll: true });
+  }, [erroresCampos]);
+
+  // Al cambiar de paso se vuelve al principio del formulario
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [pasoActual]);
+
+  if (modoEdicion === false && cargandoPropiedad) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Esqueleto className="h-10 w-64" />
+        <Esqueleto className="h-80 w-full" />
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-      {/* Sidebar - Panel Admin */}
-      <aside className="w-64 bg-[#0A193D] text-white flex flex-col shrink-0 border-r border-[#152e69]">
-        <div className="p-6">
-          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-            Panel Admin
-          </h2>
-        </div>
+    <>
+      <Encabezado
+        titulo={modoEdicion ? "Editar propiedad" : "Nueva propiedad"}
+        volver={{ href: "/admin/propiedades", texto: "Propiedades" }}
+        descripcion={modoEdicion ? formData.titulo || "Actualizá los datos de la publicación." : "Completá los datos en orden. Podés volver a cualquier paso ya hecho."}
+        acciones={
+          modoEdicion ? (
+            <>
+              <label className="flex items-center gap-2 text-[13px] text-panel-suave">
+                Estado
+                <select value={estadoPropiedad} onChange={(e) => setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")} className={`${control} w-auto`}>
+                  <option value="disponible">Disponible</option>
+                  <option value="reservado">Reservada</option>
+                  <option value="alquilado">Alquilada</option>
+                  <option value="vendido">Vendida</option>
+                </select>
+              </label>
+              <Boton variante="principal" icono="check" onClick={publicarPropiedad} cargando={guardando}>
+                Guardar cambios
+              </Boton>
+            </>
+          ) : undefined
+        }
+      />
 
-        <nav className="flex-1 px-3 space-y-1.5">
-          <Link
-            href="/admin/propiedades"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg bg-[#193B7B] text-white font-medium text-sm transition-colors shadow-sm"
-          >
-            <svg className="w-5 h-5 text-blue-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-            </svg>
-            Propiedades
-          </Link>
-
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors">
-            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            Visitas
-          </button>
-
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors">
-            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-            </svg>
-            Contratos
-          </button>
-
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors">
-            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-            </svg>
-            Clientes
-          </button>
-
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors">
-            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
-            </svg>
-            Solicitudes
-          </button>
-
-          <button type="button" className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors">
-            <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-            </svg>
-            Configuración
-          </button>
-        </nav>
-
-        <div className="px-3 pb-5 space-y-1.5 border-t border-[#152e69] pt-4">
-          <Link
-            href="/"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
-          >
-            Ver sitio
-          </Link>
-          <Link
-            href="/propiedades"
-            className="flex items-center gap-3 px-4 py-2.5 rounded-lg text-slate-300 hover:bg-[#122756] hover:text-white text-sm font-medium transition-colors"
-          >
-            Catálogo público
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto px-8 py-7">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            {modoEdicion && (
-              <Link
-                href="/admin/propiedades"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-[#004bb7] transition mb-1.5"
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
-                </svg>
-                Volver al listado de propiedades
-              </Link>
-            )}
-            <h1 className="text-2xl font-extrabold text-[#0A193D] tracking-tight">
-              {modoEdicion ? "Editar propiedad" : "Nueva propiedad"}
-            </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
-              {modoEdicion ? "Actualizá los datos de la publicación en tiempo real" : "Completá los datos para publicar un inmueble"}
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2.5 flex-wrap">
-            {modoEdicion ? (
-              <>
-                {/* Selector rápido de estado */}
-                <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-2xs">
-                  <span
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${estadoPropiedad === "disponible"
-                        ? "bg-emerald-500"
-                        : estadoPropiedad === "reservado"
-                          ? "bg-amber-500"
-                          : estadoPropiedad === "alquilado"
-                            ? "bg-blue-500"
-                            : "bg-slate-400"
-                      }`}
-                  />
-                  <span className="text-[11px] font-semibold text-slate-500">Estado:</span>
-                  <select
-                    value={estadoPropiedad}
-                    onChange={(e) =>
-                      setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")
-                    }
-                    className="text-xs font-bold text-[#0A193D] bg-transparent border-0 focus:outline-none focus:ring-0 p-0 cursor-pointer capitalize"
-                  >
-                    <option value="disponible">Disponible</option>
-                    <option value="reservado">Reservado</option>
-                    <option value="alquilado">Alquilado</option>
-                    <option value="vendido">Vendido</option>
-                  </select>
-                </div>
-
-                {/* Botón rápido Guardar Cambios en la cabecera */}
-                <button
-                  type="button"
-                  onClick={publicarPropiedad}
-                  disabled={cargandoPropiedad}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold rounded-lg transition shadow-sm active:scale-95 disabled:opacity-50"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  {cargandoPropiedad ? "Guardando..." : "Guardar cambios"}
-                </button>
-              </>
-            ) : (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white border border-slate-200 rounded-md text-xs font-medium text-slate-600 shadow-2xs">
-                <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Parte {numeroVisiblePaso(pasoActual)} de {esTerreno ? 6 : 7}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {!modoEdicion && <div className="bg-white border border-slate-200/90 rounded-xl p-5 mb-6 shadow-2xs">
-          <div className="grid grid-cols-2 md:grid-cols-7 gap-2 relative">
-            {/* Paso 1 */}
-            <div
-              onClick={() => seleccionarParte(1)}
-              className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === 1 ? "opacity-100" : "opacity-60"}`}
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 shadow-sm ${pasoCompletado(1) || pasoActual === 1 ? "bg-[#6798dc] text-white" : "bg-slate-100 border border-slate-300 text-slate-600"}`}
-              >
-                {pasoCompletado(1) ? (
-                  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                ) : (
-                  "1"
-                )}
-              </div>
-              <div>
-                <h3 className="text-xs font-bold text-[#0A193D]">
-                  1. Básicos
-                </h3>
-                <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">
-                  Identidad y ubicación
-                </p>
-              </div>
-              {pasoActual === 1 && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />
-              )}
+      <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
+        {/* Pasos (al crear) o índice de secciones (al editar) */}
+        <nav aria-label={modoEdicion ? "Secciones" : "Pasos"} className="xl:sticky xl:top-8 xl:self-start">
+          {!modoEdicion && (
+            <div className="mb-3 flex items-center justify-between text-[13px] text-panel-suave xl:hidden">
+              <span>
+                Paso {posicion} de {PASOS.length}: <span className="font-medium text-panel-texto">{pasoInfo?.titulo}</span>
+              </span>
             </div>
-
-            {/* Paso 2 */}
-            <div
-              onClick={() => puedeSeleccionarPaso(2) && seleccionarParte(2)}
-              className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === 2 ? "opacity-100" : "opacity-60"}`}
-            >
-              <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(2) || pasoActual === 2 ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}
-              >
-                {pasoCompletado(2) ? "✓" : "2"}
-              </div>
-              <div>
-                <h3 className="text-xs font-bold text-[#0A193D]">
-                  2. Precio
-                </h3>
-                <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">
-                  Operación y gastos
-                </p>
-              </div>
-              {pasoActual === 2 && (
-                <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />
-              )}
-            </div>
-
-            {[['Características', 'Superficie y distribución'], ['Comodidades', 'Servicios y equipamiento'], ['Descripción', 'Detalles de la publicación'], ['Imágenes', 'Fotos del inmueble'], ['Condiciones', 'Datos finales de la operación']].map(([label, description], index) => {
-              const step = (index + 3) as typeof pasoActual;
-              if (esTerreno && label === "Comodidades") return null;
+          )}
+          <ol className="m-0 flex list-none gap-1 overflow-x-auto p-0 pb-1 xl:flex-col xl:overflow-visible">
+            {PASOS.map((paso, i) => {
+              const activo = !modoEdicion && pasoActual === paso.n;
+              const hecho = !modoEdicion && pasoCompletado(paso.n);
+              const habilitado = puedeSeleccionarPaso(paso.n);
+              const contenido = (
+                <>
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[12px] font-semibold ${activo ? "bg-panel-marca text-panel-marca-texto" : hecho ? "bg-emerald-600 text-white" : "bg-panel-hundido text-panel-suave ring-1 ring-inset ring-panel-borde"}`}>
+                    {hecho && !activo ? <Icono nombre="check" className="h-3.5 w-3.5" /> : i + 1}
+                  </span>
+                  <span className="min-w-0">
+                    <span className={`block whitespace-nowrap text-[14px] xl:whitespace-normal ${activo ? "font-semibold" : "font-medium"}`}>{paso.titulo}</span>
+                    <span className="hidden text-[12.5px] text-panel-tenue xl:block">{paso.texto}</span>
+                  </span>
+                </>
+              );
               return (
-                <div key={label} onClick={() => puedeSeleccionarPaso(step) && seleccionarParte(step)} className={`flex items-start gap-2 relative pb-3 cursor-pointer transition-opacity ${pasoActual === step ? "opacity-100" : "opacity-60"}`}>
-                  <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${pasoCompletado(step) || pasoActual === step ? "bg-[#004bb7] text-white shadow-sm" : "bg-slate-100 border border-slate-300 text-slate-600"}`}>{pasoCompletado(step) ? "✓" : numeroVisiblePaso(step)}</div>
-                  <div>
-                    <h3 className="text-xs font-bold text-[#0A193D]">{numeroVisiblePaso(step)}. {label}</h3>
-                    <p className="hidden md:block text-[10px] text-slate-500 mt-0.5">{description}</p>
-                  </div>
-                  {pasoActual === step && <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-[#004bb7] rounded-full" />}
-                </div>
+                <li key={paso.n} className="shrink-0">
+                  {modoEdicion ? (
+                    <a href={`#parte-${paso.n}`} className="flex items-start gap-3 rounded-lg px-3 py-2 hover:bg-panel-hundido">
+                      {contenido}
+                    </a>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => seleccionarParte(paso.n as typeof pasoActual)}
+                      disabled={!habilitado}
+                      aria-current={activo ? "step" : undefined}
+                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${activo ? "bg-panel-superficie ring-1 ring-panel-borde" : "hover:bg-panel-hundido"}`}
+                    >
+                      {contenido}
+                    </button>
+                  )}
+                </li>
               );
             })}
-          </div>
-        </div>}
+          </ol>
+        </nav>
 
-        {/* FORMULARIO PRINCIPAL */}
         <form
-          className="space-y-6"
+          noValidate
           onSubmit={modoEdicion || pasoActual === 7 ? publicarPropiedad : (e) => { e.preventDefault(); avanzarPaso(); }}
+          className="flex min-w-0 flex-col gap-6"
         >
-          {/* 1. Información principal */}
-          <div className={`${mostrarParte(1) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-            <div className="flex items-center gap-2.5 mb-5">
-              <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
-                i
-              </div>
-              <h2 className="text-base font-bold text-[#0A193D]">
-                1. Información principal
-              </h2>
+          {mostrarParte(1) && (
+            <div id="parte-1" className="scroll-mt-6">
+              <Tarjeta titulo="Información principal" descripcion="Lo que se ve primero en la publicación.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Campo etiqueta="Título de la publicación *" htmlFor="campo-titulo" error={error("titulo")} ayuda="Por ejemplo: Casa con galería y parque en Villa Libertador San Martín" className="sm:col-span-2">
+                    <input id="campo-titulo" type="text" value={formData.titulo} aria-invalid={conError("titulo")} onChange={(e) => { limpiarErrorCampo("titulo"); setFormData({ ...formData, titulo: e.target.value }); }} className={control} />
+                  </Campo>
+                  <Campo etiqueta="Código interno" htmlFor="campo-codigo" ayuda="Opcional, para identificarla en la oficina.">
+                    <input id="campo-codigo" type="text" value={formData.codigoInterno} onChange={(e) => setFormData({ ...formData, codigoInterno: e.target.value })} placeholder="Ej.: VLSM-012" className={control} />
+                  </Campo>
+                  <Campo etiqueta="Tipo de inmueble *" htmlFor="campo-tipo" error={error("tipoInmueble")}>
+                    <select
+                      id="campo-tipo"
+                      value={formData.tipoInmueble}
+                      aria-invalid={conError("tipoInmueble")}
+                      onChange={(e) => {
+                        limpiarErrorCampo("tipoInmueble");
+                        const tipoInmueble = e.target.value;
+                        setFormData({
+                          ...formData,
+                          tipoInmueble,
+                          categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
+                            ? formData.categoriaOperacion
+                            : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
+                        });
+                      }}
+                      className={control}
+                    >
+                      <option value="">Elegí un tipo</option>
+                      <option value="departamento">Departamento</option>
+                      <option value="casa">Casa</option>
+                      <option value="local">Local comercial</option>
+                      <option value="terreno">Terreno</option>
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Operación *" htmlFor="campo-operacion" error={error("categoriaOperacion")} ayuda={!permiteAlquilerTemporario && formData.tipoInmueble ? "El alquiler por días es solo para casas y departamentos." : undefined}>
+                    <select id="campo-operacion" value={formData.categoriaOperacion} aria-invalid={conError("categoriaOperacion")} onChange={(e) => { limpiarErrorCampo("categoriaOperacion"); setFormData({ ...formData, categoriaOperacion: e.target.value }); }} className={control}>
+                      <option value="">Elegí una operación</option>
+                      <option value="venta">Venta</option>
+                      <option value="alquiler">Alquiler</option>
+                      {permiteAlquilerTemporario && <option value="temporario">Alquiler por días</option>}
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Localidad *" htmlFor="campo-localidad" error={error("ciudadZonaBarrio")} ayuda="Provincia de Entre Ríos.">
+                    <select id="campo-localidad" value={formData.ciudadZonaBarrio} aria-invalid={conError("ciudadZonaBarrio")} onChange={(e) => { limpiarErrorCampo("ciudadZonaBarrio"); actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value); }} className={control}>
+                      <option value="">Elegí la localidad</option>
+                      {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && <option value={formData.ciudadZonaBarrio}>{formData.ciudadZonaBarrio}</option>}
+                      {localidades.map((localidad) => (
+                        <option key={localidad} value={localidad}>{localidad}</option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Dirección *" htmlFor="campo-direccion" error={error("direccionCompleta")}>
+                    <input id="campo-direccion" type="text" value={formData.direccionCompleta} aria-invalid={conError("direccionCompleta")} onChange={(e) => { limpiarErrorCampo("direccionCompleta"); actualizarUbicacionTexto("direccionCompleta", e.target.value); }} placeholder="Ej.: 25 de Mayo 726" className={control} />
+                  </Campo>
+                  <Campo etiqueta="Referencias" htmlFor="campo-referencias" ayuda="Opcional: entre qué calles, cerca de qué." className="sm:col-span-2">
+                    <input id="campo-referencias" type="text" value={formData.referenciasUbicacion} onChange={(e) => setFormData({ ...formData, referenciasUbicacion: e.target.value })} placeholder="Ej.: Frente a la plaza, a dos cuadras de la universidad" className={control} />
+                  </Campo>
+                </div>
+              </Tarjeta>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Título de publicación */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Título de publicación <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: Departamento 2 ambientes con cochera – Centro"
-                  value={formData.titulo}
-                  onChange={(e) => {
-                    limpiarErrorCampo("titulo");
-                    setFormData({ ...formData, titulo: e.target.value });
-                  }}
-                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.titulo ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
-                />
-                {erroresCampos.titulo && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.titulo}</p>}
-              </div>
-
-              {/* Código interno */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Código interno (opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: DEP-000123"
-                  value={formData.codigoInterno}
-                  onChange={(e) => setFormData({ ...formData, codigoInterno: e.target.value })}
-                  className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
-                />
-              </div>
-
-              {/* Tipo de inmueble */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Tipo de inmueble <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.tipoInmueble}
-                  onChange={(e) => {
-                    limpiarErrorCampo("tipoInmueble");
-                    const tipoInmueble = e.target.value;
-                    setFormData({
-                      ...formData,
-                      tipoInmueble,
-                      categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
-                        ? formData.categoriaOperacion
-                        : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
-                    });
-                  }}
-                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.tipoInmueble ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                >
-                  <option value="">Seleccionar tipo</option>
-                  <option value="departamento">Departamento</option>
-                  <option value="casa">Casa</option>
-                  <option value="local">Local comercial</option>
-                  <option value="terreno">Terreno</option>
-                </select>
-                {erroresCampos.tipoInmueble && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.tipoInmueble}</p>}
-              </div>
-
-              {/* Categoría / Operación */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Categoría / Operación <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.categoriaOperacion}
-                  onChange={(e) => {
-                    limpiarErrorCampo("categoriaOperacion");
-                    setFormData({ ...formData, categoriaOperacion: e.target.value });
-                  }}
-                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.categoriaOperacion ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                >
-                  <option value="">Seleccionar</option>
-                  <option value="venta">Venta</option>
-                  <option value="alquiler">Alquiler</option>
-                  {permiteAlquilerTemporario && <option value="temporario">Alquiler temporario</option>}
-                </select>
-                {erroresCampos.categoriaOperacion && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.categoriaOperacion}</p>}
-              </div>
-
-              {/* Estado (solo en edición) */}
-              {modoEdicion && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                    Estado de la propiedad
-                  </label>
-                  <select
-                    value={estadoPropiedad}
-                    onChange={(e) => setEstadoPropiedad(e.target.value as "disponible" | "reservado" | "alquilado" | "vendido")}
-                    className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700"
-                  >
-                    <option value="disponible">Disponible</option>
-                    <option value="reservado">Reservado</option>
-                    <option value="alquilado">Alquilado</option>
-                    <option value="vendido">Vendido</option>
-                  </select>
-                </div>
-              )}
-
-              {/* Ciudad / Zona / Barrio */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Localidad <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.ciudadZonaBarrio}
-                  onChange={(e) => {
-                    limpiarErrorCampo("ciudadZonaBarrio");
-                    actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value);
-                  }}
-                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.ciudadZonaBarrio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700`}
-                >
-                  <option value="">Seleccionar localidad</option>
-                  {formData.ciudadZonaBarrio && !localidades.includes(formData.ciudadZonaBarrio) && (
-                    <option value={formData.ciudadZonaBarrio}>{formData.ciudadZonaBarrio}</option>
-                  )}
-                  {localidades.map((localidad) => (
-                    <option key={localidad} value={localidad}>{localidad}</option>
-                  ))}
-                </select>
-                {erroresCampos.ciudadZonaBarrio && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.ciudadZonaBarrio}</p>}
-              </div>
-
-              {/* Provincia */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Provincia <span className="text-red-500">*</span>
-                </label>
-                <div className="w-full text-xs py-2.5 text-slate-700">
-                  Entre Ríos
-                </div>
-              </div>
-
-              {/* Dirección completa */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Dirección <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: San Martin 1200"
-                  value={formData.direccionCompleta}
-                  onChange={(e) => {
-                    limpiarErrorCampo("direccionCompleta");
-                    actualizarUbicacionTexto("direccionCompleta", e.target.value);
-                  }}
-                  className={`w-full text-xs px-3.5 py-2.5 rounded-lg border ${erroresCampos.direccionCompleta ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400`}
-                />
-                {erroresCampos.direccionCompleta && <p className="text-[11px] text-red-500 mt-1 font-medium">{erroresCampos.direccionCompleta}</p>}
-              </div>
-
-              {/* Referencias */}
-              <div className="md:col-span-2">
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                  Referencias / Detalles de ubicación (opcional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Ej: A metros de Av. Principal, cerca de plazas y comercios"
-                  value={formData.referenciasUbicacion}
-                  onChange={(e) => setFormData({ ...formData, referenciasUbicacion: e.target.value })}
-                  className="w-full text-xs px-3.5 py-2.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/30 placeholder:text-slate-400"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Fila 2: 2. Precio y operación & 3. Características del inmueble */}
-          <div className={`${modoEdicion ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch" : (pasoActual === 2 || pasoActual === 3 ? "block" : "!hidden")}`}>
-            {/* 2. Precio y operación */}
-            <div className={`${mostrarParte(2) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
-                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs font-bold shrink-0">
-                    $
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      2. Precio y operación
-                    </h2>
-                    <p className="text-[10px] text-slate-400">Valores, moneda y expensas</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3.5">
-                  <div className="grid grid-cols-5 gap-2">
-                    <div className="col-span-3">
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        {formData.categoriaOperacion === "alquiler" ? "Precio mensual" : `Precio (${formData.moneda})`} <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder={formData.moneda === "ARS" ? "Ej: 98640000" : "Ej: 72000"}
-                        value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
-                        onChange={(e) => {
-                          limpiarErrorCampo("precio");
-                          handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precio ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.precio && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precio}</p>}
-                    </div>
-                    <div className="col-span-2">
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Moneda
-                      </label>
-                      <select
-                        value={formData.moneda}
-                        onChange={(e) => setFormData({ ...formData, moneda: e.target.value })}
-                        className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
-                      >
-                        <option value="USD">Dólar (USD)</option>
-                        <option value="ARS">Peso (ARS)</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/60 p-3">
+          {mostrarParte(2) && (
+            <div id="parte-2" className="scroll-mt-6">
+              <Tarjeta titulo="Precio" descripcion="Se guarda en la moneda que elijas y se muestra la referencia en la otra con el dólar blue.">
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Campo etiqueta="Moneda" htmlFor="campo-moneda">
+                    <select id="campo-moneda" value={formData.moneda} onChange={(e) => setFormData({ ...formData, moneda: e.target.value })} className={control}>
+                      <option value="USD">Dólares (USD)</option>
+                      <option value="ARS">Pesos (ARS)</option>
+                    </select>
+                  </Campo>
+                  <Campo etiqueta={`${formData.categoriaOperacion === "alquiler" ? "Precio mensual" : "Precio"} en ${formData.moneda} *`} htmlFor="campo-precio" error={error("precio")}>
+                    <input
+                      id="campo-precio"
+                      type="number"
+                      min="0"
+                      inputMode="decimal"
+                      placeholder={formData.moneda === "ARS" ? "Ej.: 98640000" : "Ej.: 72000"}
+                      value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
+                      aria-invalid={conError("precio")}
+                      onChange={(e) => { limpiarErrorCampo("precio"); handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value); }}
+                      className={`${control} tabular`}
+                    />
+                  </Campo>
+                  <div className="sm:col-span-2">
                     {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
-                      <>
-                        <div className="flex items-center justify-between text-[11px] font-semibold text-slate-700">
-                          <span>Cotización Dólar Blue</span>
-                          <span className="text-emerald-700 font-bold bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
-                            ${cotizacionBlue.toLocaleString("es-AR")}
-                          </span>
-                        </div>
+                      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-panel-hundido px-4 py-3 text-[13.5px]">
+                        <span className="text-panel-suave">
+                          Dólar blue: <span className="tabular font-medium text-panel-texto">${cotizacionBlue.toLocaleString("es-AR")}</span>
+                          {fechaCotizacionFormateada && <span className="text-panel-tenue"> · actualizado {fechaCotizacionFormateada}</span>}
+                        </span>
                         {formData.moneda === "USD" && valorReferencialARS !== null && (
-                          <div className="mt-1.5 pt-1.5 border-t border-blue-100 flex items-baseline justify-between">
-                            <span className="text-[10px] text-slate-500 font-medium">Equivalente:</span>
-                            <span className="text-xs font-extrabold text-[#004bb7]">
-                              ≈ ${valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 0 })} ARS
-                            </span>
-                          </div>
+                          <span className="tabular font-medium">≈ ARS {valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
                         )}
                         {formData.moneda === "ARS" && valorReferencialUSD !== null && (
-                          <div className="mt-1.5 pt-1.5 border-t border-blue-100 flex items-baseline justify-between">
-                            <span className="text-[10px] text-slate-500 font-medium">Equivalente:</span>
-                            <span className="text-xs font-extrabold text-[#004bb7]">
-                              ≈ USD ${valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 0 })}
-                            </span>
-                          </div>
+                          <span className="tabular font-medium">≈ USD {valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
                         )}
-                        <p className="mt-1 text-[9px] text-slate-400 leading-tight">
-                          {fechaCotizacionFormateada ? `Actualizado: ${fechaCotizacionFormateada}. ` : ""}
-                          Calculado según cotización vigente de mercado.
-                        </p>
-                      </>
-                    ) : estadoCotizacionBlue === "inicial" || estadoCotizacionBlue === "cargando" ? (
-                      <p className="text-[10px] text-slate-500">Consultando cotización del Dólar Blue...</p>
+                      </div>
                     ) : (
-                      <p className="text-[10px] text-slate-500">Cotización Blue no disponible temporalmente.</p>
+                      <p className="m-0 rounded-lg bg-panel-hundido px-4 py-3 text-[13.5px] text-panel-suave">
+                        {estadoCotizacionBlue === "error" ? "La cotización del blue no está disponible ahora. Podés escribirla a mano abajo." : "Consultando la cotización del dólar blue…"}
+                      </p>
                     )}
                   </div>
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Cotización dólar usada
-                    </label>
+                  <Campo etiqueta="Cotización del dólar usada" htmlFor="campo-cotizacion" error={error("cotizacionDolar")} ayuda={cotizacionBlue !== null ? "Se toma sola del dólar blue." : "Escribila si no se pudo consultar."}>
                     <input
+                      id="campo-cotizacion"
                       type="number"
-                      min="1"
+                      min="0"
                       value={cotizacionBlue ?? formData.cotizacionDolar}
                       readOnly={cotizacionBlue !== null}
-                      onChange={(e) => {
-                        if (cotizacionBlue === null) {
-                          handleNonNegativeNumberChange("cotizacionDolar", e.target.value);
-                        }
-                      }}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/40"
+                      onChange={(e) => { if (cotizacionBlue === null) handleNonNegativeNumberChange("cotizacionDolar", e.target.value); }}
+                      className={`${control} tabular read-only:bg-panel-hundido read-only:text-panel-suave`}
                     />
-                    <p className="mt-1 text-[9px] text-slate-400">Se guarda junto con la propiedad para explicar el equivalente.</p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Expensas
-                      </label>
-                      <select
-                        value={formData.expensas}
-                        onChange={(e) => setFormData({ ...formData, expensas: e.target.value })}
-                        className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white"
-                      >
-                        <option value="">Seleccionar</option>
-                        <option value="no_incluye">No incluye</option>
-                        <option value="incluye">Incluye expensas</option>
-                        <option value="sin_expensas">Sin expensas</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Monto expensas (ARS)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 72000"
-                        value={formData.montoExpensas}
-                        onChange={(e) => handleNonNegativeNumberChange("montoExpensas", e.target.value)}
-                        className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                      />
-                    </div>
-                  </div>
+                  </Campo>
+                  <div className="hidden sm:block" />
+                  <Campo etiqueta="Expensas" htmlFor="campo-expensas">
+                    <select id="campo-expensas" value={formData.expensas} onChange={(e) => setFormData({ ...formData, expensas: e.target.value })} className={control}>
+                      <option value="">Sin indicar</option>
+                      <option value="no_incluye">No incluye expensas</option>
+                      <option value="incluye">Incluye expensas</option>
+                      <option value="sin_expensas">No tiene expensas</option>
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Monto de expensas (ARS)" htmlFor="campo-monto-expensas" error={error("montoExpensas")}>
+                    <input id="campo-monto-expensas" type="number" min="0" value={formData.montoExpensas} disabled={formData.expensas === "sin_expensas"} onChange={(e) => handleNonNegativeNumberChange("montoExpensas", e.target.value)} placeholder="Ej.: 45000" className={`${control} tabular`} />
+                  </Campo>
                 </div>
-              </div>
+              </Tarjeta>
             </div>
+          )}
 
-            {/* 3. Características del inmueble */}
-            <div className={`${mostrarParte(3) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
-                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      3. Características del inmueble
-                    </h2>
-                    <p className="text-[10px] text-slate-400">Superficie, ambientes y distribución</p>
-                  </div>
-                </div>
-
-                <div className="space-y-3.5">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                        Superficie total (m²) <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        placeholder="Ej: 80"
-                        value={formData.superficieTotal}
-                        onChange={(e) => {
-                          limpiarErrorCampo("superficieTotal");
-                          handleNonNegativeNumberChange("superficieTotal", e.target.value);
-                        }}
-                        className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.superficieTotal ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                      />
-                      {erroresCampos.superficieTotal && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.superficieTotal}</p>}
-                    </div>
-                    {!esTerreno && (
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Cantidad ambientes {esVivienda && <span className="text-red-500">*</span>}
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 2"
-                          value={formData.cantidadAmbientes}
-                          onChange={(e) => {
-                            limpiarErrorCampo("cantidadAmbientes");
-                            handleNonNegativeNumberChange("cantidadAmbientes", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.cantidadAmbientes ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.cantidadAmbientes && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.cantidadAmbientes}</p>}
-                      </div>
-                    )}
-                  </div>
-
-                  {esVivienda && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Dormitorios <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 1"
-                          value={formData.dormitorios}
-                          onChange={(e) => {
-                            limpiarErrorCampo("dormitorios");
-                            handleNonNegativeNumberChange("dormitorios", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.dormitorios ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.dormitorios && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.dormitorios}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Baños <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 1"
-                          value={formData.banos}
-                          onChange={(e) => {
-                            limpiarErrorCampo("banos");
-                            handleNonNegativeNumberChange("banos", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.banos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.banos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.banos}</p>}
-                      </div>
-                    </div>
-                  )}
-
+          {mostrarParte(3) && (
+            <div id="parte-3" className="scroll-mt-6">
+              <Tarjeta titulo="Características" descripcion={esTerreno ? "Para terrenos alcanza con la superficie." : "Superficie y distribución de la propiedad."}>
+                <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                  <Campo etiqueta="Superficie total (m²) *" htmlFor="campo-superficie" error={error("superficieTotal")}>
+                    <input id="campo-superficie" type="number" min="0" value={formData.superficieTotal} aria-invalid={conError("superficieTotal")} onChange={(e) => { limpiarErrorCampo("superficieTotal"); handleNonNegativeNumberChange("superficieTotal", e.target.value); }} className={`${control} tabular`} />
+                  </Campo>
                   {!esTerreno && (
-                    <div className="grid grid-cols-2 gap-2 items-center pt-1">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                          Cochera
-                        </label>
-                        <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
-                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="cochera"
-                              value="si"
-                              checked={formData.cochera === "si"}
-                              onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span>Sí</span>
-                          </label>
-                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="cochera"
-                              value="no"
-                              checked={formData.cochera === "no"}
-                              onChange={(e) => setFormData({ ...formData, cochera: e.target.value })}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span>No</span>
-                          </label>
+                    <Campo etiqueta={`Ambientes${esVivienda ? " *" : ""}`} htmlFor="campo-ambientes" error={error("cantidadAmbientes")}>
+                      <input id="campo-ambientes" type="number" min="0" value={formData.cantidadAmbientes} aria-invalid={conError("cantidadAmbientes")} onChange={(e) => { limpiarErrorCampo("cantidadAmbientes"); handleNonNegativeNumberChange("cantidadAmbientes", e.target.value); }} className={`${control} tabular`} />
+                    </Campo>
+                  )}
+                  {esVivienda && (
+                    <>
+                      <Campo etiqueta="Dormitorios *" htmlFor="campo-dormitorios" error={error("dormitorios")}>
+                        <input id="campo-dormitorios" type="number" min="0" value={formData.dormitorios} aria-invalid={conError("dormitorios")} onChange={(e) => { limpiarErrorCampo("dormitorios"); handleNonNegativeNumberChange("dormitorios", e.target.value); }} className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Baños *" htmlFor="campo-banos" error={error("banos")}>
+                        <input id="campo-banos" type="number" min="0" value={formData.banos} aria-invalid={conError("banos")} onChange={(e) => { limpiarErrorCampo("banos"); handleNonNegativeNumberChange("banos", e.target.value); }} className={`${control} tabular`} />
+                      </Campo>
+                    </>
+                  )}
+                  {!esTerreno && (
+                    <>
+                      <div className="flex flex-col gap-1.5 sm:col-span-1 lg:col-span-2">
+                        <span className="text-[13px] font-medium text-panel-suave">Cochera</span>
+                        <div role="radiogroup" aria-label="Cochera" className="flex gap-2">
+                          {radio("cochera", "si", formData.cochera, "Tiene", (v) => setFormData({ ...formData, cochera: v }))}
+                          {radio("cochera", "no", formData.cochera, "No tiene", (v) => setFormData({ ...formData, cochera: v }))}
                         </div>
                       </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Piso / Unidad (opcional)
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="Ej: Piso 3, Unidad A"
-                          value={formData.pisoUnidad}
-                          onChange={(e) => setFormData({ ...formData, pisoUnidad: e.target.value })}
-                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
+                      <Campo etiqueta="Piso y unidad" htmlFor="campo-piso" className="lg:col-span-2">
+                        <input id="campo-piso" type="text" value={formData.pisoUnidad} onChange={(e) => setFormData({ ...formData, pisoUnidad: e.target.value })} placeholder="Ej.: Piso 3, unidad A" className={control} />
+                      </Campo>
+                    </>
                   )}
                 </div>
-              </div>
+              </Tarjeta>
             </div>
-          </div>
+          )}
 
-          {/* Fila 3: 4. Comodidades y equipamiento & 5. Descripción */}
-          <div className={`${modoEdicion ? "grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch" : (pasoActual === 4 || pasoActual === 5 ? "block" : "!hidden")}`}>
-            {/* 4. Comodidades y equipamiento */}
-            <div className={`${esTerreno || !mostrarParte(4) ? "!hidden" : ""} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
-                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center text-xs shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      4. Comodidades y equipamiento
-                    </h2>
-                    <p className="text-[10px] text-slate-400">Servicios y comodidades ofrecidas</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-3 gap-1.5 mb-3.5">
+          {!esTerreno && mostrarParte(4) && (
+            <div id="parte-4" className="scroll-mt-6">
+              <Tarjeta titulo="Comodidades" descripcion="Marcá lo que tiene. Se muestran en la publicación.">
+                <div className="flex flex-wrap gap-2">
                   {comodidadesList.map((item) => {
-                    const isSelected = comodidadesSeleccionadas.includes(item.id);
+                    const elegida = comodidadesSeleccionadas.includes(item.id);
                     return (
                       <button
                         key={item.id}
                         type="button"
+                        aria-pressed={elegida}
                         onClick={() => toggleComodidad(item.id)}
-                        className={`flex items-center gap-1.5 px-2 py-1.5 rounded-lg border text-[10px] font-medium text-left transition-all ${isSelected
-                            ? "border-[#004bb7] bg-blue-50/80 text-[#004bb7] font-semibold shadow-2xs"
-                            : "border-slate-200 bg-white hover:bg-slate-50 text-slate-700"
-                          }`}
+                        className={`inline-flex h-9 items-center gap-1.5 rounded-full border px-3.5 text-[13.5px] transition-colors ${elegida ? "border-panel-marca bg-panel-marca text-panel-marca-texto" : "border-panel-borde-fuerte bg-panel-superficie text-panel-suave hover:bg-panel-hundido hover:text-panel-texto"}`}
                       >
-                        <span className="text-xs shrink-0">{item.icon}</span>
-                        <span className="truncate leading-tight">{item.label}</span>
+                        {elegida && <Icono nombre="check" className="h-4 w-4" />}
+                        {item.label}
                       </button>
                     );
                   })}
                 </div>
-
-                <div className="pt-3 border-t border-slate-100">
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Otras comodidades (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: Patio amplio, quincho, lavadero, etc."
-                    value={formData.otrasComodidades}
-                    onChange={(e) => setFormData({ ...formData, otrasComodidades: e.target.value })}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                  />
-                </div>
-              </div>
+                <Campo etiqueta="Otras comodidades" htmlFor="campo-otras" ayuda="Opcional, separadas por coma." className="mt-5">
+                  <input id="campo-otras" type="text" value={formData.otrasComodidades} onChange={(e) => setFormData({ ...formData, otrasComodidades: e.target.value })} placeholder="Ej.: Patio amplio, quincho, lavadero" className={control} />
+                </Campo>
+              </Tarjeta>
             </div>
+          )}
 
-            {/* 5. Descripción */}
-            <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
-                  <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+          {mostrarParte(5) && (
+            <div id="parte-5" className="flex scroll-mt-6 flex-col gap-6">
+              <Tarjeta titulo="Descripción" descripcion="Contá cómo es la propiedad, el entorno y lo que la hace especial.">
+                <Campo etiqueta="Descripción" htmlFor="campo-descripcion" error={error("descripcion")} ayuda={`${formData.descripcion.length.toLocaleString("es-AR")} de 3.000 caracteres`}>
+                  <textarea id="campo-descripcion" rows={7} maxLength={3000} value={formData.descripcion} aria-invalid={conError("descripcion")} onChange={(e) => { limpiarErrorCampo("descripcion"); setFormData({ ...formData, descripcion: e.target.value }); }} placeholder="Ej.: Casa luminosa de dos dormitorios, con galería al fondo y parque arbolado…" className={areaTexto} />
+                </Campo>
+              </Tarjeta>
+              <Tarjeta titulo="Ubicación en el mapa" descripcion="Pegá el link de Google Maps o marcá el punto en el mapa.">
+                <div className="grid gap-6 lg:grid-cols-[minmax(0,320px)_minmax(0,1fr)]">
+                  <div className="flex flex-col gap-5">
+                    <Campo etiqueta="Link de Google Maps" htmlFor="campo-maps" ayuda={resolviendoMapa ? "Buscando las coordenadas…" : "Al salir del campo se completan latitud y longitud."}>
+                      <input id="campo-maps" type="url" value={formData.linkGoogleMaps} onChange={(e) => actualizarUbicacionTexto("linkGoogleMaps", e.target.value)} onBlur={(e) => completarCoordenadasDesdeLink(e.target.value.trim())} placeholder="Ej.: https://maps.app.goo.gl/…" className={control} />
+                    </Campo>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Campo etiqueta="Latitud" htmlFor="campo-latitud" error={error("latitud")}>
+                        <input id="campo-latitud" type="text" inputMode="decimal" value={formData.latitud} aria-invalid={conError("latitud")} onChange={(e) => { limpiarErrorCampo("latitud"); setFormData({ ...formData, latitud: e.target.value }); }} placeholder="Ej.: -32.0712" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Longitud" htmlFor="campo-longitud" error={error("longitud")}>
+                        <input id="campo-longitud" type="text" inputMode="decimal" value={formData.longitud} aria-invalid={conError("longitud")} onChange={(e) => { limpiarErrorCampo("longitud"); setFormData({ ...formData, longitud: e.target.value }); }} placeholder="Ej.: -60.4591" className={`${control} tabular`} />
+                      </Campo>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      5. Descripción
-                    </h2>
-                    <p className="text-[10px] text-slate-400">
-                      Detalles y características para el comprador o inquilino
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col">
-                  <textarea
-                    placeholder="Describí las características del inmueble, entorno, estado general, ventajas, etc."
-                    value={formData.descripcion}
-                    onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
-                    maxLength={3000}
-                    rows={7}
-                    className="w-full text-xs p-3.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-slate-50/20 placeholder:text-slate-400 resize-none leading-relaxed"
-                  />
-                  <div className="text-right mt-2 text-[11px] text-slate-400 font-medium">
-                    {formData.descripcion.length} / 3.000
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Fila 4: 6. Ubicación */}
-          <div className={`${mostrarParte(5) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs`}>
-            <div className="flex items-center gap-2 mb-4 pb-2.5 border-b border-slate-100">
-              <div className="w-6 h-6 rounded-md bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-sm font-bold text-[#0A193D]">
-                  6. Ubicación
-                </h2>
-                <p className="text-[10px] text-slate-400">
-                  Coordenadas precisas y mapa interactivo
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-              {/* Columna izquierda: Enlace Google Maps y Coordenadas */}
-              <div className="lg:col-span-5 space-y-4">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Referencia de Google Maps (opcional)
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="Ej: https://maps.app.goo.gl/..."
-                    value={formData.linkGoogleMaps}
-                    onChange={(e) => actualizarUbicacionTexto("linkGoogleMaps", e.target.value)}
-                    onBlur={(e) => completarCoordenadasDesdeLink(e.target.value.trim())}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                  />
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    {resolviendoMapa ? "Buscando coordenadas..." : "Al salir del campo se completan latitud y longitud automáticamente."}
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Latitud (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: -31.731706"
-                      value={formData.latitud}
-                      onChange={(e) => setFormData({ ...formData, latitud: e.target.value })}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                      Longitud (opcional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ej: -60.52318"
-                      value={formData.longitud}
-                      onChange={(e) => setFormData({ ...formData, longitud: e.target.value })}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400 bg-slate-50/20"
+                  <div className="min-w-0">
+                    <SelectorUbicacionMapa
+                      latitud={formData.latitud}
+                      longitud={formData.longitud}
+                      onChange={(lat, lng) => {
+                        setFormData((current) => ({ ...current, latitud: lat, longitud: lng }));
+                      }}
+                      direccionSugerida={formData.direccionCompleta}
+                      ciudadSugerida={formData.ciudadZonaBarrio}
+                      provinciaSugerida={formData.provincia}
                     />
                   </div>
                 </div>
-
-                <div className="rounded-lg bg-blue-50/60 border border-blue-100 p-3 text-[11px] text-slate-600 leading-relaxed">
-                  <span className="font-semibold text-[#004bb7] block mb-1">Tip de ubicación:</span>
-                  Podés buscar la dirección en el mapa interactivo a la derecha o hacer clic directamente sobre el mapa para marcar el pin exacto de la propiedad.
-                </div>
-              </div>
-
-              {/* Columna derecha: Buscador y Mapa */}
-              <div className="lg:col-span-7">
-                <SelectorUbicacionMapa
-                  latitud={formData.latitud}
-                  longitud={formData.longitud}
-                  onChange={(lat, lng) => {
-                    setFormData((current) => ({
-                      ...current,
-                      latitud: lat,
-                      longitud: lng,
-                    }));
-                  }}
-                  direccionSugerida={formData.direccionCompleta}
-                  ciudadSugerida={formData.ciudadZonaBarrio}
-                  provinciaSugerida={formData.provincia}
-                />
-              </div>
+              </Tarjeta>
             </div>
-          </div>
+          )}
 
-          {/* Grilla intermedia: 7. Imágenes y 8. Configuración de contacto */}
-          <div className={`${modoEdicion || pasoActual === 6 ? "" : "!hidden"} grid grid-cols-1 lg:grid-cols-2 gap-6 items-stretch`}>
-            {/* 7. Imágenes */}
-            <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-start gap-2.5 mb-4">
-                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      7. Imágenes
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Subí fotos de la propiedad (hasta 20 imágenes).
-                    </p>
-                  </div>
-                </div>
-
-                {/* Dropzone */}
+          {mostrarParte(6) && (
+            <div id="parte-6" className="grid scroll-mt-6 gap-6 2xl:grid-cols-2">
+              <Tarjeta titulo="Fotos" descripcion={`${imagenes.length} de 20 · La primera es la portada.`}>
                 <label
-                  onDragEnter={(e) => {
-                    e.preventDefault();
-                    setArrastrandoImagenes(true);
-                  }}
+                  onDragEnter={(e) => { e.preventDefault(); setArrastrandoImagenes(true); }}
                   onDragOver={(e) => e.preventDefault()}
-                  onDragLeave={(e) => {
-                    e.preventDefault();
-                    setArrastrandoImagenes(false);
-                  }}
+                  onDragLeave={(e) => { e.preventDefault(); setArrastrandoImagenes(false); }}
                   onDrop={handleSoltarImagenes}
-                  className={`flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center transition group ${arrastrandoImagenes
-                      ? "border-[#004bb7] bg-blue-50"
-                      : "border-slate-200 hover:border-blue-400 hover:bg-blue-50/30"
-                    } cursor-pointer`}
+                  className={`flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-5 py-8 text-center transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-panel-acento ${arrastrandoImagenes ? "border-panel-acento bg-panel-acento-suave" : "border-panel-borde-fuerte hover:bg-panel-hundido"}`}
                 >
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    onChange={handleSubirImagenes}
-                    className="hidden"
-                  />
-                  <div className="w-10 h-10 rounded-full bg-slate-50 group-hover:bg-blue-50 flex items-center justify-center text-slate-400 group-hover:text-[#004bb7] transition mb-2">
-                    <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                    </svg>
-                  </div>
-                  <p className="text-xs font-semibold text-slate-700">
-                    {arrastrandoImagenes ? "Soltá las imágenes aquí" : <>Arrastrá las imágenes aquí o <span className="text-[#004bb7]">hacé clic para seleccionar</span></>}
-                  </p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    JPG, PNG, WEBP — hasta 20 MB por archivo
-                  </p>
+                  <input type="file" multiple accept="image/*" onChange={handleSubirImagenes} className="sr-only" />
+                  <Icono nombre="subir" className="h-6 w-6 text-panel-suave" />
+                  <span className="text-sm font-medium">{arrastrandoImagenes ? "Soltá las fotos acá" : "Arrastrá las fotos o hacé clic para elegirlas"}</span>
+                  <span className="text-[12.5px] text-panel-tenue">JPG, PNG o WEBP · hasta 10 MB cada una</span>
                 </label>
-
-                {/* Galería de miniaturas */}
+                {error("imagenes") && <p className="m-0 mt-2 text-[12.5px] text-red-600 dark:text-red-400">{error("imagenes")}</p>}
                 {imagenes.length > 0 && (
-                  <div className="grid grid-cols-5 gap-2 mt-4">
+                  <ul className="m-0 mt-4 grid list-none grid-cols-2 gap-3 p-0 sm:grid-cols-3 lg:grid-cols-4">
                     {imagenes.map((imgUrl, index) => (
-                      <div
-                        key={index}
-                        className="relative aspect-4/3 rounded-lg overflow-hidden border border-slate-200 group shadow-2xs"
-                      >
-                        <img
-                          src={imgUrl}
-                          alt={`Foto ${index + 1}`}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => eliminarImagen(index)}
-                          className="absolute top-1 right-1 w-4 h-4 bg-black/60 hover:bg-black text-white rounded-full flex items-center justify-center text-[10px] transition"
-                        >
-                          ✕
-                        </button>
-                      </div>
+                      <li key={`${imgUrl}-${index}`} className="group relative overflow-hidden rounded-lg border border-panel-borde">
+                        {/* eslint-disable-next-line @next/next/no-img-element -- fotos subidas por el admin */}
+                        <img src={imgUrl} alt={`Foto ${index + 1}`} className="aspect-[4/3] w-full object-cover" />
+                        {index === 0 && <span className="absolute left-2 top-2 rounded-md bg-black/65 px-2 py-0.5 text-[11.5px] font-medium text-white">Portada</span>}
+                        <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-black/60 to-transparent p-1.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100">
+                          {index > 0 && (
+                            <button type="button" onClick={() => hacerPortada(index)} title="Usar como portada" aria-label={`Usar la foto ${index + 1} como portada`} className="rounded-md bg-white/90 p-1.5 text-slate-800 hover:bg-white">
+                              <Icono nombre="estrella" className="h-4 w-4" />
+                            </button>
+                          )}
+                          <button type="button" onClick={() => eliminarImagen(index)} title="Quitar foto" aria-label={`Quitar la foto ${index + 1}`} className="rounded-md bg-white/90 p-1.5 text-red-700 hover:bg-white">
+                            <Icono nombre="borrar" className="h-4 w-4" />
+                          </button>
+                        </div>
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 )}
-              </div>
-
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 mt-3 pt-2 border-t border-slate-100">
-                <svg className="w-3.5 h-3.5 text-[#004bb7] shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span>La primera imagen será la imagen principal.</span>
-              </div>
-            </div>
-
-            {/* 8. Configuración de contacto */}
-            <div className={`${mostrarParte(6) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs flex flex-col justify-between`}>
-              <div>
-                <div className="flex items-start gap-2.5 mb-4">
-                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0 mt-0.5">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-bold text-[#0A193D]">
-                      8. Configuración de contacto
-                    </h2>
-                    <p className="text-xs text-slate-500">
-                      Elegí cómo los interesados podrán contactarte.
-                    </p>
-                  </div>
+              </Tarjeta>
+              <Tarjeta titulo="Contacto en la publicación" descripcion="Qué opciones ve el cliente en la página de la propiedad.">
+                <div className="flex flex-col gap-2">
+                  {casilla("permitirVisita", "Agendar una visita", "El cliente pide día y horario desde la publicación.")}
+                  {casilla("permitirWhatsApp", "WhatsApp", "Botón para escribir con el mensaje listo.")}
+                  {casilla("permitirEmail", "Email", "Enlace para mandar una consulta por correo.")}
+                  {error("contacto") && <p className="m-0 text-[12.5px] text-red-600 dark:text-red-400">{error("contacto")}</p>}
                 </div>
-
-                {/* Checkboxes con descripción */}
-                <div className="space-y-3 mb-5">
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.permitirVisita}
-                      onChange={(e) => setFormData({ ...formData, permitirVisita: e.target.checked })}
-                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                    />
-                    <div>
-                      <span className="text-xs font-semibold text-slate-800 block">
-                        Permitir agendar visita
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        Los usuarios pueden solicitar una visita al inmueble.
-                      </span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.permitirWhatsApp}
-                      onChange={(e) => setFormData({ ...formData, permitirWhatsApp: e.target.checked })}
-                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                    />
-                    <div>
-                      <span className="text-xs font-semibold text-slate-800 block">
-                        Permitir contacto por WhatsApp
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        Mostrar botón de WhatsApp en la publicación.
-                      </span>
-                    </div>
-                  </label>
-
-                  <label className="flex items-start gap-2.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={formData.permitirEmail}
-                      onChange={(e) => setFormData({ ...formData, permitirEmail: e.target.checked })}
-                      className="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300"
-                    />
-                    <div>
-                      <span className="text-xs font-semibold text-slate-800 block">
-                        Permitir envío de consulta por email
-                      </span>
-                      <span className="text-[11px] text-slate-500">
-                        Los usuarios podrán enviarte consultas.
-                      </span>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Campos de Horario y Teléfono */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-slate-100">
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Horario de atención (opcional)
-                  </label>
-                  <select
-                    value={formData.horarioAtencion}
-                    onChange={(e) => setFormData({ ...formData, horarioAtencion: e.target.value })}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition bg-white text-slate-700 truncate"
-                  >
-                    <option value="Lun a Vie 9 - 18 h • Sáb 9 - 13 h">Lun a Vie 9 - 18 h • Sáb 9 - 13 h</option>
-                    <option value="Lun a Vie 8 - 17 h">Lun a Vie 8 - 17 h</option>
-                    <option value="Todos los días 9 - 20 h">Todos los días 9 - 20 h</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Teléfono / WhatsApp (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Ej: +54 9 343 4449922"
-                    value={formData.telefonoWhatsApp}
-                    onChange={(e) => setFormData({ ...formData, telefonoWhatsApp: e.target.value })}
-                    className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
-            <>
-              {/* 9. Datos de alquiler temporario */}
-              <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-                <div className="flex items-center gap-2 mb-5">
-                  <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                  </div>
-                  <h2 className="text-sm font-bold text-[#0A193D]">
-                    9. Datos de alquiler temporario{" "}
-                    <span className="text-xs font-normal text-slate-400">
-
-                    </span>
-                  </h2>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-                  {/* Campos inputs a la izquierda */}
-                  <div className="lg:col-span-9 space-y-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Precio por noche (USD) <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 85"
-                          value={formData.precioPorNocheUSD}
-                          onChange={(e) => {
-                            limpiarErrorCampo("precioPorNocheUSD");
-                            handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.precioPorNocheUSD ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.precioPorNocheUSD && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.precioPorNocheUSD}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Mínimo de noches <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 2"
-                          value={formData.minimoNoches}
-                          onChange={(e) => {
-                            limpiarErrorCampo("minimoNoches");
-                            handleNonNegativeNumberChange("minimoNoches", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.minimoNoches ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.minimoNoches && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.minimoNoches}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Huéspedes máximos <span className="text-red-500">*</span>
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 2"
-                          value={formData.huespedesMaximos}
-                          onChange={(e) => {
-                            limpiarErrorCampo("huespedesMaximos");
-                            handleNonNegativeNumberChange("huespedesMaximos", e.target.value);
-                          }}
-                          className={`w-full text-xs px-3 py-2 rounded-lg border ${erroresCampos.huespedesMaximos ? "border-red-500 ring-1 ring-red-500 bg-red-50/20" : "border-slate-200"} focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400`}
-                        />
-                        {erroresCampos.huespedesMaximos && <p className="text-[10px] text-red-500 mt-1 font-medium">{erroresCampos.huespedesMaximos}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Costo de limpieza (USD)
-                        </label>
-                        <input
-                          type="number"
-                          min="0"
-                          placeholder="Ej: 25"
-                          value={formData.costoLimpiezaUSD}
-                          onChange={(e) => handleNonNegativeNumberChange("costoLimpiezaUSD", e.target.value)}
-                          className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-center">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Check-in desde
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={formData.checkInDesde}
-                            onChange={(e) => setFormData({ ...formData, checkInDesde: e.target.value })}
-                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
-                          />
-                          <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                          Check-out hasta
-                        </label>
-                        <div className="relative">
-                          <input
-                            type="text"
-                            value={formData.checkOutHasta}
-                            onChange={(e) => setFormData({ ...formData, checkOutHasta: e.target.value })}
-                            className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition"
-                          />
-                          <svg className="w-4 h-4 text-slate-400 absolute right-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                          </svg>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
-                          Check-in flexible
-                        </label>
-                        <div className="flex items-center gap-4 text-xs font-medium text-slate-700">
-                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="checkInFlexible"
-                              value="si"
-                              checked={formData.checkInFlexible === "si"}
-                              onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span>Sí</span>
-                          </label>
-                          <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                            <input
-                              type="radio"
-                              name="checkInFlexible"
-                              value="no"
-                              checked={formData.checkInFlexible === "no"}
-                              onChange={(e) => setFormData({ ...formData, checkInFlexible: e.target.value })}
-                              className="w-4 h-4 text-blue-600 focus:ring-blue-500"
-                            />
-                            <span>No</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Resumen Total Estimado */}
-                  <div className="lg:col-span-3 bg-[#eef4ff] border border-blue-100 rounded-xl p-4 flex flex-col items-center justify-center text-center">
-                    <span className="text-[11px] font-medium text-slate-500 mb-1">
-                      Total estimado
-                    </span>
-                    <div className="text-lg font-bold text-[#0A193D]">
-                      USD 255 <span className="text-xs font-normal text-slate-500">/ 3 noches</span>
-                    </div>
-                    <span className="text-[11px] font-medium text-slate-500 mt-0.5">
-                      ≈ $306.000 ARS
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className={`${mostrarParte(7) ? "" : "!hidden"} bg-white border border-slate-200/90 rounded-xl p-6 shadow-2xs`}>
-              <h2 className="text-sm font-bold text-[#0A193D]">
-                {formData.categoriaOperacion === "venta" ? "9. Condiciones de venta" : "9. Condiciones de alquiler"}
-              </h2>
-              <p className="text-xs text-slate-500 mt-1">
-                {formData.categoriaOperacion === "venta"
-                  ? "La publicación mostrará el precio de venta y la moneda seleccionada."
-                  : "La publicación mostrará el precio mensual y las expensas configuradas."}
-              </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-                <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-                  <span className="block text-[11px] font-semibold text-slate-500">Precio {formData.categoriaOperacion === "venta" ? "de venta" : "mensual"}</span>
-                  <span className="text-sm font-bold text-[#0A193D]">
-                    {formData.moneda} {Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD || 0).toLocaleString("es-AR")}
-                  </span>
-                </div>
-                <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2.5">
-                  <span className="block text-[11px] font-semibold text-slate-500">Expensas</span>
-                  <span className="text-sm font-bold text-[#0A193D]">
-                    {formData.expensas === "sin_expensas" ? "Sin expensas" : `ARS ${Number(formData.montoExpensas || 0).toLocaleString("es-AR")}`}
-                  </span>
-                </div>
-              </div>
-              {formData.categoriaOperacion === "alquiler" && (
-                <div className="mt-4 max-w-sm">
-                  <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                    Duración del contrato (opcional)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <input
-                      type="number"
-                      min="0"
-                      max={formData.unidadDuracionAlquiler === "meses" ? "11" : undefined}
-                      placeholder={formData.unidadDuracionAlquiler === "meses" ? "Ej: 6" : "Ej: 1"}
-                      value={formData.duracionAlquilerMeses}
-                      onChange={(e) => {
-                        const value = Number(e.target.value);
-                        const maxMeses = formData.unidadDuracionAlquiler === "meses" ? 11 : Number.MAX_SAFE_INTEGER;
-                        handleNonNegativeNumberChange("duracionAlquilerMeses", e.target.value === "" ? "" : String(Math.min(value, maxMeses)));
-                      }}
-                      className="w-full text-xs px-3 py-2 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-600 transition placeholder:text-slate-400"
-                    />
-                    <select
-                      value={formData.unidadDuracionAlquiler}
-                      onChange={(e) => {
-                        const unidad = e.target.value;
-                        setFormData((current) => ({
-                          ...current,
-                          unidadDuracionAlquiler: unidad,
-                          duracionAlquilerMeses: unidad === "meses" && Number(current.duracionAlquilerMeses) > 11 ? "11" : current.duracionAlquilerMeses,
-                        }));
-                      }}
-                      className="w-full text-xs px-2 py-2 rounded-lg border border-slate-200 bg-white"
-                    >
-                      <option value="meses">Meses</option>
-                      <option value="años">Años</option>
+                <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                  <Campo etiqueta="Horario de atención" htmlFor="campo-horario">
+                    <select id="campo-horario" value={formData.horarioAtencion} onChange={(e) => setFormData({ ...formData, horarioAtencion: e.target.value })} className={control}>
+                      <option value="">Sin indicar</option>
+                      <option value="Lun a Vie 9 - 18 h • Sáb 9 - 13 h">Lun a Vie 9 - 18 h • Sáb 9 - 13 h</option>
+                      <option value="Lun a Vie 8 - 17 h">Lun a Vie 8 - 17 h</option>
+                      <option value="Todos los días 9 - 20 h">Todos los días 9 - 20 h</option>
                     </select>
-                  </div>
-                  <p className="mt-1 text-[10px] text-slate-400">Dejalo vacío si el contrato no tiene un plazo definido.</p>
+                  </Campo>
+                  <Campo etiqueta="WhatsApp de esta propiedad" htmlFor="campo-whatsapp" ayuda="Vacío = el de la oficina.">
+                    <input id="campo-whatsapp" type="tel" value={formData.telefonoWhatsApp} onChange={(e) => setFormData({ ...formData, telefonoWhatsApp: e.target.value })} placeholder="Ej.: +54 9 343 446 9522" className={control} />
+                  </Campo>
                 </div>
+              </Tarjeta>
+            </div>
+          )}
+
+          {mostrarParte(7) && (
+            <div id="parte-7" className="scroll-mt-6">
+              {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
+                <Tarjeta titulo="Alquiler por días" descripcion="Precio por noche y reglas de la estadía.">
+                  <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
+                    <div className="grid gap-5 sm:grid-cols-2">
+                      <Campo etiqueta="Precio por noche (USD) *" htmlFor="campo-noche" error={error("precioPorNocheUSD")}>
+                        <input id="campo-noche" type="number" min="0" value={formData.precioPorNocheUSD} aria-invalid={conError("precioPorNocheUSD")} onChange={(e) => { limpiarErrorCampo("precioPorNocheUSD"); handleNonNegativeNumberChange("precioPorNocheUSD", e.target.value); }} placeholder="Ej.: 85" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Mínimo de noches *" htmlFor="campo-minimo" error={error("minimoNoches")}>
+                        <input id="campo-minimo" type="number" min="1" value={formData.minimoNoches} aria-invalid={conError("minimoNoches")} onChange={(e) => { limpiarErrorCampo("minimoNoches"); handleNonNegativeNumberChange("minimoNoches", e.target.value); }} placeholder="Ej.: 2" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Huéspedes como máximo *" htmlFor="campo-huespedes" error={error("huespedesMaximos")}>
+                        <input id="campo-huespedes" type="number" min="1" value={formData.huespedesMaximos} aria-invalid={conError("huespedesMaximos")} onChange={(e) => { limpiarErrorCampo("huespedesMaximos"); handleNonNegativeNumberChange("huespedesMaximos", e.target.value); }} placeholder="Ej.: 4" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Limpieza (USD)" htmlFor="campo-limpieza" error={error("costoLimpiezaUSD")} ayuda="Opcional, se cobra una vez.">
+                        <input id="campo-limpieza" type="number" min="0" value={formData.costoLimpiezaUSD} onChange={(e) => handleNonNegativeNumberChange("costoLimpiezaUSD", e.target.value)} placeholder="Ej.: 25" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Check-in desde" htmlFor="campo-checkin">
+                        <input id="campo-checkin" type="text" value={formData.checkInDesde} onChange={(e) => setFormData({ ...formData, checkInDesde: e.target.value })} placeholder="Ej.: 14:00" className={control} />
+                      </Campo>
+                      <Campo etiqueta="Check-out hasta" htmlFor="campo-checkout">
+                        <input id="campo-checkout" type="text" value={formData.checkOutHasta} onChange={(e) => setFormData({ ...formData, checkOutHasta: e.target.value })} placeholder="Ej.: 10:00" className={control} />
+                      </Campo>
+                      <div className="flex flex-col gap-1.5 sm:col-span-2">
+                        <span className="text-[13px] font-medium text-panel-suave">Horario de entrada flexible</span>
+                        <div role="radiogroup" aria-label="Horario de entrada flexible" className="flex max-w-xs gap-2">
+                          {radio("checkInFlexible", "si", formData.checkInFlexible, "Sí", (v) => setFormData({ ...formData, checkInFlexible: v }))}
+                          {radio("checkInFlexible", "no", formData.checkInFlexible, "No", (v) => setFormData({ ...formData, checkInFlexible: v }))}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2 self-start rounded-lg bg-panel-hundido p-4 text-[13.5px]">
+                      <span className="text-panel-suave">Estadía mínima</span>
+                      {totalEstadia > 0 ? (
+                        <>
+                          <span className="tabular text-[22px] font-semibold leading-tight">USD {totalEstadia.toLocaleString("es-AR")}</span>
+                          <span className="text-panel-suave">
+                            {noches} {noches === 1 ? "noche" : "noches"} × USD {noche.toLocaleString("es-AR")}
+                            {limpieza > 0 ? ` + limpieza USD ${limpieza.toLocaleString("es-AR")}` : ""}
+                          </span>
+                          {cotizacionBlue && <span className="tabular text-panel-tenue">≈ ARS {(totalEstadia * cotizacionBlue).toLocaleString("es-AR", { maximumFractionDigits: 0 })} con el blue</span>}
+                        </>
+                      ) : (
+                        <span className="text-panel-tenue">Cargá el precio por noche para ver el total.</span>
+                      )}
+                    </div>
+                  </div>
+                </Tarjeta>
+              ) : (
+                <Tarjeta titulo={formData.categoriaOperacion === "venta" ? "Condiciones de venta" : "Condiciones de alquiler"} descripcion="Revisá el resumen antes de publicar.">
+                  <dl className="m-0 grid gap-4 sm:grid-cols-2">
+                    <div className="rounded-lg bg-panel-hundido px-4 py-3">
+                      <dt className="text-[13px] text-panel-suave">{formData.categoriaOperacion === "venta" ? "Precio de venta" : "Precio mensual"}</dt>
+                      <dd className="tabular m-0 mt-0.5 text-[17px] font-semibold">
+                        {formData.moneda} {Number((formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD) || 0).toLocaleString("es-AR")}
+                      </dd>
+                    </div>
+                    <div className="rounded-lg bg-panel-hundido px-4 py-3">
+                      <dt className="text-[13px] text-panel-suave">Expensas</dt>
+                      <dd className="tabular m-0 mt-0.5 text-[17px] font-semibold">
+                        {formData.expensas === "sin_expensas" ? "No tiene" : formData.montoExpensas ? `ARS ${Number(formData.montoExpensas).toLocaleString("es-AR")}` : "Sin indicar"}
+                      </dd>
+                    </div>
+                  </dl>
+                  {formData.categoriaOperacion === "alquiler" && (
+                    <Campo etiqueta="Duración del contrato" htmlFor="campo-duracion" error={error("duracionAlquilerMeses")} ayuda="En meses, hasta 11; para más, elegí años." className="mt-5 max-w-sm">
+                      <div className="flex gap-2">
+                        <input
+                          id="campo-duracion"
+                          type="number"
+                          min="1"
+                          max={formData.unidadDuracionAlquiler === "meses" ? "11" : undefined}
+                          placeholder={formData.unidadDuracionAlquiler === "meses" ? "Ej.: 6" : "Ej.: 2"}
+                          value={formData.duracionAlquilerMeses}
+                          onChange={(e) => {
+                            limpiarErrorCampo("duracionAlquilerMeses");
+                            const maxMeses = formData.unidadDuracionAlquiler === "meses" ? 11 : Number.MAX_SAFE_INTEGER;
+                            if (e.target.value === "" || (Number(e.target.value) >= 0 && Number(e.target.value) <= maxMeses)) {
+                              setFormData({ ...formData, duracionAlquilerMeses: e.target.value });
+                            }
+                          }}
+                          className={`${control} tabular`}
+                        />
+                        <select
+                          aria-label="Unidad de la duración"
+                          value={formData.unidadDuracionAlquiler}
+                          onChange={(e) => {
+                            const unidad = e.target.value;
+                            setFormData({
+                              ...formData,
+                              unidadDuracionAlquiler: unidad,
+                              duracionAlquilerMeses: unidad === "meses" && Number(formData.duracionAlquilerMeses) > 11 ? "11" : formData.duracionAlquilerMeses,
+                            });
+                          }}
+                          className={`${control} w-32`}
+                        >
+                          <option value="meses">Meses</option>
+                          <option value="años">Años</option>
+                        </select>
+                      </div>
+                    </Campo>
+                  )}
+                </Tarjeta>
               )}
             </div>
           )}
 
-          {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario && mostrarParte(7) && (
-            /* 10. Normas de la estadía */
-            <div className="bg-white border border-slate-200/90 rounded-xl p-5 shadow-2xs">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-6 h-6 rounded-full bg-blue-50 text-[#004bb7] flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                  </svg>
-                </div>
-                <h2 className="text-sm font-bold text-[#0A193D]">
-                  10. Normas de la estadía
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/50 text-[11px] font-medium text-slate-700">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span>Check-in desde 14:00 hs</span>
-                </div>
-
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/50 text-[11px] font-medium text-slate-700">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                  </svg>
-                  <span>Check-out hasta 11:00 hs</span>
-                </div>
-
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/50 text-[11px] font-medium text-slate-700">
-                  <span className="text-red-500 text-sm shrink-0">🚭</span>
-                  <span>No se permite fumar</span>
-                </div>
-
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/50 text-[11px] font-medium text-slate-700">
-                  <span className="text-red-500 text-sm shrink-0">🚫</span>
-                  <span>No se permiten mascotas</span>
-                </div>
-
-                <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-slate-200 bg-slate-50/50 text-[11px] font-medium text-slate-700">
-                  <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
-                  </svg>
-                  <span className="leading-tight">Respetar descanso tras 22:00 hs</span>
-                </div>
-              </div>
+          {/* Barra de acciones */}
+          <div className="sticky bottom-0 z-10 -mx-4 flex flex-col gap-3 border-t border-panel-borde bg-panel-fondo/95 px-4 py-3 backdrop-blur sm:-mx-8 sm:flex-row sm:items-center sm:justify-between sm:px-8 lg:-mx-10 lg:px-10">
+            <div className="flex gap-2">
+              {modoEdicion ? (
+                <BotonLink href="/admin/propiedades" variante="fantasma" icono="atras">
+                  Volver al listado
+                </BotonLink>
+              ) : pasoActual > 1 ? (
+                <Boton variante="fantasma" icono="atras" onClick={retrocederPaso}>
+                  Paso anterior
+                </Boton>
+              ) : (
+                <BotonLink href="/admin/propiedades" variante="fantasma" icono="atras">
+                  Cancelar
+                </BotonLink>
+              )}
             </div>
-          )}
-
-          {/* Footer de navegación */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-4 border-t border-slate-200">
-            {!modoEdicion ? (
-              <div className="flex items-center gap-3">
-                {pasoActual > 1 ? (
-                  <button
-                    type="button"
-                    onClick={retrocederPaso}
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                  >
-                    ← Volver
-                  </button>
-                ) : (
-                  <Link
-                    href="/admin"
-                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-                  >
-                    ← Volver
-                  </Link>
-                )}
-
-                {pasoActual > 1 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMensaje("");
-                      setPasoActual(1);
-                    }}
-                    className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-slate-200 bg-white text-xs font-semibold text-slate-600 hover:bg-slate-50 transition shadow-2xs"
-                  >
-                    Inicio
-                  </button>
-                )}
-              </div>
-            ) : (
-              <Link
-                href="/admin/propiedades"
-                className="inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg border border-slate-300 bg-white text-xs font-semibold text-slate-700 hover:bg-slate-50 transition shadow-2xs"
-              >
-                ← Volver al listado
-              </Link>
-            )}
-
-            <div className="flex items-center gap-3 justify-end flex-1">
+            <div className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center">
               {mensaje && (
-                <p className="text-xs text-red-600 font-semibold bg-red-50 px-3 py-1.5 rounded-lg border border-red-200">
+                <p role={mensajeEsError ? "alert" : "status"} className={`m-0 text-[13.5px] ${mensajeEsError ? "text-red-600 dark:text-red-400" : "text-panel-suave"}`}>
                   {mensaje}
                 </p>
               )}
-              <button
-                type={modoEdicion || pasoActual === 7 ? "submit" : "button"}
-                onClick={modoEdicion || pasoActual === 7 ? undefined : avanzarPaso}
-                disabled={cargandoPropiedad}
-                className="inline-flex items-center justify-center gap-2 px-6 py-2.5 rounded-lg bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-semibold transition shadow-sm active:scale-95 disabled:opacity-50"
-              >
-                {cargandoPropiedad ? "Guardando..." : modoEdicion ? "Guardar cambios →" : pasoActual === 7 ? "Publicar propiedad →" : "Siguiente →"}
-              </button>
+              <Boton type="submit" variante="principal" cargando={guardando} icono={modoEdicion || pasoActual === 7 ? "check" : undefined}>
+                {modoEdicion ? "Guardar cambios" : pasoActual === 7 ? "Publicar propiedad" : "Siguiente"}
+                {!modoEdicion && pasoActual !== 7 && <Icono nombre="flecha" className="h-[18px] w-[18px]" />}
+              </Boton>
             </div>
           </div>
         </form>
-      </main>
-    </div>
+      </div>
+    </>
   );
 }
