@@ -40,7 +40,7 @@ function FormularioIngreso() {
     setEnviando(true);
     try {
       const usuario = await login({ email: email.trim(), password });
-      router.push(volver ?? (usuario.role === 'admin' ? '/admin' : '/'));
+      router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
       setError({

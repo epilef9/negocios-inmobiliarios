@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import AdminSidebar from '../../../components/AdminSidebar';
 import { useTheme } from '../../../context/ThemeContext';
 import { getProperties, reorderProperties, type ApiProperty } from '../../../services/api';
 
@@ -212,7 +211,6 @@ export default function AdminCatalogoPage() {
 
   return (
     <div className={`flex min-h-screen ${theme === 'dark' ? 'bg-[#090e1a] text-slate-100' : 'bg-[#f8fafc] text-slate-900'}`}>
-      <AdminSidebar activeSection="catalogo" />
 
       <main className="flex-1 min-w-0 p-6 sm:p-10 overflow-y-auto">
         {/* Toast Notificación */}

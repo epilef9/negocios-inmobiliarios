@@ -2,7 +2,6 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
-import AdminSidebar from '../../../components/AdminSidebar';
 import {
   Visita,
   EstadoVisita,
@@ -336,7 +335,6 @@ export default function GestionVisitasPage() {
       )}
 
       {/* Sidebar Admin */}
-      <AdminSidebar activeSection="visitas" />
 
       {/* Main Content Area */}
       <main className="flex-1 overflow-y-auto px-8 py-7" onClick={() => setMenuAbiertoId(null)}>

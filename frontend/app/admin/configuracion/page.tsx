@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import AdminSidebar from '../../../components/AdminSidebar';
 import { useTheme, type PaletteId } from '../../../context/ThemeContext';
 
 export default function AdminConfiguracionPage() {
@@ -63,7 +62,6 @@ export default function AdminConfiguracionPage() {
 
   return (
     <div className={`flex min-h-screen ${theme === 'dark' ? 'bg-[#090e1a] text-slate-100' : 'bg-[#f8fafc] text-slate-900'}`}>
-      <AdminSidebar activeSection="configuracion" />
 
       <main className="flex-1 min-w-0 p-6 sm:p-10 overflow-y-auto">
         {/* Toast Notificación */}
