@@ -58,7 +58,7 @@ exports.me = async (req, res) => {
             email: user.email,
             role: user.role,
             checklistRequisitos: user.checklistRequisitos || [],
-            favoritos: (user.favoritos || []).map(String),
+            favoritos: Array.isArray(user.favoritos) ? user.favoritos.filter(Boolean).map(String) : [],
             preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },
             createdAt: user.createdAt
         };
@@ -125,20 +125,39 @@ exports.updateChecklist = async (req, res) => {
 };
 
 // Favoritos: ?detalle=1 devuelve las propiedades completas; si no, solo los ids
+// Lista de favoritos como strings, tolerando usuarios viejos sin el campo o con un valor que no es lista
+const idsDeFavoritos = (valor) => (Array.isArray(valor) ? valor.filter(Boolean).map(String) : []);
+
+// En desarrollo se devuelve el motivo real para poder diagnosticar desde el navegador
+const detalleError = (error) => (process.env.NODE_ENV === 'production' ? undefined : error.message);
+
 exports.getFavoritos = async (req, res) => {
     try {
         const conDetalle = req.query.detalle === '1';
-        const query = User.findById(req.user._id).select('favoritos');
-        if (conDetalle) query.populate('favoritos');
-        const user = await query;
-        const favoritos = (user && user.favoritos) || [];
-        res.status(200).json({
-            // Si una propiedad fue eliminada, populate devuelve null: se descarta
-            data: conDetalle ? favoritos.filter(Boolean) : favoritos.map(String)
-        });
+        const user = await User.findById(req.user._id).select('favoritos').lean();
+        const ids = idsDeFavoritos(user && user.favoritos);
+        if (!conDetalle) {
+            return res.status(200).json({ data: ids });
+        }
+        // Se respeta el orden en que se guardaron y se descartan las propiedades eliminadas
+        const propiedades = await Property.find({ _id: { $in: ids } }).lean();
+        const porId = new Map(propiedades.map((p) => [String(p._id), p]));
+        res.status(200).json({ data: ids.map((id) => porId.get(id)).filter(Boolean) });
     } catch (error) {
-        res.status(500).json({ message: 'No se pudieron obtener los favoritos' });
+        console.error('[favoritos] Error al obtener:', error);
+        res.status(500).json({ message: 'No se pudieron obtener los favoritos', errors: [detalleError(error)].filter(Boolean) });
     }
+};
+
+// Guarda la lista completa: funciona aunque el campo no exista o tenga otro formato
+const guardarFavoritos = async (userId, cambiar) => {
+    const user = await User.findById(userId).select('favoritos').lean();
+    const ids = cambiar(idsDeFavoritos(user && user.favoritos));
+    await User.updateOne(
+        { _id: userId },
+        { $set: { favoritos: ids.map((id) => new mongoose.Types.ObjectId(id)), updatedAt: Date.now() } }
+    );
+    return ids;
 };
 
 exports.agregarFavorito = async (req, res) => {
@@ -151,14 +170,13 @@ exports.agregarFavorito = async (req, res) => {
         if (!existe) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
-        const user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $addToSet: { favoritos: propertyId }, $set: { updatedAt: Date.now() } },
-            { new: true }
-        ).select('favoritos');
-        res.status(200).json({ data: user.favoritos.map(String) });
+        const ids = await guardarFavoritos(req.user._id, (actuales) =>
+            actuales.includes(propertyId) ? actuales : [...actuales, propertyId]
+        );
+        res.status(200).json({ data: ids });
     } catch (error) {
-        res.status(500).json({ message: 'No se pudo guardar el favorito' });
+        console.error('[favoritos] Error al guardar:', error);
+        res.status(500).json({ message: 'No se pudo guardar el favorito', errors: [detalleError(error)].filter(Boolean) });
     }
 };
 
@@ -168,14 +186,11 @@ exports.quitarFavorito = async (req, res) => {
         return res.status(400).json({ message: 'El id de la propiedad no es válido' });
     }
     try {
-        const user = await User.findByIdAndUpdate(
-            req.user._id,
-            { $pull: { favoritos: propertyId }, $set: { updatedAt: Date.now() } },
-            { new: true }
-        ).select('favoritos');
-        res.status(200).json({ data: user.favoritos.map(String) });
+        const ids = await guardarFavoritos(req.user._id, (actuales) => actuales.filter((id) => id !== propertyId));
+        res.status(200).json({ data: ids });
     } catch (error) {
-        res.status(500).json({ message: 'No se pudo quitar el favorito' });
+        console.error('[favoritos] Error al quitar:', error);
+        res.status(500).json({ message: 'No se pudo quitar el favorito', errors: [detalleError(error)].filter(Boolean) });
     }
 };
 

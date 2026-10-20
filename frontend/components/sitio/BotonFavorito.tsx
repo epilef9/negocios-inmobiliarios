@@ -21,18 +21,20 @@ function Corazon({ lleno }: { lleno: boolean }) {
 // Guarda o quita la propiedad de los favoritos de la cuenta
 export default function BotonFavorito({ propiedadId, titulo, variante = 'flotante', className = '' }: Props) {
   const { esFavorito, alternar, conSesion } = useFavoritos();
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const guardada = esFavorito(propiedadId);
   const accion = guardada ? `Quitar ${titulo} de favoritos` : `Guardar ${titulo} en favoritos`;
 
   const alHacerClick = async (evento: React.MouseEvent) => {
     evento.preventDefault();
     evento.stopPropagation();
-    setError(false);
+    setError(null);
     try {
       await alternar(propiedadId);
-    } catch {
-      setError(true);
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : 'Error desconocido';
+      console.error(`[favoritos] No se pudo actualizar ${propiedadId}: ${motivo}`);
+      setError(motivo);
     }
   };
 
@@ -54,7 +56,7 @@ export default function BotonFavorito({ propiedadId, titulo, variante = 'flotant
         </button>
         {error && (
           <p role="alert" className="mt-2 text-[13px] text-[#ffb4ad]">
-            No pudimos guardarla. Probá de nuevo.
+            No pudimos guardarla ({error}). Probá de nuevo.
           </p>
         )}
       </div>
@@ -67,7 +69,7 @@ export default function BotonFavorito({ propiedadId, titulo, variante = 'flotant
       onClick={alHacerClick}
       aria-pressed={guardada}
       aria-label={accion}
-      title={error ? 'No pudimos guardarla. Probá de nuevo.' : accion}
+      title={error ? `No pudimos guardarla (${error}). Probá de nuevo.` : accion}
       className={`flex h-11 w-11 items-center justify-center rounded-full backdrop-blur-sm transition-[background-color,transform] duration-500 active:scale-90 ${
         guardada ? 'bg-[#efe9df] text-[#d9382b]' : 'bg-[#071733]/55 text-[#efe9df] hover:bg-[#071733]/80'
       } ${error ? 'ring-2 ring-[#ff6b5e]' : ''} ${className}`}
