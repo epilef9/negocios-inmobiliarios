@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 
@@ -15,6 +16,8 @@ const enlaces = [
 // Barra del sitio: se esconde al bajar, vuelve al subir y toma fondo al dejar el inicio de la página
 export default function SiteHeader() {
   const { user, isLoading, logout } = useAuth();
+  const ruta = usePathname();
+  const ingresar = ruta && ruta !== '/' ? `/login?volver=${encodeURIComponent(ruta)}` : '/login';
   const [oculta, setOculta] = useState(false);
   const [conFondo, setConFondo] = useState(false);
   const [menuAbierto, setMenuAbierto] = useState(false);
@@ -47,7 +50,7 @@ export default function SiteHeader() {
       </button>
     </>
   ) : (
-    <Link href="/login" className="calma-link calma-link-sutil">
+    <Link href={ingresar} className="calma-link calma-link-sutil">
       Ingresar
     </Link>
   );
