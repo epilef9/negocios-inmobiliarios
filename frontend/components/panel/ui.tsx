@@ -242,3 +242,47 @@ export function useConfirmar() {
 
   return { confirmar, dialogoConfirmar: elemento };
 }
+
+// ---------- Diálogo (ventana sobre la página) ----------
+export function Dialogo({ abierto, alCerrar, titulo, descripcion, children, acciones, ancho = 'md' }: { abierto: boolean; alCerrar: () => void; titulo: string; descripcion?: React.ReactNode; children?: React.ReactNode; acciones?: React.ReactNode; ancho?: 'md' | 'lg' }) {
+  const ref = useRef<HTMLDialogElement>(null);
+
+  useEffect(() => {
+    const dialogo = ref.current;
+    if (!dialogo) return;
+    if (abierto && !dialogo.open) dialogo.showModal();
+    if (!abierto && dialogo.open) dialogo.close();
+  }, [abierto]);
+
+  return (
+    <dialog
+      ref={ref}
+      onCancel={(e) => {
+        e.preventDefault();
+        alCerrar();
+      }}
+      onClick={(e) => {
+        // Clic en el fondo oscuro: cierra
+        if (e.target === e.currentTarget) alCerrar();
+      }}
+      className={`m-auto max-h-[90dvh] ${ancho === 'lg' ? 'w-[min(94vw,640px)]' : 'w-[min(94vw,460px)]'} overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie p-0 text-panel-texto shadow-2xl backdrop:bg-black/45`}
+    >
+      {abierto && (
+        <div className="flex max-h-[90dvh] flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-panel-borde px-6 py-4">
+            <div className="flex flex-col gap-1">
+              <h2 className="m-0 text-[17px] font-semibold">{titulo}</h2>
+              {descripcion && <div className="text-sm text-panel-suave">{descripcion}</div>}
+            </div>
+            <button type="button" onClick={alCerrar} aria-label="Cerrar" className="-mr-2 rounded-md p-1.5 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+              <Icono nombre="cerrar" className="h-[18px] w-[18px]" />
+            </button>
+          </div>
+          <div className="overflow-y-auto px-6 py-5">{children}</div>
+          {acciones && <div className="flex flex-wrap justify-end gap-2 border-t border-panel-borde bg-panel-hundido/50 px-6 py-3">{acciones}</div>}
+        </div>
+      )}
+    </dialog>
+  );
+}
+

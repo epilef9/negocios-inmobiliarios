@@ -1,1379 +1,532 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useCallback, useEffect, useId, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import {
-  Visita,
-  EstadoVisita,
-  getVisitas,
-  updateVisitaEstado,
-  createVisita,
-  deleteVisita,
-  resetVisitasToDefault,
-} from '../../../services/visitas';
-import { getProperties, ApiProperty } from '../../../services/api';
+import { createVisita, deleteVisita, getVisitas, resetVisitasToDefault, updateVisitaEstado, type Visita } from '@/services/visitas';
+import { getProperties, type ApiProperty } from '@/services/api';
+import Icono, { type NombreIcono } from '@/components/panel/Icono';
+import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
+import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
 
-export default function GestionVisitasPage() {
-  const [visitas, setVisitas] = useState<Visita[]>([]);
-  const [propiedadesDisponibles, setPropiedadesDisponibles] = useState<ApiProperty[]>([]);
-  const [cargando, setCargando] = useState(true);
-  const [filtroTexto, setFiltroTexto] = useState('');
-  const [filtroEstado, setFiltroEstado] = useState<string>('todos');
-  const [filtroTab, setFiltroTab] = useState<'todas' | 'pendientes' | 'confirmadas' | 'rechazadas'>('todas');
-  const [filtroFecha, setFiltroFecha] = useState<string>('todas');
+type Pestana = 'pendientes' | 'confirmadas' | 'rechazadas' | 'todas';
 
-  // Modales
-  const [visitaAReprogramar, setVisitaAReprogramar] = useState<Visita | null>(null);
-  const [nuevaFecha, setNuevaFecha] = useState('');
-  const [nuevoHorario, setNuevoHorario] = useState('');
-  const [notaReprogramacion, setNotaReprogramacion] = useState('');
+const MOTIVOS_RECHAZO = [
+  'Horario no disponible',
+  'Propiedad reservada con seña',
+  'Propietario de viaje / sin llaves',
+  'Sin respuesta al contacto telefónico',
+  'Otro motivo',
+];
 
-  const [visitaARechazar, setVisitaARechazar] = useState<Visita | null>(null);
-  const [motivoRechazo, setMotivoRechazo] = useState('Horario no disponible');
+const FORMULARIO_VACIO = { nombre: '', telefono: '', email: '', propiedad: '', fecha: '', horario: '10:00', nota: '' };
 
-  const [visitaAAceptar, setVisitaAAceptar] = useState<Visita | null>(null);
-  const [visitaDetalle, setVisitaDetalle] = useState<Visita | null>(null);
+// "2026-10-27" → "27/10/2026" y "17:30" → "17:30 h", como guarda el backend
+const fechaParaGuardar = (iso: string) => {
+  const [anio, mes, dia] = iso.split('-');
+  return `${dia}/${mes}/${anio}`;
+};
+const horarioParaGuardar = (hora: string) => (hora.includes('h') ? hora : `${hora} h`);
 
-  const [modalNuevaVisita, setModalNuevaVisita] = useState(false);
-  const [guardando, setGuardando] = useState(false);
-  const [nuevaVisitaForm, setNuevaVisitaForm] = useState({
-    nombre: '',
-    telefono: '',
-    email: '',
-    propiedad: '',
-    fecha: '',
-    horario: '10:00 h',
-    nota: '',
-  });
+// Link de WhatsApp: agrega el código de Argentina si el teléfono no lo trae
+function enlaceWhatsApp(visita: Visita) {
+  let numero = visita.cliente.telefono.replace(/\D/g, '');
+  if (!numero) return null;
+  if (!numero.startsWith('54')) numero = `549${numero.replace(/^0/, '')}`;
+  const texto = `Hola ${visita.cliente.nombre}, te escribimos de Negocios Inmobiliarios por tu visita a "${visita.propiedad.titulo}" el ${visita.fecha} a las ${visita.horario}.`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+}
 
-  // Menú flotante de acciones por fila
-  const [menuAbiertoId, setMenuAbiertoId] = useState<string | null>(null);
-  const [mensajeToast, setMensajeToast] = useState<{ texto: string; tipo: 'success' | 'info' | 'error' } | null>(null);
+function Accion({ icono, texto, onClick, href, tono }: { icono: NombreIcono; texto: string; onClick?: () => void; href?: string | null; tono?: 'exito' | 'peligro' }) {
+  const clases = `rounded-md p-2 text-panel-tenue transition-colors hover:bg-panel-hundido ${
+    tono === 'exito' ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : tono === 'peligro' ? 'hover:text-red-600 dark:hover:text-red-400' : 'hover:text-panel-texto'
+  }`;
+  if (href !== undefined) {
+    if (!href) return null;
+    return (
+      <a href={href} target="_blank" rel="noreferrer" title={texto} aria-label={texto} className={clases}>
+        <Icono nombre={icono} className="h-[18px] w-[18px]" />
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} title={texto} aria-label={texto} className={clases}>
+      <Icono nombre={icono} className="h-[18px] w-[18px]" />
+    </button>
+  );
+}
 
-  const mostrarToast = (texto: string, tipo: 'success' | 'info' | 'error' = 'success') => {
-    setMensajeToast({ texto, tipo });
-    setTimeout(() => {
-      setMensajeToast(null);
-    }, 3500);
-  };
+export default function VisitasAdminPage() {
+  const id = useId();
+  const [visitas, setVisitas] = useState<Visita[] | null>(null);
+  const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [pestana, setPestana] = useState<Pestana | null>(null);
+  const [busqueda, setBusqueda] = useState('');
+  const [fecha, setFecha] = useState('');
 
-  const cargarDatos = async () => {
-    setCargando(true);
-    try {
-      const [visitasData, propsData] = await Promise.all([
-        getVisitas(),
-        getProperties().catch(() => []),
-      ]);
-      setVisitas(visitasData);
-      setPropiedadesDisponibles(propsData || []);
-    } catch (error: any) {
-      console.error('Error al cargar visitas:', error);
-      mostrarToast(error.message || 'Error al conectar con la base de datos', 'error');
-    } finally {
-      setCargando(false);
-    }
-  };
+  const [detalle, setDetalle] = useState<Visita | null>(null);
+  const [aReprogramar, setAReprogramar] = useState<Visita | null>(null);
+  const [reprogramacion, setReprogramacion] = useState({ fecha: '', hora: '', nota: '' });
+  const [aRechazar, setARechazar] = useState<Visita | null>(null);
+  const [motivo, setMotivo] = useState(MOTIVOS_RECHAZO[0]);
+  const [nuevaAbierta, setNuevaAbierta] = useState(false);
+  const [nueva, setNueva] = useState(FORMULARIO_VACIO);
+  const [faltaEnNueva, setFaltaEnNueva] = useState<string | null>(null);
+  const [trabajando, setTrabajando] = useState(false);
 
-  useEffect(() => {
-    cargarDatos();
+  const { mostrar, aviso } = useAviso();
+  const { confirmar, dialogoConfirmar } = useConfirmar();
+
+  const cargar = useCallback(() => {
+    Promise.all([getVisitas(), getProperties().catch(() => [] as ApiProperty[])])
+      .then(([lista, props]) => {
+        setVisitas(lista);
+        setPropiedades(props ?? []);
+        setError(null);
+        // Se abre en "Pendientes" si hay alguna por responder
+        setPestana((actual) => actual ?? (lista.some((v) => v.estado === 'pendiente') ? 'pendientes' : 'todas'));
+      })
+      .catch((e: Error) => setError(e.message || 'No se pudieron cargar las visitas'));
   }, []);
 
-  // Métricas calculadas
-  const metricas = useMemo(() => {
-    const totalMes = visitas.length;
-    const pendientes = visitas.filter((v) => v.estado === 'pendiente').length;
-    // Confirmadas incluye las confirmadas y las reprogramadas (que son confirmadas con nuevo horario)
-    const confirmadas = visitas.filter((v) => v.estado === 'confirmada' || v.estado === 'reprogramada').length;
-    const rechazadas = visitas.filter((v) => v.estado === 'rechazada').length;
+  useEffect(() => {
+    cargar();
+  }, [cargar]);
 
-    return { totalMes, pendientes, confirmadas, rechazadas };
-  }, [visitas]);
+  const reemplazar = (actualizada: Visita) => setVisitas((lista) => lista?.map((v) => (v.id === actualizada.id ? actualizada : v)) ?? null);
 
-  // Lista filtrada
-  const visitasFiltradas = useMemo(() => {
-    return visitas.filter((visita) => {
-      // Filtro texto (cliente o propiedad)
-      const busqueda = filtroTexto.toLowerCase().trim();
-      const coincideTexto =
-        !busqueda ||
-        visita.cliente.nombre.toLowerCase().includes(busqueda) ||
-        visita.cliente.telefono.toLowerCase().includes(busqueda) ||
-        visita.propiedad.titulo.toLowerCase().includes(busqueda);
-
-      // Filtro pestaña (Todas / Pendientes / Confirmadas / Rechazadas)
-      let coincideTab = true;
-      if (filtroTab === 'pendientes') coincideTab = visita.estado === 'pendiente';
-      if (filtroTab === 'confirmadas') coincideTab = visita.estado === 'confirmada' || visita.estado === 'reprogramada';
-      if (filtroTab === 'rechazadas') coincideTab = visita.estado === 'rechazada';
-
-      // Filtro select de estado
-      let coincideEstado = true;
-      if (filtroEstado !== 'todos') {
-        coincideEstado = visita.estado === filtroEstado;
-      }
-
-      // Filtro fecha
-      let coincideFecha = true;
-      if (filtroFecha !== 'todas') {
-        coincideFecha = visita.fecha === filtroFecha;
-      }
-
-      return coincideTexto && coincideTab && coincideEstado && coincideFecha;
-    });
-  }, [visitas, filtroTexto, filtroTab, filtroEstado, filtroFecha]);
-
-  // Próximas 3 visitas para el widget lateral derecho
-  const proximasVisitas = useMemo(() => {
-    // Tomamos las primeras 3 que no estén rechazadas
-    return visitas.filter((v) => v.estado !== 'rechazada').slice(0, 3);
-  }, [visitas]);
-
-  // Fechas únicas para el selector
-  const fechasDisponibles = useMemo(() => {
-    const set = new Set(visitas.map((v) => v.fecha));
-    return Array.from(set);
-  }, [visitas]);
-
-  // Manejo de Aceptar visita
-  const handleAceptarVisita = async (visita: Visita) => {
+  const confirmarVisita = async (visita: Visita) => {
     try {
-      const updated = await updateVisitaEstado(visita.id, 'confirmada');
-      setVisitas((prev) => prev.map((v) => (v.id === visita.id ? updated : v)));
-      setVisitaAAceptar(null);
-      setMenuAbiertoId(null);
-      mostrarToast(`Visita de ${visita.cliente.nombre} confirmada`);
-    } catch (error: any) {
-      mostrarToast(error.message || 'Error al confirmar la visita', 'error');
+      reemplazar(await updateVisitaEstado(visita.id, 'confirmada'));
+      mostrar(`Confirmaste la visita de ${visita.cliente.nombre}.`);
+      setDetalle(null);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo confirmar la visita', 'peligro');
     }
   };
 
-  // Manejo de Rechazar visita
-  const handleConfirmarRechazo = async () => {
-    if (!visitaARechazar) return;
+  const rechazar = async () => {
+    if (!aRechazar) return;
+    setTrabajando(true);
     try {
-      const updated = await updateVisitaEstado(visitaARechazar.id, 'rechazada', { motivo: motivoRechazo });
-      setVisitas((prev) => prev.map((v) => (v.id === visitaARechazar.id ? updated : v)));
-      setVisitaARechazar(null);
-      setMenuAbiertoId(null);
-      mostrarToast(`Visita de ${visitaARechazar.cliente.nombre} rechazada`, 'info');
-    } catch (error: any) {
-      mostrarToast(error.message || 'Error al rechazar la visita', 'error');
+      reemplazar(await updateVisitaEstado(aRechazar.id, 'rechazada', { motivo }));
+      mostrar(`Rechazaste la visita de ${aRechazar.cliente.nombre}.`, 'info');
+      setARechazar(null);
+      setDetalle(null);
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo rechazar la visita', 'peligro');
+    } finally {
+      setTrabajando(false);
     }
   };
 
-  // Manejo de Reprogramar visita
-  const handleConfirmarReprogramacion = async () => {
-    if (!visitaAReprogramar || !nuevaFecha || !nuevoHorario) {
-      alert('Por favor completá la fecha y el horario.');
-      return;
-    }
-    // Formatear fecha a DD/MM/YYYY si viene en YYYY-MM-DD
-    let fechaFinal = nuevaFecha;
-    if (nuevaFecha.includes('-')) {
-      const [y, m, d] = nuevaFecha.split('-');
-      fechaFinal = `${d}/${m}/${y}`;
-    }
-
-    let horarioFinal = nuevoHorario;
-    if (!horarioFinal.includes('h')) {
-      horarioFinal = `${horarioFinal} h`;
-    }
-
-    try {
-      const updated = await updateVisitaEstado(visitaAReprogramar.id, 'reprogramada', {
-        nuevaFecha: fechaFinal,
-        nuevoHorario: horarioFinal,
-        motivo: notaReprogramacion,
-      });
-      setVisitas((prev) => prev.map((v) => (v.id === visitaAReprogramar.id ? updated : v)));
-      setVisitaAReprogramar(null);
-      setNuevaFecha('');
-      setNuevoHorario('');
-      setNotaReprogramacion('');
-      setMenuAbiertoId(null);
-      mostrarToast(`Visita reprogramada para el ${fechaFinal} a las ${horarioFinal}`);
-    } catch (error: any) {
-      mostrarToast(error.message || 'Error al reprogramar la visita', 'error');
-    }
-  };
-
-  // Manejo de crear nueva visita
-  const handleCrearNuevaVisita = async (e: React.FormEvent) => {
+  const reprogramar = async (e: FormEvent) => {
     e.preventDefault();
-    if (!nuevaVisitaForm.nombre || !nuevaVisitaForm.propiedad || !nuevaVisitaForm.fecha) {
-      alert('Por favor completá nombre, propiedad y fecha.');
-      return;
-    }
-
-    let fechaFinal = nuevaVisitaForm.fecha;
-    if (nuevaVisitaForm.fecha.includes('-')) {
-      const [y, m, d] = nuevaVisitaForm.fecha.split('-');
-      fechaFinal = `${d}/${m}/${y}`;
-    }
-
-    let horarioFinal = nuevaVisitaForm.horario || '10:00 h';
-    if (!horarioFinal.includes('h')) {
-      horarioFinal = `${horarioFinal} h`;
-    }
-
-    const iniciales = nuevaVisitaForm.nombre
-      .split(' ')
-      .slice(0, 2)
-      .map((n) => n[0]?.toUpperCase() ?? '')
-      .join('');
-
-    // Si coincide con alguna propiedad cargada, asociamos sus datos
-    const propMatch = propiedadesDisponibles.find(
-      (p) => p.title.toLowerCase() === nuevaVisitaForm.propiedad.toLowerCase() || p._id === nuevaVisitaForm.propiedad
-    );
-
-    setGuardando(true);
+    if (!aReprogramar || !reprogramacion.fecha || !reprogramacion.hora) return;
+    setTrabajando(true);
+    const nuevaFecha = fechaParaGuardar(reprogramacion.fecha);
+    const nuevoHorario = horarioParaGuardar(reprogramacion.hora);
     try {
-      const nuevaVisita = await createVisita({
+      reemplazar(await updateVisitaEstado(aReprogramar.id, 'reprogramada', { nuevaFecha, nuevoHorario, motivo: reprogramacion.nota }));
+      mostrar(`Visita reprogramada para el ${nuevaFecha} a las ${nuevoHorario}.`);
+      setAReprogramar(null);
+      setDetalle(null);
+    } catch (err) {
+      mostrar(err instanceof Error ? err.message : 'No se pudo reprogramar la visita', 'peligro');
+    } finally {
+      setTrabajando(false);
+    }
+  };
+
+  const borrar = async (visita: Visita) => {
+    const ok = await confirmar(`¿Borrar la visita de ${visita.cliente.nombre}?`, { texto: 'Se elimina del registro y no se puede recuperar.', accion: 'Borrar visita' });
+    if (!ok) return;
+    try {
+      await deleteVisita(visita.id);
+      setVisitas((lista) => lista?.filter((v) => v.id !== visita.id) ?? null);
+      setDetalle(null);
+      mostrar('Visita borrada.');
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo borrar la visita', 'peligro');
+    }
+  };
+
+  const agendar = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!nueva.nombre.trim()) return setFaltaEnNueva('nombre');
+    if (!nueva.propiedad) return setFaltaEnNueva('propiedad');
+    if (!nueva.fecha) return setFaltaEnNueva('fecha');
+    setFaltaEnNueva(null);
+    const propiedad = propiedades.find((p) => p._id === nueva.propiedad);
+    setTrabajando(true);
+    try {
+      const creada = await createVisita({
         cliente: {
-          nombre: nuevaVisitaForm.nombre,
-          telefono: nuevaVisitaForm.telefono || '+54 9 343 000 0000',
-          email: nuevaVisitaForm.email,
-          iniciales: iniciales || 'CL',
+          nombre: nueva.nombre.trim(),
+          telefono: nueva.telefono.trim(),
+          email: nueva.email.trim(),
+          iniciales: nueva.nombre.trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || 'CL',
         },
         propiedad: {
-          id: propMatch?._id || '',
-          titulo: propMatch?.title || nuevaVisitaForm.propiedad,
-          direccion: propMatch?.location || '',
-          precio: propMatch
-            ? propMatch.moneda === 'ARS'
-              ? `ARS ${propMatch.priceARS ?? propMatch.price}`
-              : `USD ${propMatch.price}`
-            : '',
+          id: propiedad?._id || '',
+          titulo: propiedad?.title || nueva.propiedad,
+          direccion: propiedad?.location || '',
+          precio: propiedad ? (propiedad.moneda === 'ARS' ? `ARS ${propiedad.priceARS ?? propiedad.price}` : `USD ${propiedad.price}`) : '',
         },
-        fecha: fechaFinal,
-        horario: horarioFinal,
+        fecha: fechaParaGuardar(nueva.fecha),
+        horario: horarioParaGuardar(nueva.horario || '10:00'),
         estado: 'pendiente',
-        notaAdicional: nuevaVisitaForm.nota,
+        notaAdicional: nueva.nota.trim(),
       });
-
-      setVisitas((prev) => [nuevaVisita, ...prev]);
-      setModalNuevaVisita(false);
-      setNuevaVisitaForm({
-        nombre: '',
-        telefono: '',
-        email: '',
-        propiedad: '',
-        fecha: '',
-        horario: '10:00 h',
-        nota: '',
-      });
-      mostrarToast('Nueva visita agendada correctamente');
-    } catch (error: any) {
-      mostrarToast(error.message || 'Error al agendar la visita', 'error');
+      setVisitas((lista) => [creada, ...(lista ?? [])]);
+      setNuevaAbierta(false);
+      setNueva(FORMULARIO_VACIO);
+      mostrar('Visita agendada.');
+    } catch (err) {
+      mostrar(err instanceof Error ? err.message : 'No se pudo agendar la visita', 'peligro');
     } finally {
-      setGuardando(false);
+      setTrabajando(false);
     }
   };
 
-  // Eliminar visita
-  const handleEliminarVisita = async (id: string, nombre: string) => {
-    if (confirm(`¿Estás seguro de eliminar la visita de ${nombre}?`)) {
-      try {
-        await deleteVisita(id);
-        setVisitas((prev) => prev.filter((v) => v.id !== id));
-        setMenuAbiertoId(null);
-        mostrarToast('Visita eliminada de la base de datos');
-      } catch (error: any) {
-        mostrarToast(error.message || 'Error al eliminar la visita', 'error');
-      }
+  const cargarPrueba = async () => {
+    const ok = await confirmar('¿Cargar las visitas de prueba?', { texto: 'Se borran todas las visitas actuales y se reemplazan por las de ejemplo. Solo funciona en desarrollo.', accion: 'Reemplazar visitas' });
+    if (!ok) return;
+    try {
+      setVisitas(await resetVisitasToDefault());
+      mostrar('Se cargaron las visitas de prueba.');
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudieron cargar las visitas de prueba', 'peligro');
     }
   };
 
-  // Restablecer visitas a las de prueba
-  const handleRestablecerVisitas = async () => {
-    if (confirm('¿Deseás reiniciar las visitas en la base de datos a los valores de prueba por defecto?')) {
-      setCargando(true);
-      try {
-        const resetData = await resetVisitasToDefault();
-        setVisitas(resetData);
-        mostrarToast('Visitas reiniciadas con éxito');
-      } catch (error: any) {
-        mostrarToast(error.message || 'Error al reiniciar visitas', 'error');
-      } finally {
-        setCargando(false);
-      }
-    }
+  const lista = useMemo(() => visitas ?? [], [visitas]);
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+
+  const cuenta = {
+    pendientes: lista.filter((v) => v.estado === 'pendiente').length,
+    confirmadas: lista.filter((v) => v.estado === 'confirmada' || v.estado === 'reprogramada').length,
+    rechazadas: lista.filter((v) => v.estado === 'rechazada').length,
+    todas: lista.length,
   };
 
-  // Generar link directo de WhatsApp
-  const getWhatsAppLink = (visita: Visita) => {
-    const telefonoLimpio = visita.cliente.telefono.replace(/[^0-9]/g, '');
-    const mensaje = encodeURIComponent(
-      `Hola ${visita.cliente.nombre}, nos comunicamos desde la inmobiliaria respecto a tu visita programada para la propiedad "${visita.propiedad.titulo}" el día ${visita.fecha} a las ${visita.horario}.`
-    );
-    return `https://wa.me/${telefonoLimpio}?text=${mensaje}`;
+  const fechas = useMemo(
+    () => [...new Set(lista.map((v) => v.fecha))].sort((a, b) => (fechaDeVisita(a)?.getTime() ?? 0) - (fechaDeVisita(b)?.getTime() ?? 0)),
+    [lista]
+  );
+
+  const texto = busqueda.trim().toLowerCase();
+  const visibles = lista
+    .filter((v) => {
+      const enPestana =
+        pestana === 'pendientes' ? v.estado === 'pendiente' : pestana === 'confirmadas' ? v.estado === 'confirmada' || v.estado === 'reprogramada' : pestana === 'rechazadas' ? v.estado === 'rechazada' : true;
+      const enTexto = !texto || [v.cliente.nombre, v.cliente.telefono, v.propiedad.titulo].some((c) => c?.toLowerCase().includes(texto));
+      return enPestana && enTexto && (!fecha || v.fecha === fecha);
+    })
+    .map((v) => ({ v, cuando: fechaDeVisita(v.fecha, v.horario) }))
+    .sort((a, b) => (a.cuando?.getTime() ?? Infinity) - (b.cuando?.getTime() ?? Infinity));
+
+  const PESTANAS: { id: Pestana; texto: string }[] = [
+    { id: 'pendientes', texto: 'Por confirmar' },
+    { id: 'confirmadas', texto: 'Confirmadas' },
+    { id: 'rechazadas', texto: 'Rechazadas' },
+    { id: 'todas', texto: 'Todas' },
+  ];
+
+  const abrirReprogramar = (visita: Visita) => {
+    setReprogramacion({ fecha: '', hora: visita.horario?.match(/\d{1,2}:\d{2}/)?.[0]?.padStart(5, '0') ?? '', nota: '' });
+    setAReprogramar(visita);
   };
 
-  // Colores de avatares según iniciales
-  const getAvatarColorClass = (iniciales: string) => {
-    const colors = [
-      'bg-indigo-100 text-indigo-700',
-      'bg-blue-100 text-blue-700',
-      'bg-purple-100 text-purple-700',
-      'bg-sky-100 text-sky-700',
-      'bg-teal-100 text-teal-700',
-      'bg-amber-100 text-amber-700',
-    ];
-    const index = (iniciales.charCodeAt(0) + (iniciales.charCodeAt(1) || 0)) % colors.length;
-    return colors[index];
-  };
+  const acciones = (v: Visita) => (
+    <>
+      {v.estado === 'pendiente' && <Accion icono="check" texto={`Confirmar la visita de ${v.cliente.nombre}`} onClick={() => confirmarVisita(v)} tono="exito" />}
+      {v.estado !== 'rechazada' && <Accion icono="reloj" texto={`Reprogramar la visita de ${v.cliente.nombre}`} onClick={() => abrirReprogramar(v)} />}
+      {v.estado !== 'rechazada' && <Accion icono="cerrar" texto={`Rechazar la visita de ${v.cliente.nombre}`} onClick={() => { setMotivo(MOTIVOS_RECHAZO[0]); setARechazar(v); }} tono="peligro" />}
+      <Accion icono="telefono" texto={`Escribirle a ${v.cliente.nombre} por WhatsApp`} href={enlaceWhatsApp(v)} />
+      <Accion icono="ojo" texto={`Ver el detalle de la visita de ${v.cliente.nombre}`} onClick={() => setDetalle(v)} />
+    </>
+  );
 
   return (
-    <div className="admin-themed-page flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-      {/* Toast Notification */}
-      {mensajeToast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg bg-[#0A193D] text-white text-sm font-medium animate-in fade-in slide-in-from-bottom-4">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          {mensajeToast.texto}
-        </div>
-      )}
-
-      {/* Sidebar Admin */}
-
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto px-8 py-7" onClick={() => setMenuAbiertoId(null)}>
-        {/* Header Superior */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-7">
-          <div>
-            <h1 className="text-2xl lg:text-3xl font-extrabold text-[#0A193D] tracking-tight">
-              Gestión de visitas
-            </h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Administrá solicitudes, confirmaciones y reprogramaciones
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-            <button
-              type="button"
-              onClick={cargarDatos}
-              disabled={cargando}
-              title="Recargar visitas desde la base de datos"
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl shadow-sm transition active:scale-95 disabled:opacity-50"
-            >
-              <svg className={`w-4 h-4 ${cargando ? 'animate-spin text-blue-600' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-              <span>{cargando ? 'Cargando...' : 'Actualizar'}</span>
-            </button>
-            <button
-              type="button"
-              onClick={handleRestablecerVisitas}
-              title="Restablecer datos de prueba en la base de datos"
-              className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-semibold rounded-xl transition"
-            >
-              Restablecer datos
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalNuevaVisita(true)}
-              className="inline-flex items-center gap-2 px-4 py-2.5 bg-[#193B7B] hover:bg-[#122756] text-white text-sm font-semibold rounded-xl shadow-sm transition active:scale-95"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-              </svg>
-              Nueva visita
-            </button>
-          </div>
-        </div>
-
-        {/* 4 Tarjetas de Métricas (KPI Cards) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-          {/* Tarjeta 1: Visitas del mes */}
-          <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 border-b-4 border-b-blue-500 transition-transform hover:-translate-y-0.5">
-            <div className="flex items-center gap-4">
-              <div className="w-13 h-13 w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-3xl font-extrabold text-blue-600 tracking-tight block">
-                  {metricas.totalMes}
-                </span>
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Visitas del mes
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarjeta 2: Pendientes */}
-          <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 border-b-4 border-b-amber-400 transition-transform hover:-translate-y-0.5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-3xl font-extrabold text-amber-500 tracking-tight block">
-                  {metricas.pendientes}
-                </span>
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Pendientes
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarjeta 3: Confirmadas */}
-          <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 border-b-4 border-b-emerald-500 transition-transform hover:-translate-y-0.5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-emerald-50 flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-3xl font-extrabold text-emerald-600 tracking-tight block">
-                  {metricas.confirmadas}
-                </span>
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Confirmadas
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tarjeta 4: Rechazadas */}
-          <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.04)] border border-slate-100 border-b-4 border-b-rose-500 transition-transform hover:-translate-y-0.5">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-rose-50 flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <span className="text-3xl font-extrabold text-rose-500 tracking-tight block">
-                  {metricas.rechazadas}
-                </span>
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  Rechazadas
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Barra de Filtros y Búsqueda */}
-        <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 mb-6 space-y-4">
-          {/* Fila superior: Input de búsqueda + Select Estado + Select Fecha */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-            {/* Input de Búsqueda */}
-            <div className="md:col-span-6 relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 pointer-events-none text-slate-400">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                </svg>
-              </span>
-              <input
-                type="text"
-                value={filtroTexto}
-                onChange={(e) => setFiltroTexto(e.target.value)}
-                placeholder="Buscar cliente o propiedad"
-                className="w-full pl-10 pr-4 py-2.5 bg-slate-50/70 border border-slate-200 rounded-xl text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#193B7B]/20 focus:border-[#193B7B] transition"
-              />
-              {filtroTexto && (
-                <button
-                  onClick={() => setFiltroTexto('')}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600"
-                >
-                  <span className="text-xs bg-slate-200 rounded-full w-4 h-4 flex items-center justify-center">✕</span>
-                </button>
-              )}
-            </div>
-
-            {/* Select Estado */}
-            <div className="md:col-span-3 flex items-center gap-2 bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2">
-              <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Estado</span>
-              <select
-                value={filtroEstado}
-                onChange={(e) => {
-                  setFiltroEstado(e.target.value);
-                  if (e.target.value === 'todos') setFiltroTab('todas');
-                  else if (e.target.value === 'pendiente') setFiltroTab('pendientes');
-                  else if (e.target.value === 'confirmada' || e.target.value === 'reprogramada') setFiltroTab('confirmadas');
-                  else if (e.target.value === 'rechazada') setFiltroTab('rechazadas');
-                }}
-                className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
-              >
-                <option value="todos">Todos</option>
-                <option value="pendiente">Pendientes</option>
-                <option value="confirmada">Confirmadas</option>
-                <option value="reprogramada">Reprogramadas</option>
-                <option value="rechazada">Rechazadas</option>
-              </select>
-            </div>
-
-            {/* Select Fecha */}
-            <div className="md:col-span-3 flex items-center gap-2 bg-slate-50/70 border border-slate-200 rounded-xl px-3 py-2">
-              <span className="text-xs font-medium text-slate-500 whitespace-nowrap">Fecha</span>
-              <div className="flex items-center gap-1.5 w-full">
-                <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <select
-                  value={filtroFecha}
-                  onChange={(e) => setFiltroFecha(e.target.value)}
-                  className="filter-select-contrast w-full bg-transparent text-sm font-semibold text-slate-800 focus:outline-none cursor-pointer"
-                >
-                  <option value="todas">Todas</option>
-                  {fechasDisponibles.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-          </div>
-
-          {/* Fila inferior: Botones Pills de filtro rápido */}
-          <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100">
-            <button
-              onClick={() => {
-                setFiltroTab('todas');
-                setFiltroEstado('todos');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filtroTab === 'todas'
-                  ? 'bg-[#193B7B] text-white shadow-sm'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Todas
-            </button>
-
-            <button
-              onClick={() => {
-                setFiltroTab('pendientes');
-                setFiltroEstado('pendiente');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filtroTab === 'pendientes'
-                  ? 'bg-[#193B7B] text-white shadow-sm'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Pendientes
-            </button>
-
-            <button
-              onClick={() => {
-                setFiltroTab('confirmadas');
-                setFiltroEstado('confirmada');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filtroTab === 'confirmadas'
-                  ? 'bg-[#193B7B] text-white shadow-sm'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Confirmadas
-            </button>
-
-            <button
-              onClick={() => {
-                setFiltroTab('rechazadas');
-                setFiltroEstado('rechazada');
-              }}
-              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                filtroTab === 'rechazadas'
-                  ? 'bg-[#193B7B] text-white shadow-sm'
-                  : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
-              }`}
-            >
-              Rechazadas
-            </button>
-
-            {(filtroTexto || filtroEstado !== 'todos' || filtroFecha !== 'todas' || filtroTab !== 'todas') && (
-              <button
-                onClick={() => {
-                  setFiltroTexto('');
-                  setFiltroEstado('todos');
-                  setFiltroTab('todas');
-                  setFiltroFecha('todas');
-                }}
-                className="ml-auto text-xs text-slate-500 hover:text-slate-800 underline transition"
-              >
-                Limpiar filtros
-              </button>
+    <>
+      <Encabezado
+        titulo="Visitas"
+        descripcion={visitas ? (cuenta.pendientes ? `${cuenta.pendientes} por confirmar · ${cuenta.todas} en total` : `Todas respondidas · ${cuenta.todas} en total`) : 'Pedidos de visita del sitio y los que agendás a mano.'}
+        acciones={
+          <>
+            {process.env.NODE_ENV !== 'production' && (
+              <Boton variante="fantasma" onClick={cargarPrueba}>
+                Cargar visitas de prueba
+              </Boton>
             )}
+            <Boton variante="principal" icono="mas" onClick={() => { setFaltaEnNueva(null); setNuevaAbierta(true); }}>
+              Agendar visita
+            </Boton>
+          </>
+        }
+      />
+
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div role="tablist" aria-label="Estado de las visitas" className="flex gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1">
+            {PESTANAS.map((p) => {
+              const activa = pestana === p.id;
+              return (
+                <button
+                  key={p.id}
+                  type="button"
+                  role="tab"
+                  aria-selected={activa}
+                  onClick={() => setPestana(p.id)}
+                  className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
+                >
+                  {p.texto}
+                  <span className={`tabular rounded px-1.5 text-[12px] ${p.id === 'pendientes' && cuenta.pendientes ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'text-panel-tenue'}`}>{cuenta[p.id]}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="relative sm:w-64">
+              <span className="sr-only">Buscar</span>
+              <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
+              <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Cliente, teléfono o propiedad" className={`${control} pl-10`} />
+            </label>
+            <select value={fecha} onChange={(e) => setFecha(e.target.value)} aria-label="Fecha" className={`${control} sm:w-44`}>
+              <option value="">Cualquier fecha</option>
+              {fechas.map((f) => (
+                <option key={f} value={f}>
+                  {cuandoEs(fechaDeVisita(f))}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
-        {/* Layout principal en 2 columnas: Tabla a la izquierda, Próximas visitas a la derecha */}
-        <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
-          {/* Columna Izquierda: Tabla de Visitas (8 o 9 cols) */}
-          <div className="xl:col-span-8 bg-white rounded-2xl shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">
-                    <th className="py-3.5 px-5 font-semibold">Cliente</th>
-                    <th className="py-3.5 px-4 font-semibold">Propiedad</th>
-                    <th className="py-3.5 px-4 font-semibold">Fecha y hora</th>
-                    <th className="py-3.5 px-4 font-semibold">Estado</th>
-                    <th className="py-3.5 px-4 font-semibold text-center">Acción principal</th>
-                    <th className="py-3.5 px-4 font-semibold text-right">Más acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-sm">
-                  {cargando ? (
-                    <tr>
-                      <td colSpan={6} className="py-16 text-center text-slate-500">
-                        <div className="flex flex-col items-center justify-center gap-3">
-                          <div className="w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full animate-spin" />
-                          <p className="text-sm font-medium">Cargando visitas desde la base de datos...</p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : visitasFiltradas.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        <div className="flex flex-col items-center justify-center gap-2">
-                          <svg className="w-10 h-10 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <p className="font-medium text-slate-600">No se encontraron visitas con los filtros aplicados</p>
-                          <button
-                            onClick={() => {
-                              setFiltroTexto('');
-                              setFiltroEstado('todos');
-                              setFiltroTab('todas');
-                              setFiltroFecha('todas');
-                            }}
-                            className="text-xs text-blue-600 hover:underline mt-1"
-                          >
-                            Restablecer filtros
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    visitasFiltradas.map((visita) => {
-                      const avatarClass = getAvatarColorClass(visita.cliente.iniciales);
+        {error && (
+          <Alerta tono="peligro" titulo="No se pudieron cargar las visitas" accion={<Boton tamano="sm" onClick={() => { setError(null); setVisitas(null); cargar(); }}>Reintentar</Boton>}>
+            {error}
+          </Alerta>
+        )}
 
-                      return (
-                        <tr
-                          key={visita.id}
-                          className="hover:bg-slate-50/60 transition-colors group cursor-pointer"
-                          onClick={() => setVisitaDetalle(visita)}
-                        >
-                          {/* Columna Cliente */}
-                          <td className="py-4 px-5">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-xs shrink-0 ${avatarClass}`}
-                              >
-                                {visita.cliente.iniciales}
-                              </div>
-                              <div>
-                                <span className="font-semibold text-slate-900 block text-sm leading-tight">
-                                  {visita.cliente.nombre}
-                                </span>
-                                <span className="text-xs text-slate-400 font-normal">
-                                  {visita.cliente.telefono}
-                                </span>
-                              </div>
-                            </div>
-                          </td>
-
-                          {/* Columna Propiedad */}
-                          <td className="py-4 px-4 font-medium text-slate-800 text-sm">
-                            {visita.propiedad.titulo}
-                          </td>
-
-                          {/* Columna Fecha y hora */}
-                          <td className="py-4 px-4 whitespace-nowrap">
-                            <span className="font-medium text-slate-800 block text-xs">
-                              {visita.fecha}
-                            </span>
-                            <span className="text-xs text-slate-400">
-                              {visita.horario}
-                            </span>
-                          </td>
-
-                          {/* Columna Estado */}
-                          <td className="py-4 px-4 whitespace-nowrap">
-                            {visita.estado === 'pendiente' && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-600 border border-amber-200">
-                                <svg className="w-3.5 h-3.5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                </svg>
-                                Pendiente
-                              </span>
-                            )}
-
-                            {visita.estado === 'confirmada' && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                                </svg>
-                                Confirmada
-                              </span>
-                            )}
-
-                            {visita.estado === 'reprogramada' && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-50 text-blue-700 border border-blue-200">
-                                <svg className="w-3.5 h-3.5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                </svg>
-                                Reprogramada
-                              </span>
-                            )}
-
-                            {visita.estado === 'rechazada' && (
-                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-600 border border-rose-200">
-                                <svg className="w-3.5 h-3.5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                                Rechazada
-                              </span>
-                            )}
-                          </td>
-
-                          {/* Columna Acción principal */}
-                          <td className="py-4 px-4 whitespace-nowrap text-center" onClick={(e) => e.stopPropagation()}>
-                            {visita.estado === 'pendiente' ? (
-                              <div className="flex items-center justify-center gap-2">
-                                <button
-                                  type="button"
-                                  onClick={() => setVisitaAAceptar(visita)}
-                                  className="px-3.5 py-1.5 rounded-lg border border-emerald-500 text-emerald-700 hover:bg-emerald-50 text-xs font-semibold transition active:scale-95 shadow-sm"
-                                >
-                                  Aceptar
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setVisitaARechazar(visita)}
-                                  className="px-3.5 py-1.5 rounded-lg border border-rose-400 text-rose-600 hover:bg-rose-50 text-xs font-semibold transition active:scale-95 shadow-sm"
-                                >
-                                  Rechazar
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center justify-center">
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setVisitaAReprogramar(visita);
-                                    setNuevaFecha(visita.fecha.includes('/') ? visita.fecha.split('/').reverse().join('-') : visita.fecha);
-                                    setNuevoHorario(visita.horario.replace(' h', ''));
-                                  }}
-                                  className="px-4 py-1.5 rounded-lg border border-blue-500 text-blue-600 hover:bg-blue-50 text-xs font-semibold transition active:scale-95 shadow-sm"
-                                >
-                                  Reprogramar
-                                </button>
-                              </div>
-                            )}
-                          </td>
-
-                          {/* Columna Más acciones (3 puntos verticales) */}
-                          <td className="py-4 px-4 text-right relative" onClick={(e) => e.stopPropagation()}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMenuAbiertoId(menuAbiertoId === visita.id ? null : visita.id);
-                              }}
-                              className="p-1.5 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-100 transition"
-                            >
-                              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                              </svg>
-                            </button>
-
-                            {/* Dropdown flotante */}
-                            {menuAbiertoId === visita.id && (
-                              <div
-                                className="absolute right-4 top-12 z-40 w-48 bg-white rounded-xl shadow-xl border border-slate-100 py-1.5 text-left text-xs font-medium text-slate-700 animate-in fade-in"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <button
-                                  onClick={() => {
-                                    setVisitaDetalle(visita);
-                                    setMenuAbiertoId(null);
-                                  }}
-                                  className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-slate-700"
-                                >
-                                  <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                  </svg>
-                                  Ver detalles
-                                </button>
-
-                                <a
-                                  href={getWhatsAppLink(visita)}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-emerald-600"
-                                >
-                                  <svg className="w-4 h-4 text-emerald-500" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.978.58 1.911.928 3.145.929 3.178 0 5.767-2.587 5.768-5.766.001-3.187-2.575-5.77-5.764-5.771zm3.392 8.244c-.144.405-.837.774-1.17.824-.299.045-.677.063-1.092-.069-.252-.08-.575-.187-.988-.365-1.739-.751-2.874-2.502-2.961-2.617-.087-.116-.708-.94-.708-1.793s.448-1.273.607-1.446c.159-.173.346-.217.462-.217l.332.006c.106.005.249-.04.39.299.144.347.491 1.2.534 1.287.043.087.072.188.014.304-.058.116-.087.188-.173.289l-.26.304c-.087.086-.177.18-.076.354.101.174.449.741.964 1.201.662.591 1.221.774 1.394.86.173.086.275.072.376-.043.101-.116.433-.506.549-.68.116-.173.231-.144.39-.086s1.011.477 1.184.564.289.13.332.202c.043.072.043.419-.101.824z" />
-                                  </svg>
-                                  Contactar por WhatsApp
-                                </a>
-
-                                <button
-                                  onClick={() => {
-                                    setVisitaAReprogramar(visita);
-                                    setNuevaFecha(visita.fecha.includes('/') ? visita.fecha.split('/').reverse().join('-') : visita.fecha);
-                                    setNuevoHorario(visita.horario.replace(' h', ''));
-                                    setMenuAbiertoId(null);
-                                  }}
-                                  className="w-full px-4 py-2 hover:bg-slate-50 flex items-center gap-2.5 text-blue-600"
-                                >
-                                  <svg className="w-4 h-4 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                  </svg>
-                                  Reprogramar
-                                </button>
-
-                                <div className="border-t border-slate-100 my-1"></div>
-
-                                <button
-                                  onClick={() => handleEliminarVisita(visita.id, visita.cliente.nombre)}
-                                  className="w-full px-4 py-2 hover:bg-rose-50 flex items-center gap-2.5 text-rose-600"
-                                >
-                                  <svg className="w-4 h-4 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                  </svg>
-                                  Eliminar
-                                </button>
-                              </div>
-                            )}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
+        <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
+          {!visitas && !error ? (
+            <div className="flex flex-col divide-y divide-panel-borde">
+              {[0, 1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center gap-4 px-4 py-4">
+                  <Esqueleto className="h-4 w-24" />
+                  <Esqueleto className="h-4 w-1/4" />
+                  <Esqueleto className="h-4 w-1/3" />
+                </div>
+              ))}
             </div>
-          </div>
-
-          {/* Columna Derecha: Widget "Próximas visitas" */}
-          <div className="xl:col-span-4 bg-white rounded-2xl p-6 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 flex flex-col justify-between">
-            <div>
-              {/* Header del widget */}
-              <div className="flex items-center justify-between mb-1">
-                <h2 className="text-base font-bold text-slate-900 tracking-tight">
-                  Próximas visitas
-                </h2>
-                <svg className="w-5 h-5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <p className="text-xs text-slate-400 mb-6 font-medium">
-                Próximos 3 encuentros
-              </p>
-
-              {/* Lista de las próximas 3 visitas */}
-              <div className="space-y-5">
-                {proximasVisitas.map((visita, index) => {
-                  // Colores de acento según la posición como en la captura
-                  // Martina López: ámbar (10:30)
-                  // Carla Méndez: verde (11:00)
-                  // Federico Soria: azul (16:00)
-                  const borderColors = [
-                    'border-l-amber-400',
-                    'border-l-emerald-500',
-                    'border-l-blue-500',
-                  ];
-                  const borderColor = borderColors[index % borderColors.length];
-
-                  return (
-                    <div
-                      key={visita.id}
-                      onClick={() => setVisitaDetalle(visita)}
-                      className={`flex items-start gap-4 pl-3.5 border-l-4 ${borderColor} py-1 cursor-pointer hover:bg-slate-50/80 rounded-r-xl transition`}
-                    >
-                      {/* Horario grande destacado */}
-                      <div className="w-14 shrink-0 text-center">
-                        <span className="text-sm font-extrabold text-slate-800 block leading-tight">
-                          {visita.horario}
-                        </span>
-                      </div>
-
-                      {/* Detalles de la cita */}
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-slate-900 text-sm truncate">
-                          {visita.cliente.nombre}
-                        </h3>
-                        <p className="text-xs text-slate-500 truncate mt-0.5">
-                          {visita.propiedad.titulo}
-                        </p>
-
-                        <div className="flex items-center gap-2 mt-2">
-                          <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 font-medium">
-                            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                            </svg>
-                            {visita.fecha}
-                          </span>
-
-                          {visita.estado === 'pendiente' && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-600 border border-amber-200">
-                              Pendiente
-                            </span>
-                          )}
-
-                          {visita.estado === 'confirmada' && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              Confirmada
-                            </span>
-                          )}
-
-                          {visita.estado === 'reprogramada' && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-                              Reprogramada
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Botón inferior: Ver todas las visitas */}
-            <div className="pt-6 mt-6 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  setFiltroTab('todas');
-                  setFiltroEstado('todos');
-                  setFiltroTexto('');
-                  setFiltroFecha('todas');
-                }}
-                className="w-full flex items-center justify-center gap-2 text-xs font-bold text-slate-700 hover:text-[#193B7B] transition py-2 hover:bg-slate-50 rounded-xl"
-              >
-                Ver todas las visitas
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-              </button>
-            </div>
-          </div>
+          ) : visitas && visibles.length === 0 ? (
+            <EstadoVacio
+              icono="visitas"
+              titulo={lista.length === 0 ? 'Todavía no hay visitas' : pestana === 'pendientes' && !texto && !fecha ? 'No hay visitas por confirmar' : 'Ninguna visita coincide'}
+              texto={lista.length === 0 ? 'Cuando alguien pida una visita desde el sitio, aparece acá.' : undefined}
+            />
+          ) : visitas ? (
+            <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+              {visibles.map(({ v, cuando }) => {
+                const estado = estadoDe(ESTADO_VISITA, v.estado);
+                const pasada = cuando ? cuando < hoy : false;
+                return (
+                  <li key={v.id} className={`grid gap-x-4 gap-y-2 px-4 py-3.5 md:grid-cols-[150px_minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center ${pasada ? 'opacity-60' : ''}`}>
+                    <span className="tabular whitespace-nowrap text-[13.5px] font-medium">
+                      {cuandoEs(cuando, v.horario)}
+                      {pasada && <span className="ml-2 text-[12px] font-normal text-panel-tenue">pasada</span>}
+                    </span>
+                    <button type="button" onClick={() => setDetalle(v)} className="min-w-0 text-left">
+                      <span className="block truncate text-[14px] font-medium hover:underline">{v.cliente.nombre || 'Sin nombre'}</span>
+                      <span className="tabular block truncate text-[13px] text-panel-suave">{v.cliente.telefono || 'Sin teléfono'}</span>
+                    </button>
+                    <span className="min-w-0 truncate text-[13.5px] text-panel-suave">{v.propiedad.titulo || 'Propiedad sin título'}</span>
+                    <span>
+                      <Insignia tono={estado.tono}>{estado.texto}</Insignia>
+                    </span>
+                    <div className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
-      </main>
+      </div>
 
-      {/* MODAL: ACEPTAR VISITA */}
-      {visitaAAceptar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Confirmar visita
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              ¿Deseás confirmar el encuentro para <strong>{visitaAAceptar.cliente.nombre}</strong>?
-            </p>
-
-            <div className="bg-slate-50 rounded-xl p-3.5 space-y-1.5 text-xs text-slate-600 mb-5 border border-slate-100">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Propiedad:</span>
-                <span className="font-semibold text-slate-800">{visitaAAceptar.propiedad.titulo}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Fecha y hora:</span>
-                <span className="font-semibold text-slate-800">{visitaAAceptar.fecha} a las {visitaAAceptar.horario}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Teléfono:</span>
-                <span className="font-semibold text-slate-800">{visitaAAceptar.cliente.telefono}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setVisitaAAceptar(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAceptarVisita(visitaAAceptar)}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition active:scale-95"
-              >
-                Confirmar ahora
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: RECHAZAR VISITA */}
-      {visitaARechazar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-500 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Rechazar solicitud de visita
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Indique el motivo del rechazo para la visita de <strong>{visitaARechazar.cliente.nombre}</strong>.
-            </p>
-
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                Motivo del rechazo
-              </label>
-              <select
-                value={motivoRechazo}
-                onChange={(e) => setMotivoRechazo(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-rose-500/20"
-              >
-                <option value="Horario no disponible">Horario no disponible</option>
-                <option value="Propiedad reservada con seña">Propiedad ya reservada</option>
-                <option value="Propietario de viaje / sin llaves">Propietario sin disponibilidad</option>
-                <option value="Sin respuesta al contacto telefónico">Sin respuesta del cliente</option>
-                <option value="Otro motivo">Otro motivo</option>
-              </select>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setVisitaARechazar(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmarRechazo}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-rose-600 hover:bg-rose-700 text-white shadow-sm transition active:scale-95"
-              >
-                Confirmar rechazo
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: REPROGRAMAR VISITA */}
-      {visitaAReprogramar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <div className="w-12 h-12 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Reprogramar visita
-            </h3>
-            <p className="text-sm text-slate-500 mb-4">
-              Cita con <strong>{visitaAReprogramar.cliente.nombre}</strong> para <em>{visitaAReprogramar.propiedad.titulo}</em>
-            </p>
-
-            <div className="space-y-3.5 mb-5">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nueva fecha
-                </label>
-                <input
-                  type="date"
-                  value={nuevaFecha}
-                  onChange={(e) => setNuevaFecha(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nuevo horario
-                </label>
-                <input
-                  type="time"
-                  value={nuevoHorario}
-                  onChange={(e) => setNuevoHorario(e.target.value)}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Nota / Motivo de cambio
-                </label>
-                <textarea
-                  rows={2}
-                  value={notaReprogramacion}
-                  onChange={(e) => setNotaReprogramacion(e.target.value)}
-                  placeholder="Ej: El cliente solicitó postergar 1 hora por viaje..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={() => setVisitaAReprogramar(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleConfirmarReprogramacion}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#193B7B] hover:bg-[#122756] text-white shadow-sm transition active:scale-95"
-              >
-                Guardar reprogramación
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL: VER DETALLE DE VISITA */}
-      {visitaDetalle && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between pb-4 border-b border-slate-100 mb-5">
-              <div className="flex items-center gap-3">
-                <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm ${getAvatarColorClass(visitaDetalle.cliente.iniciales)}`}>
-                  {visitaDetalle.cliente.iniciales}
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 leading-tight">
-                    {visitaDetalle.cliente.nombre}
-                  </h3>
-                  <span className="text-xs text-slate-400">{visitaDetalle.cliente.telefono}</span>
-                </div>
-              </div>
-              <button
-                onClick={() => setVisitaDetalle(null)}
-                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center text-sm transition"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="space-y-4 text-xs text-slate-600 mb-6">
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-slate-400 font-medium">Propiedad:</span>
-                  <span className="font-bold text-slate-800">{visitaDetalle.propiedad.titulo}</span>
-                </div>
-                {visitaDetalle.propiedad.direccion && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400 font-medium">Dirección:</span>
-                    <span className="text-slate-700">{visitaDetalle.propiedad.direccion}</span>
-                  </div>
-                )}
-                {visitaDetalle.propiedad.precio && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400 font-medium">Valor:</span>
-                    <span className="font-semibold text-emerald-700">{visitaDetalle.propiedad.precio}</span>
-                  </div>
-                )}
-                <div className="flex justify-between pt-1 border-t border-slate-200/50">
-                  <span className="text-slate-400 font-medium">Fecha y hora:</span>
-                  <span className="font-bold text-slate-900">{visitaDetalle.fecha} - {visitaDetalle.horario}</span>
-                </div>
-                <div className="flex justify-between items-center pt-1">
-                  <span className="text-slate-400 font-medium">Estado actual:</span>
-                  <span className="font-bold capitalize">{visitaDetalle.estado}</span>
-                </div>
-              </div>
-
-              {visitaDetalle.notaAdicional && (
-                <div>
-                  <span className="font-bold text-slate-700 block mb-1">Notas de la visita:</span>
-                  <p className="bg-blue-50/60 border border-blue-100 p-3 rounded-xl text-slate-700 leading-relaxed">
-                    {visitaDetalle.notaAdicional}
-                  </p>
-                </div>
+      {/* Detalle */}
+      <Dialogo
+        abierto={Boolean(detalle)}
+        alCerrar={() => setDetalle(null)}
+        titulo={detalle ? `Visita de ${detalle.cliente.nombre}` : ''}
+        descripcion={detalle && <Insignia tono={estadoDe(ESTADO_VISITA, detalle.estado).tono}>{estadoDe(ESTADO_VISITA, detalle.estado).texto}</Insignia>}
+        acciones={
+          detalle && (
+            <>
+              <Boton variante="fantasma" icono="borrar" onClick={() => borrar(detalle)} className="mr-auto text-red-700 dark:text-red-400">
+                Borrar
+              </Boton>
+              {detalle.estado !== 'rechazada' && (
+                <Boton icono="reloj" onClick={() => abrirReprogramar(detalle)}>
+                  Reprogramar
+                </Boton>
               )}
-
-              {visitaDetalle.motivoRechazo && (
-                <div>
-                  <span className="font-bold text-rose-700 block mb-1">Motivo de rechazo:</span>
-                  <p className="bg-rose-50 border border-rose-100 p-3 rounded-xl text-rose-700 leading-relaxed">
-                    {visitaDetalle.motivoRechazo}
-                  </p>
-                </div>
+              {detalle.estado === 'pendiente' && (
+                <Boton variante="principal" icono="check" onClick={() => confirmarVisita(detalle)}>
+                  Confirmar
+                </Boton>
               )}
-            </div>
+            </>
+          )
+        }
+      >
+        {detalle && (
+          <dl className="m-0 grid grid-cols-[110px_1fr] gap-x-4 gap-y-3 text-sm">
+            <dt className="text-panel-suave">Cuándo</dt>
+            <dd className="m-0 font-medium">{cuandoEs(fechaDeVisita(detalle.fecha, detalle.horario), detalle.horario)} <span className="font-normal text-panel-tenue">({detalle.fecha})</span></dd>
+            <dt className="text-panel-suave">Propiedad</dt>
+            <dd className="m-0">
+              {detalle.propiedad.id ? (
+                <Link href={`/propiedades/${detalle.propiedad.id}`} target="_blank" className="underline-offset-2 hover:underline">
+                  {detalle.propiedad.titulo}
+                </Link>
+              ) : (
+                detalle.propiedad.titulo || 'Sin título'
+              )}
+            </dd>
+            <dt className="text-panel-suave">Teléfono</dt>
+            <dd className="m-0 flex flex-wrap gap-x-3">
+              {detalle.cliente.telefono ? (
+                <>
+                  <a href={`tel:${detalle.cliente.telefono.replace(/[^\d+]/g, '')}`} className="tabular hover:underline">{detalle.cliente.telefono}</a>
+                  {enlaceWhatsApp(detalle) && <a href={enlaceWhatsApp(detalle) as string} target="_blank" rel="noreferrer" className="text-panel-acento hover:underline">WhatsApp</a>}
+                </>
+              ) : 'Sin teléfono'}
+            </dd>
+            <dt className="text-panel-suave">Email</dt>
+            <dd className="m-0">{detalle.cliente.email ? <a href={`mailto:${detalle.cliente.email}`} className="hover:underline">{detalle.cliente.email}</a> : 'Sin email'}</dd>
+            {detalle.notaAdicional && (
+              <>
+                <dt className="text-panel-suave">Nota</dt>
+                <dd className="m-0 whitespace-pre-line">{detalle.notaAdicional}</dd>
+              </>
+            )}
+            {detalle.motivoRechazo && (
+              <>
+                <dt className="text-panel-suave">Motivo</dt>
+                <dd className="m-0">{detalle.motivoRechazo}</dd>
+              </>
+            )}
+          </dl>
+        )}
+      </Dialogo>
 
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <a
-                href={getWhatsAppLink(visitaDetalle)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-sm transition"
-              >
-                Abrir WhatsApp
-              </a>
+      {/* Reprogramar */}
+      <Dialogo
+        abierto={Boolean(aReprogramar)}
+        alCerrar={() => setAReprogramar(null)}
+        titulo="Reprogramar visita"
+        descripcion={aReprogramar && `${aReprogramar.cliente.nombre} · ${aReprogramar.propiedad.titulo}`}
+        acciones={
+          <>
+            <Boton onClick={() => setAReprogramar(null)}>Cancelar</Boton>
+            <Boton variante="principal" type="submit" form={`${id}-reprogramar`} cargando={trabajando} disabled={!reprogramacion.fecha || !reprogramacion.hora}>
+              Reprogramar
+            </Boton>
+          </>
+        }
+      >
+        <form id={`${id}-reprogramar`} onSubmit={reprogramar} className="grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Nueva fecha" htmlFor={`${id}-rep-fecha`}>
+            <input id={`${id}-rep-fecha`} type="date" required value={reprogramacion.fecha} onChange={(e) => setReprogramacion((r) => ({ ...r, fecha: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Nuevo horario" htmlFor={`${id}-rep-hora`}>
+            <input id={`${id}-rep-hora`} type="time" required value={reprogramacion.hora} onChange={(e) => setReprogramacion((r) => ({ ...r, hora: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Nota para el registro" htmlFor={`${id}-rep-nota`} ayuda="Opcional." className="sm:col-span-2">
+            <input id={`${id}-rep-nota`} type="text" value={reprogramacion.nota} onChange={(e) => setReprogramacion((r) => ({ ...r, nota: e.target.value }))} placeholder="Ej.: Pidió pasarla a la tarde" className={control} />
+          </Campo>
+        </form>
+      </Dialogo>
 
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    const id = visitaDetalle.id;
-                    const nombre = visitaDetalle.cliente.nombre;
-                    setVisitaDetalle(null);
-                    handleEliminarVisita(id, nombre);
-                  }}
-                  className="px-3.5 py-2 text-rose-600 hover:bg-rose-50 rounded-xl text-xs font-semibold transition"
-                >
-                  Eliminar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVisitaDetalle(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Rechazar */}
+      <Dialogo
+        abierto={Boolean(aRechazar)}
+        alCerrar={() => setARechazar(null)}
+        titulo="Rechazar visita"
+        descripcion={aRechazar && `${aRechazar.cliente.nombre} · ${aRechazar.propiedad.titulo}`}
+        acciones={
+          <>
+            <Boton onClick={() => setARechazar(null)}>Cancelar</Boton>
+            <Boton variante="peligro" onClick={rechazar} cargando={trabajando}>
+              Rechazar visita
+            </Boton>
+          </>
+        }
+      >
+        <Campo etiqueta="Motivo" htmlFor={`${id}-motivo`} ayuda="Queda registrado en la visita.">
+          <select id={`${id}-motivo`} value={motivo} onChange={(e) => setMotivo(e.target.value)} className={control}>
+            {MOTIVOS_RECHAZO.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+        </Campo>
+      </Dialogo>
 
-      {/* MODAL: NUEVA VISITA */}
-      {modalNuevaVisita && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-100">
-            <h3 className="text-lg font-bold text-slate-900 mb-1">
-              Agendar nueva visita
-            </h3>
-            <p className="text-xs text-slate-500 mb-5">
-              Cargá los datos del interesado y el inmueble a visitar.
-            </p>
+      {/* Agendar */}
+      <Dialogo
+        abierto={nuevaAbierta}
+        alCerrar={() => setNuevaAbierta(false)}
+        titulo="Agendar visita"
+        descripcion="Para visitas que llegan por teléfono o en la oficina."
+        ancho="lg"
+        acciones={
+          <>
+            <Boton onClick={() => setNuevaAbierta(false)}>Cancelar</Boton>
+            <Boton variante="principal" type="submit" form={`${id}-nueva`} cargando={trabajando}>
+              Agendar
+            </Boton>
+          </>
+        }
+      >
+        <form id={`${id}-nueva`} noValidate onSubmit={agendar} className="grid gap-4 sm:grid-cols-2">
+          <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-n-nombre`} error={faltaEnNueva === 'nombre' ? 'Escribí el nombre.' : null} className="sm:col-span-2">
+            <input id={`${id}-n-nombre`} type="text" value={nueva.nombre} aria-invalid={faltaEnNueva === 'nombre'} onChange={(e) => setNueva((n) => ({ ...n, nombre: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Teléfono" htmlFor={`${id}-n-tel`}>
+            <input id={`${id}-n-tel`} type="tel" value={nueva.telefono} onChange={(e) => setNueva((n) => ({ ...n, telefono: e.target.value }))} placeholder="Ej.: 343 444 4444" className={control} />
+          </Campo>
+          <Campo etiqueta="Email" htmlFor={`${id}-n-email`}>
+            <input id={`${id}-n-email`} type="email" value={nueva.email} onChange={(e) => setNueva((n) => ({ ...n, email: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Propiedad *" htmlFor={`${id}-n-prop`} error={faltaEnNueva === 'propiedad' ? 'Elegí la propiedad.' : null} className="sm:col-span-2">
+            <select id={`${id}-n-prop`} value={nueva.propiedad} aria-invalid={faltaEnNueva === 'propiedad'} onChange={(e) => setNueva((n) => ({ ...n, propiedad: e.target.value }))} className={control}>
+              <option value="">Elegí una propiedad</option>
+              {propiedades.map((p) => (
+                <option key={p._id} value={p._id}>
+                  {p.title}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <Campo etiqueta="Fecha *" htmlFor={`${id}-n-fecha`} error={faltaEnNueva === 'fecha' ? 'Elegí la fecha.' : null}>
+            <input id={`${id}-n-fecha`} type="date" value={nueva.fecha} aria-invalid={faltaEnNueva === 'fecha'} onChange={(e) => setNueva((n) => ({ ...n, fecha: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Horario" htmlFor={`${id}-n-hora`}>
+            <input id={`${id}-n-hora`} type="time" value={nueva.horario} onChange={(e) => setNueva((n) => ({ ...n, horario: e.target.value }))} className={control} />
+          </Campo>
+          <Campo etiqueta="Nota" htmlFor={`${id}-n-nota`} ayuda="Opcional." className="sm:col-span-2">
+            <textarea id={`${id}-n-nota`} rows={2} value={nueva.nota} onChange={(e) => setNueva((n) => ({ ...n, nota: e.target.value }))} className={areaTexto} />
+          </Campo>
+        </form>
+      </Dialogo>
 
-            <form onSubmit={handleCrearNuevaVisita} className="space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Nombre y Apellido *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Ej: Marcelo Romero"
-                    value={nuevaVisitaForm.nombre}
-                    onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, nombre: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Teléfono</label>
-                  <input
-                    type="text"
-                    placeholder="+54 9 343 ..."
-                    value={nuevaVisitaForm.telefono}
-                    onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, telefono: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Propiedad *</label>
-                <input
-                  type="text"
-                  required
-                  list="propiedades-sugeridas"
-                  placeholder="Ej: Seleccioná o escribí el título del inmueble"
-                  value={nuevaVisitaForm.propiedad}
-                  onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, propiedad: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-                <datalist id="propiedades-sugeridas">
-                  {propiedadesDisponibles.map((p) => (
-                    <option key={p._id} value={p.title}>
-                      {p.location} {p.moneda === 'ARS' ? `(ARS ${p.priceARS ?? p.price})` : `(USD ${p.price})`}
-                    </option>
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Fecha *</label>
-                  <input
-                    type="date"
-                    required
-                    value={nuevaVisitaForm.fecha}
-                    onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, fecha: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Horario *</label>
-                  <input
-                    type="time"
-                    required
-                    value={nuevaVisitaForm.horario.replace(' h', '')}
-                    onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, horario: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-700 mb-1">Nota adicional</label>
-                <textarea
-                  rows={2}
-                  placeholder="Consultas particulares, condiciones, etc."
-                  value={nuevaVisitaForm.nota}
-                  onChange={(e) => setNuevaVisitaForm({ ...nuevaVisitaForm, nota: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setModalNuevaVisita(false)}
-                  className="px-4 py-2 rounded-xl font-semibold text-slate-600 hover:bg-slate-100 transition"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={guardando}
-                  className="px-5 py-2 rounded-xl font-semibold bg-[#193B7B] hover:bg-[#122756] text-white shadow-sm transition active:scale-95 disabled:opacity-60 flex items-center gap-2"
-                >
-                  {guardando ? (
-                    <>
-                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Agendando...</span>
-                    </>
-                  ) : (
-                    <span>Agendar visita</span>
-                  )}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-    </div>
+      {aviso}
+      {dialogoConfirmar}
+    </>
   );
 }
