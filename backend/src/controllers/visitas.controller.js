@@ -78,6 +78,10 @@ exports.deleteVisita = async (req, res) => {
 };
 
 exports.resetVisitas = async (_req, res) => {
+    // Reiniciar borra todas las visitas reales: solo se permite en desarrollo
+    if (process.env.NODE_ENV === 'production') {
+        return res.status(403).json({ message: 'Reiniciar las visitas no está disponible en el sitio publicado' });
+    }
     try {
         const resetVisitas = await visitasService.seedDefaultVisitas(true);
         return res.status(200).json({

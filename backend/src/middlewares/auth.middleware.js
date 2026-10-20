@@ -4,7 +4,12 @@ const config = require('../config/env');
 const { promisify } = require('util');
 
 const verifyToken = promisify(jwt.verify);
-const getJwtSecret = () => process.env.JWT_SECRET || config.JWT_SECRET || 'inmobiliaria_token_key';
+// La clave sale de la configuración central (obligatoria en producción)
+const getJwtSecret = () => {
+    const secreto = config.jwtSecret();
+    if (!secreto) throw new Error('JWT_SECRET no está configurada');
+    return secreto;
+};
 
 const authMiddleware = async (req, res, next) => {
     try {
