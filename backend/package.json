@@ -7,6 +7,7 @@
     "dev": "node --watch-path=src src/server.js",
     "start": "node src/server.js",
     "seed:localidades": "node src/seed-localidades.js",
+    "migrar:imagenes": "node src/migrar-imagenes.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

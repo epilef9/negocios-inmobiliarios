@@ -300,9 +300,12 @@ const INITIAL_SEED_VISITAS = [
 
 class VisitasService {
     async getAllVisitas(filters = {}) {
-        const count = await visitasRepository.countVisitas();
-        if (count === 0) {
-            await this.seedDefaultVisitas();
+        // Las visitas de ejemplo solo se cargan en desarrollo: en el sitio publicado serían datos inventados
+        if (process.env.NODE_ENV !== 'production') {
+            const count = await visitasRepository.countVisitas();
+            if (count === 0) {
+                await this.seedDefaultVisitas();
+            }
         }
         return visitasRepository.getAllVisitas(filters);
     }

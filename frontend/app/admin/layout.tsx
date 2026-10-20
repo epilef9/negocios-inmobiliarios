@@ -4,18 +4,20 @@
 // Solo usuarios autenticados con rol admin pueden acceder.
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
+import PanelMarco from '@/components/panel/PanelMarco';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const ruta = usePathname();
 
   useEffect(() => {
     if (isLoading) return;
 
     if (!user) {
-      router.replace('/login');
+      router.replace('/login?volver=/admin');
       return;
     }
 
@@ -26,19 +28,18 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   if (isLoading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-600 text-sm">
-        Verificando acceso...
-      </div>
+      <div className="panel flex min-h-dvh items-center justify-center text-sm text-panel-suave">Verificando acceso…</div>
     );
   }
 
   if (!user || user.role !== 'admin') {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-600 text-sm">
-        Redirigiendo...
-      </div>
+      <div className="panel flex min-h-dvh items-center justify-center text-sm text-panel-suave">Redirigiendo…</div>
     );
   }
 
-  return <>{children}</>;
+  // La bienvenida ocupa toda la pantalla, sin el menú del panel
+  if (ruta === '/admin/bienvenida') return <>{children}</>;
+
+  return <PanelMarco>{children}</PanelMarco>;
 }

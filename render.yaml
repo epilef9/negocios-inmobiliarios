@@ -1,0 +1,30 @@
+# Backend en Render (https://render.com): New → Blueprint → elegir este repositorio.
+# Render lee este archivo y crea el servicio; las variables marcadas con sync: false se completan a mano.
+services:
+  - type: web
+    name: negocios-inmobiliarios-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    branch: main
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      # URI de MongoDB Atlas (con la contraseña nueva)
+      - key: MONGODB_URI
+        sync: false
+      # Clave para firmar las sesiones: Render genera una al azar
+      - key: JWT_SECRET
+        generateValue: true
+      # Dirección del frontend en Vercel, más los links de prueba. Ej:
+      # https://negocios-inmobiliarios.vercel.app,https://negocios-inmobiliarios-*.vercel.app
+      - key: CORS_ORIGIN
+        sync: false
+      # cloudinary://API_KEY:API_SECRET@CLOUD_NAME (panel de Cloudinary → API Keys)
+      - key: CLOUDINARY_URL
+        sync: false

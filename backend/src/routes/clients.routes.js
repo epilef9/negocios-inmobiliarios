@@ -1,5 +1,10 @@
 const express = require('express');
 const router = express.Router();
+const authMiddleware = require('../middlewares/auth.middleware');
+const { requireAdmin } = authMiddleware;
+
+// Datos personales de clientes: solo el administrador (RF-09 / RNF-05)
+router.use(authMiddleware, requireAdmin);
 const clientsController = require('../controllers/clients.controller');
 
 // Obtener todos los clientes
