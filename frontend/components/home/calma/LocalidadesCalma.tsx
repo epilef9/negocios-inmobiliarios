@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
-import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades, obtenerPropiedades } from './datos';
+import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades, obtenerPropiedades } from '@/components/sitio/datos';
 
 export default function LocalidadesCalma() {
   const [localidades, setLocalidades] = useState<string[]>(LOCALIDADES_RESPALDO);

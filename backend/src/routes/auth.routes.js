@@ -22,6 +22,11 @@ router.put('/preferences', authMiddleware, requireAdmin, authController.updatePr
 router.get('/checklist', authMiddleware, authController.getChecklist);
 router.put('/checklist', authMiddleware, authController.updateChecklist);
 
+// Favoritos del usuario autenticado
+router.get('/favoritos', authMiddleware, authController.getFavoritos);
+router.put('/favoritos/:propertyId', authMiddleware, authController.agregarFavorito);
+router.delete('/favoritos/:propertyId', authMiddleware, authController.quitarFavorito);
+
 // Endpoint para cierre de sesion
 router.post('/logout', authController.logout);
 

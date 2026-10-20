@@ -44,6 +44,13 @@ export default function LoginPage() {
         password: password.trim(),
       });
 
+      // Volver a la página de la que vino (por ejemplo, al guardar un favorito). Solo rutas internas.
+      const volver = new URLSearchParams(window.location.search).get('volver');
+      if (volver && volver.startsWith('/') && !volver.startsWith('//')) {
+        router.push(volver);
+        return;
+      }
+
       // Redireccionar segun rol
       if (user.role === 'admin') {
         router.push('/admin');

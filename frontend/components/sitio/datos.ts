@@ -37,11 +37,3 @@ export const etiquetaOperacion: Record<string, string> = {
   alquiler: 'Alquiler',
   temporario: 'Por días',
 };
-
-export function precioVisible(p: ApiProperty) {
-  const formato = (valor: number) => valor.toLocaleString('es-AR');
-  const operacion = p.categoria_operacion || p.operation || '';
-  if (operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${formato(p.precioPorNocheUSD)} por noche`;
-  const base = p.moneda === 'ARS' ? `ARS ${formato(p.priceARS ?? p.price)}` : `USD ${formato(p.price)}`;
-  return operacion === 'alquiler' ? `${base} por mes` : base;
-}
