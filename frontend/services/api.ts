@@ -1,4 +1,6 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000/api";
+export const API_URL =
+	process.env.NEXT_PUBLIC_API_URL ??
+	(process.env.NODE_ENV === "production" ? "/api" : "http://localhost:4000/api");
 
 // Función base para comunicarse con la API
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -147,4 +149,3 @@ export const reorderProperties = (items: { id: string; orden: number }[]) =>
 		method: "PATCH",
 		body: JSON.stringify({ items }),
 	});
-
