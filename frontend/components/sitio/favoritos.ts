@@ -58,9 +58,10 @@ export function useFavoritos() {
       publicar(siguiente);
       try {
         publicar(yaEsta ? await quitarFavorito(propiedadId) : await agregarFavorito(propiedadId));
-      } catch {
+      } catch (error) {
         publicar(anterior);
-        throw new Error('No se pudo actualizar el favorito');
+        // Se conserva el motivo que manda el servidor (sesión vencida, propiedad inexistente, etc.)
+        throw error instanceof Error ? error : new Error('No se pudo actualizar el favorito');
       }
     },
     [user, router]
