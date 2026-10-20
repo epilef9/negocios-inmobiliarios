@@ -1,449 +1,370 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import Navbar from "@/components/Navbar";
-import Filtros, { type PropertyFilters } from "@/components/Filtros";
-import PropiedadCard from "@/components/PropiedadCard";
+import { useSearchParams } from "next/navigation";
+import SitioBase from "@/components/sitio/SitioBase";
+import Revelar from "@/components/sitio/Revelar";
+import TarjetaPropiedad from "@/components/sitio/TarjetaPropiedad";
+import { useDolarBlue } from "@/components/sitio/precio";
+import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades } from "@/components/sitio/datos";
+import { WHATSAPP_URL } from "@/components/sitio/SiteFooter";
+import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
-import { useTheme } from "@/context/ThemeContext";
 
-// Valores y opciones que usan los filtros del catálogo
-const initialFilters: PropertyFilters = {
-	operation: "",
-	location: "",
-	propertyType: "",
-	minPrice: "",
-	maxPrice: "",
-	rooms: "",
-	amenities: "",
-	status: "",
-};
-const normalize = (value: string) => value.toLocaleLowerCase("es").trim();
-const unique = (values: (string | undefined)[]) =>
-	[...new Set(values.filter((value): value is string => Boolean(value)))].sort((a, b) =>
-		a.localeCompare(b, "es")
-	);
-const uniqueNumbers = (values: number[]) => [...new Set(values)].sort((a, b) => a - b);
-const operationOptions = ["venta", "alquiler", "temporario"];
-const propertyTypeOptions = ["departamento", "local", "casa", "monoambiente", "terreno"];
-const statusOptions = ["disponible", "reservado", "alquilado", "vendido"];
-const amenityOptions = [
-	{ value: "aire", label: "Aire acondicionado" },
-	{ value: "ascensor", label: "Ascensor" },
-	{ value: "cocina", label: "Cocina equipada" },
-	{ value: "balcon", label: "Balcón" },
-	{ value: "wifi", label: "Wifi" },
-	{ value: "tv", label: "TV" },
-	{ value: "seguridad", label: "Seguridad 24h" },
-	{ value: "cochera_cubierta", label: "Cochera cubierta" },
-	{ value: "calefaccion", label: "Calefacción" },
-	{ value: "pileta", label: "Pileta" },
-	{ value: "parrilla", label: "Parrilla" },
-	{ value: "laundry", label: "Laundry" },
+const POR_PAGINA = 9;
+
+type Orden = "destacadas" | "recientes" | "menor" | "mayor";
+
+const ORDENES: { value: Orden; label: string }[] = [
+	{ value: "destacadas", label: "Destacadas" },
+	{ value: "recientes", label: "Más recientes" },
+	{ value: "menor", label: "Menor precio" },
+	{ value: "mayor", label: "Mayor precio" },
 ];
 
-// Mantener el filtro de operación si viene desde otra página
-const getInitialFilters = (): PropertyFilters => {
-	if (typeof window === "undefined") return initialFilters;
-	const operation = new URLSearchParams(window.location.search).get("operacion") || "";
-	return operationOptions.includes(operation) ? { ...initialFilters, operation } : initialFilters;
+// Título animado: HTML fijo para que React no reconcilie los nodos que divide GSAP
+const TITULO = "Propiedades";
+
+// Filtros que llegan en la dirección desde otra página (por ejemplo, el buscador del Home)
+const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
+	const operation = params.get("operacion") || "";
+	const propertyType = params.get("tipo") || "";
+	return {
+		...FILTROS_VACIOS,
+		operation: OPERACIONES.some((o) => o.value === operation) ? operation : "",
+		propertyType: TIPOS.some((t) => t.value === propertyType) ? propertyType : "",
+		location: (params.get("ubicacion") || "").slice(0, 100),
+	};
 };
 
+const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
+	const operacion = p.categoria_operacion || p.operation || p.category || "";
+	const tipo = p.tipo_inmueble || p.propertyType || "";
+	const estado = p.estado || p.status || "";
+	const comodidades = p.comodidades || p.amenities || [];
+	const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+	return (
+		(!f.operation || normalizar(operacion) === f.operation) &&
+		(!f.location || normalizar(p.ciudad) === normalizar(f.location)) &&
+		(!f.propertyType || normalizar(tipo) === f.propertyType) &&
+		(!f.minPrice || p.price >= Number(f.minPrice)) &&
+		(!f.maxPrice || p.price <= Number(f.maxPrice)) &&
+		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&
+		(!f.amenities || comodidades.includes(f.amenities)) &&
+		(!f.status || normalizar(estado) === f.status)
+	);
+};
+
+// La dirección se lee con useSearchParams: al navegar desde otra página, window.location
+// todavía no está actualizada durante el render, y los filtros se perdían.
 export default function PropiedadesPage() {
+	return (
+		<Suspense fallback={<main className="min-h-dvh bg-[#071733]" />}>
+			<PropiedadesConFiltros />
+		</Suspense>
+	);
+}
+
+function PropiedadesConFiltros() {
+	const searchParams = useSearchParams();
+	const clave = searchParams.toString();
+	// La clave remonta el catálogo cuando cambian los filtros de la dirección
+	return <Catalogo key={clave} filtrosIniciales={filtrosDeLaDireccion(new URLSearchParams(clave))} />;
+}
+
+function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }) {
 	const { user } = useAuth();
-	const { currentPalette } = useTheme();
+	const esAdmin = user?.role === "admin";
+	const blue = useDolarBlue();
 
-	const [properties, setProperties] = useState<ApiProperty[]>([]);
-	const [filters, setFilters] = useState(getInitialFilters);
-	const [appliedFilters, setAppliedFilters] = useState(getInitialFilters);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState("");
+	const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
+	const [localidades, setLocalidades] = useState<string[]>(LOCALIDADES_RESPALDO);
+	const [filtros, setFiltros] = useState(filtrosIniciales);
+	const [orden, setOrden] = useState<Orden>("destacadas");
+	const [visibles, setVisibles] = useState(POR_PAGINA);
+	const [estado, setEstado] = useState<"cargando" | "listo" | "error">("cargando");
 
-	// Estados del Modo Administrador para edición del catálogo en caliente
-	const [adminEditMode, setAdminEditMode] = useState(false);
-	const [hasUnsavedOrder, setHasUnsavedOrder] = useState(false);
-	const [toast, setToast] = useState<string | null>(null);
+	const [reordenando, setReordenando] = useState(false);
+	const [ordenSinGuardar, setOrdenSinGuardar] = useState(false);
+	const [guardandoOrden, setGuardandoOrden] = useState(false);
+	const [aviso, setAviso] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
 
-	// Cargar las propiedades cuando se abre el catálogo
-	useEffect(() => {
+	// Pide las propiedades; el estado "cargando" se pone antes de llamarla (al inicio ya lo está)
+	const pedir = useCallback(() => {
 		getProperties()
-			.then((data) => {
-				let sorted = [...(data || [])];
-				try {
-					const cachedOrder = localStorage.getItem("inmobiliaria_custom_catalog_order");
-					if (cachedOrder) {
-						const orderMap = JSON.parse(cachedOrder) as Record<string, number>;
-						sorted.sort((a, b) => {
-							const orderA = orderMap[a._id] !== undefined ? orderMap[a._id] : (a.orden ?? 9999);
-							const orderB = orderMap[b._id] !== undefined ? orderMap[b._id] : (b.orden ?? 9999);
-							return orderA - orderB;
-						});
-					}
-				} catch {
-					// ignore
-				}
-				setProperties(sorted);
+			.then((datos) => {
+				setPropiedades(datos ?? []);
+				setEstado("listo");
 			})
-			.catch((reason: unknown) =>
-				setError(reason instanceof Error ? reason.message : "No se pudieron obtener las propiedades.")
-			)
-			.finally(() => setLoading(false));
+			.catch(() => setEstado("error"));
 	}, []);
 
-	// Mover propiedad hacia arriba en caliente
-	const movePropertyUp = (propertyId: string) => {
-		const index = properties.findIndex((p) => p._id === propertyId);
-		if (index <= 0) return;
-		const updated = [...properties];
-		const temp = updated[index - 1];
-		updated[index - 1] = updated[index];
-		updated[index] = temp;
-		setProperties(updated);
-		setHasUnsavedOrder(true);
+	useEffect(() => {
+		pedir();
+		obtenerLocalidades().then(setLocalidades);
+	}, [pedir]);
+
+	const reintentar = () => {
+		setEstado("cargando");
+		pedir();
 	};
 
-	// Mover propiedad hacia abajo en caliente
-	const movePropertyDown = (propertyId: string) => {
-		const index = properties.findIndex((p) => p._id === propertyId);
-		if (index === -1 || index >= properties.length - 1) return;
-		const updated = [...properties];
-		const temp = updated[index + 1];
-		updated[index + 1] = updated[index];
-		updated[index] = temp;
-		setProperties(updated);
-		setHasUnsavedOrder(true);
+	useEffect(() => {
+		if (!aviso) return;
+		const t = setTimeout(() => setAviso(null), 4000);
+		return () => clearTimeout(t);
+	}, [aviso]);
+
+	// Las localidades de la lista oficial más las que aparezcan en propiedades cargadas
+	const opcionesLocalidad = useMemo(() => {
+		const todas = new Map<string, string>();
+		[...localidades, ...propiedades.map((p) => p.ciudad || "")].forEach((nombre) => {
+			if (nombre) todas.set(normalizar(nombre), nombre);
+		});
+		return [...todas.values()].sort((a, b) => a.localeCompare(b, "es"));
+	}, [localidades, propiedades]);
+
+	const resultado = useMemo(() => {
+		// Mientras el admin reordena se ve el catálogo completo en su orden real
+		if (reordenando) return propiedades;
+		const lista = propiedades.filter((p) => cumpleFiltros(p, filtros));
+		const fecha = (p: ApiProperty) => (p.createdAt ? Date.parse(p.createdAt) : 0);
+		if (orden === "recientes") return [...lista].sort((a, b) => fecha(b) - fecha(a));
+		if (orden === "menor") return [...lista].sort((a, b) => a.price - b.price);
+		if (orden === "mayor") return [...lista].sort((a, b) => b.price - a.price);
+		return lista;
+	}, [propiedades, filtros, orden, reordenando]);
+
+	const mostradas = reordenando ? resultado : resultado.slice(0, visibles);
+	const restantes = resultado.length - mostradas.length;
+
+	const cambiarFiltros = (nuevos: FiltrosPropiedades) => {
+		setFiltros(nuevos);
+		setVisibles(POR_PAGINA);
 	};
 
-	// Mover al primer lugar (#1)
-	const movePropertyToFirst = (propertyId: string) => {
-		const index = properties.findIndex((p) => p._id === propertyId);
-		if (index <= 0) return;
-		const updated = [...properties];
-		const [selected] = updated.splice(index, 1);
-		updated.unshift(selected);
-		setProperties(updated);
-		setHasUnsavedOrder(true);
+	// Reordenamiento (solo administrador)
+	const mover = (id: string, destino: "inicio" | "arriba" | "abajo" | "final") => {
+		setPropiedades((lista) => {
+			const i = lista.findIndex((p) => p._id === id);
+			if (i === -1) return lista;
+			const copia = [...lista];
+			const [elegida] = copia.splice(i, 1);
+			const nuevo = destino === "inicio" ? 0 : destino === "final" ? copia.length : destino === "arriba" ? Math.max(0, i - 1) : Math.min(copia.length, i + 1);
+			copia.splice(nuevo, 0, elegida);
+			return copia;
+		});
+		setOrdenSinGuardar(true);
 	};
 
-	// Mover al último lugar
-	const movePropertyToLast = (propertyId: string) => {
-		const index = properties.findIndex((p) => p._id === propertyId);
-		if (index === -1 || index >= properties.length - 1) return;
-		const updated = [...properties];
-		const [selected] = updated.splice(index, 1);
-		updated.push(selected);
-		setProperties(updated);
-		setHasUnsavedOrder(true);
-	};
-
-	// Guardar el nuevo orden definido por el admin
-	const saveCurrentOrder = async () => {
+	const guardarOrden = async () => {
+		setGuardandoOrden(true);
 		try {
-			const items = properties.map((p, idx) => ({
-				id: p._id,
-				orden: idx + 1,
-			}));
-
-			await reorderProperties(items).catch(() => {});
-
-			const orderMap: Record<string, number> = {};
-			items.forEach((item) => {
-				orderMap[item.id] = item.orden;
-			});
-			localStorage.setItem("inmobiliaria_custom_catalog_order", JSON.stringify(orderMap));
-			localStorage.setItem("inmobiliaria_catalog_updated_at", new Date().toISOString());
-
-			setHasUnsavedOrder(false);
-			setToast("¡Orden de catálogo actualizado y publicado exitosamente!");
-			setTimeout(() => setToast(null), 3500);
-		} catch {
-			setToast("Error al guardar en el servidor. Guardado localmente.");
-			setTimeout(() => setToast(null), 3500);
+			await reorderProperties(propiedades.map((p, i) => ({ id: p._id, orden: i + 1 })));
+			setOrdenSinGuardar(false);
+			setAviso({ tipo: "ok", texto: "Orden guardado. Así se ve ahora el catálogo." });
+		} catch (e) {
+			setAviso({ tipo: "error", texto: e instanceof Error ? `No se guardó el orden: ${e.message}` : "No se guardó el orden. Probá de nuevo." });
+		} finally {
+			setGuardandoOrden(false);
 		}
 	};
 
-	// Aplicar los filtros seleccionados sobre las propiedades obtenidas
-	const filteredProperties = properties.filter((property) => {
-		const operation = property.categoria_operacion || property.operation || property.category || "";
-		const type = property.tipo_inmueble || property.propertyType || "";
-		const status = property.estado || property.status || "";
-		const amenities = property.comodidades || property.amenities || [];
-		const rooms = property.cantidad_ambientes;
-		return (
-			(!appliedFilters.operation || normalize(operation) === normalize(appliedFilters.operation)) &&
-			(!appliedFilters.location || normalize(property.ciudad || "") === normalize(appliedFilters.location)) &&
-			(!appliedFilters.propertyType || normalize(type) === normalize(appliedFilters.propertyType)) &&
-			(!appliedFilters.minPrice || property.price >= Number(appliedFilters.minPrice)) &&
-			(!appliedFilters.maxPrice || property.price <= Number(appliedFilters.maxPrice)) &&
-			(!appliedFilters.rooms || (rooms !== undefined && rooms === Number(appliedFilters.rooms))) &&
-			(!appliedFilters.amenities || amenities.includes(appliedFilters.amenities)) &&
-			(!appliedFilters.status || normalize(status) === normalize(appliedFilters.status))
-		);
-	});
-
-	// Armar las opciones disponibles según los datos cargados
-	const options = {
-		operations: operationOptions,
-		locations: unique(properties.map((property) => property.ciudad)),
-		types: propertyTypeOptions,
-		rooms: uniqueNumbers(
-			properties.flatMap((property) =>
-				property.cantidad_ambientes === undefined ? [] : [property.cantidad_ambientes]
-			)
-		),
-		amenities: amenityOptions,
-		statuses: statusOptions,
-	};
-
-	const isAdmin = user?.role === "admin";
+	const consultaWhatsApp = `${WHATSAPP_URL}?text=${encodeURIComponent("Hola, estoy buscando una propiedad y no encontré lo que necesito en la web. ¿Me pueden ayudar?")}`;
 
 	return (
-		<main className="min-h-dvh bg-[#f7f8fa] font-sans text-[#141a2b]">
-			{/* Toast Notificación */}
-			{toast && (
-				<div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-emerald-600 text-white shadow-2xl animate-fade-in-up border border-emerald-400">
-					<svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-						<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-					</svg>
-					<span className="text-sm font-bold">{toast}</span>
-				</div>
-			)}
+		<SitioBase>
+			<Revelar>
+				<header className="flex flex-col gap-10 px-5 pb-10 pt-32 sm:px-10 lg:pt-40">
+					<div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
+						<h1
+							data-reveal="lineas"
+							data-motion-hide
+							className="font-display m-0 text-[clamp(64px,10vw,160px)] font-normal leading-[0.9] tracking-[-0.02em]"
+							dangerouslySetInnerHTML={{ __html: TITULO }}
+						/>
+						<p className="max-w-sm pb-3 text-[16px] leading-relaxed text-[#efe9df]/70">
+							Casas, departamentos, locales y terrenos en Villa Libertador San Martín, Crespo y Diamante.
+						</p>
+					</div>
+					{!reordenando && (
+						<FiltrosCatalogo
+							filtros={filtros}
+							localidades={opcionesLocalidad}
+							onCambiar={cambiarFiltros}
+							onLimpiar={() => cambiarFiltros(FILTROS_VACIOS)}
+						/>
+					)}
+				</header>
+			</Revelar>
 
-			{/* BARRA EXCLUSIVA PARA EL ADMINISTRADOR */}
-			{isAdmin && (
-				<aside
-					aria-label="Barra de herramientas de administrador"
-					className="sticky top-0 z-50 w-full px-4 py-2.5 backdrop-blur-md text-white shadow-lg border-b border-white/20 transition-all"
-					style={{
-						backgroundColor: currentPalette.primary === '#0A193D' ? 'rgba(10, 25, 61, 0.95)' : currentPalette.primary,
-					}}
-				>
-					<div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-						<div className="flex items-center gap-2.5">
-							<span className="flex h-2.5 w-2.5 relative">
-								<span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-								<span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500" />
-							</span>
-							<span className="text-xs font-bold tracking-tight">
-								👑 Modo Administrador
-							</span>
-							<span className="hidden sm:inline text-[11px] text-white/70">
-								(Estás viendo el catálogo como cliente con herramientas de edición)
-							</span>
-						</div>
-
-						<div className="flex items-center gap-2">
-							{/* Switch para activar reordenamiento en caliente */}
+			{esAdmin && (
+				<aside aria-label="Herramientas de administración" className="mx-5 mb-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#efe9df]/15 bg-[#0b2048] px-5 py-4 sm:mx-10">
+					<p className="m-0 text-[14px] text-[#efe9df]/80">
+						{reordenando
+							? "Mové las propiedades para definir en qué orden aparecen en el catálogo y en el inicio."
+							: "Estás viendo el catálogo como administrador."}
+					</p>
+					<div className="flex flex-wrap items-center gap-3">
+						{ordenSinGuardar && (
 							<button
 								type="button"
-								onClick={() => setAdminEditMode(!adminEditMode)}
-								className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
-									adminEditMode
-										? "bg-amber-400 text-slate-900 shadow-md ring-2 ring-amber-300"
-										: "bg-white/15 hover:bg-white/25 text-white"
-								}`}
+								onClick={guardarOrden}
+								disabled={guardandoOrden}
+								className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-5 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white disabled:opacity-60"
 							>
-								<span>{adminEditMode ? "✓ Modo Reordenar Activo" : "🔀 Reordenar desde aquí"}</span>
+								<span className="calma-dot" aria-hidden="true" />
+								{guardandoOrden ? "Guardando…" : "Guardar orden"}
 							</button>
-
-							{hasUnsavedOrder && (
-								<button
-									type="button"
-									onClick={saveCurrentOrder}
-									className="px-3.5 py-1.5 rounded-lg text-xs font-extrabold text-white shadow-md animate-pulse transition cursor-pointer"
-									style={{ backgroundColor: currentPalette.accent }}
-								>
-									💾 Guardar Nuevo Orden
-								</button>
-							)}
-
-							<Link
-								href="/admin/catalogo"
-								className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-white/10 hover:bg-white/20 transition flex items-center gap-1"
-							>
-								<span>Organizador Completo</span>
-								<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-									<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-								</svg>
-							</Link>
-
-							<Link
-								href="/admin"
-								className="px-3 py-1.5 rounded-lg text-xs font-semibold text-white/80 hover:text-white hover:bg-white/10 transition"
-							>
-								Panel Admin
-							</Link>
-						</div>
+						)}
+						<button
+							type="button"
+							onClick={() => setReordenando((v) => !v)}
+							aria-pressed={reordenando}
+							className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[12px] transition-colors hover:border-[#efe9df]"
+						>
+							{reordenando ? "Terminar de reordenar" : "Reordenar catálogo"}
+						</button>
+						<Link href="/admin/catalogo" className="calma-micro calma-link calma-link-sutil">
+							Organizador completo
+						</Link>
 					</div>
 				</aside>
 			)}
 
-			{/* Encabezado del catálogo */}
-			<section className="relative overflow-hidden bg-[#071a52] px-5 pb-16 pt-32 text-white sm:px-8 lg:px-12 lg:pb-20">
-				<Navbar />
-				<div className="relative mx-auto grid max-w-7xl gap-10 lg:grid-cols-[minmax(0,1fr)_280px] lg:items-end">
-					<div>
-						<p className="mb-4 flex items-center gap-3 text-xs font-bold uppercase tracking-[0.22em] text-[#f47e73]">
-							<span className="h-px w-8 bg-[#f47e73]" />
-							Catálogo inmobiliario
+			<section aria-label="Resultados" className="px-5 pb-20 sm:px-10">
+				{estado === "listo" && propiedades.length > 0 && !reordenando && (
+					<div className="mb-10 flex flex-wrap items-center justify-between gap-4">
+						<p aria-live="polite" className="m-0 text-[15px] text-[#efe9df]/80">
+							{resultado.length === 1 ? "1 propiedad" : `${resultado.length} propiedades`}
 						</p>
-						<h1 className="max-w-3xl font-fraunces text-5xl font-semibold leading-[0.98] tracking-tight sm:text-6xl lg:text-7xl">
-							Encontrá un lugar que se sienta tuyo.
-						</h1>
-						<p className="mt-6 max-w-xl text-base leading-relaxed text-white/70 sm:text-lg">
-							Explorá nuestra selección de propiedades y encontrá el espacio que acompaña tu próxima etapa.
-						</p>
+						<label className="flex items-center gap-3 text-[14px] text-[#efe9df]/70">
+							Ordenar por
+							<select
+								value={orden}
+								onChange={(e) => setOrden(e.target.value as Orden)}
+								className="font-display cursor-pointer border-0 border-b border-[#efe9df]/30 bg-transparent pb-1 text-[20px] text-[#efe9df] [&>option]:text-[#071733]"
+							>
+								{ORDENES.map((o) => (
+									<option key={o.value} value={o.value}>
+										{o.label}
+									</option>
+								))}
+							</select>
+						</label>
 					</div>
-					<div className="relative border-l border-white/20 pl-5 text-sm text-white/70">
-						{isAdmin && (
-							<div className="p-3 rounded-xl bg-white/10 backdrop-blur-sm text-xs">
-								<p className="font-bold text-white mb-1">🛠️ Opciones de Administrador</p>
-								<p className="text-white/80">
-									Activá el &ldquo;Modo Reordenar&rdquo; arriba para acomodar las tarjetas a tu gusto.
-								</p>
+				)}
+
+				{estado === "cargando" && (
+					<div aria-busy="true" aria-label="Cargando propiedades" className="grid gap-x-6 gap-y-14 md:grid-cols-2 lg:grid-cols-3">
+						{Array.from({ length: 6 }, (_, i) => (
+							<div key={i} className="flex flex-col gap-4">
+								<div className="calma-brillo aspect-[4/3]" />
+								<div className="calma-brillo h-4 w-2/5" />
+								<div className="calma-brillo h-7 w-4/5" />
 							</div>
-						)}
+						))}
 					</div>
-				</div>
-				<div className="absolute -bottom-20 -right-12 h-64 w-64 rounded-full border border-white/10" aria-hidden="true" />
-				<div className="absolute bottom-0 left-0 h-px w-1/3 bg-[#d9382b]" aria-hidden="true" />
+				)}
+
+				{estado === "error" && (
+					<div role="alert" className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
+						<p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">No pudimos cargar las propiedades.</p>
+						<p className="m-0 text-[15px] text-[#efe9df]/70">Puede ser un problema de conexión. Probá de nuevo en un momento.</p>
+						<button type="button" onClick={reintentar} className="calma-micro rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors hover:border-[#efe9df]">
+							Reintentar
+						</button>
+					</div>
+				)}
+
+				{estado === "listo" && resultado.length === 0 && (
+					<div className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
+						<p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">
+							{propiedades.length === 0 ? "Todavía no hay propiedades publicadas." : "No hay propiedades con esos filtros."}
+						</p>
+						<p className="m-0 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/70">
+							Contanos qué buscás y te avisamos cuando entre algo parecido.
+						</p>
+						<div className="flex flex-wrap gap-3">
+							{propiedades.length > 0 && (
+								<button type="button" onClick={() => cambiarFiltros(FILTROS_VACIOS)} className="calma-micro rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors hover:border-[#efe9df]">
+									Limpiar filtros
+								</button>
+							)}
+							<a href={consultaWhatsApp} target="_blank" rel="noreferrer" className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white">
+								<span className="calma-dot" aria-hidden="true" />
+								Consultar por WhatsApp
+							</a>
+						</div>
+					</div>
+				)}
+
+				{estado === "listo" && mostradas.length > 0 && (
+					<ul className="m-0 grid list-none gap-x-6 gap-y-14 p-0 md:grid-cols-2 lg:grid-cols-3">
+						{mostradas.map((propiedad, indice) => (
+							<li key={propiedad._id} className="flex flex-col gap-3">
+								{reordenando && (
+									<div className="flex items-center justify-between gap-2 rounded-xl bg-[#0b2048] px-3 py-2">
+										<span className="calma-micro text-[#efe9df]">
+											{indice === 0 ? "Primera" : `Posición ${indice + 1}`}
+										</span>
+										<span className="flex gap-1">
+											{(
+												[
+													["inicio", "Llevar al principio", "M6 5h12M12 19V9m-5 5 5-5 5 5"],
+													["arriba", "Subir un lugar", "M12 19V5m-6 6 6-6 6 6"],
+													["abajo", "Bajar un lugar", "M12 5v14m6-6-6 6-6-6"],
+													["final", "Llevar al final", "M6 19h12M12 5v10m5-5-5 5-5-5"],
+												] as const
+											).map(([destino, texto, trazo]) => (
+												<button
+													key={destino}
+													type="button"
+													onClick={() => mover(propiedad._id, destino)}
+													disabled={(destino === "inicio" || destino === "arriba") ? indice === 0 : indice === mostradas.length - 1}
+													aria-label={`${texto}: ${propiedad.title}`}
+													title={texto}
+													className="flex h-11 w-11 items-center justify-center rounded-lg text-[#efe9df] transition-colors hover:bg-[#efe9df]/10 disabled:opacity-30"
+												>
+													<svg aria-hidden="true" viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+														<path d={trazo} />
+													</svg>
+												</button>
+											))}
+										</span>
+									</div>
+								)}
+								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} />
+							</li>
+						))}
+					</ul>
+				)}
+
+				{estado === "listo" && restantes > 0 && (
+					<div className="mt-16 flex justify-center">
+						<button
+							type="button"
+							onClick={() => setVisibles((v) => v + POR_PAGINA)}
+							className="calma-micro rounded-full border border-[#efe9df]/40 px-8 py-4 text-[12px] transition-colors hover:border-[#efe9df] hover:bg-[#efe9df]/5"
+						>
+							Ver más propiedades ({restantes})
+						</button>
+					</div>
+				)}
 			</section>
 
-			{/* Filtros y resultados */}
-			<section className="relative mx-auto max-w-7xl px-5 py-10 sm:px-8 lg:px-12 lg:py-16">
-				<div className="mb-8 flex flex-col gap-4 border-b border-[#dfe5ef] pb-6 sm:flex-row sm:items-end sm:justify-between">
-					<div>
-						<p className="mb-2 text-xs font-bold uppercase tracking-[0.18em] text-[#d9382b]">
-							Explorá a tu ritmo
-						</p>
-						<h2 className="font-fraunces text-3xl font-semibold text-[#071a52] sm:text-4xl">
-							Propiedades disponibles
-						</h2>
-					</div>
-					<div className="flex items-center gap-4">
-						<p className="text-sm text-[#69707f]">
-							<strong className="text-xl text-[#071a52]">{filteredProperties.length}</strong>
-							<span className="ml-1">resultados</span>
-						</p>
-					</div>
+			{aviso && (
+				<div
+					role={aviso.tipo === "error" ? "alert" : "status"}
+					className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full px-6 py-3.5 text-[14px] shadow-[0_18px_40px_rgba(0,0,0,0.35)] ${
+						aviso.tipo === "error" ? "bg-[#d9382b] text-white" : "bg-[#efe9df] text-[#071733]"
+					}`}
+				>
+					{aviso.texto}
 				</div>
-
-				<div className="grid gap-8 lg:grid-cols-[280px_minmax(0,1fr)] lg:items-start">
-					<Filtros
-						filters={filters}
-						onChange={setFilters}
-						onApply={(event) => {
-							event.preventDefault();
-							setAppliedFilters(filters);
-						}}
-						onClear={() => {
-							setFilters(initialFilters);
-							setAppliedFilters(initialFilters);
-						}}
-						options={options}
-					/>
-
-					<div>
-						{loading ? (
-							<div className="rounded-2xl border border-[#dfe5ef] bg-white p-12 text-center text-sm text-[#69707f]">
-								Cargando propiedades...
-							</div>
-						) : error ? (
-							<div role="alert" className="rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
-								{error}
-							</div>
-						) : filteredProperties.length === 0 ? (
-							<div className="rounded-2xl border border-dashed border-[#bdccef] bg-white p-12 text-center">
-								<h3 className="text-lg font-bold text-[#141a2b]">No encontramos propiedades</h3>
-								<p className="mt-2 text-sm text-[#69707f]">
-									Probá cambiar los filtros para ampliar la búsqueda.
-								</p>
-							</div>
-						) : (
-							<div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-								{filteredProperties.map((property) => {
-									const globalIdx = properties.findIndex((p) => p._id === property._id);
-									const positionNum = globalIdx + 1;
-									const isFirst = globalIdx === 0;
-									const isLast = globalIdx === properties.length - 1;
-
-									return (
-										<div
-											key={property._id}
-											className={`relative group/admin-card transition-all ${
-												isAdmin && adminEditMode ? "card-floating-edit" : ""
-											}`}
-										>
-											{/* Barra de control para el administrador si está activo el modo reordenar */}
-											{isAdmin && adminEditMode && (
-												<div className="mb-2.5 p-2 rounded-xl bg-slate-900 text-white shadow-xl flex items-center justify-between text-xs border border-white/20 animate-fade-in-up">
-													<div className="flex items-center gap-1.5">
-														<span className="w-6 h-6 rounded-md bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[11px]">
-															#{positionNum}
-														</span>
-														{isFirst && (
-															<span className="text-[10px] font-bold text-amber-300">
-																★ Portada
-															</span>
-														)}
-													</div>
-
-													<div className="flex items-center gap-1">
-														<button
-															type="button"
-															onClick={() => movePropertyToFirst(property._id)}
-															disabled={isFirst}
-															title="Llevar arriba del todo"
-															className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-[10px] font-bold"
-														>
-															⏫ Inicio
-														</button>
-														<button
-															type="button"
-															onClick={() => movePropertyUp(property._id)}
-															disabled={isFirst}
-															title="Mover antes"
-															className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30"
-														>
-															<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 15l7-7 7 7" />
-															</svg>
-														</button>
-														<button
-															type="button"
-															onClick={() => movePropertyDown(property._id)}
-															disabled={isLast}
-															title="Mover después"
-															className="p-1 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30"
-														>
-															<svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-																<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-															</svg>
-														</button>
-														<button
-															type="button"
-															onClick={() => movePropertyToLast(property._id)}
-															disabled={isLast}
-															title="Llevar abajo del todo"
-															className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 disabled:opacity-30 text-[10px] font-bold"
-														>
-															⏬ Final
-														</button>
-													</div>
-												</div>
-											)}
-
-											<PropiedadCard property={property} />
-										</div>
-									);
-								})}
-							</div>
-						)}
-					</div>
-				</div>
-			</section>
-		</main>
+			)}
+		</SitioBase>
 	);
 }

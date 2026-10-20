@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Fraunces, Public_Sans } from "next/font/google";
+import { Geist, Geist_Mono, Fraunces, Public_Sans, Instrument_Serif } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -24,6 +24,12 @@ const publicSans = Public_Sans({
   weight: ["400", "500", "600", "700"],
 });
 
+const instrumentSerif = Instrument_Serif({
+  variable: "--font-instrument",
+  subsets: ["latin"],
+  weight: "400",
+});
+
 export const metadata: Metadata = {
   title: "Negocios Inmobiliarios | Propiedades exclusivas",
   description:
@@ -38,6 +44,9 @@ import { ThemeProvider } from "../context/ThemeContext";
 // Esto evita el flash de texto blanco sobre fondo claro.
 const themeScript = `(function(){
   try {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: no-preference)').matches) {
+      document.documentElement.classList.add('motion-ok');
+    }
     var t = localStorage.getItem('inmobiliaria_theme');
     var root = document.documentElement;
     if (t === 'dark') {
@@ -59,7 +68,7 @@ export default function RootLayout({
     <html
       lang="es"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${publicSans.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} ${publicSans.variable} ${instrumentSerif.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         {/*

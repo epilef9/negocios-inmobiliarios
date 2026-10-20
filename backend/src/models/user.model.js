@@ -37,6 +37,11 @@ const userSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    // Propiedades que el usuario guardó como favoritas
+    favoritos: {
+        type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Property' }],
+        default: []
+    },
     preferencias: {
         tema: {
             type: String,
