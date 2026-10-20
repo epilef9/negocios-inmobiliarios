@@ -331,3 +331,16 @@ html.home-calma ::-webkit-scrollbar-thumb { background: #2b4677; border-radius: 
 @media (prefers-reduced-motion: reduce) {
   .calma-brillo { animation: none; background: #0e2652; }
 }
+
+/* Cambio de contenido dentro de una página (por ejemplo, otra guía de requisitos) */
+.calma-aparecer {
+  animation: calma-aparecer 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes calma-aparecer {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .calma-aparecer { animation: calma-aparecer-suave 0.3s ease-out; }
+  @keyframes calma-aparecer-suave { from { opacity: 0; } to { opacity: 1; } }
+}
