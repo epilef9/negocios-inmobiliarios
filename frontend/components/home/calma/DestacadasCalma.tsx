@@ -1,52 +1,15 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
-import { animarRevelados } from './motion';
-import { etiquetaOperacion, obtenerPropiedades, precioVisible } from './datos';
-
-function Tarjeta({ propiedad, grande }: { propiedad: ApiProperty; grande?: boolean }) {
-  const imagen = propiedad.images?.[0];
-  const operacion = etiquetaOperacion[propiedad.categoria_operacion || ''] ?? 'Propiedad';
-  const lugar = propiedad.ciudad || propiedad.location;
-
-  return (
-    <Link href={`/propiedades/${propiedad._id}`} data-cursor="ver" className="group flex flex-col gap-[18px]">
-      <div
-        data-reveal="imagen"
-        data-motion-hide
-        className={`relative overflow-hidden bg-[#0e2652] ${grande ? 'h-[min(600px,70vw)]' : 'h-[min(260px,60vw)]'}`}
-      >
-        {imagen ? (
-          <div data-parallax className="absolute inset-0">
-            {/* eslint-disable-next-line @next/next/no-img-element -- las imágenes vienen del backend con dominio variable */}
-            <img
-              src={imagen}
-              alt={propiedad.title}
-              className="h-full w-full object-cover transition-transform duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] motion-reduce:transition-none"
-            />
-          </div>
-        ) : (
-          <div className="flex h-full items-center justify-center text-[13px] text-[#efe9df]/70">Sin foto todavía</div>
-        )}
-      </div>
-      <div className="flex flex-wrap items-baseline justify-between gap-4">
-        <span className="flex flex-col gap-1.5">
-          <span className="calma-micro text-[#efe9df]/70">
-            {operacion}
-            {lugar ? ` en ${lugar}` : ''}
-          </span>
-          <span className={`font-display ${grande ? 'text-[34px]' : 'text-[28px]'} leading-tight`}>{propiedad.title}</span>
-        </span>
-        <span className="text-[15px]">{precioVisible(propiedad)}</span>
-      </div>
-    </Link>
-  );
-}
+import { animarRevelados } from '@/components/sitio/motion';
+import { obtenerPropiedades } from '@/components/sitio/datos';
+import { useDolarBlue } from '@/components/sitio/precio';
+import TarjetaPropiedad from '@/components/sitio/TarjetaPropiedad';
 
 export default function DestacadasCalma() {
   const ref = useRef<HTMLDivElement>(null);
+  const blue = useDolarBlue();
   const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
   const [estado, setEstado] = useState<'cargando' | 'listo' | 'error'>('cargando');
 
@@ -93,12 +56,12 @@ export default function DestacadasCalma() {
   return (
     <div ref={ref} className="grid gap-10 lg:grid-cols-12 lg:gap-6">
       <div className="lg:col-span-7">
-        <Tarjeta propiedad={principal} grande />
+        <TarjetaPropiedad propiedad={principal} blue={blue} tamano="grande" />
       </div>
       {resto.length > 0 && (
         <div className="flex flex-col gap-10 lg:col-span-5 lg:gap-8 lg:pt-16">
           {resto.map((propiedad) => (
-            <Tarjeta key={propiedad._id} propiedad={propiedad} />
+            <TarjetaPropiedad key={propiedad._id} propiedad={propiedad} blue={blue} />
           ))}
         </div>
       )}

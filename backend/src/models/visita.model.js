@@ -91,7 +91,8 @@ const visitaSchema = new mongoose.Schema(
     }
 );
 
-visitaSchema.pre('save', function (next) {
+// Mongoose 9 ya no pasa next() a los hooks pre: con retornar alcanza
+visitaSchema.pre('save', function () {
     if (!this.cliente?.iniciales && this.cliente?.nombre) {
         this.cliente.iniciales = this.cliente.nombre
             .split(' ')
@@ -100,7 +101,6 @@ visitaSchema.pre('save', function (next) {
             .map((word) => word[0]?.toUpperCase() || '')
             .join('') || 'CL';
     }
-    next();
 });
 
 const Visita = mongoose.model('Visita', visitaSchema);

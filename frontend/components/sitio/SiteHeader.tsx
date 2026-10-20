@@ -12,8 +12,8 @@ const enlaces = [
   { href: '/contacto', texto: 'Contacto' },
 ];
 
-// Barra del Home: se esconde al bajar, vuelve al subir y toma fondo cuando deja la foto
-export default function HomeHeader() {
+// Barra del sitio: se esconde al bajar, vuelve al subir y toma fondo al dejar el inicio de la página
+export default function SiteHeader() {
   const { user, isLoading, logout } = useAuth();
   const [oculta, setOculta] = useState(false);
   const [conFondo, setConFondo] = useState(false);
@@ -34,6 +34,9 @@ export default function HomeHeader() {
 
   const sesion = isLoading ? null : user ? (
     <>
+      <Link href="/favoritos" className="calma-link calma-link-sutil">
+        Favoritos
+      </Link>
       {user.role === 'admin' && (
         <Link href="/admin" className="calma-link calma-link-sutil">
           Panel

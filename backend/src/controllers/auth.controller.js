@@ -1,8 +1,10 @@
 // auth.controller.js
 // Controlador para endpoints de autenticacion
 
+const mongoose = require('mongoose');
 const authService = require('../services/auth.service');
 const User = require('../models/user.model');
+const Property = require('../models/property.model');
 
 // Registro de nuevo usuario (HU-05)
 exports.register = async (req, res) => {
@@ -56,6 +58,7 @@ exports.me = async (req, res) => {
             email: user.email,
             role: user.role,
             checklistRequisitos: user.checklistRequisitos || [],
+            favoritos: (user.favoritos || []).map(String),
             preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },
             createdAt: user.createdAt
         };
@@ -118,6 +121,61 @@ exports.updateChecklist = async (req, res) => {
             message: 'Error al actualizar el checklist del usuario',
             error: error.message 
         });
+    }
+};
+
+// Favoritos: ?detalle=1 devuelve las propiedades completas; si no, solo los ids
+exports.getFavoritos = async (req, res) => {
+    try {
+        const conDetalle = req.query.detalle === '1';
+        const query = User.findById(req.user._id).select('favoritos');
+        if (conDetalle) query.populate('favoritos');
+        const user = await query;
+        const favoritos = (user && user.favoritos) || [];
+        res.status(200).json({
+            // Si una propiedad fue eliminada, populate devuelve null: se descarta
+            data: conDetalle ? favoritos.filter(Boolean) : favoritos.map(String)
+        });
+    } catch (error) {
+        res.status(500).json({ message: 'No se pudieron obtener los favoritos' });
+    }
+};
+
+exports.agregarFavorito = async (req, res) => {
+    const { propertyId } = req.params;
+    if (!mongoose.isValidObjectId(propertyId)) {
+        return res.status(400).json({ message: 'El id de la propiedad no es válido' });
+    }
+    try {
+        const existe = await Property.exists({ _id: propertyId });
+        if (!existe) {
+            return res.status(404).json({ message: 'Propiedad no encontrada' });
+        }
+        const user = await User.findByIdAndUpdate(
+            req.user._id,
+            { $addToSet: { favoritos: propertyId }, $set: { updatedAt: Date.now() } },
+            { new: true }
+        ).select('favoritos');
+        res.status(200).json({ data: user.favoritos.map(String) });
+    } catch (error) {
+        res.status(500).json({ message: 'No se pudo guardar el favorito' });
+    }
+};
+
+exports.quitarFavorito = async (req, res) => {
+    const { propertyId } = req.params;
+    if (!mongoose.isValidObjectId(propertyId)) {
+        return res.status(400).json({ message: 'El id de la propiedad no es válido' });
+    }
+    try {
+        const user = await User.findByIdAndUpdate(
+            req.user._id,
+            { $pull: { favoritos: propertyId }, $set: { updatedAt: Date.now() } },
+            { new: true }
+        ).select('favoritos');
+        res.status(200).json({ data: user.favoritos.map(String) });
+    } catch (error) {
+        res.status(500).json({ message: 'No se pudo quitar el favorito' });
     }
 };
 

@@ -6,8 +6,8 @@ import { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { SplitText } from 'gsap/SplitText';
 import { useGSAP } from '@gsap/react';
-import { registrarGsap, SIN_MOVIMIENTO_REDUCIDO } from './motion';
-import { LOCALIDADES_RESPALDO, obtenerLocalidades } from './datos';
+import { registrarGsap, SIN_MOVIMIENTO_REDUCIDO } from '@/components/sitio/motion';
+import { LOCALIDADES_RESPALDO, obtenerLocalidades } from '@/components/sitio/datos';
 
 const OPERACIONES = [
   { value: 'venta', label: 'Comprar' },
