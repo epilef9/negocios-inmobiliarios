@@ -128,7 +128,7 @@ export default function ContactoPage() {
   return (
     <SitioBase pieSimple>
       <Revelar>
-        <header className="grid gap-8 px-5 pb-16 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-24 lg:pt-40">
+        <header className="encabezado-color encabezado-rojo grid gap-8 px-5 pb-16 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-24 lg:pt-40">
           <h1
             data-reveal="lineas"
             data-motion-hide
@@ -308,7 +308,7 @@ export default function ContactoPage() {
         </section>
 
         <section aria-labelledby={`${id}-oficina`} className="grid gap-10 px-5 pb-20 sm:px-10 lg:grid-cols-12 lg:gap-6">
-          <div data-reveal="imagen" className="overflow-hidden rounded-3xl bg-[#0b2048] lg:col-span-7">
+          <div data-reveal="imagen" className="tarjeta-color overflow-hidden rounded-3xl lg:col-span-7">
             <iframe
               title="Mapa de la oficina en 25 de Mayo 726, Villa Libertador San Martín"
               src={MAPA_EMBED}

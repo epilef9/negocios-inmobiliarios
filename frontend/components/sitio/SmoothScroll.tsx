@@ -16,6 +16,8 @@ export default function SmoothScroll() {
     registrarGsap();
 
     const lenis = new Lenis({ duration: 1.15, easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)) });
+    // El cambio de página lo usa para frenar la inercia mientras la tarjeta se va
+    window.__lenis = lenis;
 
     // Cuando cambia el alto de la página (llegan las propiedades, cargan fuentes o fotos):
     //  - Lenis vuelve a medir hasta dónde se puede bajar. Si no, la rueda del mouse se frenaba a mitad
@@ -46,6 +48,7 @@ export default function SmoothScroll() {
       window.removeEventListener('load', remedir);
       clearTimeout(espera);
       lenis.destroy();
+      if (window.__lenis === lenis) delete window.__lenis;
       quitarTema();
     };
   }, []);

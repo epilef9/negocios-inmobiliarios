@@ -61,7 +61,7 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
   return (
     <SitioBase>
       <Revelar>
-        <header className="grid gap-8 px-5 pb-12 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-16 lg:pt-40">
+        <header className="encabezado-color encabezado-azul grid gap-8 px-5 pb-14 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-20 lg:pt-40">
           <h1
             data-reveal="lineas"
             data-motion-hide

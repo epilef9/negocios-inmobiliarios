@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from './Icono';
+import LogoEmpresa from '@/components/sitio/LogoEmpresa';
 
 const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boolean }[] = [
   { href: '/admin', texto: 'Inicio', icono: 'inicio', exacta: true },
@@ -18,16 +19,9 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
 
 function Logo() {
   return (
-    <Link href="/admin" className="flex items-center gap-2.5 text-white">
-      <svg width="24" height="20" viewBox="0 0 40 34" aria-hidden="true">
-        <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-        <rect x="15" y="17" width="10" height="10" fill="var(--p-acento)" />
-        <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-      </svg>
-      <span className="flex flex-col leading-none">
-        <span className="text-[13px] font-semibold tracking-[0.2em]">NEGOCIOS</span>
-        <span className="mt-1 text-[11px] text-white/60">Panel de administración</span>
-      </span>
+    <Link href="/admin" className="flex flex-col items-start gap-1.5 text-white">
+      <LogoEmpresa className="h-12 w-auto" />
+      <span className="text-[11px] text-white/60">Panel de administración</span>
     </Link>
   );
 }

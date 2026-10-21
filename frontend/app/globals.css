@@ -319,6 +319,87 @@ html.dark .panel {
   @keyframes bienvenida-mostrar { from { opacity: 0; } to { opacity: 1; } }
 }
 
+/* ===== Cambio entre páginas del sitio ===== */
+/* Al tocar un enlace baja la persiana de la portada y en la página nueva se abre (TransicionPagina.tsx);
+   al entrar directo o con "atrás" la página solo aparece suave con .pagina-entra */
+.transicion-persiana { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; visibility: hidden; }
+.transicion-persiana > span { display: block; flex: 1; transform: scaleY(0); transform-origin: top; background: #071733; border-bottom: 1px solid #0b2350; }
+.pagina-entra { animation: pagina-entrar 1.2s cubic-bezier(0.3, 0, 0.2, 1) 0.05s both; }
+@keyframes pagina-entrar {
+  from { opacity: 0; transform: translateY(40px); filter: blur(10px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pagina-entra { animation: pagina-fundir 0.35s ease-out both; }
+  @keyframes pagina-fundir { from { opacity: 0; } }
+}
+
+/* ===== Colores de la marca en las páginas internas ===== */
+/* Rojo y azul del logo sobre el azul de fondo, con el crema para los textos */
+:root {
+  --marca-rojo: #e3141b;
+  --marca-azul: #002070;
+  --marca-azul-vivo: #1d47c4;
+}
+/* Luces de color quietas detrás de todo: azul arriba a la derecha y un rojo muy suave abajo a la izquierda */
+.sitio-fondo::before {
+  content: ''; position: fixed; inset: 0; z-index: -20; pointer-events: none;
+  background:
+    radial-gradient(55vw 55vh at 100% 15%, rgba(29, 71, 196, 0.32), transparent 70%),
+    radial-gradient(50vw 50vh at 0% 95%, rgba(227, 20, 27, 0.13), transparent 70%),
+    radial-gradient(40vw 40vh at 30% 50%, rgba(0, 32, 112, 0.35), transparent 75%);
+}
+/* Encabezado de cada sección: "aurora" con el rojo y el azul de la marca detrás del título, sin bordes,
+   que se funde con el fondo y se mueve muy despacio. Arriba al centro queda oscuro para que el logo se vea siempre. */
+.encabezado-color { position: relative; isolation: isolate; }
+/* Las luces se mueven un poco hacia los costados: que eso nunca genere scroll horizontal */
+.sitio-fondo { overflow-x: clip; }
+.encabezado-color::before,
+.encabezado-color::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; bottom: -35%; z-index: -1; pointer-events: none;
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+}
+/* Las luces de color */
+.encabezado-color::before {
+  background:
+    radial-gradient(38% 30% at 50% 0%, #071733 0%, rgba(7, 23, 51, 0.85) 45%, transparent 100%),
+    radial-gradient(var(--luz-a)),
+    radial-gradient(var(--luz-b)),
+    radial-gradient(var(--luz-c));
+  background-repeat: no-repeat;
+  filter: saturate(1.15);
+  animation: aurora-mover 22s ease-in-out infinite alternate;
+}
+/* Grano fino y las líneas de la persiana, apenas visibles */
+.encabezado-color::after {
+  background:
+    repeating-linear-gradient(180deg, rgba(239, 233, 223, 0.035) 0 1px, transparent 1px 72px),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)' opacity='.55'/%3E%3C/svg%3E");
+  opacity: 0.22;
+  mix-blend-mode: overlay;
+}
+.encabezado-azul {
+  --luz-a: 45% 60% at 8% 30%, rgba(29, 71, 196, 0.75) 0%, rgba(29, 71, 196, 0.25) 45%, transparent 75%;
+  --luz-b: 40% 55% at 92% 70%, rgba(227, 20, 27, 0.55) 0%, rgba(227, 20, 27, 0.15) 45%, transparent 75%;
+  --luz-c: 55% 50% at 55% 85%, rgba(0, 32, 112, 0.9) 0%, transparent 70%;
+}
+.encabezado-rojo {
+  --luz-a: 50% 65% at 12% 70%, rgba(227, 20, 27, 0.7) 0%, rgba(227, 20, 27, 0.22) 45%, transparent 75%;
+  --luz-b: 42% 55% at 90% 35%, rgba(29, 71, 196, 0.6) 0%, rgba(29, 71, 196, 0.18) 45%, transparent 75%;
+  --luz-c: 45% 45% at 55% 90%, rgba(150, 10, 40, 0.55) 0%, transparent 70%;
+}
+@keyframes aurora-mover {
+  from { transform: translate3d(-2%, 0, 0) scale(1); }
+  50% { transform: translate3d(2%, 2%, 0) scale(1.06); }
+  to { transform: translate3d(0, -1%, 0) scale(1.02); }
+}
+@media (prefers-reduced-motion: reduce) { .encabezado-color::before { animation: none; } }
+/* Tarjetas y recuadros con el azul de la marca en degradé */
+.tarjeta-color {
+  background: linear-gradient(160deg, #143a9e 0%, #0d2a6e 45%, #0b2048 100%);
+}
+
 /* Al imprimir el generador de contratos sale solo el documento */
 @media print {
   body * { visibility: hidden !important; }

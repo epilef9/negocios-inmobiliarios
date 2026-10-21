@@ -214,7 +214,7 @@ export default function DetallePropiedad() {
 				</article>
 
 				<aside aria-label="Precio y contacto" className="lg:col-span-4 lg:col-start-9">
-					<div className="flex flex-col gap-6 rounded-3xl border border-[#efe9df]/15 bg-[#0b2048] p-6 sm:p-8 lg:sticky lg:top-24">
+					<div className="tarjeta-color flex flex-col gap-6 rounded-3xl border border-[#efe9df]/15 p-6 sm:p-8 lg:sticky lg:top-24">
 						<div className="flex flex-col gap-1.5">
 							<p className="calma-micro m-0 text-[#efe9df]/60">{operacion}</p>
 							<p className="font-display m-0 text-[clamp(36px,3.4vw,48px)] leading-none">{precio.principal}</p>
