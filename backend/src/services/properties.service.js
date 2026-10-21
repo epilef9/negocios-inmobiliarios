@@ -56,8 +56,12 @@ const createProperty = async (propertyData) => {
     return propertiesRepository.createProperty(normalizePropertyPrices(propertyData));
 };
 
+// Los precios se recalculan solo si el cambio trae precio o moneda. Un cambio parcial (por ejemplo, solo el
+// estado desde el listado del panel) no debe tocarlos: antes los dejaba en NaN y la actualización fallaba.
+const CAMPOS_DE_PRECIO = ['price', 'priceARS', 'moneda', 'cotizacionDolar'];
 const updateProperty = async (id, propertyData) => {
-    return propertiesRepository.updateProperty(id, normalizePropertyPrices(propertyData));
+    const cambiaPrecio = CAMPOS_DE_PRECIO.some((campo) => propertyData[campo] !== undefined);
+    return propertiesRepository.updateProperty(id, cambiaPrecio ? normalizePropertyPrices(propertyData) : propertyData);
 };
 
 const deleteProperty = async (id) => {
