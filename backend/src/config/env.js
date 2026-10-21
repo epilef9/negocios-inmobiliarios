@@ -14,11 +14,15 @@ const origenesPermitidos = () =>
         .map((origen) => origen.trim().replace(/\/$/, ''))
         .filter(Boolean);
 
-// Dirección del frontend, para armar los links que van en los mails (verificación de cuenta)
-const urlFrontend = () =>
-    (process.env.FRONTEND_URL || (process.env.FRONTEND_URLS || '').split(',')[0] || 'http://localhost:3000')
+// Dirección del frontend, para armar los links que van en los mails (verificación, contraseña).
+// Si no está FRONTEND_URL usa el primer origen fijo de CORS_ORIGIN o, en Vercel, el dominio de producción.
+const urlFrontend = () => {
+    const origenFijo = origenesPermitidos().find((origen) => !origen.includes('*'));
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '';
+    return (process.env.FRONTEND_URL || (process.env.FRONTEND_URLS || '').split(',')[0] || origenFijo || vercel || 'http://localhost:3000')
         .trim()
         .replace(/\/$/, '');
+};
 
 // Envío de mails. Dos formas, las dos gratis:
 //  - BREVO_API_KEY: API web de Brevo (300 mails por día). Es la que funciona en Render gratis, que bloquea el SMTP.
@@ -50,6 +54,11 @@ const validarConfiguracion = () => {
     if (origenesPermitidos().length === 0) faltan.push('CORS_ORIGIN (la dirección del frontend)');
     if (faltan.length) {
         throw new Error(`Faltan variables de entorno para producción: ${faltan.join(', ')}`);
+    }
+    // Sin mails no se pueden confirmar cuentas ni restablecer contraseñas: se avisa en los logs del hosting
+    const mail = mailConfig();
+    if (!mail.brevoApiKey && !mail.smtp) {
+        console.warn('[config] No hay envío de mails configurado (BREVO_API_KEY o SMTP_HOST): no van a llegar los mails de verificación ni de contraseña.');
     }
 };
 

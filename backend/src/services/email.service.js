@@ -96,4 +96,55 @@ const enviarConsulta = ({ nombre, email, telefono, motivo, mensaje }) => {
     });
 };
 
-module.exports = { enviar, enviarVerificacion, enviarConsulta };
+// Botón y pie comunes de los mails con enlace
+const mailConEnlace = ({ para, asunto, saludo, cuerpo, boton, enlace, pie }) =>
+    enviar({
+        para,
+        asunto,
+        texto: `${saludo}\n\n${cuerpo}\n${enlace}\n\n${pie}`,
+        html: `<p>${escapar(saludo)}</p>
+<p>${escapar(cuerpo)}</p>
+<p><a href="${escapar(enlace)}" style="display:inline-block;padding:12px 22px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px">${escapar(boton)}</a></p>
+<p style="color:#666;font-size:13px">${escapar(pie)}</p>`,
+    });
+
+const enviarRestablecimiento = ({ para, nombre, enlace, minutos }) =>
+    mailConEnlace({
+        para,
+        asunto: 'Cambiá tu contraseña',
+        saludo: `Hola${nombre ? ` ${nombre}` : ''},`,
+        cuerpo: 'Recibimos un pedido para cambiar la contraseña de tu cuenta en Negocios Inmobiliarios. Para elegir una nueva, entrá a este enlace:',
+        boton: 'Elegir contraseña nueva',
+        enlace,
+        pie: `El enlace vale ${minutos} minutos y se puede usar una sola vez. Si no lo pediste, ignorá este mail: tu contraseña sigue siendo la misma.`,
+    });
+
+const enviarCambioEmail = ({ para, nombre, enlace }) =>
+    mailConEnlace({
+        para,
+        asunto: 'Confirmá tu nuevo email',
+        saludo: `Hola${nombre ? ` ${nombre}` : ''},`,
+        cuerpo: 'Pediste usar este email en tu cuenta de Negocios Inmobiliarios. Confirmalo desde este enlace:',
+        boton: 'Confirmar nuevo email',
+        enlace,
+        pie: 'El enlace vale 24 horas. Hasta que lo confirmes seguís ingresando con tu email anterior. Si no fuiste vos, ignorá este mail.',
+    });
+
+// Aviso al email anterior, por si el cambio no lo hizo la persona dueña de la cuenta
+const avisarEmailCambiado = ({ para, nombre, nuevo }) =>
+    enviar({
+        para,
+        asunto: 'Cambió el email de tu cuenta',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, el email de tu cuenta en Negocios Inmobiliarios ahora es ${nuevo}. Si no fuiste vos, respondé este mail o escribinos por WhatsApp.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>El email de tu cuenta en Negocios Inmobiliarios ahora es <b>${escapar(nuevo)}</b>.</p><p style="color:#666;font-size:13px">Si no fuiste vos, respondé este mail o escribinos por WhatsApp.</p>`,
+    });
+
+const avisarPasswordCambiada = ({ para, nombre }) =>
+    enviar({
+        para,
+        asunto: 'Cambiaste tu contraseña',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, la contraseña de tu cuenta en Negocios Inmobiliarios se cambió recién y se cerraron las sesiones abiertas. Si no fuiste vos, pedí un enlace nuevo desde "¿La olvidaste?" y escribinos.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>La contraseña de tu cuenta en Negocios Inmobiliarios se cambió recién y se cerraron las sesiones abiertas.</p><p style="color:#666;font-size:13px">Si no fuiste vos, pedí un enlace nuevo desde «¿La olvidaste?» en el ingreso y escribinos.</p>`,
+    });
+
+module.exports = { enviar, enviarVerificacion, enviarConsulta, enviarRestablecimiento, enviarCambioEmail, avisarEmailCambiado, avisarPasswordCambiada };

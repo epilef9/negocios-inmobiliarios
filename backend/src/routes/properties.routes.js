@@ -14,20 +14,27 @@ const uploadsDirectory = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadsDirectory, { recursive: true });
 
 // Con Cloudinary las fotos quedan en memoria hasta subirlas; sin Cloudinary van a la carpeta uploads
+// Solo formatos de foto comunes. La extensión del archivo guardado sale del tipo, nunca del nombre que manda
+// el navegador: así no se puede subir una página .html o un .svg con código disfrazado de imagen.
+const TIPOS_PERMITIDOS = { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp', 'image/gif': '.gif', 'image/avif': '.avif' };
+
 const almacenamientoLocal = multer.diskStorage({
 		destination: uploadsDirectory,
 		filename: (_req, file, callback) => {
-			const extension = path.extname(file.originalname).toLowerCase();
+			const extension = TIPOS_PERMITIDOS[file.mimetype] || '.jpg';
 			callback(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${extension}`);
 		},
 });
 
 const upload = multer({
 	storage: usaCloudinary() ? multer.memoryStorage() : almacenamientoLocal,
-	limits: { fileSize: 20 * 1024 * 1024, files: 20 },
+	// 10 MB es el máximo por foto del plan gratis de Cloudinary
+	limits: { fileSize: 10 * 1024 * 1024, files: 20 },
 	fileFilter: (_req, file, callback) => {
-		if (!file.mimetype.startsWith('image/')) {
-			return callback(new Error('Solo se permiten archivos de imagen'));
+		if (!TIPOS_PERMITIDOS[file.mimetype]) {
+			const error = new Error('Solo se aceptan fotos JPG, PNG, WEBP, GIF o AVIF');
+			error.statusCode = 415;
+			return callback(error);
 		}
 
 		return callback(null, true);
@@ -38,11 +45,15 @@ router.post('/images', authMiddleware, requireAdmin, (req, res, next) => {
 	upload.array('images', 20)(req, res, async (error) => {
 		if (error) {
 			if (error.code === 'LIMIT_FILE_SIZE') {
-				return res.status(413).json({ message: 'Cada imagen puede pesar hasta 20 MB' });
+				return res.status(413).json({ message: 'Cada foto puede pesar hasta 10 MB' });
 			}
 
 			if (error.code === 'LIMIT_FILE_COUNT') {
 				return res.status(413).json({ message: 'Podés subir hasta 20 imágenes por vez' });
+			}
+
+			if (error.statusCode === 415) {
+				return res.status(415).json({ message: error.message });
 			}
 
 			return next(error);
@@ -69,7 +80,8 @@ router.post('/images', authMiddleware, requireAdmin, (req, res, next) => {
 	});
 });
 
-router.get('/maps/resolve', propertiesController.resolveMapsLink);
+// Leer coordenadas de un link de Google Maps: lo usa el formulario del panel
+router.get('/maps/resolve', authMiddleware, requireAdmin, propertiesController.resolveMapsLink);
 
 // Obtener todas las propiedades
 router.get('/', propertiesController.getAllProperties);

@@ -47,6 +47,34 @@ const userSchema = new mongoose.Schema({
         type: Date,
         select: false
     },
+    // Enlace para crear una contraseña nueva (olvido o cambio desde el perfil). Igual que arriba: solo el hash.
+    restablecimientoHash: {
+        type: String,
+        select: false
+    },
+    restablecimientoExpira: {
+        type: Date,
+        select: false
+    },
+    // Cambio de email pendiente: el email nuevo recién se usa cuando se confirma desde esa casilla
+    emailPendiente: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        select: false
+    },
+    cambioEmailHash: {
+        type: String,
+        select: false
+    },
+    cambioEmailExpira: {
+        type: Date,
+        select: false
+    },
+    // Cuándo cambió la contraseña o el email por última vez: las sesiones iniciadas antes dejan de valer
+    credencialesCambiadasEn: {
+        type: Date
+    },
     checklistRequisitos: {
         type: [String],
         default: []

@@ -4,7 +4,6 @@ import { Suspense, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
 import { AuthRequestError } from '@/services/auth';
 import PantallaCuenta, { ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
@@ -23,10 +22,8 @@ function FormularioIngreso() {
   const [error, setError] = useState<{ texto: string; campo?: 'email' | 'password' } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // Sin backend para recuperar la contraseña: se resuelve por WhatsApp con el mensaje listo
-  const recuperar = `${WHATSAPP_URL}?text=${encodeURIComponent(
-    `Hola, olvidé la contraseña de mi cuenta en la web.${EMAIL_VALIDO.test(email.trim()) ? ` Mi email es ${email.trim()}.` : ''}`,
-  )}`;
+  // Recuperar la contraseña: se pide un enlace por mail (si ya escribió el email, va cargado)
+  const recuperar = EMAIL_VALIDO.test(email.trim()) ? `/olvide-contrasena?email=${encodeURIComponent(email.trim())}` : '/olvide-contrasena';
 
   const ingresar = async (e: FormEvent) => {
     e.preventDefault();
@@ -52,6 +49,11 @@ function FormularioIngreso() {
         return;
       }
       setSinVerificar(false);
+      if (err instanceof AuthRequestError && (err.status === 429 || err.status >= 500)) {
+        setError({ texto: mensaje });
+        setEnviando(false);
+        return;
+      }
       setError({
         texto: /fetch|network|conectar/i.test(mensaje)
           ? 'No pudimos conectar con el servidor. Probá de nuevo en un momento.'
@@ -92,9 +94,9 @@ function FormularioIngreso() {
           <label htmlFor={`${id}-password`} className={etiqueta}>
             Contraseña
           </label>
-          <a href={recuperar} target="_blank" rel="noreferrer" className="calma-link calma-link-sutil text-[14px] text-[#efe9df]/70 hover:text-[#efe9df]">
+          <Link href={recuperar} className="calma-link calma-link-sutil text-[14px] text-[#efe9df]/70 hover:text-[#efe9df]">
             ¿La olvidaste?
-          </a>
+          </Link>
         </div>
         <div className="relative">
           <input
