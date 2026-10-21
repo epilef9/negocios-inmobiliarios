@@ -168,3 +168,10 @@ export async function resetVisitasToDefault(): Promise<Visita[]> {
 // Aliases para compatibilidad
 export const addVisita = createVisita;
 export const getStoredVisitas = getVisitas;
+
+// Agenda pública para el calendario de "Agendar una visita": estado de cada día y horarios libres
+export type DiaAgenda = { fecha: string; estado: 'disponible' | 'completo' | 'cerrado'; turnos: string[] };
+export type Agenda = { dias: DiaAgenda[]; horario: string; hoy: string; hasta: string };
+
+export const getDisponibilidad = (desde: string, hasta: string) =>
+  request<Agenda>(`/visitas/disponibilidad?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
