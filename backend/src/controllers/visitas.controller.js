@@ -1,6 +1,18 @@
 const mongoose = require('mongoose');
 const visitasService = require('../services/visitas.service');
 const Property = require('../models/property.model');
+const agenda = require('../services/agenda.service');
+
+exports.getDisponibilidad = async (req, res) => {
+    try {
+        const desde = typeof req.query.desde === 'string' ? req.query.desde : undefined;
+        const hasta = typeof req.query.hasta === 'string' ? req.query.hasta : undefined;
+        return res.status(200).json({ data: await agenda.disponibilidad(desde, hasta) });
+    } catch (error) {
+        console.error('Error al calcular la disponibilidad:', error);
+        return res.status(500).json({ message: 'No se pudo consultar la agenda' });
+    }
+};
 
 exports.getAllVisitas = async (req, res) => {
     try {
@@ -61,6 +73,11 @@ exports.createVisita = async (req, res) => {
         if (datos.cliente.telefono.replace(/\D/g, '').length < 6) {
             return res.status(400).json({ message: 'El teléfono no es válido' });
         }
+
+        // Que el horario esté libre (y, para el público, dentro del horario de atención)
+        const esAdmin = req.user && req.user.role === 'admin';
+        const motivo = await agenda.motivoNoDisponible(datos.fecha, datos.horario, { controlarHorario: !esAdmin });
+        if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
 
         if (typeof propiedad.id === 'string' && mongoose.isValidObjectId(propiedad.id)) {
             const real = await Property.findById(propiedad.id).select('title location direccionCompleta estado permitirVisita').lean();
