@@ -7,10 +7,11 @@ import { useEffect, useRef, useState } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import BotonFavorito from "@/components/sitio/BotonFavorito";
 import Galeria from "@/components/detalle/Galeria";
+import ConsultaEmail from "@/components/detalle/ConsultaEmail";
 import AgendarVisita, { type AgendarVisitaHandle } from "@/components/detalle/AgendarVisita";
 import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { etiquetaOperacion } from "@/components/sitio/datos";
-import { EMAIL, WHATSAPP_URL } from "@/components/sitio/SiteFooter";
+import { WHATSAPP_URL } from "@/components/sitio/SiteFooter";
 import { COMODIDADES } from "@/components/catalogo/FiltrosCatalogo";
 import { getPropertyById, type ApiProperty } from "@/services/api";
 
@@ -120,7 +121,6 @@ export default function DetallePropiedad() {
 	const mensaje = `Hola, me interesa la propiedad "${p.title}"${enlace ? ` (${enlace})` : ""}. ¿Me pasan más información?`;
 	const numeroWhatsApp = p.permitirWhatsApp && p.telefonoWhatsApp ? `https://wa.me/${p.telefonoWhatsApp.replace(/\D/g, "")}` : WHATSAPP_URL;
 	const whatsapp = `${numeroWhatsApp}?text=${encodeURIComponent(mensaje)}`;
-	const mail = `mailto:${EMAIL}?subject=${encodeURIComponent(`Consulta por ${p.title}`)}&body=${encodeURIComponent(mensaje)}`;
 	const tieneMapa = Boolean(p.latitud && p.longitud);
 
 	return (
@@ -240,11 +240,7 @@ export default function DetallePropiedad() {
 							>
 								Escribir por WhatsApp
 							</a>
-							{p.permitirEmail !== false && (
-								<a href={mail} className="calma-micro flex items-center justify-center rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors hover:border-[#efe9df]">
-									Consultar por email
-								</a>
-							)}
+							<ConsultaEmail titulo={p.title} mensajeInicial={mensaje} deshabilitado={p.permitirEmail === false} />
 							<BotonFavorito propiedadId={p._id} titulo={p.title} variante="texto" />
 						</div>
 						{p.horarioAtencion && <p className="m-0 text-[13px] text-[#efe9df]/60">Atención: {p.horarioAtencion}</p>}
