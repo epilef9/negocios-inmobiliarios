@@ -264,19 +264,22 @@ html.home-calma ::-webkit-scrollbar-thumb { background: #2b4677; border-radius: 
   color: var(--p-texto);
   color-scheme: light;
 }
+/* En oscuro los fondos se tiñen con el color principal de la paleta (verde, bordó, azul…),
+   así cada paleta se reconoce también de noche y no queda todo azul */
 html.dark .panel {
-  --p-fondo: #0b1120;
-  --p-superficie: #121a2c;
-  --p-hundido: #0f1626;
-  --p-borde: #222d44;
-  --p-borde-fuerte: #2f3c58;
-  --p-texto: #e7ebf2;
-  --p-suave: #a6afc2;
-  --p-tenue: #8a94a9;
-  --p-marca: #e7ebf2;
-  --p-marca-texto: #0b1120;
-  --p-acento-suave: color-mix(in srgb, var(--brand-accent, #cc1f26) 22%, transparent);
-  --p-menu: #080d19;
+  --p-fondo: color-mix(in srgb, var(--brand-primary, #0a193d) 40%, #04060a);
+  --p-superficie: color-mix(in srgb, var(--brand-primary, #0a193d) 52%, #0b0f17);
+  --p-hundido: color-mix(in srgb, var(--brand-primary, #0a193d) 32%, #06080d);
+  --p-borde: color-mix(in srgb, var(--brand-primary, #0a193d) 50%, #2a3242);
+  --p-borde-fuerte: color-mix(in srgb, var(--brand-primary, #0a193d) 45%, #3c465c);
+  --p-texto: #eef0f4;
+  --p-suave: #b4bbc8;
+  --p-tenue: #969eae;
+  --p-marca: color-mix(in srgb, var(--brand-accent, #cc1f26) 14%, #eef0f4);
+  --p-marca-texto: color-mix(in srgb, var(--brand-primary, #0a193d) 70%, #000000);
+  --p-acento: color-mix(in srgb, var(--brand-accent, #cc1f26) 82%, #ffffff);
+  --p-acento-suave: color-mix(in srgb, var(--brand-accent, #cc1f26) 26%, transparent);
+  --p-menu: color-mix(in srgb, var(--brand-primary, #0a193d) 62%, #020305);
   color-scheme: dark;
 }
 .panel ::selection { background: var(--p-acento); color: #fff; }
