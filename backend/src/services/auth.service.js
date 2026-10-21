@@ -1,7 +1,52 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const userRepository = require('../repositories/users.repository');
+const crypto = require('node:crypto');
 const config = require('../config/env');
+const emailService = require('./email.service');
+
+const HORAS_VALIDEZ_ENLACE = 24;
+const SEGUNDOS_ENTRE_REENVIOS = 60;
+
+const hashDe = (token) => crypto.createHash('sha256').update(token).digest('hex');
+
+const errorHttp = (mensaje, statusCode, code) => {
+    const error = new Error(mensaje);
+    error.statusCode = statusCode;
+    if (code) error.code = code;
+    return error;
+};
+
+const datosPublicos = (user) => ({
+    id: user._id,
+    nombre: user.nombre,
+    apellido: user.apellido,
+    telefono: user.telefono,
+    email: user.email,
+    role: user.role,
+    checklistRequisitos: user.checklistRequisitos || [],
+    emailVerificado: user.emailVerificado !== false,
+    createdAt: user.createdAt
+});
+
+const firmarSesion = (user) =>
+    jwt.sign(
+        { id: user._id, email: user.email, role: user.role, nombre: user.nombre, apellido: user.apellido },
+        getJwtSecret(),
+        { expiresIn: '24h' }
+    );
+
+// Genera un enlace nuevo para la cuenta (invalida el anterior), lo guarda hasheado y lo manda por mail
+const mandarVerificacion = async (user) => {
+    const token = crypto.randomBytes(32).toString('hex');
+    user.verificacionHash = hashDe(token);
+    user.verificacionExpira = new Date(Date.now() + HORAS_VALIDEZ_ENLACE * 3600 * 1000);
+    await user.save();
+    const enlace = `${config.urlFrontend()}/verificar-email?token=${token}`;
+    const envio = await emailService.enviarVerificacion({ para: user.email, nombre: user.nombre, enlace });
+    // Sin servicio de mails configurado (solo en desarrollo) el enlace se devuelve para poder probar sin correo
+    return { enlaceDev: envio.simulado ? enlace : undefined };
+};
 
 // La clave sale de la configuración central (obligatoria en producción)
 const getJwtSecret = () => {
@@ -25,6 +70,7 @@ const authService = {
 
         // Crear usuario en base de datos mediante el repositorio.
         // El registro publico siempre crea clientes; nunca aceptar role del request (escalada de privilegios).
+        // Queda sin verificar: no puede ingresar hasta confirmar el enlace que se le manda por mail.
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
@@ -32,34 +78,21 @@ const authService = {
             username: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),
             password: hashedPassword,
-            role: 'cliente'
+            role: 'cliente',
+            emailVerificado: false
         });
 
-        // Generar token para inicio de sesion automatico segun criterio de HU-05
-        const token = jwt.sign(
-            {
-                id: newUser._id,
-                email: newUser.email,
-                role: newUser.role,
-                nombre: newUser.nombre,
-                apellido: newUser.apellido
-            },
-            getJwtSecret(),
-            { expiresIn: '24h' }
-        );
+        // Si el mail falla la cuenta queda creada: puede pedir el reenvío desde el ingreso
+        let correoEnviado = true;
+        let enlaceDev;
+        try {
+            ({ enlaceDev } = await mandarVerificacion(newUser));
+        } catch (error) {
+            correoEnviado = false;
+            console.error('[verificacion] No se pudo enviar el mail:', error.message);
+        }
 
-        const safeUser = {
-            id: newUser._id,
-            nombre: newUser.nombre,
-            apellido: newUser.apellido,
-            telefono: newUser.telefono,
-            email: newUser.email,
-            role: newUser.role,
-            checklistRequisitos: newUser.checklistRequisitos || [],
-            createdAt: newUser.createdAt
-        };
-
-        return { token, user: safeUser };
+        return { requiereVerificacion: true, correoEnviado, enlaceDev, user: datosPublicos(newUser) };
     },
 
     login: async (email, password) => {
@@ -79,31 +112,45 @@ const authService = {
             throw error;
         }
 
-        // Generar token firmado
-        const token = jwt.sign(
-            {
-                id: user._id,
-                email: user.email,
-                role: user.role,
-                nombre: user.nombre,
-                apellido: user.apellido
-            },
-            getJwtSecret(),
-            { expiresIn: '24h' }
-        );
+        // Se avisa recién después de comprobar la contraseña, para no revelar qué correos existen
+        if (user.emailVerificado === false) {
+            throw errorHttp('Confirmá tu email para ingresar. Te mandamos un enlace al registrarte.', 403, 'EMAIL_NO_VERIFICADO');
+        }
 
-        const safeUser = {
-            id: user._id,
-            nombre: user.nombre,
-            apellido: user.apellido,
-            telefono: user.telefono,
-            email: user.email,
-            role: user.role,
-            checklistRequisitos: user.checklistRequisitos || [],
-            createdAt: user.createdAt
-        };
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
 
-        return { token, user: safeUser };
+    // Confirma el enlace del mail y deja la sesión iniciada
+    verifyEmail: async (token) => {
+        if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) {
+            throw errorHttp('El enlace de verificación no es válido', 400, 'ENLACE_INVALIDO');
+        }
+        const user = await userRepository.findByVerificacionHash(hashDe(token));
+        if (!user || !user.verificacionExpira || user.verificacionExpira < new Date()) {
+            throw errorHttp('El enlace venció o ya se usó. Pedí uno nuevo desde el ingreso.', 400, 'ENLACE_INVALIDO');
+        }
+        user.emailVerificado = true;
+        user.verificacionHash = undefined;
+        user.verificacionExpira = undefined;
+        await user.save();
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
+
+    // Responde siempre lo mismo exista o no la cuenta, para no revelar qué correos están registrados
+    resendVerification: async (email) => {
+        const user = await userRepository.findByEmailConVerificacion(email);
+        if (!user || user.emailVerificado !== false) return {};
+
+        const emitido = user.verificacionExpira
+            ? user.verificacionExpira.getTime() - HORAS_VALIDEZ_ENLACE * 3600 * 1000
+            : 0;
+        const faltan = Math.ceil((SEGUNDOS_ENTRE_REENVIOS * 1000 - (Date.now() - emitido)) / 1000);
+        if (faltan > 0) {
+            const error = errorHttp('Esperá un minuto antes de pedir otro enlace', 429, 'REENVIO_MUY_SEGUIDO');
+            error.segundos = faltan;
+            throw error;
+        }
+        return mandarVerificacion(user);
     },
 
     logout: async () => {

@@ -33,6 +33,20 @@ const userSchema = new mongoose.Schema({
         enum: ['admin', 'cliente', 'user'],
         default: 'cliente'
     },
+    // Las cuentas que ya existían quedan como verificadas; el registro público las crea en false
+    emailVerificado: {
+        type: Boolean,
+        default: true
+    },
+    // Del enlace que se manda por mail solo se guarda el hash: si se filtra la base, los enlaces no sirven
+    verificacionHash: {
+        type: String,
+        select: false
+    },
+    verificacionExpira: {
+        type: Date,
+        select: false
+    },
     checklistRequisitos: {
         type: [String],
         default: []

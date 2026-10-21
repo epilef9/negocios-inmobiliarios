@@ -71,7 +71,16 @@ const validateLogin = (req, res, next) => {
     next();
 };
 
+const validateEmailOnly = (req, res, next) => {
+    const { email } = req.body || {};
+    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return res.status(400).json({ message: 'El correo electronico no es valido' });
+    }
+    next();
+};
+
 module.exports = {
+    validateEmailOnly,
     validateRegister,
     validateLogin
 };
