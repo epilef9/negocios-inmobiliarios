@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin } = authMiddleware;
+const { requireAdmin, sesionOpcional } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 
 // Pedir una visita es público (botón "Agendar una visita"); verlas y gestionarlas, solo el administrador
@@ -19,11 +19,15 @@ router.post('/reset', soloAdmin, visitasController.resetVisitas);
 // Obtener todas las visitas (soporta filtros ?estado=...&fecha=...&search=...)
 router.get('/', soloAdmin, visitasController.getAllVisitas);
 
+// Días y horarios libres para el calendario de "Agendar una visita" (público, sin datos de nadie).
+// Va antes de '/:id' para que "disponibilidad" no se tome como un id.
+router.get('/disponibilidad', visitasController.getDisponibilidad);
+
 // Obtener una visita por ID
 router.get('/:id', soloAdmin, validateVisitaId, visitasController.getVisitaById);
 
 // Crear una nueva visita
-router.post('/', frenos.visitas, validateVisita, visitasController.createVisita);
+router.post('/', frenos.visitas, sesionOpcional, validateVisita, visitasController.createVisita);
 
 // Actualizar una visita existente
 router.put('/:id', soloAdmin, validateVisitaId, validateVisita, visitasController.updateVisita);

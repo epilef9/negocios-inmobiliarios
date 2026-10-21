@@ -51,5 +51,22 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
+// Para rutas públicas que se comportan distinto con sesión (por ejemplo, el administrador agenda fuera de horario).
+// Si no hay token, o no es válido, sigue igual que un visitante.
+const sesionOpcional = async (req, res, next) => {
+    try {
+        const token = req.headers.authorization?.split(' ')[1];
+        if (token) {
+            const decoded = await verifyToken(token, getJwtSecret(), { algorithms: ['HS256'] });
+            const user = await User.findById(decoded.id);
+            if (user && user.emailVerificado !== false) req.user = user;
+        }
+    } catch {
+        // Token vencido o inválido: se trata como visitante
+    }
+    next();
+};
+
 module.exports = authMiddleware;
 module.exports.requireAdmin = requireAdmin;
+module.exports.sesionOpcional = sesionOpcional;

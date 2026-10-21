@@ -1,37 +1,14 @@
 'use client';
 
-import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
 import { createVisita } from '@/services/visitas';
+import CalendarioVisita from './CalendarioVisita';
 import { useAuth } from '@/context/AuthContext';
 
 export type AgendarVisitaHandle = { abrir: () => void };
 
-// Horarios de la oficina: lunes a jueves 9–13 y 17–19, viernes 9–13. Turnos cada media hora.
-const MANANA = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30'];
-const TARDE = ['17:00', '17:30', '18:00', '18:30'];
-
-const hoyISO = () => {
-  const d = new Date();
-  d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
-  return d.toISOString().slice(0, 10);
-};
-
-function turnosDelDia(fechaISO: string) {
-  if (!fechaISO) return [];
-  const [a, m, d] = fechaISO.split('-').map(Number);
-  const dia = new Date(a, m - 1, d).getDay(); // 0 domingo … 6 sábado
-  if (dia === 0 || dia === 6) return [];
-  const turnos = dia === 5 ? MANANA : [...MANANA, ...TARDE];
-  if (fechaISO !== hoyISO()) return turnos;
-  // Para hoy, solo turnos con al menos una hora de anticipación
-  const ahora = new Date();
-  const limite = ahora.getHours() * 60 + ahora.getMinutes() + 60;
-  return turnos.filter((t) => {
-    const [h, min] = t.split(':').map(Number);
-    return h * 60 + min >= limite;
-  });
-}
+// Los días y horarios libres los da el servidor (ver CalendarioVisita)
 
 const campo = 'flex flex-col gap-2';
 const etiqueta = 'calma-micro text-[#efe9df]/70';
@@ -64,7 +41,6 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
     },
   }));
 
-  const turnos = useMemo(() => turnosDelDia(form.fecha), [form.fecha]);
   const cambiar = (clave: keyof typeof form, valor: string) =>
     setForm((f) => ({ ...f, [clave]: valor, ...(clave === 'fecha' ? { horario: '' } : {}) }));
   const cerrar = () => dialogo.current?.close();
@@ -111,8 +87,10 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
   return (
     <dialog
       ref={dialogo}
+      // data-lenis-prevent: la rueda del mouse mueve el contenido de la ventana, no la página de atrás
+      data-lenis-prevent
       aria-labelledby="visita-titulo"
-      className="m-auto w-[min(560px,calc(100vw-32px))] max-h-[calc(100dvh-32px)] overflow-y-auto rounded-3xl border border-[#efe9df]/15 bg-[#071733] p-0 text-[#efe9df] shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop:bg-[#020814]/75 backdrop:backdrop-blur-sm"
+      className="m-auto w-[min(560px,calc(100vw-32px))] max-h-[calc(100dvh-32px)] overflow-y-auto overscroll-contain rounded-3xl border border-[#efe9df]/15 bg-[#071733] p-0 text-[#efe9df] shadow-[0_30px_80px_rgba(0,0,0,0.5)] backdrop:bg-[#020814]/75 backdrop:backdrop-blur-sm"
     >
       <div className="flex items-start justify-between gap-6 px-6 pt-6 sm:px-8 sm:pt-8">
         <div className="flex flex-col gap-2">
@@ -163,31 +141,13 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
               <input type="email" autoComplete="email" value={form.email} onChange={(e) => cambiar('email', e.target.value)} className={control} />
             </label>
           </div>
-          <div className="grid gap-5 sm:grid-cols-2">
-            <label className={campo}>
-              <span className={etiqueta}>Día</span>
-              <input type="date" required min={hoyISO()} value={form.fecha} onChange={(e) => cambiar('fecha', e.target.value)} className={control} />
-            </label>
-            <label className={campo}>
-              <span className={etiqueta}>Horario</span>
-              <select required disabled={!form.fecha || turnos.length === 0} value={form.horario} onChange={(e) => cambiar('horario', e.target.value)} className={`${control} disabled:opacity-50`}>
-                <option value="">{form.fecha ? (turnos.length ? 'Elegí un horario' : 'Sin horarios') : 'Primero elegí el día'}</option>
-                {turnos.map((t) => (
-                  <option key={t} value={t}>
-                    {t} h
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {form.fecha && turnos.length === 0 && (
-            <p className="m-0 text-[14px] text-[#ffb4ad]">
-              Ese día la oficina no atiende o ya no quedan horarios. Elegí un día de lunes a viernes.
-            </p>
-          )}
+          <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
+            <legend className={`${etiqueta} mb-3`}>Día y horario</legend>
+            <CalendarioVisita fecha={form.fecha} horario={form.horario} onCambiar={(valor) => setForm((f) => ({ ...f, ...valor }))} />
+          </fieldset>
           <label className={campo}>
             <span className={etiqueta}>Algo que quieras contarnos (opcional)</span>
-            <textarea rows={3} value={form.nota} onChange={(e) => cambiar('nota', e.target.value)} className={`${control} resize-y`} placeholder="Por ejemplo, si vas con mascotas o necesitás ver algo en particular." />
+            <textarea rows={3} value={form.nota} onChange={(e) => cambiar('nota', e.target.value)} className={`${control} resize-y`} placeholder="Por ejemplo: si es para vivir o para invertir, con cuántas personas vas o si querés mirar algo en particular, como el patio o la cochera." />
           </label>
           {error && (
             <p role="alert" className="m-0 text-[14px] text-[#ffb4ad]">
