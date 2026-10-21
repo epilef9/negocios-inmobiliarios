@@ -38,6 +38,7 @@ export const metadata: Metadata = {
 
 import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
+import BienvenidaAdmin from "../components/panel/BienvenidaAdmin";
 
 // Script que se inyecta SINCRÓNICO antes de que React hidrate.
 // Elimina la clase "dark" de html si el usuario guardó "light" en localStorage.
@@ -80,6 +81,7 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider>
             {children}
+            <BienvenidaAdmin />
           </ThemeProvider>
         </AuthProvider>
       </body>

@@ -85,9 +85,9 @@ const contratoSchema = new mongoose.Schema({
     },
 });
 
-contratoSchema.pre('save', function (next) {
+contratoSchema.pre('save', function () {
+    // Mongoose 9 ya no pasa next: el gancho termina solo
     this.updatedAt = Date.now();
-    next();
 });
 
 const Contrato = mongoose.model('Contrato', contratoSchema);

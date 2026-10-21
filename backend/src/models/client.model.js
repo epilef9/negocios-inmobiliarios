@@ -28,9 +28,9 @@ const clientSchema = new mongoose.Schema({
 });
 
 // Middleware to update the updatedAt field before saving
-clientSchema.pre('save', function(next) {
+clientSchema.pre('save', function() {
+    // Mongoose 9 ya no pasa next: el gancho termina solo
     this.updatedAt = Date.now();
-    next();
 });
 
 const Client = mongoose.model('Client', clientSchema);

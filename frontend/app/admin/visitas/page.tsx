@@ -154,6 +154,8 @@ export default function VisitasAdminPage() {
   const agendar = async (e: FormEvent) => {
     e.preventDefault();
     if (!nueva.nombre.trim()) return setFaltaEnNueva('nombre');
+    // El backend exige el teléfono del cliente en cada visita
+    if (!nueva.telefono.trim()) return setFaltaEnNueva('telefono');
     if (!nueva.propiedad) return setFaltaEnNueva('propiedad');
     if (!nueva.fecha) return setFaltaEnNueva('fecha');
     setFaltaEnNueva(null);
@@ -270,7 +272,7 @@ export default function VisitasAdminPage() {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div role="tablist" aria-label="Estado de las visitas" className="flex gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1">
+          <div role="tablist" aria-label="Estado de las visitas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PESTANAS.map((p) => {
               const activa = pestana === p.id;
               return (
@@ -335,9 +337,9 @@ export default function VisitasAdminPage() {
                 const pasada = cuando ? cuando < hoy : false;
                 return (
                   <li key={v.id} className={`grid gap-x-4 gap-y-2 px-4 py-3.5 md:grid-cols-[150px_minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center ${pasada ? 'opacity-60' : ''}`}>
-                    <span className="tabular whitespace-nowrap text-[13.5px] font-medium">
-                      {cuandoEs(cuando, v.horario)}
-                      {pasada && <span className="ml-2 text-[12px] font-normal text-panel-tenue">pasada</span>}
+                    <span className="flex flex-col">
+                      <span className="tabular whitespace-nowrap text-[13.5px] font-medium">{cuandoEs(cuando, v.horario)}</span>
+                      {pasada && <span className="text-[12px] text-panel-tenue">Ya pasó</span>}
                     </span>
                     <button type="button" onClick={() => setDetalle(v)} className="min-w-0 text-left">
                       <span className="block truncate text-[14px] font-medium hover:underline">{v.cliente.nombre || 'Sin nombre'}</span>
@@ -497,8 +499,8 @@ export default function VisitasAdminPage() {
           <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-n-nombre`} error={faltaEnNueva === 'nombre' ? 'Escribí el nombre.' : null} className="sm:col-span-2">
             <input id={`${id}-n-nombre`} type="text" value={nueva.nombre} aria-invalid={faltaEnNueva === 'nombre'} onChange={(e) => setNueva((n) => ({ ...n, nombre: e.target.value }))} className={control} />
           </Campo>
-          <Campo etiqueta="Teléfono" htmlFor={`${id}-n-tel`}>
-            <input id={`${id}-n-tel`} type="tel" value={nueva.telefono} onChange={(e) => setNueva((n) => ({ ...n, telefono: e.target.value }))} placeholder="Ej.: 343 444 4444" className={control} />
+          <Campo etiqueta="Teléfono *" htmlFor={`${id}-n-tel`} error={faltaEnNueva === 'telefono' ? 'Escribí el teléfono.' : null}>
+            <input id={`${id}-n-tel`} type="tel" value={nueva.telefono} aria-invalid={faltaEnNueva === 'telefono'} onChange={(e) => setNueva((n) => ({ ...n, telefono: e.target.value }))} placeholder="Ej.: 343 444 4444" className={control} />
           </Campo>
           <Campo etiqueta="Email" htmlFor={`${id}-n-email`}>
             <input id={`${id}-n-email`} type="email" value={nueva.email} onChange={(e) => setNueva((n) => ({ ...n, email: e.target.value }))} className={control} />
