@@ -180,7 +180,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 	return (
 		<SitioBase>
 			<Revelar>
-				<header className="flex flex-col gap-10 px-5 pb-10 pt-32 sm:px-10 lg:pt-40">
+				<header className="encabezado-color encabezado-azul flex flex-col gap-10 px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 					<div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
 						<h1
 							data-reveal="lineas"

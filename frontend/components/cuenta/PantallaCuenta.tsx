@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AuthRequestError, resendVerification } from '@/services/auth';
 import Revelar from '@/components/sitio/Revelar';
+import LogoEmpresa from '@/components/sitio/LogoEmpresa';
+import TransicionPagina from '@/components/sitio/TransicionPagina';
 
 // Estilos compartidos por los formularios de ingreso y registro
 export const etiqueta = 'calma-micro text-[#efe9df]/70';
@@ -59,6 +61,7 @@ type Props = {
 // Pantalla de cuenta: foto con lo que permite la cuenta a un lado y el formulario al otro
 export default function PantallaCuenta({ titulo, bajada, children }: Props) {
   return (
+    <TransicionPagina>
     <main className="home-calma-raiz grid min-h-dvh bg-[#071733] font-sans text-[#efe9df] selection:bg-[#d9382b] selection:text-white lg:grid-cols-2">
       <Revelar>
         <div data-reveal="imagen" className="relative hidden h-full min-h-dvh overflow-hidden bg-[#0b2048] lg:block">
@@ -81,13 +84,9 @@ export default function PantallaCuenta({ titulo, bajada, children }: Props) {
 
       <div className="flex min-h-dvh flex-col px-5 py-6 sm:px-10">
         <div className="calma-micro flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2.5 text-[13px] tracking-[0.3em]">
-            <svg width="26" height="22" viewBox="0 0 40 34" aria-hidden="true">
-              <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-              <rect x="15" y="17" width="10" height="10" fill="#d9382b" />
-              <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-            </svg>
-            Negocios
+          <Link href="/" aria-label="Ir al inicio" className="flex items-center">
+            <LogoEmpresa className="h-11 w-auto sm:hidden" prioridad />
+            <LogoEmpresa version="linea" className="hidden h-10 w-auto sm:block" prioridad />
           </Link>
           <Link href="/propiedades" className="calma-link calma-link-sutil">
             Ver propiedades
@@ -110,6 +109,7 @@ export default function PantallaCuenta({ titulo, bajada, children }: Props) {
         </div>
       </div>
     </main>
+    </TransicionPagina>
   );
 }
 
