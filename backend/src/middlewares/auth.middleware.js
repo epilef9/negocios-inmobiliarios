@@ -18,10 +18,19 @@ const authMiddleware = async (req, res, next) => {
             return res.status(401).json({ message: 'No token provided' });
         }
 
-        const decoded = await verifyToken(token, getJwtSecret());
+        // Solo se acepta el algoritmo con el que firmamos (evita tokens armados con otro algoritmo)
+        const decoded = await verifyToken(token, getJwtSecret(), { algorithms: ['HS256'] });
         const user = await User.findById(decoded.id);
         if (!user) {
             return res.status(401).json({ message: 'Unauthorized' });
+        }
+        // Si cambió la contraseña o el email después de iniciar esta sesión, la sesión ya no vale
+        if (user.credencialesCambiadasEn && Math.floor(user.credencialesCambiadasEn.getTime() / 1000) > (decoded.iat || 0)) {
+            return res.status(401).json({ message: 'Tu sesión venció. Ingresá de nuevo.', code: 'SESION_VENCIDA' });
+        }
+        // Una cuenta que todavía no confirmó su email no puede usar la sesión
+        if (user.emailVerificado === false) {
+            return res.status(401).json({ message: 'Confirmá tu email para ingresar.', code: 'EMAIL_NO_VERIFICADO' });
         }
 
         req.user = user;

@@ -1,40 +1,42 @@
-// Perfil de la persona que inició sesión (cliente o administración): ver y editar sus datos y cambiar la contraseña.
+// Perfil de la persona que inició sesión (cliente o administración).
+// Los datos de contacto se editan acá; la contraseña y el email se cambian con un enlace que llega por mail,
+// así alguien que encuentra la sesión abierta no puede quedarse con la cuenta.
+const crypto = require('node:crypto');
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const config = require('../config/env');
+const emailService = require('../services/email.service');
+const authService = require('../services/auth.service');
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-// Teléfono: dígitos con espacios, guiones, paréntesis o + opcional; entre 8 y 15 dígitos
+const HORAS_VALIDEZ_CAMBIO_EMAIL = 24;
 const digitosDe = (texto) => String(texto || '').replace(/\D/g, '');
 const texto = (valor) => (typeof valor === 'string' ? valor.trim() : '');
+const hashDe = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-const datosPublicos = (user) => ({
+const datosPublicos = (user, emailPendiente) => ({
     id: user._id,
     nombre: user.nombre || '',
     apellido: user.apellido || '',
     telefono: user.telefono || '',
     email: user.email,
+    emailPendiente: emailPendiente || undefined,
     role: user.role,
+    emailVerificado: user.emailVerificado !== false,
     checklistRequisitos: user.checklistRequisitos || [],
     preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
 });
 
-// El token lleva el email y el nombre: si cambian, se entrega uno nuevo para que la sesión quede al día
-const nuevoToken = (user) => {
-    const secreto = config.jwtSecret();
-    if (!secreto) throw new Error('JWT_SECRET no está configurada');
-    return jwt.sign(
-        { id: user._id, email: user.email, role: user.role, nombre: user.nombre, apellido: user.apellido },
-        secreto,
-        { expiresIn: '24h' }
-    );
-};
-
-exports.obtener = (req, res) => {
-    res.status(200).json({ data: datosPublicos(req.user) });
+exports.obtener = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('+emailPendiente +cambioEmailExpira');
+        const pendiente = user.emailPendiente && user.cambioEmailExpira > new Date() ? user.emailPendiente : undefined;
+        res.status(200).json({ data: datosPublicos(user, pendiente) });
+    } catch (error) {
+        res.status(500).json({ message: 'No se pudieron traer tus datos.' });
+    }
 };
 
 exports.actualizar = async (req, res) => {
@@ -47,66 +49,84 @@ exports.actualizar = async (req, res) => {
 
         const errores = {};
         if (!nombre) errores.nombre = 'Escribí tu nombre.';
+        else if (nombre.length > 80) errores.nombre = 'Es demasiado largo.';
         if (!apellido) errores.apellido = 'Escribí tu apellido.';
+        else if (apellido.length > 80) errores.apellido = 'Es demasiado largo.';
         if (!email) errores.email = 'El email es obligatorio.';
-        else if (!EMAIL.test(email)) errores.email = 'Ese email no parece válido.';
+        else if (!EMAIL.test(email) || email.length > 150) errores.email = 'Ese email no parece válido.';
         if (!telefono) errores.telefono = 'El teléfono es obligatorio.';
-        else if (digitosDe(telefono).length < 8 || digitosDe(telefono).length > 15) errores.telefono = 'Revisá el teléfono: con característica, entre 8 y 15 números.';
+        else if (telefono.length > 30 || digitosDe(telefono).length < 8 || digitosDe(telefono).length > 15) {
+            errores.telefono = 'Revisá el teléfono: con característica, entre 8 y 15 números.';
+        }
         if (Object.keys(errores).length) {
             return res.status(400).json({ message: 'Revisá los datos marcados.', errores });
         }
 
-        const user = await User.findById(req.user._id);
+        const user = await User.findById(req.user._id).select('+emailPendiente +cambioEmailHash +cambioEmailExpira');
         if (!user) return res.status(404).json({ message: 'No encontramos tu cuenta.' });
-
-        const cambiaEmail = email !== user.email;
-        if (cambiaEmail) {
-            // Cambiar el email cambia con qué se inicia sesión: se pide la contraseña para confirmar que es la persona
-            if (!passwordActual || !(await bcrypt.compare(passwordActual, user.password))) {
-                return res.status(400).json({ message: 'Para cambiar el email confirmá con tu contraseña actual.', errores: { passwordActual: 'La contraseña no es correcta.' } });
-            }
-            const ocupado = await User.exists({ email, _id: { $ne: user._id } });
-            if (ocupado) {
-                return res.status(409).json({ message: 'Ese email ya está en uso por otra cuenta.', errores: { email: 'Ya hay una cuenta con ese email.' } });
-            }
-            user.email = email;
-            if (!user.username || user.username.includes('@')) user.username = email;
-        }
 
         user.nombre = nombre;
         user.apellido = apellido;
         user.telefono = telefono;
-        await user.save();
 
-        res.status(200).json({ data: { user: datosPublicos(user), token: nuevoToken(user) }, message: 'Datos guardados.' });
+        let emailPendiente;
+        let enlaceDev;
+        if (email !== user.email) {
+            // Cambiar el email cambia con qué se ingresa: se confirma con la contraseña y con un enlace al email nuevo
+            if (!passwordActual || !(await bcrypt.compare(passwordActual, user.password))) {
+                return res.status(400).json({
+                    message: 'Para cambiar el email confirmá con tu contraseña actual.',
+                    errores: { passwordActual: 'La contraseña no es correcta.' },
+                });
+            }
+            const ocupado = await User.exists({ email, _id: { $ne: user._id } });
+            if (ocupado) {
+                return res.status(409).json({ message: 'Ese email ya lo usa otra cuenta.', errores: { email: 'Ya hay una cuenta con ese email.' } });
+            }
+            const token = crypto.randomBytes(32).toString('hex');
+            user.emailPendiente = email;
+            user.cambioEmailHash = hashDe(token);
+            user.cambioEmailExpira = new Date(Date.now() + HORAS_VALIDEZ_CAMBIO_EMAIL * 3600 * 1000);
+            await user.save();
+
+            const enlace = `${config.urlFrontend()}/confirmar-email?token=${token}`;
+            try {
+                const envio = await emailService.enviarCambioEmail({ para: email, nombre: user.nombre, enlace });
+                if (envio.simulado) enlaceDev = enlace;
+            } catch (error) {
+                console.error('[perfil] No se pudo mandar la confirmación del email nuevo:', error.message);
+                return res.status(502).json({
+                    message: 'Guardamos tus datos, pero no pudimos mandar el mail para confirmar el email nuevo. Probá de nuevo en un rato.',
+                    data: { user: datosPublicos(user) },
+                });
+            }
+            emailPendiente = email;
+        } else {
+            await user.save();
+        }
+
+        res.status(200).json({
+            message: emailPendiente
+                ? `Datos guardados. Te mandamos un mail a ${emailPendiente}: el cambio de email se aplica cuando lo confirmes desde ahí.`
+                : 'Datos guardados.',
+            data: { user: datosPublicos(user, emailPendiente), emailPendiente, enlaceDev },
+        });
     } catch (error) {
+        console.error('[perfil] Error al guardar:', error.message);
         res.status(500).json({ message: 'No se pudieron guardar los datos.' });
     }
 };
 
-exports.cambiarPassword = async (req, res) => {
+// Cambiar la contraseña desde el perfil: se manda el mismo enlace que en "¿La olvidaste?" al email de la cuenta
+exports.pedirCambioPassword = async (req, res) => {
     try {
-        const { passwordActual, passwordNueva } = req.body || {};
-        if (typeof passwordActual !== 'string' || !passwordActual) {
-            return res.status(400).json({ message: 'Escribí tu contraseña actual.', errores: { passwordActual: 'Escribí tu contraseña actual.' } });
-        }
-        if (typeof passwordNueva !== 'string' || passwordNueva.length < 8) {
-            return res.status(400).json({ message: 'La nueva contraseña debe tener al menos 8 caracteres.', errores: { passwordNueva: 'Mínimo 8 caracteres.' } });
-        }
-
-        const user = await User.findById(req.user._id);
-        if (!user) return res.status(404).json({ message: 'No encontramos tu cuenta.' });
-        if (!(await bcrypt.compare(passwordActual, user.password))) {
-            return res.status(400).json({ message: 'La contraseña actual no es correcta.', errores: { passwordActual: 'La contraseña no es correcta.' } });
-        }
-        if (await bcrypt.compare(passwordNueva, user.password)) {
-            return res.status(400).json({ message: 'La nueva contraseña tiene que ser distinta de la actual.', errores: { passwordNueva: 'Es igual a la actual.' } });
-        }
-
-        user.password = await bcrypt.hash(passwordNueva, 10);
-        await user.save();
-        res.status(200).json({ message: 'Contraseña actualizada.' });
+        const { enlaceDev } = await authService.solicitarRestablecimiento(req.user.email);
+        res.status(200).json({
+            message: `Te mandamos un mail a ${req.user.email} con un enlace para elegir la contraseña nueva. Vale 30 minutos.`,
+            data: { enlaceDev },
+        });
     } catch (error) {
-        res.status(500).json({ message: 'No se pudo cambiar la contraseña.' });
+        console.error('[perfil] No se pudo mandar el enlace de contraseña:', error.message);
+        res.status(500).json({ message: 'No pudimos mandar el mail. Probá de nuevo en un rato.' });
     }
 };

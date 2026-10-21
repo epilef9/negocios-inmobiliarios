@@ -135,6 +135,35 @@ export async function resendVerification(email: string): Promise<{ segundos: num
   });
 }
 
+// Pedir el enlace para elegir una contraseña nueva (responde igual exista o no la cuenta)
+export async function solicitarRestablecimiento(email: string): Promise<{ enlaceDev?: string }> {
+  return authRequest<{ enlaceDev?: string }>("/auth/olvide-password", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+// Guardar la contraseña nueva con el enlace del mail. No inicia sesión: se ingresa con la nueva.
+export async function restablecerPassword(token: string, password: string): Promise<{ email: string }> {
+  return authRequest<{ email: string }>("/auth/restablecer-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password }),
+  });
+}
+
+// Confirmar el email nuevo desde el enlace del mail; deja la sesión iniciada con ese email
+export async function confirmarCambioEmail(token: string): Promise<AuthResponse> {
+  const data = await authRequest<AuthResponse>("/auth/confirmar-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+  if (typeof window !== "undefined" && data.token) {
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("user", JSON.stringify(data.user));
+  }
+  return data;
+}
+
 function readStoredUser(): User | null {
   if (typeof window === "undefined") return null;
   const storedUser = localStorage.getItem("user");

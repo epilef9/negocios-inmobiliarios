@@ -13,8 +13,9 @@ export const botonPrincipal =
   'calma-micro flex w-full items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60';
 
 // Solo se aceptan rutas internas para volver después de ingresar
+// (los navegadores tratan "/\otro.com" igual que "//otro.com", así que también se rechaza la barra invertida)
 export const destinoSeguro = (volver: string | null) =>
-  volver && volver.startsWith('/') && !volver.startsWith('//') ? volver : null;
+  volver && volver.startsWith('/') && !volver.startsWith('//') && !volver.includes('\\') && !/[\u0000-\u001f]/.test(volver) ? volver : null;
 
 const beneficios = [
   'Guardá tus propiedades favoritas y encontralas desde cualquier dispositivo.',
@@ -109,14 +110,14 @@ export function YaIngresaste({ nombre, onSalir }: { nombre: string; onSalir: () 
 }
 
 // Caja que aparece solo en desarrollo, cuando el backend no tiene mails configurados: muestra el enlace del mail
-function EnlaceDeDesarrollo({ enlace }: { enlace: string }) {
+export function EnlaceDeDesarrollo({ enlace, para = 'confirmar la cuenta', accion = 'Confirmar mi email ahora' }: { enlace: string; para?: string; accion?: string }) {
   return (
     <div className="flex flex-col gap-2 rounded-2xl border border-dashed border-[#efe9df]/40 p-4">
       <p className="m-0 text-[13px] leading-relaxed text-[#efe9df]/70">
-        Modo de prueba: el servidor no tiene un servicio de mails configurado, así que no se envió ningún correo. Usá este enlace para confirmar la cuenta.
+        Modo de prueba: el servidor no tiene un servicio de mails configurado, así que no se envió ningún correo. Usá este enlace para {para}.
       </p>
       <a href={enlace} className="calma-link break-all text-[14px] text-[#efe9df]">
-        Confirmar mi email ahora
+        {accion}
       </a>
     </div>
   );

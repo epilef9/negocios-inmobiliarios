@@ -1,4 +1,4 @@
-// Carga un catálogo de muestra para presentar el sitio: 8 propiedades de Villa Libertador San Martín,
+// Carga un catálogo de muestra para presentar el sitio: 9 propiedades de Villa Libertador San Martín,
 // Crespo y Diamante, con fotos, precios y datos completos.
 //
 // Las fotos son de Unsplash (licencia libre, se pueden usar sin pedir permiso) y NO son de las propiedades:
@@ -9,6 +9,8 @@
 //   npm run demo:propiedades -- --probar   → muestra qué haría, sin tocar nada
 //   npm run demo:propiedades               → sube las fotos a Cloudinary y crea o actualiza las propiedades
 //   npm run demo:propiedades -- --quitar   → borra solo estas propiedades de muestra (por su código NI-1xx)
+//   npm run demo:propiedades -- --borrar-otras → además de cargar las de muestra, borra TODAS las demás
+//                                              (usalo solo si las que había eran de prueba; con --probar primero)
 //
 // Se puede correr varias veces: actualiza por código interno y no duplica propiedades ni fotos.
 
@@ -21,6 +23,7 @@ const { usaCloudinary, subirUrlACloudinary } = require('./services/imagenes.serv
 
 const SOLO_PROBAR = process.argv.includes('--probar');
 const QUITAR = process.argv.includes('--quitar');
+const BORRAR_OTRAS = process.argv.includes('--borrar-otras');
 
 // Cotización de referencia guardada junto al precio; el sitio muestra la del día cuando la consigue
 const COTIZACION = 1400;
@@ -269,6 +272,31 @@ const PROPIEDADES = [
         otrasComodidades: 'Apta crédito, aberturas con DVH',
         fotos: ['1787672358379-b1d145f4ada2', '1772797583328-f83bc3f94f80', '1643949915134-73a4c880f7c7', '1616486029423-aaa4789e8c9a', '1643949700215-e61cdca053f7'],
     },
+    {
+        ...base(ubicacion.crespo, [0.0009, 0.0013]),
+        codigoInterno: 'NI-109',
+        title: 'Local comercial de 85 m² sobre avenida',
+        description:
+            'Local a la calle sobre una de las avenidas con más movimiento de Crespo, a dos cuadras de la plaza. ' +
+            'Salón de 70 m² con vidriera de 6 m de frente, depósito, baño y kitchenette. ' +
+            'Instalación eléctrica trifásica y persiana de seguridad. Apto para comercio u oficina.',
+        location: 'Crespo, Entre Ríos',
+        direccionCompleta: 'Crespo, Entre Ríos',
+        referenciasUbicacion: 'Sobre avenida, a dos cuadras de la plaza principal.',
+        categoria_operacion: 'alquiler',
+        tipo_inmueble: 'local',
+        ...enPesos(900000),
+        cantidad_ambientes: 2,
+        bedrooms: 0,
+        bathrooms: 1,
+        area: 85,
+        cochera: 'no',
+        expensas: 'sin_expensas',
+        duracionAlquilerMeses: 36,
+        comodidades: ['aire'],
+        otrasComodidades: 'Vidriera de 6 m, trifásica, persiana de seguridad',
+        fotos: ['1783987597078-84d5ac51d518'],
+    },
 ];
 
 const CODIGOS = PROPIEDADES.map((p) => p.codigoInterno);
@@ -318,8 +346,12 @@ async function cargar() {
         await Promise.all(otras.map((p, i) => Property.updateOne({ _id: p._id }, { $set: { orden: PROPIEDADES.length + 1 + i } })));
     }
     console.log(`\n${SOLO_PROBAR ? 'Prueba terminada: no se cambió nada.' : `✅ Listo: ${PROPIEDADES.length} propiedades de muestra cargadas.`}`);
-    if (otras.length) {
-        console.log('\nOtras propiedades que ya estaban en la base (revisá si son de prueba y borralas desde el panel):');
+    if (otras.length && BORRAR_OTRAS) {
+        if (!SOLO_PROBAR) await Property.deleteMany({ _id: { $in: otras.map((p) => p._id) } });
+        console.log(`\n${SOLO_PROBAR ? 'Se borrarían' : '🗑  Borradas'} las otras ${otras.length} propiedades:`);
+        otras.forEach((p) => console.log(`  - ${p.title}${p.codigoInterno ? ` (${p.codigoInterno})` : ''}`));
+    } else if (otras.length) {
+        console.log('\nOtras propiedades que ya estaban en la base (si son de prueba, borralas desde el panel o corré con --borrar-otras):');
         otras.forEach((p) => console.log(`  - ${p.title}${p.codigoInterno ? ` (${p.codigoInterno})` : ''} · ${p.images?.length || 0} fotos`));
     }
 }

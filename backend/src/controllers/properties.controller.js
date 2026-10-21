@@ -19,17 +19,33 @@ exports.resolveMapsLink = async (req, res) => {
             return res.status(400).json({ message: 'El enlace no pertenece a Google Maps' });
         }
 
+        const esDeGoogle = (direccion) => {
+            const destino = new URL(direccion);
+            const host = destino.hostname;
+            return destino.protocol === 'https:' && allowedHosts.some((permitido) => host === permitido || host.endsWith(`.${permitido}`));
+        };
+        if (parsedUrl.protocol !== 'https:') {
+            return res.status(400).json({ message: 'El enlace de Google Maps tiene que empezar con https://' });
+        }
+
+        // Se siguen las redirecciones a mano, de a una, y solo mientras sigan dentro de Google:
+        // así el servidor nunca termina pidiendo una dirección interna o de otro sitio
         let currentUrl = parsedUrl.toString();
         for (let redirectCount = 0; redirectCount < 5; redirectCount += 1) {
             const coordinates = extractCoordinates(currentUrl);
             if (coordinates) return res.status(200).json({ data: coordinates });
 
-            const response = await fetch(currentUrl, { redirect: 'follow' });
-            const redirectedUrl = response.url;
-            const redirectedCoordinates = extractCoordinates(redirectedUrl);
-            if (redirectedCoordinates) return res.status(200).json({ data: redirectedCoordinates });
+            const response = await fetch(currentUrl, { redirect: 'manual', signal: AbortSignal.timeout(8000) });
+            const siguiente = response.headers.get('location');
+            if (response.status >= 300 && response.status < 400 && siguiente) {
+                const destino = new URL(siguiente, currentUrl).toString();
+                if (!esDeGoogle(destino)) break;
+                currentUrl = destino;
+                continue;
+            }
 
-            const html = await response.text();
+            // Se lee como mucho 1 MB de la página
+            const html = (await response.text()).slice(0, 1024 * 1024);
             const bodyCoordinates = extractCoordinates(html);
             if (bodyCoordinates) return res.status(200).json({ data: bodyCoordinates });
             break;
