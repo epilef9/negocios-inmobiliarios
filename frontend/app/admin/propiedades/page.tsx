@@ -12,7 +12,7 @@ import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
 type Filtros = { texto: string; tipo: string; operacion: string; estado: string };
 const SIN_FILTROS: Filtros = { texto: '', tipo: '', operacion: '', estado: '' };
 
-const ESTADOS = Object.entries(ESTADO_PROPIEDAD).map(([valor, { texto }]) => ({ valor, texto }));
+const ESTADOS = Object.entries(ESTADO_PROPIEDAD).map(([valor, { texto, tono }]) => ({ valor, texto, tono }));
 
 const TONO_SELECT: Record<string, string> = {
   exito: 'text-emerald-700 dark:text-emerald-300',
@@ -45,7 +45,8 @@ function SelectorEstado({ propiedad, alCambiar }: { propiedad: ApiProperty; alCa
       className={`h-8 cursor-pointer rounded-md border border-panel-borde bg-panel-superficie pl-2 pr-7 text-[13px] font-medium hover:border-panel-borde-fuerte focus:border-panel-acento focus:outline-none ${TONO_SELECT[actual.tono] ?? ''}`}
     >
       {ESTADOS.map((e) => (
-        <option key={e.valor} value={e.valor}>
+        // Cada opción con su color, también en la lista que se despliega (si no, todas toman el del estado actual)
+        <option key={e.valor} value={e.valor} className={`bg-panel-superficie font-medium ${TONO_SELECT[e.tono] ?? ''}`}>
           {e.texto}
         </option>
       ))}

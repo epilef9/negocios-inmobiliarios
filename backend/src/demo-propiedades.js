@@ -121,6 +121,8 @@ const PROPIEDADES = [
         expensas: 'incluye',
         montoExpensas: 0,
         duracionAlquilerMeses: 12,
+        // Se guarda el total en meses; el panel lo muestra en años
+        unidadDuracionAlquiler: 'años',
         comodidades: ['wifi', 'aire', 'cocina', 'laundry'],
         otrasComodidades: 'Amoblado, patio para bicicletas',
         fotos: ['1702014862053-946a122b920d', '1663756915304-40b7eda63e41', '1650894622076-e09ab837c502'],
@@ -148,6 +150,8 @@ const PROPIEDADES = [
         expensas: 'no_incluye',
         montoExpensas: 45000,
         duracionAlquilerMeses: 24,
+        // Se guarda el total en meses; el panel lo muestra en años
+        unidadDuracionAlquiler: 'años',
         comodidades: ['balcon', 'cocina', 'calefaccion', 'aire'],
         fotos: ['1665249934445-1de680641f50', '1666282167632-c613fbeb163c', '1725905803121-dd123b058a5c', '1618221118493-9cfa1a1c00da', '1631889993959-41b4e9c6e3c5'],
     },
@@ -293,6 +297,8 @@ const PROPIEDADES = [
         cochera: 'no',
         expensas: 'sin_expensas',
         duracionAlquilerMeses: 36,
+        // Se guarda el total en meses; el panel lo muestra en años
+        unidadDuracionAlquiler: 'años',
         comodidades: ['aire'],
         otrasComodidades: 'Vidriera de 6 m, trifásica, persiana de seguridad',
         fotos: ['1783987597078-84d5ac51d518'],
