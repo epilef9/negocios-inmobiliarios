@@ -44,11 +44,16 @@ const limpiarEntrada = (req, res, next) => {
 
 // Freno de intentos por IP (y opcionalmente por otra clave, como el email). Vive en la memoria del servidor:
 // en Vercel cada instancia lleva su cuenta, alcanza para frenar a quien prueba contraseñas a mano o con un script simple.
+// En la compu de cada uno (desarrollo) no frena, para poder probar crear cuentas o ingresar todas las veces que haga falta.
+// Para probar los frenos en local: FRENOS_EN_DESARROLLO=1 en backend/.env
+const frenosActivos = () => enProduccion() || process.env.FRENOS_EN_DESARROLLO === '1';
+
 const limitar = ({ nombre, ventanaMinutos, maximo, mensaje, clave }) => {
     const ventanaMs = ventanaMinutos * 60 * 1000;
     const registros = new Map();
 
     return (req, res, next) => {
+        if (!frenosActivos()) return next();
         const ahora = Date.now();
         const extra = clave ? clave(req) : '';
         const id = `${req.ip}|${extra}`;

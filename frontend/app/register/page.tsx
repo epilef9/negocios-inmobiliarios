@@ -19,6 +19,11 @@ function revisar(datos: Datos): { texto: string; campo: Campo } | null {
   if (!datos.nombre.trim()) return { texto: 'Escribí tu nombre.', campo: 'nombre' };
   if (!datos.apellido.trim()) return { texto: 'Escribí tu apellido.', campo: 'apellido' };
   if (!EMAIL_VALIDO.test(datos.email.trim())) return { texto: 'Escribí un email válido, por ejemplo nombre@email.com.', campo: 'email' };
+  // El teléfono es opcional; si se escribe, tiene que ser un número (con característica)
+  const telefono = datos.telefono.trim();
+  const digitos = telefono.replace(/\D/g, '').length;
+  if (telefono && (!/^[\d\s+().-]+$/.test(telefono) || digitos < 8 || digitos > 15))
+    return { texto: 'Revisá el teléfono: solo números, con característica. Por ejemplo 343 444 4444.', campo: 'telefono' };
   if (datos.password.length < MINIMO_PASSWORD)
     return { texto: `La contraseña tiene que tener al menos ${MINIMO_PASSWORD} caracteres.`, campo: 'password' };
   if (datos.password !== datos.confirmPassword) return { texto: 'Las contraseñas no coinciden.', campo: 'confirmPassword' };
@@ -126,22 +131,23 @@ function FormularioRegistro() {
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-4">
-          <label htmlFor={`${id}-password`} className={etiqueta}>
-            Contraseña
-          </label>
-          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="-my-2" />
+        <label htmlFor={`${id}-password`} className={etiqueta}>
+          Contraseña
+        </label>
+        {/* El ojo va dentro del renglón de la contraseña, a la altura de lo que se escribe */}
+        <div className="relative">
+          <input
+            id={`${id}-password`}
+            type={verPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={datos.password}
+            onChange={(e) => cambiar('password', e.target.value)}
+            aria-invalid={error?.campo === 'password'}
+            aria-describedby={`${id}-password-ayuda`}
+            className={`${control} pr-12`}
+          />
+          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="absolute bottom-1.5 right-0" />
         </div>
-        <input
-          id={`${id}-password`}
-          type={verPassword ? 'text' : 'password'}
-          autoComplete="new-password"
-          value={datos.password}
-          onChange={(e) => cambiar('password', e.target.value)}
-          aria-invalid={error?.campo === 'password'}
-          aria-describedby={`${id}-password-ayuda`}
-          className={control}
-        />
         <p id={`${id}-password-ayuda`} className="m-0 text-[13px] text-[#efe9df]/55">
           {datos.password.length >= MINIMO_PASSWORD
             ? 'Largo correcto.'
