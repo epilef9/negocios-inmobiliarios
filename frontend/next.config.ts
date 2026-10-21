@@ -15,6 +15,9 @@ const encabezadosSeguridad = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // En Vercel el sitio corre como un servicio junto al backend y ahí el optimizador de imágenes de Next
+  // (/_next/image) responde 404: las fotos de la portada no se veían. Se sirven tal cual, ya están en WEBP.
+  images: { unoptimized: true },
   async headers() {
     return [{ source: "/:path*", headers: encabezadosSeguridad }];
   },
