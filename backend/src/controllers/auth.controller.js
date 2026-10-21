@@ -22,9 +22,9 @@ exports.register = async (req, res) => {
         });
     } catch (error) {
         const status = error.statusCode || 500;
+        if (status === 500) console.error('[registro] Error inesperado:', error.message);
         res.status(status).json({
-            message: error.message || 'Error al registrar usuario',
-            error: error.message
+            message: status === 500 ? 'No pudimos crear la cuenta. Probá de nuevo en un momento.' : error.message
         });
     }
 };
@@ -81,9 +81,9 @@ exports.login = async (req, res) => {
         });
     } catch (error) {
         const status = error.statusCode || 500;
+        if (status === 500) console.error('[login] Error inesperado:', error.message);
         res.status(status).json({
-            message: error.message || 'Error al iniciar sesion',
-            error: error.message,
+            message: status === 500 ? 'No pudimos iniciar la sesión. Probá de nuevo en un momento.' : error.message,
             code: error.code
         });
     }
@@ -137,7 +137,8 @@ exports.updateChecklist = async (req, res) => {
             return res.status(400).json({ message: 'El checklist debe ser una lista de identificadores' });
         }
 
-        const cleanChecklist = checklist.filter((item) => typeof item === 'string');
+        // Solo identificadores cortos y una cantidad razonable (evita guardar datos arbitrarios en la cuenta)
+        const cleanChecklist = [...new Set(checklist.filter((item) => typeof item === 'string' && item.length <= 80))].slice(0, 200);
         const userId = req.user._id || req.user.id;
 
         const updatedUser = await User.findByIdAndUpdate(
@@ -162,8 +163,7 @@ exports.updateChecklist = async (req, res) => {
     } catch (error) {
         console.error('Error al actualizar checklist en base de datos:', error);
         res.status(500).json({ 
-            message: 'Error al actualizar el checklist del usuario',
-            error: error.message 
+            message: 'Error al actualizar el checklist del usuario'
         });
     }
 };
@@ -270,5 +270,49 @@ exports.updatePreferences = async (req, res) => {
         res.status(200).json({ data: updatedUser.preferencias });
     } catch (error) {
         res.status(500).json({ message: 'Error al guardar las preferencias visuales' });
+    }
+};
+// Pedir el enlace para elegir contraseña nueva (respuesta idéntica exista o no la cuenta)
+exports.olvidePassword = async (req, res) => {
+    try {
+        const { enlaceDev } = await authService.solicitarRestablecimiento(req.body.email);
+        res.status(200).json({
+            message: 'Si hay una cuenta con ese email, te mandamos un enlace para elegir una contraseña nueva.',
+            enlaceDev
+        });
+    } catch (error) {
+        console.error('[contraseña] No se pudo mandar el enlace:', error.message);
+        res.status(500).json({ message: 'No pudimos mandar el mail. Probá de nuevo en un rato.' });
+    }
+};
+
+// Guardar la contraseña nueva con el enlace del mail
+exports.restablecerPassword = async (req, res) => {
+    try {
+        const { token, password } = req.body || {};
+        const resultado = await authService.restablecerPassword(token, password);
+        res.status(200).json({ message: 'Listo, tu contraseña cambió. Ingresá con la nueva.', data: resultado });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[contraseña] Error al restablecer:', error.message);
+        res.status(status).json({
+            message: status === 500 ? 'No se pudo cambiar la contraseña. Probá de nuevo.' : error.message,
+            code: error.code
+        });
+    }
+};
+
+// Confirmar el email nuevo con el enlace que llegó a esa casilla
+exports.confirmarCambioEmail = async (req, res) => {
+    try {
+        const resultado = await authService.confirmarCambioEmail(req.body && req.body.token);
+        res.status(200).json({ message: 'Email actualizado', data: resultado, token: resultado.token, user: resultado.user });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[email] Error al confirmar el cambio:', error.message);
+        res.status(status).json({
+            message: status === 500 ? 'No se pudo confirmar el email. Probá de nuevo.' : error.message,
+            code: error.code
+        });
     }
 };

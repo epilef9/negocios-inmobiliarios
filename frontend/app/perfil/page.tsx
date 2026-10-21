@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
+import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
 import { useAuth } from "@/context/AuthContext";
-import { ErrorPerfil, cambiarPassword, getPerfil, guardarPerfil, type DatosPerfil } from "@/services/perfil";
+import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
 
 // Estilos del formulario, iguales a los de ingreso y registro
 const etiqueta = "calma-micro text-[#efe9df]/70";
@@ -59,10 +60,12 @@ export default function PerfilPage() {
 	const [guardando, setGuardando] = useState(false);
 	const [aviso, setAviso] = useState<Aviso>(null);
 
-	const [claves, setClaves] = useState({ actual: "", nueva: "", repetir: "" });
-	const [erroresClave, setErroresClave] = useState<Record<string, string>>({});
-	const [cambiandoClave, setCambiandoClave] = useState(false);
+	const [emailPendiente, setEmailPendiente] = useState<string | null>(null);
+	const [enlaceDev, setEnlaceDev] = useState<string | null>(null);
+
+	const [pidiendoClave, setPidiendoClave] = useState(false);
 	const [avisoClave, setAvisoClave] = useState<Aviso>(null);
+	const [enlaceDevClave, setEnlaceDevClave] = useState<string | null>(null);
 
 	useEffect(() => {
 		if (isLoading || !user) return;
@@ -72,6 +75,7 @@ export default function PerfilPage() {
 				if (!activo) return;
 				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
 				setEmailGuardado(perfil.email ?? "");
+				setEmailPendiente(perfil.emailPendiente ?? null);
 				setMiembroDesde(perfil.createdAt ? DESDE.format(new Date(perfil.createdAt)) : null);
 			})
 			.catch((e: Error) => activo && setErrorCarga(e.message))
@@ -115,11 +119,14 @@ export default function PerfilPage() {
 		setGuardando(true);
 		setAviso(null);
 		try {
-			const actualizado = await guardarPerfil({ ...datos, passwordActual: cambiaEmail ? datos.passwordActual : undefined });
-			actualizarUsuario({ ...user!, ...actualizado });
-			setEmailGuardado(actualizado.email);
-			setDatos((d) => ({ ...d, email: actualizado.email, passwordActual: undefined }));
-			setAviso({ tono: "bien", texto: "Listo, tus datos quedaron guardados." });
+			const resultado = await guardarPerfil({ ...datos, passwordActual: cambiaEmail ? datos.passwordActual : undefined });
+			// El email de la cuenta sigue siendo el anterior hasta que se confirme el nuevo desde su casilla
+			actualizarUsuario({ ...user!, ...resultado.user });
+			setEmailGuardado(resultado.user.email);
+			setDatos((d) => ({ ...d, email: resultado.user.email, passwordActual: undefined }));
+			if (resultado.emailPendiente) setEmailPendiente(resultado.emailPendiente);
+			setEnlaceDev(resultado.enlaceDev ?? null);
+			setAviso({ tono: "bien", texto: resultado.mensaje || "Listo, tus datos quedaron guardados." });
 		} catch (e) {
 			if (e instanceof ErrorPerfil) setErrores(e.errores);
 			setAviso({ tono: "mal", texto: e instanceof Error ? e.message : "No se pudieron guardar los datos." });
@@ -128,27 +135,19 @@ export default function PerfilPage() {
 		}
 	};
 
-	const guardarClave = async (evento: FormEvent) => {
-		evento.preventDefault();
-		const e: Record<string, string> = {};
-		if (!claves.actual) e.actual = "Escribí tu contraseña actual.";
-		if (claves.nueva.length < 8) e.nueva = "Mínimo 8 caracteres.";
-		if (claves.repetir !== claves.nueva) e.repetir = "No coincide con la nueva contraseña.";
-		setErroresClave(e);
+	// La contraseña no se cambia acá: se manda un enlace al email de la cuenta (así nadie que encuentre
+	// la sesión abierta puede cambiarla)
+	const pedirClave = async () => {
+		setPidiendoClave(true);
 		setAvisoClave(null);
-		if (Object.keys(e).length) return;
-		setCambiandoClave(true);
 		try {
-			await cambiarPassword(claves.actual, claves.nueva);
-			setClaves({ actual: "", nueva: "", repetir: "" });
-			setAvisoClave({ tono: "bien", texto: "Contraseña actualizada. La próxima vez ingresá con la nueva." });
+			const respuesta = await pedirCambioPassword();
+			setEnlaceDevClave(respuesta.enlaceDev ?? null);
+			setAvisoClave({ tono: "bien", texto: respuesta.mensaje || `Te mandamos un mail a ${emailGuardado} con el enlace.` });
 		} catch (error) {
-			if (error instanceof ErrorPerfil) {
-				setErroresClave({ actual: error.errores.passwordActual ?? "", nueva: error.errores.passwordNueva ?? "" });
-			}
-			setAvisoClave({ tono: "mal", texto: error instanceof Error ? error.message : "No se pudo cambiar la contraseña." });
+			setAvisoClave({ tono: "mal", texto: error instanceof Error ? error.message : "No pudimos mandar el mail." });
 		} finally {
-			setCambiandoClave(false);
+			setPidiendoClave(false);
 		}
 	};
 
@@ -197,7 +196,7 @@ export default function PerfilPage() {
 									<Campo id={`${id}-apellido`} texto="Apellido *" error={errores.apellido}>
 										<input id={`${id}-apellido`} type="text" autoComplete="family-name" disabled={cargando} value={datos.apellido} aria-invalid={Boolean(errores.apellido)} onChange={(e) => cambiar("apellido", e.target.value)} className={control} />
 									</Campo>
-									<Campo id={`${id}-email`} texto="Email *" error={errores.email} ayuda="Es con el que ingresás a tu cuenta.">
+									<Campo id={`${id}-email`} texto="Email *" error={errores.email} ayuda="Es con el que ingresás. Si lo cambiás, te mandamos un mail para confirmarlo.">
 										<input id={`${id}-email`} type="email" autoComplete="email" required disabled={cargando} value={datos.email} aria-invalid={Boolean(errores.email)} onChange={(e) => cambiar("email", e.target.value)} className={control} />
 									</Campo>
 									<Campo id={`${id}-telefono`} texto="Teléfono *" error={errores.telefono} ayuda="Con característica, ej.: 343 444 4444.">
@@ -216,6 +215,16 @@ export default function PerfilPage() {
 										</button>
 										<Mensaje aviso={aviso} />
 									</div>
+									{emailPendiente && (
+										<p className="m-0 text-[14px] leading-relaxed text-[#efe9df]/65 sm:col-span-2">
+											Cambio pendiente: para empezar a usar <strong className="font-semibold text-[#efe9df]">{emailPendiente}</strong> tocá el enlace que te mandamos a esa casilla. Hasta entonces seguís ingresando con {emailGuardado}.
+										</p>
+									)}
+									{enlaceDev && (
+										<div className="sm:col-span-2">
+											<EnlaceDeDesarrollo enlace={enlaceDev} para="confirmar el email nuevo" accion="Confirmar email nuevo" />
+										</div>
+									)}
 								</form>
 							)}
 						</section>
@@ -224,25 +233,16 @@ export default function PerfilPage() {
 							<h2 id={`${id}-clave-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
 								Contraseña
 							</h2>
-							<form noValidate onSubmit={guardarClave} className="mt-10 grid gap-8 sm:grid-cols-2">
-								<div className="sm:col-span-2 sm:max-w-[calc(50%-1rem)]">
-									<Campo id={`${id}-actual`} texto="Contraseña actual" error={erroresClave.actual || undefined}>
-										<input id={`${id}-actual`} type="password" autoComplete="current-password" value={claves.actual} aria-invalid={Boolean(erroresClave.actual)} onChange={(e) => setClaves((c) => ({ ...c, actual: e.target.value }))} className={control} />
-									</Campo>
-								</div>
-								<Campo id={`${id}-nueva`} texto="Nueva contraseña" error={erroresClave.nueva || undefined} ayuda="Mínimo 8 caracteres.">
-									<input id={`${id}-nueva`} type="password" autoComplete="new-password" value={claves.nueva} aria-invalid={Boolean(erroresClave.nueva)} onChange={(e) => setClaves((c) => ({ ...c, nueva: e.target.value }))} className={control} />
-								</Campo>
-								<Campo id={`${id}-repetir`} texto="Repetí la nueva" error={erroresClave.repetir || undefined}>
-									<input id={`${id}-repetir`} type="password" autoComplete="new-password" value={claves.repetir} aria-invalid={Boolean(erroresClave.repetir)} onChange={(e) => setClaves((c) => ({ ...c, repetir: e.target.value }))} className={control} />
-								</Campo>
-								<div className="flex flex-wrap items-center gap-6 sm:col-span-2">
-									<button type="submit" disabled={cambiandoClave} className={botonPrincipal}>
-										{cambiandoClave ? "Cambiando…" : "Cambiar contraseña"}
-									</button>
-									<Mensaje aviso={avisoClave} />
-								</div>
-							</form>
+							<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">
+								Por seguridad, te mandamos un enlace a <strong className="font-semibold text-[#efe9df]">{emailGuardado || "tu email"}</strong> para que elijas la nueva. Al cambiarla se cierran las sesiones abiertas en otros dispositivos.
+							</p>
+							<div className="mt-8 flex flex-wrap items-center gap-6">
+								<button type="button" onClick={pedirClave} disabled={pidiendoClave || cargando || Boolean(errorCarga)} className={botonPrincipal}>
+									{pidiendoClave ? "Enviando…" : "Mandarme el enlace"}
+								</button>
+								<Mensaje aviso={avisoClave} />
+							</div>
+							{enlaceDevClave && <EnlaceDeDesarrollo enlace={enlaceDevClave} para="elegir la contraseña nueva" accion="Elegir contraseña nueva" />}
 						</section>
 					</div>
 

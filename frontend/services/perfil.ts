@@ -1,19 +1,21 @@
-// Servicio del perfil propio: datos de la cuenta y cambio de contraseña
+// Servicio del perfil propio: datos de la cuenta. La contraseña y el email se cambian con un enlace por mail.
 import { API_URL } from './api';
 import type { User } from './auth';
 
 // Error con el detalle por campo que devuelve el backend, para marcar cada campo del formulario
 export class ErrorPerfil extends Error {
   errores: Record<string, string>;
+  status: number;
 
-  constructor(mensaje: string, errores: Record<string, string> = {}) {
+  constructor(mensaje: string, errores: Record<string, string> = {}, status = 0) {
     super(mensaje);
     this.name = 'ErrorPerfil';
     this.errores = errores;
+    this.status = status;
   }
 }
 
-async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
+async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<{ data: T; message: string }> {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   let respuesta: Response;
   try {
@@ -25,8 +27,8 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
     throw new ErrorPerfil('No pudimos conectarnos con el servidor. Probá de nuevo en un momento.');
   }
   const cuerpo = await respuesta.json().catch(() => ({}));
-  if (!respuesta.ok) throw new ErrorPerfil(cuerpo.message || 'No se pudo completar la operación', cuerpo.errores || {});
-  return cuerpo.data as T;
+  if (!respuesta.ok) throw new ErrorPerfil(cuerpo.message || 'No se pudo completar la operación', cuerpo.errores || {}, respuesta.status);
+  return { data: cuerpo.data as T, message: cuerpo.message || '' };
 }
 
 export type DatosPerfil = {
@@ -37,13 +39,21 @@ export type DatosPerfil = {
   passwordActual?: string;
 };
 
-export const getPerfil = () => pedir<User & { updatedAt?: string }>('/users/me');
+export type Perfil = User & { emailPendiente?: string; updatedAt?: string };
 
+export const getPerfil = async () => (await pedir<Perfil>('/users/me')).data;
+
+// Guarda los datos. Si cambió el email, queda pendiente hasta confirmarlo desde el mail que llega a esa casilla.
 export async function guardarPerfil(datos: DatosPerfil) {
-  const resultado = await pedir<{ user: User; token: string }>('/users/me', { method: 'PUT', body: JSON.stringify(datos) });
-  if (resultado.token) localStorage.setItem('token', resultado.token);
-  return resultado.user;
+  const { data, message } = await pedir<{ user: Perfil; emailPendiente?: string; enlaceDev?: string }>('/users/me', {
+    method: 'PUT',
+    body: JSON.stringify(datos),
+  });
+  return { ...data, mensaje: message };
 }
 
-export const cambiarPassword = (passwordActual: string, passwordNueva: string) =>
-  pedir<void>('/users/me/password', { method: 'PUT', body: JSON.stringify({ passwordActual, passwordNueva }) });
+// Manda al email de la cuenta el enlace para elegir una contraseña nueva
+export async function pedirCambioPassword() {
+  const { data, message } = await pedir<{ enlaceDev?: string }>('/users/me/password', { method: 'POST' });
+  return { enlaceDev: data?.enlaceDev, mensaje: message };
+}

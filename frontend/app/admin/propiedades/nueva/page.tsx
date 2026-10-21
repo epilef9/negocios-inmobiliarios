@@ -274,10 +274,10 @@ export default function NuevaPropiedadPage() {
   const subirArchivos = async (filesArray: File[]) => {
     if (filesArray.length > 0) {
       // Revisar tamaño y formato antes de enviarlas al servidor
-      const oversizedFile = filesArray.find((file) => file.size > 20 * 1024 * 1024);
+      const oversizedFile = filesArray.find((file) => file.size > 10 * 1024 * 1024);
 
       if (oversizedFile) {
-        setMensaje(`La imagen "${oversizedFile.name}" supera el límite de 20 MB`);
+        setMensaje(`La imagen "${oversizedFile.name}" supera el límite de 10 MB`);
         return;
       }
 

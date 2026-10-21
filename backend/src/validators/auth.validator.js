@@ -17,13 +17,22 @@ const validateRegister = (req, res, next) => {
 
     // Validacion de correo electronico
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!email || typeof email !== 'string' || !emailRegex.test(email.trim())) {
+    if (!email || typeof email !== 'string' || !emailRegex.test(email.trim()) || email.length > 150) {
         errors.push('El correo electronico no es valido');
+    }
+    if ((typeof nombre === 'string' && nombre.length > 80) || (typeof apellido === 'string' && apellido.length > 80)) {
+        errors.push('El nombre o el apellido es demasiado largo');
+    }
+    if (req.body.telefono !== undefined && (typeof req.body.telefono !== 'string' || req.body.telefono.length > 30)) {
+        errors.push('El telefono no es valido');
     }
 
     // Validacion de contrasena (minimo 8 caracteres segun prototipo)
     if (!password || typeof password !== 'string' || password.length < 8) {
         errors.push('La contrasena debe tener al menos 8 caracteres');
+    } else if (password.length > 72) {
+        // bcrypt solo usa los primeros 72 caracteres: más largo daría una falsa sensación de seguridad
+        errors.push('La contrasena puede tener hasta 72 caracteres');
     }
 
     // Validacion de confirmacion de contrasena

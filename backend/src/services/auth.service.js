@@ -7,6 +7,13 @@ const emailService = require('./email.service');
 
 const HORAS_VALIDEZ_ENLACE = 24;
 const SEGUNDOS_ENTRE_REENVIOS = 60;
+const MINUTOS_VALIDEZ_RESTABLECER = 30;
+const User = require('../models/user.model');
+
+// Hash de una contraseña cualquiera: cuando el email no existe se compara igual contra esto,
+// así la respuesta tarda lo mismo y no se puede deducir qué emails tienen cuenta
+const HASH_FICTICIO = bcrypt.hashSync('contraseña-que-no-existe', 10);
+const TOKEN_VALIDO = /^[a-f0-9]{64}$/;
 
 const hashDe = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -99,6 +106,7 @@ const authService = {
         // Buscar usuario por correo mediante el repositorio
         const user = await userRepository.findByEmail(email);
         if (!user) {
+            await bcrypt.compare(password, HASH_FICTICIO);
             const error = new Error('Credenciales invalidas');
             error.statusCode = 401;
             throw error;
@@ -151,6 +159,86 @@ const authService = {
             throw error;
         }
         return mandarVerificacion(user);
+    },
+
+    // Manda un enlace para elegir contraseña nueva. Responde siempre igual, exista o no la cuenta.
+    solicitarRestablecimiento: async (email) => {
+        const user = await User.findOne({ email: String(email).toLowerCase().trim() }).select('+restablecimientoHash +restablecimientoExpira');
+        if (!user) return {};
+
+        // Si ya se mandó uno hace menos de un minuto no se manda otro (evita llenar la casilla de alguien)
+        const emitido = user.restablecimientoExpira ? user.restablecimientoExpira.getTime() - MINUTOS_VALIDEZ_RESTABLECER * 60 * 1000 : 0;
+        if (Date.now() - emitido < SEGUNDOS_ENTRE_REENVIOS * 1000) return {};
+
+        const token = crypto.randomBytes(32).toString('hex');
+        user.restablecimientoHash = hashDe(token);
+        user.restablecimientoExpira = new Date(Date.now() + MINUTOS_VALIDEZ_RESTABLECER * 60 * 1000);
+        await user.save();
+
+        const enlace = `${config.urlFrontend()}/restablecer-contrasena?token=${token}`;
+        const envio = await emailService.enviarRestablecimiento({ para: user.email, nombre: user.nombre, enlace, minutos: MINUTOS_VALIDEZ_RESTABLECER });
+        return { enlaceDev: envio.simulado ? enlace : undefined };
+    },
+
+    // Guarda la contraseña nueva con el enlace del mail y cierra todas las sesiones abiertas
+    restablecerPassword: async (token, password) => {
+        if (typeof token !== 'string' || !TOKEN_VALIDO.test(token)) {
+            throw errorHttp('El enlace no es válido. Pedí uno nuevo.', 400, 'ENLACE_INVALIDO');
+        }
+        if (typeof password !== 'string' || password.length < 8 || password.length > 72) {
+            throw errorHttp('La contraseña tiene que tener entre 8 y 72 caracteres.', 400, 'PASSWORD_INVALIDA');
+        }
+        const user = await User.findOne({ restablecimientoHash: hashDe(token) }).select('+restablecimientoHash +restablecimientoExpira');
+        if (!user || !user.restablecimientoExpira || user.restablecimientoExpira < new Date()) {
+            throw errorHttp('El enlace venció o ya se usó. Pedí uno nuevo.', 400, 'ENLACE_INVALIDO');
+        }
+        if (await bcrypt.compare(password, user.password)) {
+            throw errorHttp('La contraseña nueva tiene que ser distinta de la anterior.', 400, 'PASSWORD_REPETIDA');
+        }
+
+        user.password = await bcrypt.hash(password, 10);
+        user.restablecimientoHash = undefined;
+        user.restablecimientoExpira = undefined;
+        user.credencialesCambiadasEn = new Date();
+        // Usar el enlace prueba que la casilla es suya
+        user.emailVerificado = true;
+        await user.save();
+
+        emailService.avisarPasswordCambiada({ para: user.email, nombre: user.nombre }).catch((error) =>
+            console.error('[contraseña] No se pudo mandar el aviso:', error.message)
+        );
+        return { email: user.email };
+    },
+
+    // Confirma el email nuevo desde el enlace que le llegó a esa casilla
+    confirmarCambioEmail: async (token) => {
+        if (typeof token !== 'string' || !TOKEN_VALIDO.test(token)) {
+            throw errorHttp('El enlace no es válido.', 400, 'ENLACE_INVALIDO');
+        }
+        const user = await User.findOne({ cambioEmailHash: hashDe(token) }).select('+cambioEmailHash +cambioEmailExpira +emailPendiente');
+        if (!user || !user.emailPendiente || !user.cambioEmailExpira || user.cambioEmailExpira < new Date()) {
+            throw errorHttp('El enlace venció o ya se usó. Pedí el cambio de nuevo desde tu cuenta.', 400, 'ENLACE_INVALIDO');
+        }
+        const ocupado = await User.exists({ email: user.emailPendiente, _id: { $ne: user._id } });
+        if (ocupado) {
+            throw errorHttp('Ese email ya lo usa otra cuenta.', 409, 'EMAIL_EN_USO');
+        }
+
+        const anterior = user.email;
+        user.email = user.emailPendiente;
+        if (!user.username || user.username === anterior) user.username = user.email;
+        user.emailPendiente = undefined;
+        user.cambioEmailHash = undefined;
+        user.cambioEmailExpira = undefined;
+        user.emailVerificado = true;
+        user.credencialesCambiadasEn = new Date(Date.now() - 1000);
+        await user.save();
+
+        emailService.avisarEmailCambiado({ para: anterior, nombre: user.nombre, nuevo: user.email }).catch((error) =>
+            console.error('[email] No se pudo avisar al email anterior:', error.message)
+        );
+        // Las otras sesiones se cierran; esta queda iniciada con el email nuevo
+        return { token: firmarSesion(user), user: datosPublicos(user) };
     },
 
     logout: async () => {
