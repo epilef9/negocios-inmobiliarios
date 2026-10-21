@@ -19,7 +19,6 @@ const TIPOS = [
   { value: '', label: 'Cualquiera' },
   { value: 'casa', label: 'Casa' },
   { value: 'departamento', label: 'Departamento' },
-  { value: 'monoambiente', label: 'Monoambiente' },
   { value: 'local', label: 'Local' },
   { value: 'terreno', label: 'Terreno' },
 ];

@@ -42,6 +42,8 @@ const diasHasta = (texto?: string) => {
 const mostrarMonto = (monto?: string) => (monto && /^\d+(\.\d+)?$/.test(monto.trim()) ? `$ ${Number(monto).toLocaleString('es-AR')}` : monto || '—');
 
 function Vencimiento({ contrato }: { contrato: Contrato }) {
+  // Una compraventa no vence: su fecha es la de posesión
+  if (contrato.tipoContrato === 'Compraventa') return null;
   const dias = diasHasta(contrato.fechaFin);
   if (dias === null || !['activo', 'por_vencer'].includes(contrato.estado)) return null;
   if (dias < 0) return <span className="text-[12.5px] text-red-600 dark:text-red-400">Venció hace {-dias} {dias === -1 ? 'día' : 'días'}</span>;
@@ -218,7 +220,7 @@ export default function ContratosAdminPage() {
                     </span>
                     <span className="flex flex-col">
                       <span className="whitespace-nowrap text-[13px] text-panel-suave">
-                        {mostrarFecha(c.fechaInicio)} → {mostrarFecha(c.fechaFin)}
+                        {c.tipoContrato === 'Compraventa' ? `Posesión ${mostrarFecha(c.fechaInicio)}` : `${mostrarFecha(c.fechaInicio)} → ${mostrarFecha(c.fechaFin)}`}
                       </span>
                       <Vencimiento contrato={c} />
                     </span>
@@ -295,9 +297,13 @@ export default function ContratosAdminPage() {
               )}
               <dt className="text-panel-suave">Propiedad</dt>
               <dd className="m-0">{detalle.propiedad?.titulo}<span className="block text-panel-suave">{detalle.propiedad?.direccion}</span></dd>
-              <dt className="text-panel-suave">Vigencia</dt>
-              <dd className="m-0">{mostrarFecha(detalle.fechaInicio)} al {mostrarFecha(detalle.fechaFin)}{detalle.duracionMeses ? ` · ${detalle.duracionMeses} meses` : ''}</dd>
-              <dt className="text-panel-suave">Monto mensual</dt>
+              <dt className="text-panel-suave">{detalle.tipoContrato === 'Compraventa' ? 'Posesión' : 'Vigencia'}</dt>
+              <dd className="m-0">
+                {detalle.tipoContrato === 'Compraventa'
+                  ? mostrarFecha(detalle.fechaInicio)
+                  : `${mostrarFecha(detalle.fechaInicio)} al ${mostrarFecha(detalle.fechaFin)}${detalle.duracionMeses ? ` · ${detalle.duracionMeses} ${detalle.duracionMeses === 1 ? 'mes' : 'meses'}` : ''}`}
+              </dd>
+              <dt className="text-panel-suave">{detalle.tipoContrato === 'Compraventa' ? 'Precio' : detalle.tipoContrato === 'Alquiler temporario' ? 'Precio' : 'Monto mensual'}</dt>
               <dd className="tabular m-0 font-medium">{mostrarMonto(detalle.montoMensual)}</dd>
               {detalle.depositoGarantia && (
                 <>
@@ -305,7 +311,7 @@ export default function ContratosAdminPage() {
                   <dd className="m-0">{mostrarMonto(detalle.depositoGarantia)}</dd>
                 </>
               )}
-              {detalle.ajuste && (
+              {detalle.ajuste && detalle.ajuste !== 'Sin ajuste' && detalle.tipoContrato !== 'Compraventa' && (
                 <>
                   <dt className="text-panel-suave">Ajuste</dt>
                   <dd className="m-0">{detalle.ajuste}</dd>
@@ -317,7 +323,7 @@ export default function ContratosAdminPage() {
                   <dd className="m-0">{detalle.comision}</dd>
                 </>
               )}
-              {detalle.incluyeGarante !== undefined && (
+              {detalle.incluyeGarante !== undefined && detalle.tipoContrato !== 'Compraventa' && (
                 <>
                   <dt className="text-panel-suave">Garante</dt>
                   <dd className="m-0">{detalle.incluyeGarante ? 'Sí' : 'No'}</dd>
