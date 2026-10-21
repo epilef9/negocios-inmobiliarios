@@ -11,14 +11,15 @@ import { useEffect, useRef } from 'react';
 // Ajustes del humo
 const RESOLUCION_AIRE = 128; // detalle del movimiento del aire
 const RESOLUCION_HUMO = 512; // detalle del humo que se ve
-const DISIPACION_HUMO = 1.1; // qué tan rápido se apaga el humo
+const DISIPACION_HUMO = 0.9; // qué tan rápido se apaga el humo
+const RITMO = 0.6; // 1 = tiempo real; menos de 1 = el humo se mueve más lento, como en cámara lenta
 const DISIPACION_AIRE = 0.35; // qué tan rápido se calma el aire
-const REMOLINOS = 22; // cuánto se enrosca
+const REMOLINOS = 14; // cuánto se enrosca
 const ITERACIONES_PRESION = 18;
 const RADIO = 0.24; // tamaño de cada bocanada
-const FUERZA = 5200; // cuánto empuja el mouse
+const FUERZA = 2400; // cuánto empuja el mouse
 const COLOR: [number, number, number] = [0.94, 0.91, 0.86]; // crema del sitio
-const INTENSIDAD = 0.022; // bien tenue: apenas un velo sobre el fondo
+const INTENSIDAD = 0.009; // bien tenue: apenas un velo sobre el fondo
 
 const VERTICE = `#version 300 es
 in vec2 aPosicion;
@@ -114,7 +115,7 @@ uniform sampler2D textura;
 void main() {
   vec3 c = texture(textura, vUv).rgb;
   // Tope de opacidad: aunque se junte mucho humo en un lugar, nunca pasa de un velo transparente
-  float a = clamp(max(c.r, max(c.g, c.b)), 0.0, 0.22);
+  float a = clamp(max(c.r, max(c.g, c.b)), 0.0, 0.09);
   color = vec4(min(c, vec3(a)), a);
 }`,
 };
@@ -336,7 +337,7 @@ export default function HumoCursor() {
     let ultimo = performance.now();
     let ultimoMovimiento = 0;
     const bucle = (ahora: number) => {
-      const dt = Math.min((ahora - ultimo) / 1000, 0.016666);
+      const dt = Math.min((ahora - ultimo) / 1000, 0.016666) * RITMO;
       ultimo = ahora;
       paso(dt);
       mostrar();
