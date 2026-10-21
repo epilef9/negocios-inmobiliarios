@@ -11,14 +11,20 @@ const MODOS: { id: ThemeMode; titulo: string; texto: string; icono: NombreIcono 
 ];
 
 // Miniatura del panel con el modo y la paleta, para ver el resultado antes de elegir
+// Vista previa de la paleta. En oscuro usa la misma mezcla que el panel (globals.css), así se ve igual que de verdad.
 function Miniatura({ oscuro, marca, acento }: { oscuro: boolean; marca: string; acento: string }) {
+  const mezcla = (porcentaje: number, base: string) => `color-mix(in srgb, ${marca} ${porcentaje}%, ${base})`;
   return (
-    <span aria-hidden="true" className={`flex h-16 w-full overflow-hidden rounded-md ring-1 ring-inset ${oscuro ? 'bg-[#0b1120] ring-[#222d44]' : 'bg-[#f4f5f7] ring-[#e2e5ea]'}`}>
-      <span className="h-full w-1/4" style={{ background: oscuro ? '#080d19' : marca }} />
+    <span
+      aria-hidden="true"
+      className="flex h-16 w-full overflow-hidden rounded-md ring-1 ring-inset"
+      style={oscuro ? { background: mezcla(40, '#04060a'), ['--tw-ring-color' as string]: mezcla(50, '#2a3242') } : { background: '#f4f5f7', ['--tw-ring-color' as string]: '#e2e5ea' }}
+    >
+      <span className="h-full w-1/4" style={{ background: oscuro ? mezcla(62, '#020305') : marca }} />
       <span className="flex flex-1 flex-col gap-1.5 p-2">
-        <span className={`h-1.5 w-1/2 rounded ${oscuro ? 'bg-[#e7ebf2]/70' : 'bg-[#121a2b]/70'}`} />
-        <span className={`h-5 rounded ${oscuro ? 'bg-[#121a2c]' : 'bg-white'}`} />
-        <span className="h-1.5 w-1/4 rounded" style={{ background: acento }} />
+        <span className={`h-1.5 w-1/2 rounded ${oscuro ? 'bg-[#eef0f4]/70' : 'bg-[#121a2b]/70'}`} />
+        <span className="h-5 rounded" style={{ background: oscuro ? mezcla(52, '#0b0f17') : '#ffffff' }} />
+        <span className="h-1.5 w-1/4 rounded" style={{ background: oscuro ? `color-mix(in srgb, ${acento} 82%, #ffffff)` : acento }} />
       </span>
     </span>
   );
