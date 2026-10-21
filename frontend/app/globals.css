@@ -94,8 +94,13 @@ html[data-theme="dark"] body {
   animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-button, a {
+/* Todo lo que se puede tocar muestra la manito (Tailwind deja los botones y menús con la flecha normal) */
+button, a, select, summary, [role="button"], label:has(> input[type="checkbox"]), label:has(> input[type="radio"]),
+input[type="checkbox"], input[type="radio"], input[type="file"] {
   cursor: pointer;
+}
+button:disabled, select:disabled, input:disabled {
+  cursor: not-allowed;
 }
 
 .font-fraunces {
