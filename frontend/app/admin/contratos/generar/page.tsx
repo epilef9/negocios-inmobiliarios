@@ -1,874 +1,505 @@
 'use client';
 
-import { useState, useEffect, useRef, Suspense } from 'react';
-import Link from 'next/link';
+import { Suspense, useEffect, useId, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import {
-  Contrato,
-  ContratoInput,
-  getContratoById,
-  createContrato,
-  updateContrato,
-  generarNumeroContrato,
-} from '../../../../services/contratos';
+import { createContrato, generarNumeroContrato, getContratoById, updateContrato, type ContratoInput, type EstadoContrato } from '@/services/contratos';
+import { getProperties, type ApiProperty } from '@/services/api';
+import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, Insignia, Tarjeta, areaTexto, control, useAviso } from '@/components/panel/ui';
+import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
+import Icono from '@/components/panel/Icono';
 
-function GeneracionContratosForm() {
-  const searchParams = useSearchParams();
-  const contractId = searchParams.get('id');
+const TIPOS = ['Alquiler permanente', 'Alquiler temporario', 'Comercial', 'Compraventa'] as const;
+const PLANTILLAS = ['Contrato de locación estándar', 'Contrato comercial estándar', 'Boleto de compraventa'];
+const AJUSTES = ['Semestral', 'Cuatrimestral', 'Trimestral', 'Anual'] as const;
+const COMISIONES = ['3%', '4%', '5%'];
 
-  // Form State
-  const [tipoContrato, setTipoContrato] = useState('Alquiler permanente');
-  const [plantilla, setPlantilla] = useState('Contrato de locación estándar');
-  const [propiedadSeleccionada, setPropiedadSeleccionada] = useState(
-    'Dpto. 2 amb. Centro — San Martín 1200'
+const TITULO_DOCUMENTO: Record<string, string> = {
+  'Alquiler permanente': 'Contrato de locación',
+  'Alquiler temporario': 'Contrato de locación temporaria',
+  Comercial: 'Contrato de locación comercial',
+  Compraventa: 'Boleto de compraventa',
+};
+
+// El backend guarda las fechas como "DD/MM/AAAA"; el campo de fecha del navegador usa "AAAA-MM-DD"
+const aIso = (latina: string) => {
+  const m = latina.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : '';
+};
+const aLatina = (iso: string) => {
+  const [anio, mes, dia] = iso.split('-');
+  return iso ? `${dia}/${mes}/${anio}` : '';
+};
+const sumarMeses = (iso: string, meses: number) => {
+  if (!iso) return '';
+  const [anio, mes, dia] = iso.split('-').map(Number);
+  const fecha = new Date(anio, mes - 1, dia);
+  fecha.setMonth(fecha.getMonth() + meses);
+  return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
+};
+const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+const ahoraTexto = () => {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} hs`;
+};
+
+type Datos = {
+  tipoContrato: (typeof TIPOS)[number];
+  plantilla: string;
+  propiedadId: string;
+  propiedadTitulo: string;
+  propiedadDireccion: string;
+  propiedadCiudad: string;
+  clienteNombre: string;
+  clienteTelefono: string;
+  clienteEmail: string;
+  locadora: string;
+  fechaInicio: string; // AAAA-MM-DD
+  duracionMeses: string;
+  montoMensual: string;
+  depositoGarantia: string;
+  ajuste: (typeof AJUSTES)[number];
+  comision: string;
+  incluyeGarante: boolean;
+  observaciones: string;
+};
+
+const VACIO: Datos = {
+  tipoContrato: 'Alquiler permanente',
+  plantilla: PLANTILLAS[0],
+  propiedadId: '',
+  propiedadTitulo: '',
+  propiedadDireccion: '',
+  propiedadCiudad: '',
+  clienteNombre: '',
+  clienteTelefono: '',
+  clienteEmail: '',
+  locadora: 'Araceli Balbuena',
+  fechaInicio: '',
+  duracionMeses: '24',
+  montoMensual: '',
+  depositoGarantia: '',
+  ajuste: 'Semestral',
+  comision: '3%',
+  incluyeGarante: true,
+  observaciones: '',
+};
+
+// Lo que el documento muestra cuando un dato todavía no se cargó
+function Hueco({ valor, texto }: { valor?: string; texto: string }) {
+  return valor ? (
+    <mark className="rounded bg-amber-100/70 px-0.5 text-inherit">{valor}</mark>
+  ) : (
+    <mark className="rounded bg-slate-200 px-1 text-slate-500">[{texto}]</mark>
   );
-  const [clienteSeleccionado, setClienteSeleccionado] = useState('Federico Soria');
+}
 
-  const [fechaInicio, setFechaInicio] = useState('01/08/2026');
-  const [duracionMeses, setDuracionMeses] = useState('24');
-  const [montoMensual, setMontoMensual] = useState('USD 450');
-  const [depositoGarantia, setDepositoGarantia] = useState('USD 450');
-  const [ajuste, setAjuste] = useState('Semestral');
-  const [comision, setComision] = useState('3%');
+function enlaceWhatsApp(telefono: string, texto: string) {
+  let numero = telefono.replace(/\D/g, '');
+  if (!numero) return null;
+  if (!numero.startsWith('54')) numero = `549${numero.replace(/^0/, '')}`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
+}
 
-  const [incluyeGarante, setIncluyeGarante] = useState(true);
-  const [permitirEdicionManual, setPermitirEdicionManual] = useState(true);
-  const [observaciones, setObservaciones] = useState(
-    'El contrato se redacta según las condiciones acordadas entre las partes.'
-  );
+function GeneradorContrato() {
+  const id = useId();
+  const parametro = useSearchParams().get('id');
+  const [contratoId, setContratoId] = useState<string | null>(parametro);
+  const [numero, setNumero] = useState<string | null>(null);
+  const [estado, setEstado] = useState<EstadoContrato | null>(null);
+  const [ultimaActualizacion, setUltimaActualizacion] = useState<string | null>(null);
+  const [datos, setDatos] = useState<Datos>(VACIO);
+  const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
+  const [cargando, setCargando] = useState(Boolean(parametro));
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+  const [faltan, setFaltan] = useState<string[]>([]);
+  const [guardando, setGuardando] = useState<'borrador' | 'activo' | null>(null);
+  const [enviarAbierto, setEnviarAbierto] = useState(false);
+  const { mostrar, aviso } = useAviso();
 
-  const [locadora, setLocadora] = useState('Araceli Balbuena');
-  const [estado, setEstado] = useState<'Borrador' | 'Listo' | 'Generado'>('Borrador');
-  const [ultimaActualizacion, setUltimaActualizacion] = useState('—');
-
-  // API state
-  const [guardando, setGuardando] = useState(false);
-  const [cargandoContrato, setCargandoContrato] = useState(false);
-
-  // Preview & Zoom controls
-  const [zoom, setZoom] = useState<number>(100);
-  const [pantallaCompleta, setPantallaCompleta] = useState(false);
-  const [mensajeToast, setMensajeToast] = useState<string | null>(null);
-  const [modalEnviar, setModalEnviar] = useState(false);
-
-  const documentRef = useRef<HTMLDivElement>(null);
-
-  // Pre-cargar si se pasa un ID por query param (carga desde la API)
   useEffect(() => {
-    if (!contractId) return;
+    getProperties()
+      .then((lista) => setPropiedades(lista ?? []))
+      .catch(() => setPropiedades([]));
+  }, []);
 
-    const cargar = async () => {
-      try {
-        setCargandoContrato(true);
-        const encontrado = await getContratoById(contractId);
-        setClienteSeleccionado(encontrado.cliente.nombre);
-        setPropiedadSeleccionada(`${encontrado.propiedad.titulo} — ${encontrado.propiedad.direccion}`);
-        setFechaInicio(encontrado.fechaInicio);
-        setMontoMensual(encontrado.montoMensual);
-        if (encontrado.duracionMeses) setDuracionMeses(String(encontrado.duracionMeses));
-        if (encontrado.depositoGarantia) setDepositoGarantia(encontrado.depositoGarantia);
-        if (encontrado.tipoContrato) setTipoContrato(encontrado.tipoContrato);
-        if (encontrado.plantilla) setPlantilla(encontrado.plantilla);
-        if (encontrado.ajuste) setAjuste(encontrado.ajuste);
-        if (encontrado.comision) setComision(encontrado.comision);
-        if (encontrado.locadora) setLocadora(encontrado.locadora);
-        if (encontrado.observaciones) setObservaciones(encontrado.observaciones);
-        if (encontrado.ultimaActualizacion) setUltimaActualizacion(encontrado.ultimaActualizacion);
-        if (encontrado.incluyeGarante !== undefined) setIncluyeGarante(encontrado.incluyeGarante);
-        if (encontrado.permitirEdicionManual !== undefined)
-          setPermitirEdicionManual(encontrado.permitirEdicionManual);
-      } catch (err) {
-        console.error('Error al cargar el contrato:', err);
-        mostrarToast('No se pudo cargar el contrato');
-      } finally {
-        setCargandoContrato(false);
-      }
+  useEffect(() => {
+    if (!parametro) return;
+    getContratoById(parametro)
+      .then((c) => {
+        setNumero(c.numeroContrato);
+        setEstado(c.estado);
+        setUltimaActualizacion(c.ultimaActualizacion ?? null);
+        setDatos({
+          tipoContrato: (TIPOS as readonly string[]).includes(c.tipoContrato ?? '') ? (c.tipoContrato as Datos['tipoContrato']) : 'Alquiler permanente',
+          plantilla: c.plantilla || PLANTILLAS[0],
+          propiedadId: '',
+          propiedadTitulo: c.propiedad?.titulo ?? '',
+          propiedadDireccion: c.propiedad?.direccion ?? '',
+          propiedadCiudad: '',
+          clienteNombre: c.cliente?.nombre ?? '',
+          clienteTelefono: c.cliente?.telefono ?? '',
+          clienteEmail: c.cliente?.email ?? '',
+          locadora: c.locadora || VACIO.locadora,
+          fechaInicio: aIso(c.fechaInicio),
+          duracionMeses: String(c.duracionMeses ?? 24),
+          montoMensual: c.montoMensual ?? '',
+          depositoGarantia: c.depositoGarantia ?? '',
+          ajuste: (AJUSTES as readonly string[]).includes(c.ajuste ?? '') ? (c.ajuste as Datos['ajuste']) : 'Semestral',
+          comision: c.comision || '3%',
+          incluyeGarante: c.incluyeGarante ?? true,
+          observaciones: c.observaciones ?? '',
+        });
+      })
+      .catch((e: Error) => setErrorCarga(e.message || 'No se pudo cargar el contrato'))
+      .finally(() => setCargando(false));
+  }, [parametro]);
+
+  // Al abrir un contrato guardado, se marca la propiedad del listado que coincide con su título
+  const propiedadElegida = datos.propiedadId || propiedades.find((p) => p.title === datos.propiedadTitulo)?._id || '';
+
+  const cambiar = <K extends keyof Datos>(campo: K, valor: Datos[K]) => {
+    setDatos((d) => ({ ...d, [campo]: valor }));
+    setFaltan((f) => f.filter((x) => x !== campo));
+  };
+
+  const elegirPropiedad = (idPropiedad: string) => {
+    const p = propiedades.find((x) => x._id === idPropiedad);
+    setDatos((d) => ({
+      ...d,
+      propiedadId: idPropiedad,
+      propiedadTitulo: p?.title ?? '',
+      propiedadDireccion: p?.direccionCompleta || p?.location || '',
+      propiedadCiudad: p?.ciudad ?? '',
+    }));
+    setFaltan((f) => f.filter((x) => x !== 'propiedadId'));
+  };
+
+  const meses = Number(datos.duracionMeses) || 0;
+  const fechaFin = sumarMeses(datos.fechaInicio, meses);
+  const ciudad = datos.propiedadCiudad || 'Villa Libertador San Martín';
+  // Domicilio sin partes repetidas (la dirección a veces ya trae la ciudad o la provincia)
+  const domicilio = datos.propiedadDireccion || datos.propiedadCiudad
+    ? [...datos.propiedadDireccion.split(','), datos.propiedadCiudad, 'Entre Ríos']
+        .map((parte) => parte.trim())
+        .filter((parte, i, todas) => parte && todas.findIndex((otra) => otra.toLowerCase() === parte.toLowerCase()) === i)
+        .join(', ')
+    : '';
+  const tituloDocumento = TITULO_DOCUMENTO[datos.tipoContrato] ?? 'Contrato de locación';
+
+  const revisar = () => {
+    const pendientes: string[] = [];
+    if (!datos.clienteNombre.trim()) pendientes.push('clienteNombre');
+    if (!datos.clienteTelefono.trim()) pendientes.push('clienteTelefono');
+    if (!datos.propiedadTitulo) pendientes.push('propiedadId');
+    if (!datos.fechaInicio) pendientes.push('fechaInicio');
+    if (!meses) pendientes.push('duracionMeses');
+    if (!datos.montoMensual.trim()) pendientes.push('montoMensual');
+    setFaltan(pendientes);
+    return pendientes.length === 0;
+  };
+
+  const guardar = async (nuevoEstado: 'borrador' | 'activo') => {
+    if (!revisar()) {
+      mostrar('Faltan datos obligatorios: están marcados en el formulario.', 'peligro');
+      return;
+    }
+    setGuardando(nuevoEstado);
+    const marca = ahoraTexto();
+    const campos: Omit<ContratoInput, 'numeroContrato'> = {
+      cliente: { nombre: datos.clienteNombre.trim(), telefono: datos.clienteTelefono.trim(), email: datos.clienteEmail.trim() },
+      propiedad: { titulo: datos.propiedadTitulo, direccion: domicilio || datos.propiedadTitulo },
+      fechaInicio: aLatina(datos.fechaInicio),
+      fechaFin,
+      montoMensual: datos.montoMensual.trim(),
+      estado: nuevoEstado,
+      tipoContrato: datos.tipoContrato,
+      plantilla: datos.plantilla,
+      duracionMeses: meses,
+      depositoGarantia: datos.depositoGarantia.trim(),
+      ajuste: datos.ajuste,
+      comision: datos.comision,
+      incluyeGarante: datos.incluyeGarante,
+      observaciones: datos.observaciones.trim(),
+      locadora: datos.locadora.trim(),
+      ultimaActualizacion: marca,
     };
-
-    cargar();
-  }, [contractId]);
-
-  const mostrarToast = (texto: string) => {
-    setMensajeToast(texto);
-    setTimeout(() => setMensajeToast(null), 3000);
-  };
-
-  const buildFechaStr = () => {
-    const ahora = new Date();
-    return `${String(ahora.getDate()).padStart(2, '0')}/${String(
-      ahora.getMonth() + 1
-    ).padStart(2, '0')}/${ahora.getFullYear()} ${String(ahora.getHours()).padStart(2, '0')}:${String(
-      ahora.getMinutes()
-    ).padStart(2, '0')} hs`;
-  };
-
-  // Datos comunes para crear o actualizar (sin numeroContrato para no pisar el existente al editar)
-  const buildCamposComunes = (fechaStr: string) => ({
-    cliente: {
-      nombre: clienteSeleccionado,
-      telefono: '+54 9 343 555 5678',
-    },
-    propiedad: {
-      titulo: propiedadSeleccionada.split('—')[0]?.trim() || propiedadSeleccionada,
-      direccion: propiedadSeleccionada.split('—')[1]?.trim() || 'Paraná, Entre Ríos',
-    },
-    fechaInicio,
-    fechaFin: calcularFechaFin(fechaInicio, Number(duracionMeses) || 24),
-    montoMensual,
-    estado: 'activo' as const,
-    tipoContrato,
-    plantilla,
-    duracionMeses: Number(duracionMeses) || 24,
-    depositoGarantia,
-    ajuste,
-    comision,
-    incluyeGarante,
-    permitirEdicionManual,
-    observaciones,
-    locadora,
-    ultimaActualizacion: fechaStr,
-  });
-
-  const calcularFechaFin = (inicio: string, meses: number): string => {
-    const partes = inicio.split('/');
-    if (partes.length !== 3) return inicio;
-    const [dia, mes, anio] = partes.map(Number);
-    const fecha = new Date(anio, mes - 1, dia);
-    fecha.setMonth(fecha.getMonth() + meses);
-    return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
-  };
-
-  const handleGuardarBorrador = async () => {
-    const fechaStr = buildFechaStr();
-    setUltimaActualizacion(fechaStr);
-    setEstado('Borrador');
-    setGuardando(true);
-
     try {
-      const campos = buildCamposComunes(fechaStr);
-
-      if (contractId) {
-        // Actualización: NO enviamos numeroContrato para no romper el unique index
-        await updateContrato(contractId, campos);
-        mostrarToast('Borrador actualizado exitosamente');
+      if (contratoId) {
+        // Al editar no se manda el número, para no chocar con el índice único
+        await updateContrato(contratoId, campos);
       } else {
-        // Creación: generamos el número una sola vez
-        const nuevo: ContratoInput = { ...campos, numeroContrato: generarNumeroContrato() };
-        await createContrato(nuevo);
-        mostrarToast('Borrador guardado exitosamente');
+        const nuevoNumero = generarNumeroContrato();
+        const creado = await createContrato({ ...campos, numeroContrato: nuevoNumero });
+        // Desde ahora se edita este mismo contrato: guardar otra vez ya no crea uno nuevo
+        setContratoId(creado._id);
+        setNumero(creado.numeroContrato || nuevoNumero);
+        window.history.replaceState(null, '', `/admin/contratos/generar?id=${creado._id}`);
       }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al guardar';
-      mostrarToast(msg);
+      setEstado(nuevoEstado);
+      setUltimaActualizacion(marca);
+      mostrar(nuevoEstado === 'borrador' ? 'Borrador guardado.' : 'Contrato guardado como activo. Ya podés imprimirlo o enviarlo.');
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo guardar el contrato', 'peligro');
     } finally {
-      setGuardando(false);
+      setGuardando(null);
     }
   };
 
-  const handleGenerarDocumento = async () => {
-    const fechaStr = buildFechaStr();
-    setUltimaActualizacion(fechaStr);
-    setEstado('Generado');
-    setGuardando(true);
+  const textoEnvio = `Hola ${datos.clienteNombre}, te escribimos de Negocios Inmobiliarios por el ${tituloDocumento.toLowerCase()} de "${datos.propiedadTitulo}". Te lo adjuntamos para que lo revises.`;
+  const whatsapp = enlaceWhatsApp(datos.clienteTelefono, textoEnvio);
+  const correo = datos.clienteEmail
+    ? `mailto:${datos.clienteEmail}?subject=${encodeURIComponent(`${tituloDocumento} - ${datos.propiedadTitulo}`)}&body=${encodeURIComponent(textoEnvio)}`
+    : null;
 
-    try {
-      const campos = buildCamposComunes(fechaStr);
-      campos.estado = 'activo';
+  const error = (campo: string, texto: string) => (faltan.includes(campo) ? texto : null);
 
-      if (contractId) {
-        await updateContrato(contractId, campos);
-      } else {
-        const nuevo: ContratoInput = { ...campos, numeroContrato: generarNumeroContrato() };
-        await createContrato(nuevo);
-      }
-      mostrarToast('Documento generado y listo para descargar');
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Error al generar';
-      mostrarToast(msg);
-    } finally {
-      setGuardando(false);
-    }
-  };
-
-  const handleDescargarPDF = () => {
-    window.print();
-  };
-
-  const getPropiedadLimpia = () => {
-    if (propiedadSeleccionada.includes('—')) {
-      return propiedadSeleccionada.split('—')[1]?.trim() + ', Paraná, Entre Ríos';
-    }
-    return propiedadSeleccionada + ', Paraná, Entre Ríos';
-  };
-
-  if (cargandoContrato) {
+  if (cargando) {
     return (
-      <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-        <main className="flex-1 flex items-center justify-center">
-          <div className="flex items-center gap-3 text-slate-400">
-            <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-            </svg>
-            <span className="text-sm font-medium">Cargando contrato...</span>
-          </div>
-        </main>
+      <div className="flex flex-col gap-4">
+        <Esqueleto className="h-10 w-72" />
+        <Esqueleto className="h-[520px] w-full" />
       </div>
     );
   }
 
+  const estadoActual = estado ? estadoDe(ESTADO_CONTRATO, estado) : null;
+
   return (
-    <div className="flex min-h-screen bg-[#f8fafc] text-slate-800 antialiased font-sans">
-      {/* Toast Notification */}
-      {mensajeToast && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-5 py-3 rounded-xl shadow-lg bg-[#0A193D] text-white text-sm font-medium animate-in fade-in">
-          <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-          {mensajeToast}
-        </div>
-      )}
+    <>
+      <Encabezado
+        titulo={numero ? `Contrato ${numero}` : 'Nuevo contrato'}
+        volver={{ href: '/admin/contratos', texto: 'Contratos' }}
+        descripcion={
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {estadoActual ? <Insignia tono={estadoActual.tono}>{estadoActual.texto}</Insignia> : <span>Sin guardar</span>}
+            {ultimaActualizacion && <span className="text-panel-tenue">Guardado {ultimaActualizacion}</span>}
+          </span>
+        }
+        acciones={
+          <>
+            <Boton onClick={() => guardar('borrador')} cargando={guardando === 'borrador'} disabled={Boolean(guardando)}>
+              Guardar borrador
+            </Boton>
+            <Boton variante="principal" icono="check" onClick={() => guardar('activo')} cargando={guardando === 'activo'} disabled={Boolean(guardando)}>
+              Guardar como activo
+            </Boton>
+          </>
+        }
+      />
 
-      {/* Sidebar Admin */}
-
-      {/* Contenido Principal */}
-      <main className="flex-1 overflow-y-auto px-8 py-7">
-        {/* Encabezado con navegación de vuelta */}
+      {errorCarga && (
         <div className="mb-6">
-          <div className="flex items-center gap-2 mb-2">
-            <Link
-              href="/admin/contratos"
-              className="text-xs font-semibold text-slate-400 hover:text-[#193B7B] transition flex items-center gap-1"
-            >
-              ← Volver a contratos
-            </Link>
-          </div>
-          <h1 className="text-2xl lg:text-3xl font-extrabold text-[#0A193D] tracking-tight">
-            Generación de contratos
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
-            Seleccioná una plantilla, completá los datos y revisá el documento antes de descargarlo
-          </p>
-        </div>
-
-        {/* 3 Tarjetas de Estado Superior */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-7">
-          {/* Card 1: Plantilla seleccionada */}
-          <div className="bg-white rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div>
-              <span className="text-xs font-medium text-slate-400 block">Plantilla seleccionada</span>
-              <span className="text-sm font-bold text-slate-800">{plantilla}</span>
-            </div>
-          </div>
-
-          {/* Card 2: Estado */}
-          <div className="bg-white rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <div>
-              <span className="text-xs font-medium text-slate-400 block">Estado</span>
-              <span className="inline-block mt-0.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-600 border border-amber-200">
-                {estado}
-              </span>
-            </div>
-          </div>
-
-          {/* Card 3: Última actualización */}
-          <div className="bg-white rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 flex items-center gap-4">
-            <div className="w-11 h-11 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div>
-              <span className="text-xs font-medium text-slate-400 block">Última actualización</span>
-              <span className="text-sm font-bold text-slate-800">{ultimaActualizacion}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Layout Principal: Formulario a la Izquierda (5 cols) | Vista previa a la Derecha (7 cols) */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-7 items-start">
-          {/* COLUMNA IZQUIERDA: FORMULARIO */}
-          <div className="lg:col-span-5 space-y-6">
-            {/* Tarjeta 1: Datos principales */}
-            <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                1. Datos principales
-              </h2>
-
-              <div className="space-y-3.5 text-xs">
-                {/* Tipo de contrato */}
-                <div className="flex items-center justify-between gap-3">
-                  <label className="font-semibold text-slate-700 w-36">Tipo de contrato</label>
-                  <select
-                    value={tipoContrato}
-                    onChange={(e) => setTipoContrato(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="Alquiler permanente">Alquiler permanente</option>
-                    <option value="Alquiler temporario">Alquiler temporario</option>
-                    <option value="Comercial">Comercial</option>
-                    <option value="Compraventa">Compraventa</option>
-                  </select>
-                </div>
-
-                {/* Plantilla */}
-                <div className="flex items-center justify-between gap-3">
-                  <label className="font-semibold text-slate-700 w-36">Plantilla</label>
-                  <select
-                    value={plantilla}
-                    onChange={(e) => setPlantilla(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="Contrato de locación estándar">Contrato de locación estándar</option>
-                    <option value="Contrato comercial estándar">Contrato comercial estándar</option>
-                    <option value="Boleto de compraventa">Boleto de compraventa</option>
-                  </select>
-                </div>
-
-                {/* Propiedad */}
-                <div className="flex items-center justify-between gap-3">
-                  <label className="font-semibold text-slate-700 w-36">Propiedad</label>
-                  <select
-                    value={propiedadSeleccionada}
-                    onChange={(e) => setPropiedadSeleccionada(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="Dpto. 2 amb. Centro — San Martín 1200">
-                      Dpto. 2 amb. Centro — San Martín 1200
-                    </option>
-                    <option value="Casa 3 dorm. Oro Verde — Los Lapachos 850">
-                      Casa 3 dorm. Oro Verde — Los Lapachos 850
-                    </option>
-                    <option value="Local comercial — San Martín 980">
-                      Local comercial — San Martín 980
-                    </option>
-                    <option value="Dpto. monoambiente — Córdoba 456">
-                      Dpto. monoambiente — Córdoba 456
-                    </option>
-                    <option value="Casa 4 dorm. Bajada Grande — Bajada Grande 120">
-                      Casa 4 dorm. Bajada Grande — Bajada Grande 120
-                    </option>
-                  </select>
-                </div>
-
-                {/* Cliente */}
-                <div className="flex items-center justify-between gap-3">
-                  <label className="font-semibold text-slate-700 w-36">Cliente</label>
-                  <select
-                    value={clienteSeleccionado}
-                    onChange={(e) => setClienteSeleccionado(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  >
-                    <option value="Federico Soria">Federico Soria</option>
-                    <option value="Martina López">Martina López</option>
-                    <option value="Joaquín Pérez">Joaquín Pérez</option>
-                    <option value="Carla Méndez">Carla Méndez</option>
-                    <option value="Sofía Ramírez">Sofía Ramírez</option>
-                    <option value="Lucas Benítez">Lucas Benítez</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Tarjeta 2: Condiciones del contrato */}
-            <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                2. Condiciones del contrato
-              </h2>
-
-              <div className="space-y-3.5 text-xs">
-                {/* Fila 1: Fecha inicio + Duración */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Fecha de inicio</label>
-                    <div className="relative">
-                      <span className="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </span>
-                      <input
-                        type="text"
-                        value={fechaInicio}
-                        onChange={(e) => setFechaInicio(e.target.value)}
-                        className="w-full pl-8 pr-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Duración (meses)</label>
-                    <input
-                      type="number"
-                      value={duracionMeses}
-                      onChange={(e) => setDuracionMeses(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                  </div>
-                </div>
-
-                {/* Fila 2: Monto mensual + Depósito */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Monto mensual</label>
-                    <input
-                      type="text"
-                      value={montoMensual}
-                      onChange={(e) => setMontoMensual(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Depósito en garantía</label>
-                    <input
-                      type="text"
-                      value={depositoGarantia}
-                      onChange={(e) => setDepositoGarantia(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    />
-                  </div>
-                </div>
-
-                {/* Fila 3: Ajuste + Comisión */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Ajuste</label>
-                    <select
-                      value={ajuste}
-                      onChange={(e) => setAjuste(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="Semestral">Semestral</option>
-                      <option value="Cuatrimestral">Cuatrimestral</option>
-                      <option value="Trimestral">Trimestral</option>
-                      <option value="Anual">Anual</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="font-semibold text-slate-700 block mb-1">Comisión inmobiliaria</label>
-                    <select
-                      value={comision}
-                      onChange={(e) => setComision(e.target.value)}
-                      className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                    >
-                      <option value="3%">3%</option>
-                      <option value="4%">4%</option>
-                      <option value="5%">5%</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tarjeta 3: Información adicional */}
-            <div className="bg-white rounded-2xl p-5 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100">
-              <h2 className="text-sm font-bold text-slate-800 mb-4 flex items-center gap-2">
-                <svg className="w-4 h-4 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                3. Información adicional
-              </h2>
-
-              <div className="space-y-4 text-xs">
-                {/* Toggles: Incluye garante + Permitir edición manual */}
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-3">
-                    <span className="font-semibold text-slate-700">Incluye garante</span>
-                    <div className="inline-flex rounded-lg border border-slate-200 p-0.5 bg-slate-50">
-                      <button
-                        type="button"
-                        onClick={() => setIncluyeGarante(true)}
-                        className={`px-3 py-1 rounded-md text-xs font-bold transition ${
-                          incluyeGarante ? 'bg-[#193B7B] text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        Sí
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIncluyeGarante(false)}
-                        className={`px-3 py-1 rounded-md text-xs font-bold transition ${
-                          !incluyeGarante ? 'bg-[#193B7B] text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'
-                        }`}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className="font-semibold text-slate-700">Permitir edición manual</span>
-                    <button
-                      type="button"
-                      onClick={() => setPermitirEdicionManual(!permitirEdicionManual)}
-                      className={`w-9 h-5 rounded-full transition-colors relative focus:outline-none ${
-                        permitirEdicionManual ? 'bg-[#193B7B]' : 'bg-slate-300'
-                      }`}
-                    >
-                      <span
-                        className={`w-3.5 h-3.5 rounded-full bg-white absolute top-0.5 transition-transform ${
-                          permitirEdicionManual ? 'right-0.5' : 'left-0.5'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Observaciones */}
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Observaciones</label>
-                  <textarea
-                    rows={2}
-                    value={observaciones}
-                    onChange={(e) => setObservaciones(e.target.value)}
-                    className="w-full px-3 py-2 bg-slate-50/70 border border-slate-200 rounded-xl text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                  />
-                </div>
-
-                {/* Adjuntar documentación */}
-                <div>
-                  <label className="font-semibold text-slate-700 block mb-1">Adjuntar documentación</label>
-                  <div className="border-2 border-dashed border-slate-200 hover:border-slate-300 rounded-xl p-4 text-center cursor-pointer transition bg-slate-50/40">
-                    <svg className="w-5 h-5 text-slate-400 mx-auto mb-1.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                    </svg>
-                    <span className="text-xs font-semibold text-slate-700 block">
-                      Arrastrá archivos aquí o hacé clic para seleccionar
-                    </span>
-                    <span className="text-[11px] text-slate-400">PDF, DOC, JPG (máx. 10 MB)</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Botones de acción del formulario */}
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                onClick={handleGuardarBorrador}
-                disabled={guardando}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-blue-600 text-blue-600 hover:bg-blue-50 font-bold text-xs shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {guardando ? (
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                  </svg>
-                ) : (
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
-                  </svg>
-                )}
-                {guardando ? 'Guardando...' : 'Guardar borrador'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleGenerarDocumento}
-                disabled={guardando}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-[#cc1f26] hover:bg-[#b0171d] text-white font-bold text-xs shadow-sm transition active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {guardando ? 'Generando...' : 'Generar documento'}
-              </button>
-            </div>
-          </div>
-
-          {/* COLUMNA DERECHA: VISTA PREVIA DEL DOCUMENTO */}
-          <div className="lg:col-span-7 space-y-4">
-            {/* Header de Vista Previa */}
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-bold text-slate-800">
-                Vista previa del documento
-              </h2>
-
-              <div className="flex items-center gap-3">
-                {/* Selector de Zoom */}
-                <select
-                  value={zoom}
-                  onChange={(e) => setZoom(Number(e.target.value))}
-                  className="bg-white border border-slate-200 rounded-lg px-2.5 py-1 text-xs font-semibold text-slate-700 focus:outline-none cursor-pointer"
-                >
-                  <option value={75}>75%</option>
-                  <option value={90}>90%</option>
-                  <option value={100}>100%</option>
-                  <option value={110}>110%</option>
-                  <option value={125}>125%</option>
-                </select>
-
-                {/* Pantalla completa */}
-                <button
-                  type="button"
-                  onClick={() => setPantallaCompleta(!pantallaCompleta)}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-blue-600 transition"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                  </svg>
-                  Pantalla completa
-                </button>
-              </div>
-            </div>
-
-            {/* Hoja de papel del documento simulado */}
-            <div
-              ref={documentRef}
-              style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'top center' }}
-              className={`bg-white rounded-2xl p-8 lg:p-10 shadow-[0_4px_20px_rgba(0,0,0,0.06)] border border-slate-200/80 transition-all font-serif text-slate-800 leading-relaxed text-sm ${
-                pantallaCompleta ? 'fixed inset-4 z-50 overflow-auto bg-white p-12 max-w-4xl mx-auto shadow-2xl' : ''
-              }`}
-            >
-              {pantallaCompleta && (
-                <button
-                  onClick={() => setPantallaCompleta(false)}
-                  className="absolute top-4 right-4 text-xs font-bold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg font-sans"
-                >
-                  ✕ Cerrar pantalla completa
-                </button>
-              )}
-
-              {/* Título del documento */}
-              <div className="text-center mb-8">
-                <h3 className="text-lg lg:text-xl font-bold tracking-wider text-slate-900 uppercase">
-                  CONTRATO DE LOCACIÓN
-                </h3>
-              </div>
-
-              {/* Texto legal con campos destacados reactivos */}
-              <div className="space-y-4 text-justify font-sans text-xs lg:text-sm text-slate-800 leading-relaxed">
-                <p>
-                  Entre{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {locadora}
-                  </mark>
-                  , en adelante &quot;LA LOCADORA&quot;, y{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {clienteSeleccionado}
-                  </mark>
-                  , en adelante &quot;EL LOCATARIO&quot;, se acuerda celebrar el presente contrato de locación sobre el inmueble sito en{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {getPropiedadLimpia()}
-                  </mark>
-                  , sujeto a las siguientes cláusulas:
-                </p>
-
-                <p>
-                  <strong>PRIMERA:</strong> El plazo de locación se establece en{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {duracionMeses} meses
-                  </mark>
-                  , contados a partir del{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {fechaInicio}
-                  </mark>
-                  .
-                </p>
-
-                <p>
-                  <strong>SEGUNDA:</strong> El precio del alquiler se fija en{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {montoMensual}
-                  </mark>{' '}
-                  mensuales, pagaderos dentro de los primeros 5 días de cada mes. El ajuste aplicable será de periodicidad{' '}
-                  <strong>{ajuste.toLowerCase()}</strong>.
-                </p>
-
-                <p>
-                  <strong>TERCERA:</strong> Se establece un depósito en garantía equivalente a un mes de alquiler, es decir,{' '}
-                  <mark className="bg-amber-100/90 text-slate-900 font-bold px-1 py-0.5 rounded">
-                    {depositoGarantia}
-                  </mark>
-                  , el cual será restituido al locatario al finalizar el contrato, siempre que el inmueble sea devuelto en las mismas condiciones en que fue entregado, conforme lo establecido en la ley vigente.
-                </p>
-
-                {incluyeGarante && (
-                  <p>
-                    <strong>CUARTA:</strong> El locatario presenta garantía debidamente conformada, comprometiéndose el fiador principal pagador a responder solidariamente por todas las obligaciones emanadas del presente contrato.
-                  </p>
-                )}
-
-                <p className="pt-2">
-                  En prueba de conformidad, se firman dos ejemplares de un mismo tenor y a un solo efecto, en el lugar y fecha indicados.
-                </p>
-              </div>
-
-              {/* Sección de firmas */}
-              <div className="grid grid-cols-2 gap-8 pt-16 mt-8 font-sans text-center text-xs">
-                <div>
-                  <div className="border-t border-slate-400 w-44 mx-auto pt-2 mb-1"></div>
-                  <span className="font-bold text-slate-900 block">{locadora}</span>
-                  <span className="text-slate-500 text-[11px]">LA LOCADORA</span>
-                </div>
-
-                <div>
-                  <div className="border-t border-slate-400 w-44 mx-auto pt-2 mb-1"></div>
-                  <span className="font-bold text-slate-900 block">{clienteSeleccionado}</span>
-                  <span className="text-slate-500 text-[11px]">EL LOCATARIO</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Barra Inferior de Acciones del Documento */}
-            <div className="bg-white rounded-2xl p-4 shadow-[0_2px_12px_rgba(0,0,0,0.03)] border border-slate-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div className="flex items-center gap-2.5">
-                <div className="w-5 h-5 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block leading-tight">
-                    Listo para descargar
-                  </span>
-                  <span className="text-[11px] text-slate-400">
-                    El documento está listo para ser descargado o enviado.
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-end sm:self-auto">
-                {/* Editar campos */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    const el = document.querySelector('input');
-                    el?.focus();
-                  }}
-                  className="px-3.5 py-2 rounded-xl border border-blue-500 text-blue-600 hover:bg-blue-50 text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                  </svg>
-                  Editar campos
-                </button>
-
-                {/* Descargar PDF */}
-                <button
-                  type="button"
-                  onClick={handleDescargarPDF}
-                  className="px-4 py-2 rounded-xl bg-[#193B7B] hover:bg-[#122756] text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 active:scale-95"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  Descargar PDF
-                </button>
-
-                {/* Enviar al cliente */}
-                <button
-                  type="button"
-                  onClick={() => setModalEnviar(true)}
-                  className="px-4 py-2 rounded-xl bg-[#cc1f26] hover:bg-[#b0171d] text-white text-xs font-bold shadow-sm transition flex items-center gap-1.5 active:scale-95"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                  Enviar al cliente
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </main>
-
-      {/* Modal Enviar al Cliente */}
-      {modalEnviar && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl border border-slate-100">
-            <h3 className="text-base font-bold text-slate-900 mb-1">
-              Enviar contrato al cliente
-            </h3>
-            <p className="text-xs text-slate-500 mb-4">
-              Seleccioná el canal para enviar el contrato a <strong>{clienteSeleccionado}</strong>.
-            </p>
-
-            <div className="space-y-3 mb-5">
-              <a
-                href={`https://wa.me/5493435555678?text=${encodeURIComponent(
-                  `Hola ${clienteSeleccionado}, te adjuntamos el contrato de locación para la propiedad "${propiedadSeleccionada}". Quedamos a tu disposición para coordinar la firma.`
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setModalEnviar(false)}
-                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-emerald-200 bg-emerald-50/50 hover:bg-emerald-50 text-emerald-700 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center font-bold text-sm">
-                    WA
-                  </span>
-                  <div>
-                    <span className="font-bold text-xs block text-slate-900">Enviar por WhatsApp</span>
-                    <span className="text-[11px] text-slate-500">+54 9 343 555 5678</span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-emerald-600">Abrir chat →</span>
-              </a>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setModalEnviar(false);
-                  mostrarToast(`Contrato enviado por correo a ${clienteSeleccionado}`);
-                }}
-                className="w-full flex items-center justify-between p-3.5 rounded-xl border border-blue-200 bg-blue-50/50 hover:bg-blue-50 text-blue-700 transition"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm">
-                    @
-                  </span>
-                  <div className="text-left">
-                    <span className="font-bold text-xs block text-slate-900">Enviar por Email</span>
-                    <span className="text-[11px] text-slate-500">cliente@email.com</span>
-                  </div>
-                </div>
-                <span className="text-xs font-bold text-blue-600">Enviar ahora →</span>
-              </button>
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setModalEnviar(false)}
-                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
+          <Alerta tono="peligro" titulo="No se pudo abrir el contrato">
+            {errorCarga}. Podés volver al listado o empezar uno nuevo.
+          </Alerta>
         </div>
       )}
-    </div>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-6">
+          <Tarjeta titulo="Partes y propiedad">
+            <div className="grid gap-4">
+              <Campo etiqueta="Propiedad *" htmlFor={`${id}-prop`} error={error('propiedadId', 'Elegí la propiedad.')}>
+                <select id={`${id}-prop`} value={propiedadElegida} aria-invalid={faltan.includes('propiedadId')} onChange={(e) => elegirPropiedad(e.target.value)} className={control}>
+                  <option value="">{datos.propiedadTitulo && !propiedadElegida ? `${datos.propiedadTitulo} (guardada)` : 'Elegí una propiedad'}</option>
+                  {propiedades.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.title}
+                      {p.ciudad ? ` · ${p.ciudad}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-cli`} error={error('clienteNombre', 'Escribí el nombre del cliente.')}>
+                <input id={`${id}-cli`} type="text" value={datos.clienteNombre} aria-invalid={faltan.includes('clienteNombre')} onChange={(e) => cambiar('clienteNombre', e.target.value)} className={control} />
+              </Campo>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta="Teléfono *" htmlFor={`${id}-tel`} error={error('clienteTelefono', 'Escribí el teléfono.')}>
+                  <input id={`${id}-tel`} type="tel" value={datos.clienteTelefono} aria-invalid={faltan.includes('clienteTelefono')} onChange={(e) => cambiar('clienteTelefono', e.target.value)} placeholder="Ej.: 343 444 4444" className={control} />
+                </Campo>
+                <Campo etiqueta="Email" htmlFor={`${id}-mail`}>
+                  <input id={`${id}-mail`} type="email" value={datos.clienteEmail} onChange={(e) => cambiar('clienteEmail', e.target.value)} className={control} />
+                </Campo>
+              </div>
+              <Campo etiqueta="Parte locadora" htmlFor={`${id}-loc`} ayuda="Quien firma como locador/a o vendedor/a.">
+                <input id={`${id}-loc`} type="text" value={datos.locadora} onChange={(e) => cambiar('locadora', e.target.value)} className={control} />
+              </Campo>
+            </div>
+          </Tarjeta>
+
+          <Tarjeta titulo="Condiciones">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Campo etiqueta="Tipo de contrato" htmlFor={`${id}-tipo`}>
+                <select id={`${id}-tipo`} value={datos.tipoContrato} onChange={(e) => cambiar('tipoContrato', e.target.value as Datos['tipoContrato'])} className={control}>
+                  {TIPOS.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta="Plantilla" htmlFor={`${id}-plantilla`}>
+                <select id={`${id}-plantilla`} value={datos.plantilla} onChange={(e) => cambiar('plantilla', e.target.value)} className={control}>
+                  {PLANTILLAS.map((p) => (
+                    <option key={p} value={p}>
+                      {p}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta="Fecha de inicio *" htmlFor={`${id}-inicio`} error={error('fechaInicio', 'Elegí la fecha.')}>
+                <input id={`${id}-inicio`} type="date" value={datos.fechaInicio} aria-invalid={faltan.includes('fechaInicio')} onChange={(e) => cambiar('fechaInicio', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Duración (meses) *" htmlFor={`${id}-meses`} error={error('duracionMeses', 'Indicá la duración.')} ayuda={fechaFin ? `Termina el ${fechaFin}` : undefined}>
+                <input id={`${id}-meses`} type="number" min="1" value={datos.duracionMeses} aria-invalid={faltan.includes('duracionMeses')} onChange={(e) => cambiar('duracionMeses', e.target.value)} className={`${control} tabular`} />
+              </Campo>
+              <Campo etiqueta={datos.tipoContrato === 'Compraventa' ? 'Precio *' : 'Monto mensual *'} htmlFor={`${id}-monto`} error={error('montoMensual', 'Indicá el monto.')}>
+                <input id={`${id}-monto`} type="text" value={datos.montoMensual} aria-invalid={faltan.includes('montoMensual')} onChange={(e) => cambiar('montoMensual', e.target.value)} placeholder="Ej.: ARS 350.000" className={control} />
+              </Campo>
+              <Campo etiqueta="Depósito en garantía" htmlFor={`${id}-deposito`}>
+                <input id={`${id}-deposito`} type="text" value={datos.depositoGarantia} onChange={(e) => cambiar('depositoGarantia', e.target.value)} placeholder="Ej.: ARS 350.000" className={control} />
+              </Campo>
+              <Campo etiqueta="Ajuste" htmlFor={`${id}-ajuste`}>
+                <select id={`${id}-ajuste`} value={datos.ajuste} onChange={(e) => cambiar('ajuste', e.target.value as Datos['ajuste'])} className={control}>
+                  {AJUSTES.map((a) => (
+                    <option key={a} value={a}>
+                      {a}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta="Comisión" htmlFor={`${id}-comision`}>
+                <select id={`${id}-comision`} value={datos.comision} onChange={(e) => cambiar('comision', e.target.value)} className={control}>
+                  {COMISIONES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-panel-borde p-3 sm:col-span-2">
+                <input type="checkbox" checked={datos.incluyeGarante} onChange={(e) => cambiar('incluyeGarante', e.target.checked)} className="h-4 w-4 accent-[var(--p-acento)]" />
+                <span className="text-sm">Incluye garante (agrega la cláusula de fianza)</span>
+              </label>
+              <Campo etiqueta="Observaciones" htmlFor={`${id}-obs`} ayuda="Si escribís algo, aparece como cláusula en el contrato." className="sm:col-span-2">
+                <textarea id={`${id}-obs`} rows={3} value={datos.observaciones} onChange={(e) => cambiar('observaciones', e.target.value)} className={areaTexto} />
+              </Campo>
+            </div>
+          </Tarjeta>
+        </div>
+
+        <Tarjeta
+          titulo="Vista previa"
+          descripcion="Se actualiza mientras completás el formulario."
+          acciones={
+            <>
+              <Boton tamano="sm" icono="imprimir" onClick={() => window.print()}>
+                Imprimir o guardar PDF
+              </Boton>
+              <Boton tamano="sm" variante="principal" icono="telefono" onClick={() => setEnviarAbierto(true)} disabled={!contratoId}>
+                Enviar al cliente
+              </Boton>
+            </>
+          }
+          className="xl:sticky xl:top-6 xl:self-start"
+        >
+          {!contratoId && <p className="m-0 mb-4 text-[13px] text-panel-suave">Guardalo primero para poder enviarlo.</p>}
+          <div className="max-h-[75vh] overflow-auto rounded-lg bg-panel-hundido p-3 sm:p-6">
+            <article id="documento-contrato" className="mx-auto max-w-[680px] bg-white px-8 py-10 font-serif [&>p]:my-3 text-[14.5px] leading-[1.75] text-slate-900 shadow-sm sm:px-12">
+              <h2 className="m-0 mb-1 text-center text-[17px] font-bold uppercase tracking-[0.12em]">{tituloDocumento}</h2>
+              {numero && <p className="m-0 mb-6 text-center text-[12.5px] text-slate-500">N.º {numero}</p>}
+              <p>
+                Entre <Hueco valor={datos.locadora} texto="parte locadora" />, en adelante «LA PARTE LOCADORA», y <Hueco valor={datos.clienteNombre} texto="cliente" />, en adelante «LA PARTE LOCATARIA», se celebra el presente contrato sobre el inmueble ubicado en{' '}
+                <Hueco valor={domicilio} texto="propiedad" />, sujeto a las siguientes cláusulas:
+              </p>
+              <p>
+                <strong>PRIMERA:</strong> El plazo se establece en <Hueco valor={meses ? `${meses} meses` : ''} texto="duración" />, a partir del <Hueco valor={datos.fechaInicio ? aLatina(datos.fechaInicio) : ''} texto="fecha de inicio" />
+                {fechaFin ? <>, con vencimiento el <Hueco valor={fechaFin} texto="" /></> : null}.
+              </p>
+              <p>
+                <strong>SEGUNDA:</strong> El precio se fija en <Hueco valor={datos.montoMensual} texto="monto" /> {datos.tipoContrato === 'Compraventa' ? '' : 'mensuales, pagaderos dentro de los primeros 5 días de cada mes'}. El ajuste será de periodicidad <strong>{datos.ajuste.toLowerCase()}</strong>.
+              </p>
+              {datos.depositoGarantia && (
+                <p>
+                  <strong>TERCERA:</strong> Se establece un depósito en garantía de <Hueco valor={datos.depositoGarantia} texto="" />, que será restituido al finalizar el contrato siempre que el inmueble se devuelva en las mismas condiciones en que fue entregado.
+                </p>
+              )}
+              {datos.incluyeGarante && (
+                <p>
+                  <strong>{datos.depositoGarantia ? 'CUARTA' : 'TERCERA'}:</strong> La parte locataria presenta garantía debidamente conformada; el fiador se constituye en principal pagador y responde solidariamente por todas las obligaciones de este contrato.
+                </p>
+              )}
+              <p>
+                <strong>COMISIÓN:</strong> La intermediación de Negocios Inmobiliarios devenga una comisión del {datos.comision}.
+              </p>
+              {datos.observaciones.trim() && (
+                <p className="whitespace-pre-line">
+                  <strong>OBSERVACIONES:</strong> {datos.observaciones.trim()}
+                </p>
+              )}
+              <p className="mt-6">
+                En prueba de conformidad se firman dos ejemplares de un mismo tenor, en {ciudad}, Entre Ríos, a los {FECHA_LARGA.format(new Date())}.
+              </p>
+              <div className="mt-16 grid grid-cols-2 gap-10 text-center text-[13px]">
+                <div>
+                  <div className="mb-2 border-t border-slate-400" />
+                  <span className="block font-semibold">{datos.locadora || ' '}</span>
+                  <span className="text-slate-500">Parte locadora</span>
+                </div>
+                <div>
+                  <div className="mb-2 border-t border-slate-400" />
+                  <span className="block font-semibold">{datos.clienteNombre || ' '}</span>
+                  <span className="text-slate-500">Parte locataria</span>
+                </div>
+              </div>
+            </article>
+          </div>
+        </Tarjeta>
+      </div>
+
+      <Dialogo
+        abierto={enviarAbierto}
+        alCerrar={() => setEnviarAbierto(false)}
+        titulo="Enviar al cliente"
+        descripcion="Primero guardá el PDF con «Imprimir o guardar PDF» para adjuntarlo."
+      >
+        <div className="flex flex-col gap-2">
+          {whatsapp ? (
+            <a href={whatsapp} target="_blank" rel="noreferrer" onClick={() => setEnviarAbierto(false)} className="flex items-center gap-3 rounded-lg border border-panel-borde p-3 hover:bg-panel-hundido">
+              <Icono nombre="telefono" className="h-5 w-5 text-emerald-600" />
+              <span className="flex-1">
+                <span className="block text-sm font-medium">WhatsApp</span>
+                <span className="tabular block text-[13px] text-panel-suave">{datos.clienteTelefono}</span>
+              </span>
+              <Icono nombre="flecha" className="h-4 w-4 text-panel-tenue" />
+            </a>
+          ) : (
+            <p className="m-0 text-sm text-panel-suave">Cargá el teléfono del cliente para escribirle por WhatsApp.</p>
+          )}
+          {correo ? (
+            <a href={correo} onClick={() => setEnviarAbierto(false)} className="flex items-center gap-3 rounded-lg border border-panel-borde p-3 hover:bg-panel-hundido">
+              <Icono nombre="contratos" className="h-5 w-5 text-panel-suave" />
+              <span className="flex-1">
+                <span className="block text-sm font-medium">Email</span>
+                <span className="block text-[13px] text-panel-suave">{datos.clienteEmail}</span>
+              </span>
+              <Icono nombre="flecha" className="h-4 w-4 text-panel-tenue" />
+            </a>
+          ) : (
+            <p className="m-0 text-sm text-panel-suave">Cargá el email del cliente para mandárselo por correo.</p>
+          )}
+        </div>
+      </Dialogo>
+
+      {aviso}
+    </>
   );
 }
 
-export default function GeneracionContratosPage() {
+export default function GenerarContratoPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="flex min-h-screen items-center justify-center bg-[#f8fafc] text-slate-500 text-sm">
-          Cargando generador de contratos...
-        </div>
-      }
-    >
-      <GeneracionContratosForm />
+    <Suspense fallback={<Esqueleto className="h-96 w-full" />}>
+      <GeneradorContrato />
     </Suspense>
   );
 }

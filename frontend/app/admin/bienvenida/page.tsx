@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
@@ -8,6 +8,7 @@ import { getProperties, type ApiProperty } from '@/services/api';
 import { getVisitas, type Visita } from '@/services/visitas';
 import { getContratos, type Contrato } from '@/services/contratos';
 import { fechaDeVisita } from '@/components/panel/estados';
+import { marcarBienvenidaVista } from '@/components/panel/bienvenida';
 
 const TABLILLAS = 8;
 const HORA = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -52,17 +53,33 @@ function armarResumen(visitas: Visita[], contratos: Contrato[], propiedades: Api
   return frases;
 }
 
-const OPCIONES = [
-  { tecla: '1', href: '/admin', titulo: 'Entrar al panel', texto: 'Propiedades, visitas y contratos' },
-  { tecla: '2', href: '/', titulo: 'Ver el sitio', texto: 'Como lo ven los clientes' },
-  { tecla: '3', href: '/admin/propiedades/nueva', titulo: 'Cargar una propiedad', texto: 'Directo al formulario' },
-];
+// A dónde quería ir el administrador antes de la bienvenida (solo rutas internas)
+function leerVolver() {
+  if (typeof window === 'undefined') return null;
+  const volver = new URLSearchParams(window.location.search).get('volver');
+  return volver && volver.startsWith('/') && !volver.startsWith('//') && !volver.startsWith('/admin/bienvenida') ? volver : null;
+}
 
 export default function BienvenidaPage() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [ahora, setAhora] = useState(() => new Date());
   const [resumen, setResumen] = useState<Resumen>(null);
+  const [volver] = useState(leerVolver);
+
+  const opciones = useMemo(
+    () => [
+      { tecla: '1', href: volver?.startsWith('/admin') ? volver : '/admin', titulo: 'Entrar al panel', texto: 'Propiedades, visitas y contratos' },
+      { tecla: '2', href: '/', titulo: 'Ver el sitio', texto: 'Como lo ven los clientes' },
+      { tecla: '3', href: '/admin/propiedades/nueva', titulo: 'Cargar una propiedad', texto: 'Directo al formulario' },
+    ],
+    [volver]
+  );
+
+  // Queda registrado que en esta pestaña ya se vio: recargar no la repite
+  useEffect(() => {
+    marcarBienvenidaVista();
+  }, []);
 
   // Reloj: se actualiza cada 20 segundos
   useEffect(() => {
@@ -96,12 +113,12 @@ export default function BienvenidaPage() {
     const alTeclear = (e: KeyboardEvent) => {
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       if (e.target instanceof HTMLElement && e.target.closest('input, textarea, select')) return;
-      const opcion = OPCIONES.find((o) => o.tecla === e.key);
+      const opcion = opciones.find((o) => o.tecla === e.key);
       if (opcion) router.push(opcion.href);
     };
     window.addEventListener('keydown', alTeclear);
     return () => window.removeEventListener('keydown', alTeclear);
-  }, [router]);
+  }, [router, opciones]);
 
   const nombre = user?.nombre || 'Administración';
   const saludo = saludoSegunHora(ahora.getHours());
@@ -176,7 +193,7 @@ export default function BienvenidaPage() {
           </div>
 
           <nav aria-label="¿Qué querés hacer?" className="grid gap-3 sm:grid-cols-3">
-            {OPCIONES.map((opcion, i) => (
+            {opciones.map((opcion, i) => (
               <Link
                 key={opcion.href}
                 href={opcion.href}
@@ -205,7 +222,13 @@ export default function BienvenidaPage() {
         </div>
 
         <footer className="bienvenida-aparecer flex items-center justify-between gap-4 text-[13px] text-[#efe9df]/55" style={{ animationDelay: '2.9s' }}>
-          <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
+          {volver && !volver.startsWith('/admin') ? (
+            <Link href={volver} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
+              Seguir en la página que abriste
+            </Link>
+          ) : (
+            <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
+          )}
           <button type="button" onClick={logout} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
             No soy {nombre}, salir
           </button>

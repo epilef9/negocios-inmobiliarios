@@ -33,7 +33,8 @@ exports.createContrato = async (req, res) => {
     } catch (error) {
         const isDuplicate = error.code === 11000;
         res.status(isDuplicate ? 409 : 400).json({
-            message: isDuplicate ? 'Ya existe un contrato con ese número' : 'Error al crear el contrato',
+            // Se incluye el motivo (por ejemplo, un campo obligatorio vacío) para poder corregirlo desde el panel
+            message: isDuplicate ? 'Ya existe un contrato con ese número' : `No se pudo crear el contrato: ${error.message}`,
             error,
         });
     }

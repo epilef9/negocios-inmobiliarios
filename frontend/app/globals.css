@@ -79,116 +79,6 @@ html[data-theme="dark"] body {
   background-color: #090e1a;
 }
 
-/* Vistas antiguas del panel: sus clases originales son claras por defecto. */
-html.dark .admin-themed-page,
-html[data-theme="dark"] .admin-themed-page {
-  background-color: #090e1a !important;
-  color: #f1f5f9;
-}
-
-html.dark .admin-themed-page main [class*="bg-white"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-white"],
-html.dark .admin-themed-page main [class*="bg-slate-50"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-50"],
-html.dark .admin-themed-page main [class*="bg-slate-100"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-100"] {
-  background-color: #0f172a !important;
-}
-
-html.dark .admin-themed-page main [class*="border-slate-100"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-100"],
-html.dark .admin-themed-page main [class*="border-slate-200"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-200"],
-html.dark .admin-themed-page main [class*="border-slate-300"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-300"] {
-  border-color: #1e293b !important;
-}
-
-html.dark .admin-themed-page main [class*="text-[#0A193D]"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-[#0A193D]"],
-html.dark .admin-themed-page main [class*="text-slate-900"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-900"],
-html.dark .admin-themed-page main [class*="text-slate-800"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-800"] {
-  color: #f8fafc !important;
-}
-
-html.dark .admin-themed-page main [class*="text-slate-700"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-700"],
-html.dark .admin-themed-page main [class*="text-slate-600"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-600"] {
-  color: #cbd5e1 !important;
-}
-
-html.dark .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
-html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
-html.dark .admin-themed-page main [class*="hover:bg-slate-100"]:hover,
-html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-100"]:hover {
-  background-color: #1e293b !important;
-}
-
-.filter-select-contrast,
-.filter-select-contrast option {
-  color: #111827 !important;
-  -webkit-text-fill-color: #111827 !important;
-  background-color: #ffffff !important;
-  opacity: 1 !important;
-  color-scheme: light !important;
-}
-
-html.dark .filter-select-contrast,
-html[data-theme="dark"] .filter-select-contrast,
-html.dark .filter-select-contrast option,
-html[data-theme="dark"] .filter-select-contrast option {
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  background-color: #0f172a !important;
-  color-scheme: dark !important;
-}
-
-.admin-tabs-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.admin-tabs-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-/* Animaciones fluidas y limpias para reordenamiento de catálogo */
-.reorder-card {
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, opacity 0.15s ease, border-color 0.15s ease;
-  will-change: transform, box-shadow;
-}
-
-.reorder-card:hover {
-  transform: translateY(-2px);
-}
-
-.reorder-card.dragging-active {
-  opacity: 0.35;
-  transform: scale(0.98);
-  border-style: dashed !important;
-}
-
-.drop-slot-indicator {
-  height: 48px;
-  border-radius: 14px;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(59, 130, 246, 0.08),
-    rgba(59, 130, 246, 0.08) 10px,
-    rgba(59, 130, 246, 0.16) 10px,
-    rgba(59, 130, 246, 0.16) 20px
-  );
-  border: 2px dashed #3b82f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: drop-slot-pulse 1.2s ease-in-out infinite;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -197,17 +87,6 @@ html[data-theme="dark"] .filter-select-contrast option {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes drop-slot-pulse {
-  0%, 100% {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
   }
 }
 
@@ -420,3 +299,10 @@ html.dark .panel {
   @keyframes bienvenida-mostrar { from { opacity: 0; } to { opacity: 1; } }
 }
 
+/* Al imprimir el generador de contratos sale solo el documento */
+@media print {
+  body * { visibility: hidden !important; }
+  #documento-contrato, #documento-contrato * { visibility: visible !important; }
+  #documento-contrato { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
+  #documento-contrato mark { background: none !important; color: inherit !important; }
+}
