@@ -7,8 +7,14 @@ const { requireAdmin } = authMiddleware;
 router.use(authMiddleware, requireAdmin);
 const clientsController = require('../controllers/clients.controller');
 
+// Panel de clientes: propietarios e inquilinos vinculados a propiedades (va antes de '/:id')
+router.get('/panel', clientsController.getPanel);
+
+// Asignar o quitar el propietario o el inquilino de una propiedad
+router.put('/propiedades/:id/:rol', clientsController.asignarPersona);
+
 // Obtener todos los clientes
-router.get('/', clientsController.getAllClients);
+router.get('/',clientsController.getAllClients);
 
 // Obtener un cliente específico
 router.get('/:id', clientsController.getClientById);
