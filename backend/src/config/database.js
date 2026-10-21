@@ -28,6 +28,15 @@ const uriDeRespaldo = (mongoUri) => {
 };
 
 const connectDB = async () => {
+    if (mongoose.connection.readyState === 1) {
+        return;
+    }
+
+    if (mongoose.connection.readyState === 2) {
+        await mongoose.connection.asPromise();
+        return;
+    }
+
     const mongoUri = process.env.MONGODB_URI || process.env.DB_URI;
 
     if (!mongoUri || /TU_USUARIO|TU_PASSWORD|TU_CLUSTER/.test(mongoUri)) {
