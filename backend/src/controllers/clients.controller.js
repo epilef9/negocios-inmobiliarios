@@ -2,6 +2,34 @@
 
 const Client = require('../models/client.model');
 const clientService = require('../services/clients.service');
+const panelService = require('../services/clientesPanel.service');
+
+// Panel de clientes del administrador
+exports.getPanel = async (req, res) => {
+    try {
+        res.status(200).json({ data: await panelService.panel() });
+    } catch (error) {
+        console.error('[clientes] Error al armar el panel:', error);
+        res.status(500).json({ message: 'No se pudo cargar el panel de clientes' });
+    }
+};
+
+// Asigna o quita (persona: null) el propietario o el inquilino de una propiedad
+exports.asignarPersona = async (req, res) => {
+    try {
+        const body = req.body || {};
+        const resultado = await panelService.asignar(req.params.id, req.params.rol, body.persona, body.reemplazar === true);
+        res.status(200).json({ message: 'Guardado', data: resultado });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[clientes] Error al asignar:', error);
+        res.status(status).json({
+            message: status === 500 ? 'No se pudo guardar' : error.message,
+            code: error.code,
+            actual: error.actual
+        });
+    }
+};
 
 // Obtener todos los clientes
 exports.getAllClients = async (req, res) => {

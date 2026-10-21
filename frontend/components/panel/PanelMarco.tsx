@@ -13,6 +13,7 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin/propiedades', texto: 'Propiedades', icono: 'propiedades' },
   { href: '/admin/catalogo', texto: 'Orden del catálogo', icono: 'catalogo' },
   { href: '/admin/visitas', texto: 'Visitas', icono: 'visitas' },
+  { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
   { href: '/admin/contratos', texto: 'Contratos', icono: 'contratos' },
   { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion' },
 ];

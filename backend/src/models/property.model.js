@@ -1,6 +1,19 @@
 const mongoose = require('mongoose');
 
+// Persona vinculada a la propiedad (dueño o inquilino). Si es un usuario registrado se guarda su id y,
+// además, una copia de sus datos de contacto, para poder cargar también a quien no tiene cuenta.
+const personaSchema = new mongoose.Schema({
+    usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    nombre: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+    telefono: { type: String, trim: true },
+}, { _id: false });
+
 const propertySchema = new mongoose.Schema({
+    // Datos personales: no se leen salvo que se pidan con select('+propietario +inquilino'),
+    // así las consultas públicas del catálogo nunca los devuelven (RNF-05).
+    propietario: { type: personaSchema, select: false },
+    inquilino: { type: personaSchema, select: false },
     title: {
         type: String,
         required: true,
