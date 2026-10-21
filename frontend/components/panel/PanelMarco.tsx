@@ -78,14 +78,16 @@ function Menu({ alElegir }: { alElegir?: () => void }) {
           <Icono nombre={theme === 'dark' ? 'sol' : 'luna'} className="h-[18px] w-[18px] text-white/60" />
           {theme === 'dark' ? 'Modo claro' : 'Modo oscuro'}
         </button>
-        <div className="mt-2 flex items-center gap-3 rounded-lg px-3 py-2">
+        <div className="mt-2 flex items-center gap-1 rounded-lg">
+          <Link href="/perfil" title="Ver y editar tus datos" className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-3 py-2 hover:bg-white/6">
           <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/12 text-[12px] font-semibold uppercase">
             {(user?.nombre?.[0] ?? user?.email?.[0] ?? 'A') + (user?.apellido?.[0] ?? '')}
           </span>
           <span className="min-w-0 flex-1">
             <span className="block truncate text-[13px] font-medium">{nombre}</span>
-            <span className="block text-[12px] text-white/55">Administrador</span>
+            <span className="block text-[12px] text-white/55">Mi perfil</span>
           </span>
+          </Link>
           <button type="button" onClick={logout} aria-label="Salir de la cuenta" title="Salir" className="rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
             <Icono nombre="salir" className="h-[18px] w-[18px]" />
           </button>

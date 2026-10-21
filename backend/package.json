@@ -8,6 +8,7 @@
     "start": "node src/server.js",
     "seed:localidades": "node src/seed-localidades.js",
     "migrar:imagenes": "node src/migrar-imagenes.js",
+    "demo:propiedades": "node src/demo-propiedades.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -22,6 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongodb": "^7.6.0",
     "mongoose": "^9.9.4",
-    "multer": "^2.4.0"
+    "multer": "^2.4.0",
+    "nodemailer": "^10.1.7"
   }
 }

@@ -39,6 +39,9 @@ const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
 	};
 };
 
+// Un monoambiente es un departamento de 1 ambiente (así se carga en el panel); los viejos se buscan como departamento
+const tipoGeneral = (tipo: string) => (normalizar(tipo) === "monoambiente" ? "departamento" : normalizar(tipo));
+
 const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
 	const operacion = p.categoria_operacion || p.operation || p.category || "";
 	const tipo = p.tipo_inmueble || p.propertyType || "";
@@ -48,7 +51,7 @@ const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
 	return (
 		(!f.operation || normalizar(operacion) === f.operation) &&
 		(!f.location || normalizar(p.ciudad) === normalizar(f.location)) &&
-		(!f.propertyType || normalizar(tipo) === f.propertyType) &&
+		(!f.propertyType || tipoGeneral(tipo) === f.propertyType) &&
 		(!f.minPrice || p.price >= Number(f.minPrice)) &&
 		(!f.maxPrice || p.price <= Number(f.maxPrice)) &&
 		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&

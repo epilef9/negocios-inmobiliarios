@@ -3,6 +3,12 @@ const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
 const { requireAdmin } = authMiddleware;
 
+// Perfil propio: cualquier persona con sesión iniciada (va antes de la restricción de administrador)
+const perfilController = require('../controllers/perfil.controller');
+router.get('/me', authMiddleware, perfilController.obtener);
+router.put('/me', authMiddleware, perfilController.actualizar);
+router.put('/me/password', authMiddleware, perfilController.cambiarPassword);
+
 // Gestión de usuarios: solo el administrador. Antes cualquiera podía crearse un usuario admin.
 router.use(authMiddleware, requireAdmin);
 const usersController = require('../controllers/users.controller');

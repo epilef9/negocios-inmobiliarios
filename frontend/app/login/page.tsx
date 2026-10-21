@@ -5,7 +5,8 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
-import PantallaCuenta, { YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import { AuthRequestError } from '@/services/auth';
+import PantallaCuenta, { ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,6 +19,7 @@ function FormularioIngreso() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [verPassword, setVerPassword] = useState(false);
+  const [sinVerificar, setSinVerificar] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: 'email' | 'password' } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
@@ -43,6 +45,13 @@ function FormularioIngreso() {
       router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
+      if (err instanceof AuthRequestError && err.code === 'EMAIL_NO_VERIFICADO') {
+        setSinVerificar(true);
+        setError({ texto: 'Falta confirmar tu email. Te mandamos un enlace al registrarte; si no te llegó, pedilo de nuevo.' });
+        setEnviando(false);
+        return;
+      }
+      setSinVerificar(false);
       setError({
         texto: /fetch|network|conectar/i.test(mensaje)
           ? 'No pudimos conectar con el servidor. Probá de nuevo en un momento.'
@@ -116,6 +125,7 @@ function FormularioIngreso() {
           {error.texto}
         </p>
       )}
+      {sinVerificar && <ReenviarVerificacion email={email.trim()} />}
 
       <div className="flex flex-col gap-6">
         <button type="submit" disabled={enviando} className={botonPrincipal}>

@@ -7,10 +7,11 @@ import { useEffect, useRef, useState } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import BotonFavorito from "@/components/sitio/BotonFavorito";
 import Galeria from "@/components/detalle/Galeria";
+import ConsultaEmail from "@/components/detalle/ConsultaEmail";
 import AgendarVisita, { type AgendarVisitaHandle } from "@/components/detalle/AgendarVisita";
 import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { etiquetaOperacion } from "@/components/sitio/datos";
-import { EMAIL, WHATSAPP_URL } from "@/components/sitio/SiteFooter";
+import { WHATSAPP_URL } from "@/components/sitio/SiteFooter";
 import { COMODIDADES } from "@/components/catalogo/FiltrosCatalogo";
 import { getPropertyById, type ApiProperty } from "@/services/api";
 
@@ -114,13 +115,14 @@ export default function DetallePropiedad() {
 	const operacion = etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad";
 	const ubicacion = [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ") || p.location;
 	const estadoNoDisponible = p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
+	// Una propiedad vendida o alquilada ya no se puede visitar
+	const sePuedeVisitar = Boolean(p.permitirVisita) && p.estado !== "vendido" && p.estado !== "alquilado";
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
 	const enlace = typeof window !== "undefined" ? window.location.href : "";
 	const mensaje = `Hola, me interesa la propiedad "${p.title}"${enlace ? ` (${enlace})` : ""}. ¿Me pasan más información?`;
 	const numeroWhatsApp = p.permitirWhatsApp && p.telefonoWhatsApp ? `https://wa.me/${p.telefonoWhatsApp.replace(/\D/g, "")}` : WHATSAPP_URL;
 	const whatsapp = `${numeroWhatsApp}?text=${encodeURIComponent(mensaje)}`;
-	const mail = `mailto:${EMAIL}?subject=${encodeURIComponent(`Consulta por ${p.title}`)}&body=${encodeURIComponent(mensaje)}`;
 	const tieneMapa = Boolean(p.latitud && p.longitud);
 
 	return (
@@ -220,7 +222,7 @@ export default function DetallePropiedad() {
 							{p.montoExpensas ? <p className="m-0 pt-1 text-[14px] text-[#efe9df]/65">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 						</div>
 						<div className="flex flex-col gap-3">
-							{p.permitirVisita && (
+							{sePuedeVisitar && (
 								<button
 									type="button"
 									onClick={() => visita.current?.abrir()}
@@ -235,16 +237,12 @@ export default function DetallePropiedad() {
 								target="_blank"
 								rel="noreferrer"
 								className={`calma-micro flex items-center justify-center gap-2.5 rounded-full px-6 py-4 text-[12px] transition-colors ${
-									p.permitirVisita ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
+									sePuedeVisitar ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
 								}`}
 							>
 								Escribir por WhatsApp
 							</a>
-							{p.permitirEmail !== false && (
-								<a href={mail} className="calma-micro flex items-center justify-center rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors hover:border-[#efe9df]">
-									Consultar por email
-								</a>
-							)}
+							<ConsultaEmail titulo={p.title} mensajeInicial={mensaje} deshabilitado={p.permitirEmail === false} />
 							<BotonFavorito propiedadId={p._id} titulo={p.title} variante="texto" />
 						</div>
 						{p.horarioAtencion && <p className="m-0 text-[13px] text-[#efe9df]/60">Atención: {p.horarioAtencion}</p>}
@@ -252,7 +250,7 @@ export default function DetallePropiedad() {
 				</aside>
 			</div>
 
-			{p.permitirVisita && <AgendarVisita ref={visita} propiedad={p} precio={precio.principal} />}
+			{sePuedeVisitar && <AgendarVisita ref={visita} propiedad={p} precio={precio.principal} />}
 		</SitioBase>
 	);
 }

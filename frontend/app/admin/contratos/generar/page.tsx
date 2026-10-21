@@ -7,9 +7,32 @@ import { getProperties, type ApiProperty } from '@/services/api';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, Insignia, Tarjeta, areaTexto, control, useAviso } from '@/components/panel/ui';
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
 import Icono from '@/components/panel/Icono';
+import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
 
 const TIPOS = ['Alquiler permanente', 'Alquiler temporario', 'Comercial', 'Compraventa'] as const;
-const PLANTILLAS = ['Contrato de locación estándar', 'Contrato comercial estándar', 'Boleto de compraventa'];
+type TipoContrato = (typeof TIPOS)[number];
+// Cada tipo de contrato usa su propio modelo de documento
+const PLANTILLA_DE: Record<TipoContrato, string> = {
+  'Alquiler permanente': 'Contrato de locación estándar',
+  'Alquiler temporario': 'Contrato de locación temporaria',
+  Comercial: 'Contrato comercial estándar',
+  Compraventa: 'Boleto de compraventa',
+};
+
+// Qué contratos tienen sentido según cómo se publicó la propiedad
+const tiposPara = (p?: ApiProperty): readonly TipoContrato[] => {
+  if (!p?.categoria_operacion) return TIPOS;
+  if (p.categoria_operacion === 'venta') return ['Compraventa'];
+  if (p.categoria_operacion === 'temporario') return ['Alquiler temporario'];
+  return p.tipo_inmueble === 'local' ? ['Comercial'] : ['Alquiler permanente'];
+};
+
+const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
+// Precio publicado, como punto de partida del monto del contrato
+const precioDe = (p: ApiProperty) => {
+  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}` : `USD ${miles(p.price)}`;
+};
 const AJUSTES = ['Semestral', 'Cuatrimestral', 'Trimestral', 'Anual'] as const;
 const COMISIONES = ['3%', '4%', '5%'];
 
@@ -43,7 +66,7 @@ const ahoraTexto = () => {
 };
 
 type Datos = {
-  tipoContrato: (typeof TIPOS)[number];
+  tipoContrato: TipoContrato;
   plantilla: string;
   propiedadId: string;
   propiedadTitulo: string;
@@ -65,7 +88,7 @@ type Datos = {
 
 const VACIO: Datos = {
   tipoContrato: 'Alquiler permanente',
-  plantilla: PLANTILLAS[0],
+  plantilla: PLANTILLA_DE['Alquiler permanente'],
   propiedadId: '',
   propiedadTitulo: '',
   propiedadDireccion: '',
@@ -131,7 +154,7 @@ function GeneradorContrato() {
         setUltimaActualizacion(c.ultimaActualizacion ?? null);
         setDatos({
           tipoContrato: (TIPOS as readonly string[]).includes(c.tipoContrato ?? '') ? (c.tipoContrato as Datos['tipoContrato']) : 'Alquiler permanente',
-          plantilla: c.plantilla || PLANTILLAS[0],
+          plantilla: c.plantilla || PLANTILLA_DE['Alquiler permanente'],
           propiedadId: '',
           propiedadTitulo: c.propiedad?.titulo ?? '',
           propiedadDireccion: c.propiedad?.direccion ?? '',
@@ -162,20 +185,40 @@ function GeneradorContrato() {
     setFaltan((f) => f.filter((x) => x !== campo));
   };
 
+  // Al elegir la propiedad se completan el tipo de contrato y el monto según cómo está publicada
   const elegirPropiedad = (idPropiedad: string) => {
     const p = propiedades.find((x) => x._id === idPropiedad);
-    setDatos((d) => ({
-      ...d,
-      propiedadId: idPropiedad,
-      propiedadTitulo: p?.title ?? '',
-      propiedadDireccion: p?.direccionCompleta || p?.location || '',
-      propiedadCiudad: p?.ciudad ?? '',
-    }));
-    setFaltan((f) => f.filter((x) => x !== 'propiedadId'));
+    setDatos((d) => {
+      const tipos = tiposPara(p);
+      const tipoContrato = tipos.includes(d.tipoContrato) ? d.tipoContrato : tipos[0];
+      return {
+        ...d,
+        propiedadId: idPropiedad,
+        propiedadTitulo: p?.title ?? '',
+        propiedadDireccion: p?.direccionCompleta || p?.location || '',
+        propiedadCiudad: p?.ciudad ?? '',
+        tipoContrato,
+        plantilla: PLANTILLA_DE[tipoContrato],
+        montoMensual: p ? precioDe(p) : d.montoMensual,
+        duracionMeses: tipoContrato === 'Alquiler temporario' ? '1' : tipoContrato === 'Compraventa' ? '' : d.duracionMeses || '24',
+      };
+    });
+    setFaltan((f) => f.filter((x) => x !== 'propiedadId' && x !== 'montoMensual'));
   };
 
-  const meses = Number(datos.duracionMeses) || 0;
-  const fechaFin = sumarMeses(datos.fechaInicio, meses);
+  const cambiarTipo = (tipoContrato: TipoContrato) => {
+    setDatos((d) => ({ ...d, tipoContrato, plantilla: PLANTILLA_DE[tipoContrato] }));
+  };
+
+  const esVenta = datos.tipoContrato === 'Compraventa';
+  const esTemporario = datos.tipoContrato === 'Alquiler temporario';
+  const propiedadActual = propiedades.find((p) => p._id === propiedadElegida);
+  const tiposPosibles = tiposPara(propiedadActual);
+  // Una compraventa no tiene plazo: la fecha es la de posesión
+  const meses = esVenta ? 0 : Number(datos.duracionMeses) || 0;
+  const fechaFin = esVenta ? (datos.fechaInicio ? aLatina(datos.fechaInicio) : '') : sumarMeses(datos.fechaInicio, meses);
+  const parteDuena = esVenta ? 'parte vendedora' : 'parte locadora';
+  const parteCliente = esVenta ? 'parte compradora' : 'parte locataria';
   const ciudad = datos.propiedadCiudad || 'Villa Libertador San Martín';
   // Domicilio sin partes repetidas (la dirección a veces ya trae la ciudad o la provincia)
   const domicilio = datos.propiedadDireccion || datos.propiedadCiudad
@@ -192,7 +235,7 @@ function GeneradorContrato() {
     if (!datos.clienteTelefono.trim()) pendientes.push('clienteTelefono');
     if (!datos.propiedadTitulo) pendientes.push('propiedadId');
     if (!datos.fechaInicio) pendientes.push('fechaInicio');
-    if (!meses) pendientes.push('duracionMeses');
+    if (!esVenta && !meses) pendientes.push('duracionMeses');
     if (!datos.montoMensual.trim()) pendientes.push('montoMensual');
     setFaltan(pendientes);
     return pendientes.length === 0;
@@ -213,12 +256,12 @@ function GeneradorContrato() {
       montoMensual: datos.montoMensual.trim(),
       estado: nuevoEstado,
       tipoContrato: datos.tipoContrato,
-      plantilla: datos.plantilla,
+      plantilla: PLANTILLA_DE[datos.tipoContrato],
       duracionMeses: meses,
-      depositoGarantia: datos.depositoGarantia.trim(),
-      ajuste: datos.ajuste,
+      depositoGarantia: esVenta ? '' : datos.depositoGarantia.trim(),
+      ajuste: esVenta || esTemporario ? 'Sin ajuste' : datos.ajuste,
       comision: datos.comision,
-      incluyeGarante: datos.incluyeGarante,
+      incluyeGarante: !esVenta && datos.incluyeGarante,
       observaciones: datos.observaciones.trim(),
       locadora: datos.locadora.trim(),
       ultimaActualizacion: marca,
@@ -302,12 +345,7 @@ function GeneradorContrato() {
               <Campo etiqueta="Propiedad *" htmlFor={`${id}-prop`} error={error('propiedadId', 'Elegí la propiedad.')}>
                 <select id={`${id}-prop`} value={propiedadElegida} aria-invalid={faltan.includes('propiedadId')} onChange={(e) => elegirPropiedad(e.target.value)} className={control}>
                   <option value="">{datos.propiedadTitulo && !propiedadElegida ? `${datos.propiedadTitulo} (guardada)` : 'Elegí una propiedad'}</option>
-                  {propiedades.map((p) => (
-                    <option key={p._id} value={p._id}>
-                      {p.title}
-                      {p.ciudad ? ` · ${p.ciudad}` : ''}
-                    </option>
-                  ))}
+                  <OpcionesPropiedad propiedades={propiedades.filter((p) => propiedadOfrecida(p) || p._id === propiedadElegida)} />
                 </select>
               </Campo>
               <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-cli`} error={error('clienteNombre', 'Escribí el nombre del cliente.')}>
@@ -321,7 +359,7 @@ function GeneradorContrato() {
                   <input id={`${id}-mail`} type="email" value={datos.clienteEmail} onChange={(e) => cambiar('clienteEmail', e.target.value)} className={control} />
                 </Campo>
               </div>
-              <Campo etiqueta="Parte locadora" htmlFor={`${id}-loc`} ayuda="Quien firma como locador/a o vendedor/a.">
+              <Campo etiqueta={esVenta ? 'Parte vendedora' : 'Parte locadora'} htmlFor={`${id}-loc`} ayuda={esVenta ? 'Quien vende la propiedad.' : 'Quien alquila la propiedad (dueño/a o apoderado/a).'}>
                 <input id={`${id}-loc`} type="text" value={datos.locadora} onChange={(e) => cambiar('locadora', e.target.value)} className={control} />
               </Campo>
             </div>
@@ -329,45 +367,42 @@ function GeneradorContrato() {
 
           <Tarjeta titulo="Condiciones">
             <div className="grid gap-4 sm:grid-cols-2">
-              <Campo etiqueta="Tipo de contrato" htmlFor={`${id}-tipo`}>
-                <select id={`${id}-tipo`} value={datos.tipoContrato} onChange={(e) => cambiar('tipoContrato', e.target.value as Datos['tipoContrato'])} className={control}>
-                  {TIPOS.map((t) => (
+              <Campo etiqueta="Tipo de contrato" htmlFor={`${id}-tipo`} ayuda={propiedadActual ? 'Según cómo está publicada la propiedad.' : undefined}>
+                <select id={`${id}-tipo`} value={datos.tipoContrato} disabled={tiposPosibles.length === 1} onChange={(e) => cambiarTipo(e.target.value as TipoContrato)} className={control}>
+                  {tiposPosibles.map((t) => (
                     <option key={t} value={t}>
                       {t}
                     </option>
                   ))}
                 </select>
               </Campo>
-              <Campo etiqueta="Plantilla" htmlFor={`${id}-plantilla`}>
-                <select id={`${id}-plantilla`} value={datos.plantilla} onChange={(e) => cambiar('plantilla', e.target.value)} className={control}>
-                  {PLANTILLAS.map((p) => (
-                    <option key={p} value={p}>
-                      {p}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo etiqueta="Fecha de inicio *" htmlFor={`${id}-inicio`} error={error('fechaInicio', 'Elegí la fecha.')}>
+              <Campo etiqueta={esVenta ? 'Fecha de posesión *' : 'Fecha de inicio *'} htmlFor={`${id}-inicio`} error={error('fechaInicio', 'Elegí la fecha.')}>
                 <input id={`${id}-inicio`} type="date" value={datos.fechaInicio} aria-invalid={faltan.includes('fechaInicio')} onChange={(e) => cambiar('fechaInicio', e.target.value)} className={control} />
               </Campo>
-              <Campo etiqueta="Duración (meses) *" htmlFor={`${id}-meses`} error={error('duracionMeses', 'Indicá la duración.')} ayuda={fechaFin ? `Termina el ${fechaFin}` : undefined}>
-                <input id={`${id}-meses`} type="number" min="1" value={datos.duracionMeses} aria-invalid={faltan.includes('duracionMeses')} onChange={(e) => cambiar('duracionMeses', e.target.value)} className={`${control} tabular`} />
-              </Campo>
-              <Campo etiqueta={datos.tipoContrato === 'Compraventa' ? 'Precio *' : 'Monto mensual *'} htmlFor={`${id}-monto`} error={error('montoMensual', 'Indicá el monto.')}>
+              {!esVenta && (
+                <Campo etiqueta="Duración (meses) *" htmlFor={`${id}-meses`} error={error('duracionMeses', 'Indicá la duración.')} ayuda={fechaFin ? `Termina el ${fechaFin}` : undefined}>
+                  <input id={`${id}-meses`} type="number" min="1" value={datos.duracionMeses} aria-invalid={faltan.includes('duracionMeses')} onChange={(e) => cambiar('duracionMeses', e.target.value)} className={`${control} tabular`} />
+                </Campo>
+              )}
+              <Campo etiqueta={esVenta ? 'Precio de venta *' : esTemporario ? 'Precio *' : 'Monto mensual *'} htmlFor={`${id}-monto`} error={error('montoMensual', 'Indicá el monto.')}>
                 <input id={`${id}-monto`} type="text" value={datos.montoMensual} aria-invalid={faltan.includes('montoMensual')} onChange={(e) => cambiar('montoMensual', e.target.value)} placeholder="Ej.: ARS 350.000" className={control} />
               </Campo>
-              <Campo etiqueta="Depósito en garantía" htmlFor={`${id}-deposito`}>
-                <input id={`${id}-deposito`} type="text" value={datos.depositoGarantia} onChange={(e) => cambiar('depositoGarantia', e.target.value)} placeholder="Ej.: ARS 350.000" className={control} />
-              </Campo>
-              <Campo etiqueta="Ajuste" htmlFor={`${id}-ajuste`}>
-                <select id={`${id}-ajuste`} value={datos.ajuste} onChange={(e) => cambiar('ajuste', e.target.value as Datos['ajuste'])} className={control}>
-                  {AJUSTES.map((a) => (
-                    <option key={a} value={a}>
-                      {a}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
+              {!esVenta && (
+                <Campo etiqueta="Depósito en garantía" htmlFor={`${id}-deposito`}>
+                  <input id={`${id}-deposito`} type="text" value={datos.depositoGarantia} onChange={(e) => cambiar('depositoGarantia', e.target.value)} placeholder="Ej.: ARS 350.000" className={control} />
+                </Campo>
+              )}
+              {!esVenta && !esTemporario && (
+                <Campo etiqueta="Ajuste del alquiler" htmlFor={`${id}-ajuste`}>
+                  <select id={`${id}-ajuste`} value={datos.ajuste} onChange={(e) => cambiar('ajuste', e.target.value as Datos['ajuste'])} className={control}>
+                    {AJUSTES.map((a) => (
+                      <option key={a} value={a}>
+                        {a}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
+              )}
               <Campo etiqueta="Comisión" htmlFor={`${id}-comision`}>
                 <select id={`${id}-comision`} value={datos.comision} onChange={(e) => cambiar('comision', e.target.value)} className={control}>
                   {COMISIONES.map((c) => (
@@ -377,10 +412,12 @@ function GeneradorContrato() {
                   ))}
                 </select>
               </Campo>
-              <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-panel-borde p-3 sm:col-span-2">
-                <input type="checkbox" checked={datos.incluyeGarante} onChange={(e) => cambiar('incluyeGarante', e.target.checked)} className="h-4 w-4 accent-[var(--p-acento)]" />
-                <span className="text-sm">Incluye garante (agrega la cláusula de fianza)</span>
-              </label>
+              {!esVenta && (
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-panel-borde p-3 sm:col-span-2">
+                  <input type="checkbox" checked={datos.incluyeGarante} onChange={(e) => cambiar('incluyeGarante', e.target.checked)} className="h-4 w-4 accent-[var(--p-acento)]" />
+                  <span className="text-sm">Incluye garante (agrega la cláusula de fianza)</span>
+                </label>
+              )}
               <Campo etiqueta="Observaciones" htmlFor={`${id}-obs`} ayuda="Si escribís algo, aparece como cláusula en el contrato." className="sm:col-span-2">
                 <textarea id={`${id}-obs`} rows={3} value={datos.observaciones} onChange={(e) => cambiar('observaciones', e.target.value)} className={areaTexto} />
               </Campo>
@@ -409,22 +446,43 @@ function GeneradorContrato() {
               <h2 className="m-0 mb-1 text-center text-[17px] font-bold uppercase tracking-[0.12em]">{tituloDocumento}</h2>
               {numero && <p className="m-0 mb-6 text-center text-[12.5px] text-slate-500">N.º {numero}</p>}
               <p>
-                Entre <Hueco valor={datos.locadora} texto="parte locadora" />, en adelante «LA PARTE LOCADORA», y <Hueco valor={datos.clienteNombre} texto="cliente" />, en adelante «LA PARTE LOCATARIA», se celebra el presente contrato sobre el inmueble ubicado en{' '}
+                Entre <Hueco valor={datos.locadora} texto={parteDuena} />, en adelante «LA {parteDuena.toUpperCase()}», y <Hueco valor={datos.clienteNombre} texto="cliente" />, en adelante «LA {parteCliente.toUpperCase()}», se celebra el presente {esVenta ? 'boleto' : 'contrato'} sobre el inmueble ubicado en{' '}
                 <Hueco valor={domicilio} texto="propiedad" />, sujeto a las siguientes cláusulas:
               </p>
-              <p>
-                <strong>PRIMERA:</strong> El plazo se establece en <Hueco valor={meses ? `${meses} meses` : ''} texto="duración" />, a partir del <Hueco valor={datos.fechaInicio ? aLatina(datos.fechaInicio) : ''} texto="fecha de inicio" />
-                {fechaFin ? <>, con vencimiento el <Hueco valor={fechaFin} texto="" /></> : null}.
-              </p>
-              <p>
-                <strong>SEGUNDA:</strong> El precio se fija en <Hueco valor={datos.montoMensual} texto="monto" /> {datos.tipoContrato === 'Compraventa' ? '' : 'mensuales, pagaderos dentro de los primeros 5 días de cada mes'}. El ajuste será de periodicidad <strong>{datos.ajuste.toLowerCase()}</strong>.
-              </p>
-              {datos.depositoGarantia && (
+              {esVenta ? (
+                <>
+                  <p>
+                    <strong>PRIMERA:</strong> La parte vendedora vende a la parte compradora, y esta acepta, el inmueble descripto, libre de ocupantes, gravámenes y deudas, con entrega de la posesión el <Hueco valor={datos.fechaInicio ? aLatina(datos.fechaInicio) : ''} texto="fecha de posesión" />.
+                  </p>
+                  <p>
+                    <strong>SEGUNDA:</strong> El precio total y definitivo se fija en <Hueco valor={datos.montoMensual} texto="precio" />. La escritura traslativa de dominio se otorgará ante el escribano que designe la parte compradora dentro de los 60 días de la firma del presente.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    <strong>PRIMERA:</strong> El plazo se establece en <Hueco valor={meses ? `${meses} ${meses === 1 ? 'mes' : 'meses'}` : ''} texto="duración" />, a partir del <Hueco valor={datos.fechaInicio ? aLatina(datos.fechaInicio) : ''} texto="fecha de inicio" />
+                    {fechaFin ? <>, con vencimiento el <Hueco valor={fechaFin} texto="" /></> : null}.
+                  </p>
+                  <p>
+                    {esTemporario ? (
+                      <>
+                        <strong>SEGUNDA:</strong> El precio se fija en <Hueco valor={datos.montoMensual} texto="precio" />, que se abona por adelantado al ingresar al inmueble.
+                      </>
+                    ) : (
+                      <>
+                        <strong>SEGUNDA:</strong> El precio se fija en <Hueco valor={datos.montoMensual} texto="monto" /> mensuales, pagaderos dentro de los primeros 5 días de cada mes. El ajuste será de periodicidad <strong>{datos.ajuste.toLowerCase()}</strong>.
+                      </>
+                    )}
+                  </p>
+                </>
+              )}
+              {!esVenta && datos.depositoGarantia && (
                 <p>
                   <strong>TERCERA:</strong> Se establece un depósito en garantía de <Hueco valor={datos.depositoGarantia} texto="" />, que será restituido al finalizar el contrato siempre que el inmueble se devuelva en las mismas condiciones en que fue entregado.
                 </p>
               )}
-              {datos.incluyeGarante && (
+              {!esVenta && datos.incluyeGarante && (
                 <p>
                   <strong>{datos.depositoGarantia ? 'CUARTA' : 'TERCERA'}:</strong> La parte locataria presenta garantía debidamente conformada; el fiador se constituye en principal pagador y responde solidariamente por todas las obligaciones de este contrato.
                 </p>
@@ -444,12 +502,12 @@ function GeneradorContrato() {
                 <div>
                   <div className="mb-2 border-t border-slate-400" />
                   <span className="block font-semibold">{datos.locadora || ' '}</span>
-                  <span className="text-slate-500">Parte locadora</span>
+                  <span className="text-slate-500">{esVenta ? 'Parte vendedora' : 'Parte locadora'}</span>
                 </div>
                 <div>
                   <div className="mb-2 border-t border-slate-400" />
                   <span className="block font-semibold">{datos.clienteNombre || ' '}</span>
-                  <span className="text-slate-500">Parte locataria</span>
+                  <span className="text-slate-500">{esVenta ? 'Parte compradora' : 'Parte locataria'}</span>
                 </div>
               </div>
             </article>

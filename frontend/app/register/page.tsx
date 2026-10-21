@@ -2,9 +2,9 @@
 
 import { Suspense, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import PantallaCuenta, { YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMO_PASSWORD = 8;
@@ -27,7 +27,6 @@ function revisar(datos: Datos): { texto: string; campo: Campo } | null {
 
 function FormularioRegistro() {
   const id = useId();
-  const router = useRouter();
   const volver = destinoSeguro(useSearchParams().get('volver'));
   const { user, isLoading, register, logout } = useAuth();
 
@@ -35,6 +34,7 @@ function FormularioRegistro() {
   const [verPassword, setVerPassword] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: Campo } | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [pendiente, setPendiente] = useState<{ email: string; correoEnviado: boolean; enlaceDev?: string } | null>(null);
 
   const cambiar = (campo: Campo, valor: string) => {
     setDatos((anteriores) => ({ ...anteriores, [campo]: valor }));
@@ -52,8 +52,8 @@ function FormularioRegistro() {
     setError(null);
     setEnviando(true);
     try {
-      // Al registrarse queda con la sesión iniciada (HU-05)
-      const usuario = await register({
+      // La cuenta queda pendiente hasta confirmar el email que se manda al registrarse
+      const resultado = await register({
         nombre: datos.nombre.trim(),
         apellido: datos.apellido.trim(),
         telefono: datos.telefono.trim(),
@@ -61,7 +61,8 @@ function FormularioRegistro() {
         password: datos.password,
         confirmPassword: datos.confirmPassword,
       });
-      router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
+      setPendiente({ email: datos.email.trim(), correoEnviado: resultado.correoEnviado, enlaceDev: resultado.enlaceDev });
+      setEnviando(false);
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
       if (/registrado|existe/i.test(mensaje)) {
@@ -74,6 +75,10 @@ function FormularioRegistro() {
       setEnviando(false);
     }
   };
+
+  if (pendiente) {
+    return <RevisaTuCorreo email={pendiente.email} correoEnviado={pendiente.correoEnviado} enlaceDev={pendiente.enlaceDev} />;
+  }
 
   if (!isLoading && user && !enviando) {
     return <YaIngresaste nombre={user.nombre || user.email} onSalir={logout} />;
@@ -175,7 +180,7 @@ function FormularioRegistro() {
 
 export default function RegistroPage() {
   return (
-    <PantallaCuenta titulo="Creá tu cuenta." bajada="Es gratis y te lleva un minuto. Así guardás favoritos y tu avance con los requisitos.">
+    <PantallaCuenta titulo="Creá tu cuenta." bajada="Es gratis y te lleva un minuto. Te mandamos un mail para confirmar tu email y activar la cuenta.">
       <Suspense fallback={null}>
         <FormularioRegistro />
       </Suspense>

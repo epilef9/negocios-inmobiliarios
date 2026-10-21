@@ -6,14 +6,18 @@ const authService = require('../services/auth.service');
 const User = require('../models/user.model');
 const Property = require('../models/property.model');
 
-// Registro de nuevo usuario (HU-05)
+// Registro de nuevo usuario (HU-05). No inicia sesión: primero hay que confirmar el email.
 exports.register = async (req, res) => {
     try {
         const result = await authService.register(req.body);
         res.status(201).json({
-            message: 'Usuario registrado exitosamente',
+            message: result.correoEnviado
+                ? 'Cuenta creada. Te mandamos un mail para confirmar tu email.'
+                : 'Cuenta creada, pero no pudimos enviar el mail de confirmación. Pedí el reenvío desde el ingreso.',
             data: result,
-            token: result.token,
+            requiereVerificacion: true,
+            correoEnviado: result.correoEnviado,
+            enlaceDev: result.enlaceDev,
             user: result.user
         });
     } catch (error) {
@@ -21,6 +25,44 @@ exports.register = async (req, res) => {
         res.status(status).json({
             message: error.message || 'Error al registrar usuario',
             error: error.message
+        });
+    }
+};
+
+// Confirma el email con el enlace recibido y deja la sesión iniciada
+exports.verifyEmail = async (req, res) => {
+    try {
+        const result = await authService.verifyEmail(req.body && req.body.token);
+        res.status(200).json({
+            message: 'Email confirmado',
+            data: result,
+            token: result.token,
+            user: result.user
+        });
+    } catch (error) {
+        res.status(error.statusCode || 500).json({
+            message: error.message || 'No se pudo confirmar el email',
+            code: error.code
+        });
+    }
+};
+
+// Vuelve a mandar el enlace de confirmación (respuesta idéntica exista o no la cuenta)
+exports.resendVerification = async (req, res) => {
+    try {
+        const { enlaceDev } = await authService.resendVerification(req.body.email);
+        res.status(200).json({
+            message: 'Si la cuenta existe y falta confirmarla, te mandamos un nuevo enlace.',
+            segundos: 60,
+            enlaceDev
+        });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[verificacion] Reenvío fallido:', error.message);
+        res.status(status).json({
+            message: status === 500 ? 'No pudimos enviar el mail. Probá de nuevo en un rato.' : error.message,
+            code: error.code,
+            segundos: error.segundos
         });
     }
 };
@@ -41,7 +83,8 @@ exports.login = async (req, res) => {
         const status = error.statusCode || 500;
         res.status(status).json({
             message: error.message || 'Error al iniciar sesion',
-            error: error.message
+            error: error.message,
+            code: error.code
         });
     }
 };
@@ -57,6 +100,7 @@ exports.me = async (req, res) => {
             telefono: user.telefono,
             email: user.email,
             role: user.role,
+            emailVerificado: user.emailVerificado !== false,
             checklistRequisitos: user.checklistRequisitos || [],
             favoritos: Array.isArray(user.favoritos) ? user.favoritos.filter(Boolean).map(String) : [],
             preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },

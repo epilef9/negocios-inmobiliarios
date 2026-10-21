@@ -13,6 +13,7 @@ export interface User {
   email: string;
   role: string;
   checklistRequisitos?: string[];
+  emailVerificado?: boolean;
   preferencias?: UserPreferences;
   createdAt?: string;
 }
@@ -41,13 +42,27 @@ export interface LoginPayload {
   password: string;
 }
 
+// Al registrarse no se inicia sesión: primero hay que confirmar el email
+export interface RegisterResult {
+  requiereVerificacion: boolean;
+  correoEnviado: boolean;
+  // Solo en desarrollo y sin mails configurados: el enlace de verificación, para probar sin correo
+  enlaceDev?: string;
+  user: User;
+}
+
 export class AuthRequestError extends Error {
   status: number;
+  code?: string;
+  // Segundos que faltan para poder pedir otro enlace (respuesta 429)
+  segundos?: number;
 
-  constructor(message: string, status: number) {
+  constructor(message: string, status: number, code?: string, segundos?: number) {
     super(message);
     this.name = "AuthRequestError";
     this.status = status;
+    this.code = code;
+    this.segundos = segundos;
   }
 }
 
@@ -67,7 +82,7 @@ async function authRequest<T>(path: string, options: RequestInit = {}): Promise<
 
   if (!response.ok) {
     const errorMessage = body.message || (Array.isArray(body.errors) ? body.errors[0] : "Ocurrio un error en la solicitud");
-    throw new AuthRequestError(errorMessage, response.status);
+    throw new AuthRequestError(errorMessage, response.status, typeof body.code === "string" ? body.code : undefined, typeof body.segundos === "number" ? body.segundos : undefined);
   }
 
   // Devolver body.data si existe (segun patron del backend) o body directamente
@@ -89,11 +104,19 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
   return data;
 }
 
-// Registrar un usuario y guardar su sesión
-export async function registerUser(payload: RegisterPayload): Promise<AuthResponse> {
-  const data = await authRequest<AuthResponse>("/auth/register", {
+// Registrar un usuario: la cuenta queda pendiente hasta confirmar el email
+export async function registerUser(payload: RegisterPayload): Promise<RegisterResult> {
+  return authRequest<RegisterResult>("/auth/register", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+// Confirmar el email con el enlace recibido; deja la sesión iniciada
+export async function verifyEmail(token: string): Promise<AuthResponse> {
+  const data = await authRequest<AuthResponse>("/auth/verify-email", {
+    method: "POST",
+    body: JSON.stringify({ token }),
   });
 
   if (typeof window !== "undefined" && data.token) {
@@ -102,6 +125,14 @@ export async function registerUser(payload: RegisterPayload): Promise<AuthRespon
   }
 
   return data;
+}
+
+// Pedir que se vuelva a mandar el enlace de confirmación
+export async function resendVerification(email: string): Promise<{ segundos: number; enlaceDev?: string }> {
+  return authRequest<{ segundos: number; enlaceDev?: string }>("/auth/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
 }
 
 function readStoredUser(): User | null {
