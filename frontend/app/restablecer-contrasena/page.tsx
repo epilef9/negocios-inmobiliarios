@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { restablecerPassword } from '@/services/auth';
-import PantallaCuenta, { botonPrincipal, control, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { BotonVerPassword, botonPrincipal, control, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 // Destino del enlace del mail: elegir la contraseña nueva. Al guardarla se cierran todas las sesiones.
 function FormularioNueva() {
@@ -70,11 +70,9 @@ function FormularioNueva() {
               setError(null);
             }}
             aria-invalid={error?.campo === 'password'}
-            className={`${control} pr-20`}
+            className={`${control} pr-12`}
           />
-          <button type="button" onClick={() => setVer((v) => !v)} aria-pressed={ver} className="calma-micro absolute bottom-3 right-0 min-h-8 px-1 text-[#efe9df]/70 hover:text-[#efe9df]">
-            {ver ? 'Ocultar' : 'Mostrar'}
-          </button>
+          <BotonVerPassword visible={ver} alCambiar={() => setVer((v) => !v)} className="absolute bottom-1.5 right-0" />
         </div>
         <span className="text-[13.5px] text-[#efe9df]/50">Mínimo 8 caracteres. Mejor si mezcla letras y números.</span>
       </div>

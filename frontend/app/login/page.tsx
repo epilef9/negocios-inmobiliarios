@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { AuthRequestError } from '@/services/auth';
-import PantallaCuenta, { ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { BotonVerPassword, ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -109,16 +109,9 @@ function FormularioIngreso() {
               setError(null);
             }}
             aria-invalid={error?.campo === 'password'}
-            className={`${control} pr-20`}
+            className={`${control} pr-12`}
           />
-          <button
-            type="button"
-            onClick={() => setVerPassword((v) => !v)}
-            aria-pressed={verPassword}
-            className="calma-micro absolute bottom-3 right-0 min-h-8 px-1 text-[#efe9df]/70 hover:text-[#efe9df]"
-          >
-            {verPassword ? 'Ocultar' : 'Mostrar'}
-          </button>
+          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="absolute bottom-1.5 right-0" />
         </div>
       </div>
 

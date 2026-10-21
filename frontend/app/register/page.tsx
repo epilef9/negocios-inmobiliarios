@@ -4,7 +4,7 @@ import { Suspense, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import PantallaCuenta, { RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { BotonVerPassword, RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMO_PASSWORD = 8;
@@ -130,14 +130,7 @@ function FormularioRegistro() {
           <label htmlFor={`${id}-password`} className={etiqueta}>
             Contraseña
           </label>
-          <button
-            type="button"
-            onClick={() => setVerPassword((v) => !v)}
-            aria-pressed={verPassword}
-            className="calma-micro min-h-8 text-[#efe9df]/70 hover:text-[#efe9df]"
-          >
-            {verPassword ? 'Ocultar' : 'Mostrar'}
-          </button>
+          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="-my-2" />
         </div>
         <input
           id={`${id}-password`}
