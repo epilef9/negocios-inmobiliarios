@@ -14,6 +14,36 @@ const origenesPermitidos = () =>
         .map((origen) => origen.trim().replace(/\/$/, ''))
         .filter(Boolean);
 
+// Dirección del frontend, para armar los links que van en los mails (verificación, contraseña).
+// Si no está FRONTEND_URL usa el primer origen fijo de CORS_ORIGIN o, en Vercel, el dominio de producción.
+const urlFrontend = () => {
+    const origenFijo = origenesPermitidos().find((origen) => !origen.includes('*'));
+    const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '';
+    return (process.env.FRONTEND_URL || (process.env.FRONTEND_URLS || '').split(',')[0] || origenFijo || vercel || 'http://localhost:3000')
+        .trim()
+        .replace(/\/$/, '');
+};
+
+// Envío de mails. Dos formas, las dos gratis:
+//  - BREVO_API_KEY: API web de Brevo (300 mails por día). Es la que funciona en Render gratis, que bloquea el SMTP.
+//  - SMTP_HOST/SMTP_USER/SMTP_PASS: cualquier SMTP, por ejemplo Gmail con una contraseña de aplicación.
+// Sin ninguna de las dos, en desarrollo los mails se muestran en la consola del backend.
+const mailConfig = () => ({
+    brevoApiKey: process.env.BREVO_API_KEY || '',
+    smtp: process.env.SMTP_HOST
+        ? {
+              host: process.env.SMTP_HOST,
+              port: Number(process.env.SMTP_PORT) || 587,
+              secure: String(process.env.SMTP_SECURE).toLowerCase() === 'true',
+              // Google muestra la contraseña de aplicación en grupos de 4 con espacios; sin ellos es la misma
+              auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: (process.env.SMTP_PASS || '').replace(/\s+/g, '') } : undefined,
+          }
+        : null,
+    from: process.env.MAIL_FROM || process.env.SMTP_USER || '',
+    // A dónde llegan las consultas del formulario de contacto
+    contactoPara: process.env.CONTACT_TO || process.env.MAIL_FROM || process.env.SMTP_USER || '',
+});
+
 // Frena el arranque en producción si falta algo imprescindible, con un mensaje que dice qué configurar
 const validarConfiguracion = () => {
     if (!enProduccion()) return;
@@ -25,6 +55,11 @@ const validarConfiguracion = () => {
     if (faltan.length) {
         throw new Error(`Faltan variables de entorno para producción: ${faltan.join(', ')}`);
     }
+    // Sin mails no se pueden confirmar cuentas ni restablecer contraseñas: se avisa en los logs del hosting
+    const mail = mailConfig();
+    if (!mail.brevoApiKey && !mail.smtp) {
+        console.warn('[config] No hay envío de mails configurado (BREVO_API_KEY o SMTP_HOST): no van a llegar los mails de verificación ni de contraseña.');
+    }
 };
 
 module.exports = {
@@ -33,5 +68,7 @@ module.exports = {
     enProduccion,
     jwtSecret,
     origenesPermitidos,
+    urlFrontend,
+    mailConfig,
     validarConfiguracion,
 };

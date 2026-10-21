@@ -65,4 +65,28 @@ const subirACloudinary = async (contenido, tipo, nombre) => {
     return cuerpo.secure_url;
 };
 
-module.exports = { usaCloudinary, subirACloudinary, firmar, MAXIMO_CLOUDINARY };
+// Sube una imagen que ya está en internet: Cloudinary la descarga por su cuenta.
+// Con un nombre fijo (idPublico) volver a correrlo no duplica fotos: devuelve la que ya estaba.
+const subirUrlACloudinary = async (direccion, idPublico) => {
+    const datos = credenciales();
+    if (!datos) throw new Error('Cloudinary no está configurado (falta CLOUDINARY_URL)');
+
+    const parametros = { folder: CARPETA, overwrite: 'false', public_id: idPublico, timestamp: Math.floor(Date.now() / 1000) };
+    const formulario = new FormData();
+    formulario.append('file', direccion);
+    formulario.append('api_key', datos.clave);
+    Object.entries(parametros).forEach(([clave, valor]) => formulario.append(clave, String(valor)));
+    formulario.append('signature', firmar(parametros, datos.secreto));
+
+    const respuesta = await fetch(`https://api.cloudinary.com/v1_1/${datos.nube}/image/upload`, {
+        method: 'POST',
+        body: formulario,
+    });
+    const cuerpo = await respuesta.json().catch(() => ({}));
+    if (!respuesta.ok || !cuerpo.secure_url) {
+        throw new Error(`Cloudinary rechazó "${idPublico}": ${cuerpo.error?.message || respuesta.status}`);
+    }
+    return cuerpo.secure_url;
+};
+
+module.exports = { usaCloudinary, subirACloudinary, subirUrlACloudinary, firmar, MAXIMO_CLOUDINARY };

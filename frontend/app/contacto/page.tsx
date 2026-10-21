@@ -4,6 +4,7 @@ import { useId, useState, type FormEvent } from 'react';
 import SitioBase from '@/components/sitio/SitioBase';
 import Revelar from '@/components/sitio/Revelar';
 import { useAuth } from '@/context/AuthContext';
+import { enviarConsulta } from '@/services/contacto';
 import { DIRECCION, EMAIL, HORARIOS, MAPS_URL, WHATSAPP_URL } from '@/components/sitio/SiteFooter';
 
 // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
@@ -26,6 +27,8 @@ const MOTIVOS = [
 ];
 
 type Canal = 'whatsapp' | 'email';
+
+const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const etiqueta = 'calma-micro text-[#efe9df]/70';
 const control =
@@ -65,30 +68,52 @@ export default function ContactoPage() {
   const [nombre, setNombre] = useState<string | null>(null);
   const [motivo, setMotivo] = useState('');
   const [mensaje, setMensaje] = useState('');
-  const [faltan, setFaltan] = useState<{ nombre: boolean; mensaje: boolean }>({ nombre: false, mensaje: false });
+  const [email, setEmail] = useState<string | null>(null);
+  const [faltan, setFaltan] = useState<{ nombre: boolean; email: boolean; mensaje: boolean }>({ nombre: false, email: false, mensaje: false });
   const [enviado, setEnviado] = useState<{ canal: Canal; enlace: string } | null>(null);
+  const [enviando, setEnviando] = useState(false);
+  const [errorEnvio, setErrorEnvio] = useState('');
 
   const nombreActual = nombre ?? nombreCuenta;
+  // El email se completa solo con el de la cuenta; es la dirección a la que respondemos
+  const emailActual = email ?? user?.email ?? '';
 
-  const enviar = (e: FormEvent<HTMLFormElement>) => {
+  const enviar = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const boton = (e.nativeEvent as SubmitEvent).submitter as HTMLButtonElement | null;
     const canal: Canal = boton?.dataset.canal === 'email' ? 'email' : 'whatsapp';
 
     const faltaNombre = !nombreActual.trim();
     const faltaMensaje = !mensaje.trim();
-    setFaltan({ nombre: faltaNombre, mensaje: faltaMensaje });
-    if (faltaNombre || faltaMensaje) {
-      document.getElementById(faltaNombre ? `${id}-nombre` : `${id}-mensaje`)?.focus();
+    // El email solo hace falta cuando la consulta se manda por mail: es adonde se responde
+    const faltaEmail = canal === 'email' && !EMAIL_VALIDO.test(emailActual.trim());
+    setFaltan({ nombre: faltaNombre, email: faltaEmail, mensaje: faltaMensaje });
+    if (faltaNombre || faltaEmail || faltaMensaje) {
+      document.getElementById(faltaNombre ? `${id}-nombre` : faltaEmail ? `${id}-email` : `${id}-mensaje`)?.focus();
+      return;
+    }
+    setErrorEnvio('');
+
+    if (canal === 'email') {
+      setEnviando(true);
+      try {
+        await enviarConsulta({
+          nombre: nombreActual.trim(),
+          email: emailActual.trim(),
+          motivo: MOTIVOS.find((m) => m.value === motivo)?.label,
+          mensaje: mensaje.trim(),
+        });
+        setEnviado({ canal, enlace: '' });
+      } catch (err) {
+        setErrorEnvio(err instanceof Error ? err.message : 'No pudimos enviar tu consulta. Probá de nuevo.');
+      } finally {
+        setEnviando(false);
+      }
       return;
     }
 
     const enlace = enlaceDe(canal, nombreActual.trim(), motivo, mensaje.trim());
-    if (canal === 'whatsapp') {
-      window.open(enlace, '_blank', 'noopener,noreferrer');
-    } else {
-      window.location.href = enlace;
-    }
+    window.open(enlace, '_blank', 'noopener,noreferrer');
     setEnviado({ canal, enlace });
   };
 
@@ -96,7 +121,8 @@ export default function ContactoPage() {
     setEnviado(null);
     setMensaje('');
     setMotivo('');
-    setFaltan({ nombre: false, mensaje: false });
+    setFaltan({ nombre: false, email: false, mensaje: false });
+    setErrorEnvio('');
   };
 
   return (
@@ -137,22 +163,21 @@ export default function ContactoPage() {
             {enviado ? (
               <div role="status" className="flex flex-col items-start gap-6 border-t border-[#efe9df]/20 pt-10">
                 <h2 className="font-display m-0 text-[clamp(40px,4.4vw,64px)] font-normal leading-none">
-                  {enviado.canal === 'whatsapp' ? 'Se abrió WhatsApp.' : 'Se abrió tu correo.'}
+                  {enviado.canal === 'whatsapp' ? 'Se abrió WhatsApp.' : 'Consulta enviada.'}
                 </h2>
                 <p className="m-0 max-w-md text-[17px] leading-relaxed text-[#efe9df]/80">
-                  Tu consulta ya está escrita. Solo falta que toques enviar
-                  {enviado.canal === 'whatsapp' ? ' en el chat' : ' en el correo'}. Te respondemos en horario de oficina.
+                  {enviado.canal === 'whatsapp'
+                    ? 'Tu consulta ya está escrita. Solo falta que toques enviar en el chat. Te respondemos en horario de oficina.'
+                    : `Recibimos tu consulta. Te respondemos a ${emailActual.trim()} en horario de oficina.`}
                 </p>
-                <p className="m-0 text-[15px] text-[#efe9df]/70">
-                  ¿No se abrió?{' '}
-                  <a
-                    href={enviado.enlace}
-                    {...(enviado.canal === 'whatsapp' ? { target: '_blank', rel: 'noreferrer' } : {})}
-                    className="calma-link text-[#efe9df]"
-                  >
-                    Abrilo desde acá
-                  </a>
-                </p>
+                {enviado.canal === 'whatsapp' && (
+                  <p className="m-0 text-[15px] text-[#efe9df]/70">
+                    ¿No se abrió?{' '}
+                    <a href={enviado.enlace} target="_blank" rel="noreferrer" className="calma-link text-[#efe9df]">
+                      Abrilo desde acá
+                    </a>
+                  </p>
+                )}
                 <button type="button" onClick={nuevaConsulta} className={botonLinea}>
                   Escribir otra consulta
                 </button>
@@ -164,7 +189,7 @@ export default function ContactoPage() {
                     Dejanos tu consulta
                   </h2>
                   <p className="m-0 max-w-md text-[16px] leading-relaxed text-[#efe9df]/70">
-                    La escribís acá y la mandás por WhatsApp o por email, como te quede más cómodo.
+                    La escribís acá y la mandás por WhatsApp o por email, como te quede más cómodo. Por email llega directo a la inmobiliaria.
                   </p>
                 </div>
 
@@ -220,6 +245,27 @@ export default function ContactoPage() {
                 </div>
 
                 <div className="flex flex-col gap-2">
+                  <label htmlFor={`${id}-email`} className={etiqueta}>
+                    Tu email
+                  </label>
+                  <input
+                    id={`${id}-email`}
+                    type="email"
+                    autoComplete="email"
+                    inputMode="email"
+                    value={emailActual}
+                    onChange={(e) => setEmail(e.target.value)}
+                    aria-invalid={faltan.email}
+                    aria-describedby={`${id}-email-ayuda`}
+                    placeholder="nombre@email.com"
+                    className={control}
+                  />
+                  <p id={`${id}-email-ayuda`} className={`m-0 text-[14px] ${faltan.email ? 'text-[#ff8a7d]' : 'text-[#efe9df]/55'}`}>
+                    {faltan.email ? 'Escribí un email válido para poder responderte.' : 'Solo hace falta si enviás por email: ahí te respondemos.'}
+                  </p>
+                </div>
+
+                <div className="flex flex-col gap-2">
                   <label htmlFor={`${id}-mensaje`} className={etiqueta}>
                     Tu consulta
                   </label>
@@ -241,13 +287,19 @@ export default function ContactoPage() {
                   )}
                 </div>
 
+                {errorEnvio && (
+                  <p role="alert" className="m-0 text-[15px] leading-relaxed text-[#ff8a7d]">
+                    {errorEnvio}
+                  </p>
+                )}
+
                 <div className="flex flex-col gap-3 sm:flex-row">
-                  <button type="submit" data-canal="whatsapp" className={botonClaro}>
+                  <button type="submit" data-canal="whatsapp" disabled={enviando} className={botonClaro}>
                     <span className="calma-dot" aria-hidden="true" />
                     Enviar por WhatsApp
                   </button>
-                  <button type="submit" data-canal="email" className={botonLinea}>
-                    Enviar por email
+                  <button type="submit" data-canal="email" disabled={enviando} className={`${botonLinea} disabled:cursor-wait disabled:opacity-60`}>
+                    {enviando ? 'Enviando…' : 'Enviar por email'}
                   </button>
                 </div>
               </form>

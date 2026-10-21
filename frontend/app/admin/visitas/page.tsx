@@ -7,6 +7,20 @@ import { getProperties, type ApiProperty } from '@/services/api';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
+
+// Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
+const hoyIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
+// Precio tal como se publica (por noche, por mes o total)
+const precioTexto = (p: ApiProperty) => {
+  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  const sufijo = p.categoria_operacion === 'alquiler' ? ' por mes' : '';
+  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}${sufijo}` : `USD ${miles(p.price)}${sufijo}`;
+};
 
 type Pestana = 'pendientes' | 'confirmadas' | 'rechazadas' | 'todas';
 
@@ -154,6 +168,8 @@ export default function VisitasAdminPage() {
   const agendar = async (e: FormEvent) => {
     e.preventDefault();
     if (!nueva.nombre.trim()) return setFaltaEnNueva('nombre');
+    // El backend exige el teléfono del cliente en cada visita
+    if (!nueva.telefono.trim()) return setFaltaEnNueva('telefono');
     if (!nueva.propiedad) return setFaltaEnNueva('propiedad');
     if (!nueva.fecha) return setFaltaEnNueva('fecha');
     setFaltaEnNueva(null);
@@ -171,7 +187,7 @@ export default function VisitasAdminPage() {
           id: propiedad?._id || '',
           titulo: propiedad?.title || nueva.propiedad,
           direccion: propiedad?.location || '',
-          precio: propiedad ? (propiedad.moneda === 'ARS' ? `ARS ${propiedad.priceARS ?? propiedad.price}` : `USD ${propiedad.price}`) : '',
+          precio: propiedad ? precioTexto(propiedad) : '',
         },
         fecha: fechaParaGuardar(nueva.fecha),
         horario: horarioParaGuardar(nueva.horario || '10:00'),
@@ -270,7 +286,7 @@ export default function VisitasAdminPage() {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div role="tablist" aria-label="Estado de las visitas" className="flex gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1">
+          <div role="tablist" aria-label="Estado de las visitas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PESTANAS.map((p) => {
               const activa = pestana === p.id;
               return (
@@ -335,9 +351,9 @@ export default function VisitasAdminPage() {
                 const pasada = cuando ? cuando < hoy : false;
                 return (
                   <li key={v.id} className={`grid gap-x-4 gap-y-2 px-4 py-3.5 md:grid-cols-[150px_minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center ${pasada ? 'opacity-60' : ''}`}>
-                    <span className="tabular whitespace-nowrap text-[13.5px] font-medium">
-                      {cuandoEs(cuando, v.horario)}
-                      {pasada && <span className="ml-2 text-[12px] font-normal text-panel-tenue">pasada</span>}
+                    <span className="flex flex-col">
+                      <span className="tabular whitespace-nowrap text-[13.5px] font-medium">{cuandoEs(cuando, v.horario)}</span>
+                      {pasada && <span className="text-[12px] text-panel-tenue">Ya pasó</span>}
                     </span>
                     <button type="button" onClick={() => setDetalle(v)} className="min-w-0 text-left">
                       <span className="block truncate text-[14px] font-medium hover:underline">{v.cliente.nombre || 'Sin nombre'}</span>
@@ -440,7 +456,7 @@ export default function VisitasAdminPage() {
       >
         <form id={`${id}-reprogramar`} onSubmit={reprogramar} className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Nueva fecha" htmlFor={`${id}-rep-fecha`}>
-            <input id={`${id}-rep-fecha`} type="date" required value={reprogramacion.fecha} onChange={(e) => setReprogramacion((r) => ({ ...r, fecha: e.target.value }))} className={control} />
+            <input id={`${id}-rep-fecha`} type="date" required min={hoyIso()} value={reprogramacion.fecha} onChange={(e) => setReprogramacion((r) => ({ ...r, fecha: e.target.value }))} className={control} />
           </Campo>
           <Campo etiqueta="Nuevo horario" htmlFor={`${id}-rep-hora`}>
             <input id={`${id}-rep-hora`} type="time" required value={reprogramacion.hora} onChange={(e) => setReprogramacion((r) => ({ ...r, hora: e.target.value }))} className={control} />
@@ -497,8 +513,8 @@ export default function VisitasAdminPage() {
           <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-n-nombre`} error={faltaEnNueva === 'nombre' ? 'Escribí el nombre.' : null} className="sm:col-span-2">
             <input id={`${id}-n-nombre`} type="text" value={nueva.nombre} aria-invalid={faltaEnNueva === 'nombre'} onChange={(e) => setNueva((n) => ({ ...n, nombre: e.target.value }))} className={control} />
           </Campo>
-          <Campo etiqueta="Teléfono" htmlFor={`${id}-n-tel`}>
-            <input id={`${id}-n-tel`} type="tel" value={nueva.telefono} onChange={(e) => setNueva((n) => ({ ...n, telefono: e.target.value }))} placeholder="Ej.: 343 444 4444" className={control} />
+          <Campo etiqueta="Teléfono *" htmlFor={`${id}-n-tel`} error={faltaEnNueva === 'telefono' ? 'Escribí el teléfono.' : null}>
+            <input id={`${id}-n-tel`} type="tel" value={nueva.telefono} aria-invalid={faltaEnNueva === 'telefono'} onChange={(e) => setNueva((n) => ({ ...n, telefono: e.target.value }))} placeholder="Ej.: 343 444 4444" className={control} />
           </Campo>
           <Campo etiqueta="Email" htmlFor={`${id}-n-email`}>
             <input id={`${id}-n-email`} type="email" value={nueva.email} onChange={(e) => setNueva((n) => ({ ...n, email: e.target.value }))} className={control} />
@@ -506,15 +522,11 @@ export default function VisitasAdminPage() {
           <Campo etiqueta="Propiedad *" htmlFor={`${id}-n-prop`} error={faltaEnNueva === 'propiedad' ? 'Elegí la propiedad.' : null} className="sm:col-span-2">
             <select id={`${id}-n-prop`} value={nueva.propiedad} aria-invalid={faltaEnNueva === 'propiedad'} onChange={(e) => setNueva((n) => ({ ...n, propiedad: e.target.value }))} className={control}>
               <option value="">Elegí una propiedad</option>
-              {propiedades.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.title}
-                </option>
-              ))}
+              <OpcionesPropiedad propiedades={propiedades.filter(propiedadOfrecida)} />
             </select>
           </Campo>
           <Campo etiqueta="Fecha *" htmlFor={`${id}-n-fecha`} error={faltaEnNueva === 'fecha' ? 'Elegí la fecha.' : null}>
-            <input id={`${id}-n-fecha`} type="date" value={nueva.fecha} aria-invalid={faltaEnNueva === 'fecha'} onChange={(e) => setNueva((n) => ({ ...n, fecha: e.target.value }))} className={control} />
+            <input id={`${id}-n-fecha`} type="date" min={hoyIso()} value={nueva.fecha} aria-invalid={faltaEnNueva === 'fecha'} onChange={(e) => setNueva((n) => ({ ...n, fecha: e.target.value }))} className={control} />
           </Campo>
           <Campo etiqueta="Horario" htmlFor={`${id}-n-hora`}>
             <input id={`${id}-n-hora`} type="time" value={nueva.horario} onChange={(e) => setNueva((n) => ({ ...n, horario: e.target.value }))} className={control} />

@@ -40,6 +40,9 @@ export default function SiteHeader() {
       <Link href="/favoritos" className="calma-link calma-link-sutil">
         Favoritos
       </Link>
+      <Link href="/perfil" className="calma-link calma-link-sutil">
+        Mi cuenta
+      </Link>
       {user.role === 'admin' && (
         <Link href="/admin" className="calma-link calma-link-sutil">
           Panel

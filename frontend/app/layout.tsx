@@ -31,13 +31,14 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Negocios Inmobiliarios | Propiedades exclusivas",
+  title: "Negocios Inmobiliarios | Villa Libertador San Martín, Entre Ríos",
   description:
-    "Encontrá propiedades exclusivas con asesoramiento personalizado. Compra, venta y alquiler de inmuebles.",
+    "Casas, departamentos y terrenos en venta y alquiler en Villa Libertador San Martín, Crespo y Diamante. Asesoramiento personalizado.",
 };
 
 import { AuthProvider } from "../context/AuthContext";
 import { ThemeProvider } from "../context/ThemeContext";
+import BienvenidaAdmin from "../components/panel/BienvenidaAdmin";
 
 // Script que se inyecta SINCRÓNICO antes de que React hidrate.
 // Elimina la clase "dark" de html si el usuario guardó "light" en localStorage.
@@ -80,6 +81,7 @@ export default function RootLayout({
         <AuthProvider>
           <ThemeProvider>
             {children}
+            <BienvenidaAdmin />
           </ThemeProvider>
         </AuthProvider>
       </body>

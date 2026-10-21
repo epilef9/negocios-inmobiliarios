@@ -77,9 +77,9 @@ export default function SelectorUbicacionMapa({
   const [mostrarResultados, setMostrarResultados] = useState(false);
   const [notificacion, setNotificacion] = useState<{ texto: string; tipo: "info" | "error" | "exito" } | null>(null);
 
-  // Coordenadas por defecto (Centro de Entre Ríos / Paraná: -31.7319, -60.5238)
-  const defaultLat = -31.7319;
-  const defaultLng = -60.5238;
+  // Coordenadas por defecto: Villa Libertador San Martín, donde está la oficina
+  const defaultLat = -32.0748;
+  const defaultLng = -60.4577;
 
   const parsedLat = latitud.trim() ? Number(latitud) : null;
   const parsedLng = longitud.trim() ? Number(longitud) : null;
@@ -564,7 +564,7 @@ export default function SelectorUbicacionMapa({
             placeholder={
               ciudadSugerida
                 ? `Buscar calle y altura (ej: Urquiza 500, ${ciudadSugerida})...`
-                : "Buscar calle y altura (ej: Urquiza 500, Paraná)..."
+                : "Buscar calle y altura (ej.: San Martín 120, Crespo)..."
             }
             value={busquedaTexto}
             onChange={handleInputChange}

@@ -1,15 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/auth.controller');
-const { validateRegister, validateLogin } = require('../validators/auth.validator');
+const { validateRegister, validateLogin, validateEmailOnly } = require('../validators/auth.validator');
 const authMiddleware = require('../middlewares/auth.middleware');
 const { requireAdmin } = authMiddleware;
+const { frenos } = require('../middlewares/seguridad');
 
 // Endpoint para registro de nuevo usuario (HU-05)
-router.post('/register', validateRegister, authController.register);
+router.post('/register', frenos.registro, validateRegister, authController.register);
+
+// Confirmación del email con el enlace del mail, y reenvío del enlace
+router.post('/verify-email', frenos.tokens, authController.verifyEmail);
+router.post('/resend-verification', frenos.enlaces, validateEmailOnly, authController.resendVerification);
+
+// Contraseña olvidada: se pide un enlace por mail y con ese enlace se elige la nueva
+router.post('/olvide-password', frenos.enlaces, validateEmailOnly, authController.olvidePassword);
+router.post('/restablecer-password', frenos.tokens, authController.restablecerPassword);
+
+// Cambio de email desde el perfil: se confirma con el enlace que llega al email nuevo
+router.post('/confirmar-email', frenos.tokens, authController.confirmarCambioEmail);
 
 // Endpoint para inicio de sesion (HU-09)
-router.post('/login', validateLogin, authController.login);
+router.post('/login', frenos.loginIp, frenos.login, validateLogin, authController.login);
 
 // Endpoint para obtener datos del usuario autenticado actual
 router.get('/me', authMiddleware, authController.me);

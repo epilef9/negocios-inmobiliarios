@@ -18,6 +18,15 @@ class UserRepository {
         return await User.findOne({ email: email.toLowerCase().trim() });
     }
 
+    // Con los campos de verificación, que normalmente no se leen
+    async findByEmailConVerificacion(email) {
+        return await User.findOne({ email: email.toLowerCase().trim() }).select('+verificacionHash +verificacionExpira');
+    }
+
+    async findByVerificacionHash(hash) {
+        return await User.findOne({ verificacionHash: hash }).select('+verificacionHash +verificacionExpira');
+    }
+
     async updateUser(userId, userData) {
         return await User.findByIdAndUpdate(userId, userData, { new: true });
     }

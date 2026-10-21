@@ -79,116 +79,6 @@ html[data-theme="dark"] body {
   background-color: #090e1a;
 }
 
-/* Vistas antiguas del panel: sus clases originales son claras por defecto. */
-html.dark .admin-themed-page,
-html[data-theme="dark"] .admin-themed-page {
-  background-color: #090e1a !important;
-  color: #f1f5f9;
-}
-
-html.dark .admin-themed-page main [class*="bg-white"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-white"],
-html.dark .admin-themed-page main [class*="bg-slate-50"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-50"],
-html.dark .admin-themed-page main [class*="bg-slate-100"],
-html[data-theme="dark"] .admin-themed-page main [class*="bg-slate-100"] {
-  background-color: #0f172a !important;
-}
-
-html.dark .admin-themed-page main [class*="border-slate-100"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-100"],
-html.dark .admin-themed-page main [class*="border-slate-200"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-200"],
-html.dark .admin-themed-page main [class*="border-slate-300"],
-html[data-theme="dark"] .admin-themed-page main [class*="border-slate-300"] {
-  border-color: #1e293b !important;
-}
-
-html.dark .admin-themed-page main [class*="text-[#0A193D]"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-[#0A193D]"],
-html.dark .admin-themed-page main [class*="text-slate-900"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-900"],
-html.dark .admin-themed-page main [class*="text-slate-800"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-800"] {
-  color: #f8fafc !important;
-}
-
-html.dark .admin-themed-page main [class*="text-slate-700"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-700"],
-html.dark .admin-themed-page main [class*="text-slate-600"],
-html[data-theme="dark"] .admin-themed-page main [class*="text-slate-600"] {
-  color: #cbd5e1 !important;
-}
-
-html.dark .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
-html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-50"]:hover,
-html.dark .admin-themed-page main [class*="hover:bg-slate-100"]:hover,
-html[data-theme="dark"] .admin-themed-page main [class*="hover:bg-slate-100"]:hover {
-  background-color: #1e293b !important;
-}
-
-.filter-select-contrast,
-.filter-select-contrast option {
-  color: #111827 !important;
-  -webkit-text-fill-color: #111827 !important;
-  background-color: #ffffff !important;
-  opacity: 1 !important;
-  color-scheme: light !important;
-}
-
-html.dark .filter-select-contrast,
-html[data-theme="dark"] .filter-select-contrast,
-html.dark .filter-select-contrast option,
-html[data-theme="dark"] .filter-select-contrast option {
-  color: #f8fafc !important;
-  -webkit-text-fill-color: #f8fafc !important;
-  background-color: #0f172a !important;
-  color-scheme: dark !important;
-}
-
-.admin-tabs-scroll {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.admin-tabs-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-/* Animaciones fluidas y limpias para reordenamiento de catálogo */
-.reorder-card {
-  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, opacity 0.15s ease, border-color 0.15s ease;
-  will-change: transform, box-shadow;
-}
-
-.reorder-card:hover {
-  transform: translateY(-2px);
-}
-
-.reorder-card.dragging-active {
-  opacity: 0.35;
-  transform: scale(0.98);
-  border-style: dashed !important;
-}
-
-.drop-slot-indicator {
-  height: 48px;
-  border-radius: 14px;
-  background: repeating-linear-gradient(
-    -45deg,
-    rgba(59, 130, 246, 0.08),
-    rgba(59, 130, 246, 0.08) 10px,
-    rgba(59, 130, 246, 0.16) 10px,
-    rgba(59, 130, 246, 0.16) 20px
-  );
-  border: 2px dashed #3b82f6;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: drop-slot-pulse 1.2s ease-in-out infinite;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
 @keyframes fade-in-up {
   from {
     opacity: 0;
@@ -200,23 +90,29 @@ html[data-theme="dark"] .filter-select-contrast option {
   }
 }
 
-@keyframes drop-slot-pulse {
-  0%, 100% {
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.3);
-  }
-  50% {
-    border-color: #2563eb;
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
-  }
-}
-
 .animate-fade-in-up {
   animation: fade-in-up 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-button, a {
+/* Todo lo que se puede tocar muestra la manito (Tailwind deja los botones y menús con la flecha normal) */
+button, a, select, summary, [role="button"], label:has(> input[type="checkbox"]), label:has(> input[type="radio"]),
+input[type="checkbox"], input[type="radio"], input[type="file"] {
   cursor: pointer;
+}
+button:disabled, select:disabled, input:disabled {
+  cursor: not-allowed;
+}
+
+/* Cuando el navegador autocompleta el email o la contraseña pinta el campo de celeste y el texto claro
+   del sitio deja de leerse (y el botón del ojo desaparece). Se mantiene el fondo azul del sitio. */
+.home-calma-raiz input:-webkit-autofill,
+.home-calma-raiz input:-webkit-autofill:hover,
+.home-calma-raiz input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #efe9df;
+  caret-color: #efe9df;
+  -webkit-box-shadow: 0 0 0 1000px #071733 inset;
+  box-shadow: 0 0 0 1000px #071733 inset;
+  transition: background-color 9999s ease-out 0s;
 }
 
 .font-fraunces {
@@ -380,19 +276,22 @@ html.home-calma ::-webkit-scrollbar-thumb { background: #2b4677; border-radius: 
   color: var(--p-texto);
   color-scheme: light;
 }
+/* En oscuro los fondos se tiñen con el color principal de la paleta (verde, bordó, azul…),
+   así cada paleta se reconoce también de noche y no queda todo azul */
 html.dark .panel {
-  --p-fondo: #0b1120;
-  --p-superficie: #121a2c;
-  --p-hundido: #0f1626;
-  --p-borde: #222d44;
-  --p-borde-fuerte: #2f3c58;
-  --p-texto: #e7ebf2;
-  --p-suave: #a6afc2;
-  --p-tenue: #8a94a9;
-  --p-marca: #e7ebf2;
-  --p-marca-texto: #0b1120;
-  --p-acento-suave: color-mix(in srgb, var(--brand-accent, #cc1f26) 22%, transparent);
-  --p-menu: #080d19;
+  --p-fondo: color-mix(in srgb, var(--brand-primary, #0a193d) 40%, #04060a);
+  --p-superficie: color-mix(in srgb, var(--brand-primary, #0a193d) 52%, #0b0f17);
+  --p-hundido: color-mix(in srgb, var(--brand-primary, #0a193d) 32%, #06080d);
+  --p-borde: color-mix(in srgb, var(--brand-primary, #0a193d) 50%, #2a3242);
+  --p-borde-fuerte: color-mix(in srgb, var(--brand-primary, #0a193d) 45%, #3c465c);
+  --p-texto: #eef0f4;
+  --p-suave: #b4bbc8;
+  --p-tenue: #969eae;
+  --p-marca: color-mix(in srgb, var(--brand-accent, #cc1f26) 14%, #eef0f4);
+  --p-marca-texto: color-mix(in srgb, var(--brand-primary, #0a193d) 70%, #000000);
+  --p-acento: color-mix(in srgb, var(--brand-accent, #cc1f26) 82%, #ffffff);
+  --p-acento-suave: color-mix(in srgb, var(--brand-accent, #cc1f26) 26%, transparent);
+  --p-menu: color-mix(in srgb, var(--brand-primary, #0a193d) 62%, #020305);
   color-scheme: dark;
 }
 .panel ::selection { background: var(--p-acento); color: #fff; }
@@ -420,3 +319,10 @@ html.dark .panel {
   @keyframes bienvenida-mostrar { from { opacity: 0; } to { opacity: 1; } }
 }
 
+/* Al imprimir el generador de contratos sale solo el documento */
+@media print {
+  body * { visibility: hidden !important; }
+  #documento-contrato, #documento-contrato * { visibility: visible !important; }
+  #documento-contrato { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
+  #documento-contrato mark { background: none !important; color: inherit !important; }
+}

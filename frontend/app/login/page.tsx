@@ -4,8 +4,8 @@ import { Suspense, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
-import PantallaCuenta, { YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import { AuthRequestError } from '@/services/auth';
+import PantallaCuenta, { BotonVerPassword, ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -18,13 +18,12 @@ function FormularioIngreso() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [verPassword, setVerPassword] = useState(false);
+  const [sinVerificar, setSinVerificar] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: 'email' | 'password' } | null>(null);
   const [enviando, setEnviando] = useState(false);
 
-  // Sin backend para recuperar la contraseña: se resuelve por WhatsApp con el mensaje listo
-  const recuperar = `${WHATSAPP_URL}?text=${encodeURIComponent(
-    `Hola, olvidé la contraseña de mi cuenta en la web.${EMAIL_VALIDO.test(email.trim()) ? ` Mi email es ${email.trim()}.` : ''}`,
-  )}`;
+  // Recuperar la contraseña: se pide un enlace por mail (si ya escribió el email, va cargado)
+  const recuperar = EMAIL_VALIDO.test(email.trim()) ? `/olvide-contrasena?email=${encodeURIComponent(email.trim())}` : '/olvide-contrasena';
 
   const ingresar = async (e: FormEvent) => {
     e.preventDefault();
@@ -43,6 +42,18 @@ function FormularioIngreso() {
       router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
+      if (err instanceof AuthRequestError && err.code === 'EMAIL_NO_VERIFICADO') {
+        setSinVerificar(true);
+        setError({ texto: 'Falta confirmar tu email. Te mandamos un enlace al registrarte; si no te llegó, pedilo de nuevo.' });
+        setEnviando(false);
+        return;
+      }
+      setSinVerificar(false);
+      if (err instanceof AuthRequestError && (err.status === 429 || err.status >= 500)) {
+        setError({ texto: mensaje });
+        setEnviando(false);
+        return;
+      }
       setError({
         texto: /fetch|network|conectar/i.test(mensaje)
           ? 'No pudimos conectar con el servidor. Probá de nuevo en un momento.'
@@ -83,9 +94,9 @@ function FormularioIngreso() {
           <label htmlFor={`${id}-password`} className={etiqueta}>
             Contraseña
           </label>
-          <a href={recuperar} target="_blank" rel="noreferrer" className="calma-link calma-link-sutil text-[14px] text-[#efe9df]/70 hover:text-[#efe9df]">
+          <Link href={recuperar} className="calma-link calma-link-sutil text-[14px] text-[#efe9df]/70 hover:text-[#efe9df]">
             ¿La olvidaste?
-          </a>
+          </Link>
         </div>
         <div className="relative">
           <input
@@ -98,16 +109,9 @@ function FormularioIngreso() {
               setError(null);
             }}
             aria-invalid={error?.campo === 'password'}
-            className={`${control} pr-20`}
+            className={`${control} pr-12`}
           />
-          <button
-            type="button"
-            onClick={() => setVerPassword((v) => !v)}
-            aria-pressed={verPassword}
-            className="calma-micro absolute bottom-3 right-0 min-h-8 px-1 text-[#efe9df]/70 hover:text-[#efe9df]"
-          >
-            {verPassword ? 'Ocultar' : 'Mostrar'}
-          </button>
+          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="absolute bottom-1.5 right-0" />
         </div>
       </div>
 
@@ -116,6 +120,7 @@ function FormularioIngreso() {
           {error.texto}
         </p>
       )}
+      {sinVerificar && <ReenviarVerificacion email={email.trim()} />}
 
       <div className="flex flex-col gap-6">
         <button type="submit" disabled={enviando} className={botonPrincipal}>

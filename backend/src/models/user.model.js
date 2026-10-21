@@ -33,6 +33,48 @@ const userSchema = new mongoose.Schema({
         enum: ['admin', 'cliente', 'user'],
         default: 'cliente'
     },
+    // Las cuentas que ya existían quedan como verificadas; el registro público las crea en false
+    emailVerificado: {
+        type: Boolean,
+        default: true
+    },
+    // Del enlace que se manda por mail solo se guarda el hash: si se filtra la base, los enlaces no sirven
+    verificacionHash: {
+        type: String,
+        select: false
+    },
+    verificacionExpira: {
+        type: Date,
+        select: false
+    },
+    // Enlace para crear una contraseña nueva (olvido o cambio desde el perfil). Igual que arriba: solo el hash.
+    restablecimientoHash: {
+        type: String,
+        select: false
+    },
+    restablecimientoExpira: {
+        type: Date,
+        select: false
+    },
+    // Cambio de email pendiente: el email nuevo recién se usa cuando se confirma desde esa casilla
+    emailPendiente: {
+        type: String,
+        trim: true,
+        lowercase: true,
+        select: false
+    },
+    cambioEmailHash: {
+        type: String,
+        select: false
+    },
+    cambioEmailExpira: {
+        type: Date,
+        select: false
+    },
+    // Cuándo cambió la contraseña o el email por última vez: las sesiones iniciadas antes dejan de valer
+    credencialesCambiadasEn: {
+        type: Date
+    },
     checklistRequisitos: {
         type: [String],
         default: []
