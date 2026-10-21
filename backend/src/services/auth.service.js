@@ -64,6 +64,15 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
+        // El teléfono es opcional, pero si viene tiene que ser un número de verdad (no un email ni letras)
+        const telefono = typeof userData.telefono === 'string' ? userData.telefono.trim() : '';
+        const digitosTelefono = telefono.replace(/\D/g, '').length;
+        if (telefono && (!/^[\d\s+().-]+$/.test(telefono) || digitosTelefono < 8 || digitosTelefono > 15)) {
+            const error = new Error('Revisá el teléfono: solo números, con característica (entre 8 y 15 números).');
+            error.statusCode = 400;
+            throw error;
+        }
+
         // Verificar si el correo ya existe
         const existingUser = await userRepository.findByEmail(userData.email);
         if (existingUser) {
@@ -81,7 +90,7 @@ const authService = {
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
-            telefono: userData.telefono ? userData.telefono.trim() : '',
+            telefono,
             username: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),
             password: hashedPassword,
