@@ -103,6 +103,18 @@ button:disabled, select:disabled, input:disabled {
   cursor: not-allowed;
 }
 
+/* Cuando el navegador autocompleta el email o la contraseña pinta el campo de celeste y el texto claro
+   del sitio deja de leerse (y el botón del ojo desaparece). Se mantiene el fondo azul del sitio. */
+.home-calma-raiz input:-webkit-autofill,
+.home-calma-raiz input:-webkit-autofill:hover,
+.home-calma-raiz input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #efe9df;
+  caret-color: #efe9df;
+  -webkit-box-shadow: 0 0 0 1000px #071733 inset;
+  box-shadow: 0 0 0 1000px #071733 inset;
+  transition: background-color 9999s ease-out 0s;
+}
+
 .font-fraunces {
   font-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }

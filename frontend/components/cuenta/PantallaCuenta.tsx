@@ -17,6 +17,33 @@ export const botonPrincipal =
 export const destinoSeguro = (volver: string | null) =>
   volver && volver.startsWith('/') && !volver.startsWith('//') && !volver.includes('\\') && !/[\u0000-\u001f]/.test(volver) ? volver : null;
 
+// Botón para ver u ocultar la contraseña: un ojo abierto o tachado. El texto queda para lectores de pantalla.
+export function BotonVerPassword({ visible, alCambiar, className = '' }: { visible: boolean; alCambiar: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={alCambiar}
+      aria-pressed={visible}
+      aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[#efe9df]/70 transition-colors duration-300 hover:bg-[#efe9df]/10 hover:text-[#efe9df] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#efe9df] ${className}`}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+        <circle cx="12" cy="12" r="3" className={`origin-center transition-transform duration-300 ${visible ? 'scale-100' : 'scale-90'}`} />
+        {/* Raya que tacha el ojo cuando la contraseña está oculta; se dibuja o se borra al tocar */}
+        <path
+          d="M4 4l16 16"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={visible ? 1 : 0}
+          className="transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+        />
+      </svg>
+    </button>
+  );
+}
+
 const beneficios = [
   'Guardá tus propiedades favoritas y encontralas desde cualquier dispositivo.',
   'Llevá la cuenta de los papeles que ya tenés para alquilar o comprar.',
