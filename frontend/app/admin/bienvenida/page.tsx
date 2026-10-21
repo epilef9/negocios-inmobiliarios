@@ -15,6 +15,11 @@ const HORA = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digi
 const FECHA = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 
 const saludoSegunHora = (hora: number) => (hora < 6 ? 'Buenas noches' : hora < 13 ? 'Buenos días' : hora < 20 ? 'Buenas tardes' : 'Buenas noches');
+const NOMBRES_GENERICOS = ['admin', 'administrador', 'administradora', 'administracion', 'administración', 'usuario'];
+const nombrePropio = (nombre?: string) => {
+  const limpio = nombre?.trim() ?? '';
+  return limpio && !NOMBRES_GENERICOS.includes(limpio.toLowerCase()) ? limpio : '';
+};
 
 type Resumen = { frases: string[] } | { error: true } | null;
 
@@ -120,7 +125,8 @@ export default function BienvenidaPage() {
     return () => window.removeEventListener('keydown', alTeclear);
   }, [router, opciones]);
 
-  const nombre = user?.nombre || 'Administración';
+  // Solo se saluda por nombre si es un nombre de verdad (no "Administrador" ni vacío)
+  const nombre = nombrePropio(user?.nombre);
   const saludo = saludoSegunHora(ahora.getHours());
 
   return (
@@ -165,11 +171,13 @@ export default function BienvenidaPage() {
             </p>
             <h1 className="font-display m-0 text-[clamp(56px,10vw,150px)] font-normal leading-[0.92] tracking-[-0.02em]">
               <span className="bienvenida-renglon">
-                <span style={{ animationDelay: '0.75s' }}>{saludo},</span>
+                <span style={{ animationDelay: '0.75s' }}>{nombre ? `${saludo},` : `${saludo}.`}</span>
               </span>
-              <span className="bienvenida-renglon">
-                <span style={{ animationDelay: '0.9s' }}>{nombre}.</span>
-              </span>
+              {nombre && (
+                <span className="bienvenida-renglon">
+                  <span style={{ animationDelay: '0.9s' }}>{nombre}.</span>
+                </span>
+              )}
             </h1>
             <span aria-hidden="true" className="bienvenida-linea block h-px w-40 bg-[#d9382b]" style={{ animationDelay: '1.3s' }} />
           </div>
@@ -230,7 +238,7 @@ export default function BienvenidaPage() {
             <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
           )}
           <button type="button" onClick={logout} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
-            No soy {nombre}, salir
+            Cerrar sesión
           </button>
         </footer>
       </div>

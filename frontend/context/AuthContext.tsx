@@ -12,6 +12,7 @@ interface AuthContextType {
   login: (data: LoginPayload) => Promise<User>;
   register: (data: RegisterPayload) => Promise<User>;
   logout: () => void;
+  actualizarUsuario: (user: User) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -101,6 +102,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   };
 
+  // Datos editados desde el perfil: se guardan en la sesión sin tener que volver a ingresar
+  const handleActualizarUsuario = (nuevo: User) => {
+    localStorage.setItem('user', JSON.stringify(nuevo));
+    setUser(nuevo);
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -109,6 +116,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login: handleLogin,
         register: handleRegister,
         logout: handleLogout,
+        actualizarUsuario: handleActualizarUsuario,
       }}
     >
       {children}

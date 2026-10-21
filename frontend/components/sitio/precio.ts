@@ -54,7 +54,7 @@ export function precioDePropiedad(p: ApiProperty, blue: number | null): PrecioMo
 export const etiquetaTipo: Record<string, string> = {
   casa: 'Casa',
   departamento: 'Departamento',
-  monoambiente: 'Monoambiente',
+  monoambiente: 'Departamento',
   local: 'Local',
   terreno: 'Terreno',
 };

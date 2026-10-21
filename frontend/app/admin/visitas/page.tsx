@@ -7,6 +7,20 @@ import { getProperties, type ApiProperty } from '@/services/api';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
+
+// Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
+const hoyIso = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
+// Precio tal como se publica (por noche, por mes o total)
+const precioTexto = (p: ApiProperty) => {
+  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  const sufijo = p.categoria_operacion === 'alquiler' ? ' por mes' : '';
+  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}${sufijo}` : `USD ${miles(p.price)}${sufijo}`;
+};
 
 type Pestana = 'pendientes' | 'confirmadas' | 'rechazadas' | 'todas';
 
@@ -173,7 +187,7 @@ export default function VisitasAdminPage() {
           id: propiedad?._id || '',
           titulo: propiedad?.title || nueva.propiedad,
           direccion: propiedad?.location || '',
-          precio: propiedad ? (propiedad.moneda === 'ARS' ? `ARS ${propiedad.priceARS ?? propiedad.price}` : `USD ${propiedad.price}`) : '',
+          precio: propiedad ? precioTexto(propiedad) : '',
         },
         fecha: fechaParaGuardar(nueva.fecha),
         horario: horarioParaGuardar(nueva.horario || '10:00'),
@@ -442,7 +456,7 @@ export default function VisitasAdminPage() {
       >
         <form id={`${id}-reprogramar`} onSubmit={reprogramar} className="grid gap-4 sm:grid-cols-2">
           <Campo etiqueta="Nueva fecha" htmlFor={`${id}-rep-fecha`}>
-            <input id={`${id}-rep-fecha`} type="date" required value={reprogramacion.fecha} onChange={(e) => setReprogramacion((r) => ({ ...r, fecha: e.target.value }))} className={control} />
+            <input id={`${id}-rep-fecha`} type="date" required min={hoyIso()} value={reprogramacion.fecha} onChange={(e) => setReprogramacion((r) => ({ ...r, fecha: e.target.value }))} className={control} />
           </Campo>
           <Campo etiqueta="Nuevo horario" htmlFor={`${id}-rep-hora`}>
             <input id={`${id}-rep-hora`} type="time" required value={reprogramacion.hora} onChange={(e) => setReprogramacion((r) => ({ ...r, hora: e.target.value }))} className={control} />
@@ -508,15 +522,11 @@ export default function VisitasAdminPage() {
           <Campo etiqueta="Propiedad *" htmlFor={`${id}-n-prop`} error={faltaEnNueva === 'propiedad' ? 'Elegí la propiedad.' : null} className="sm:col-span-2">
             <select id={`${id}-n-prop`} value={nueva.propiedad} aria-invalid={faltaEnNueva === 'propiedad'} onChange={(e) => setNueva((n) => ({ ...n, propiedad: e.target.value }))} className={control}>
               <option value="">Elegí una propiedad</option>
-              {propiedades.map((p) => (
-                <option key={p._id} value={p._id}>
-                  {p.title}
-                </option>
-              ))}
+              <OpcionesPropiedad propiedades={propiedades.filter(propiedadOfrecida)} />
             </select>
           </Campo>
           <Campo etiqueta="Fecha *" htmlFor={`${id}-n-fecha`} error={faltaEnNueva === 'fecha' ? 'Elegí la fecha.' : null}>
-            <input id={`${id}-n-fecha`} type="date" value={nueva.fecha} aria-invalid={faltaEnNueva === 'fecha'} onChange={(e) => setNueva((n) => ({ ...n, fecha: e.target.value }))} className={control} />
+            <input id={`${id}-n-fecha`} type="date" min={hoyIso()} value={nueva.fecha} aria-invalid={faltaEnNueva === 'fecha'} onChange={(e) => setNueva((n) => ({ ...n, fecha: e.target.value }))} className={control} />
           </Campo>
           <Campo etiqueta="Horario" htmlFor={`${id}-n-hora`}>
             <input id={`${id}-n-hora`} type="time" value={nueva.horario} onChange={(e) => setNueva((n) => ({ ...n, horario: e.target.value }))} className={control} />

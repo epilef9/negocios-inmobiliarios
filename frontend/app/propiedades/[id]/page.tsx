@@ -114,6 +114,8 @@ export default function DetallePropiedad() {
 	const operacion = etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad";
 	const ubicacion = [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ") || p.location;
 	const estadoNoDisponible = p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
+	// Una propiedad vendida o alquilada ya no se puede visitar
+	const sePuedeVisitar = Boolean(p.permitirVisita) && p.estado !== "vendido" && p.estado !== "alquilado";
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
 	const enlace = typeof window !== "undefined" ? window.location.href : "";
@@ -220,7 +222,7 @@ export default function DetallePropiedad() {
 							{p.montoExpensas ? <p className="m-0 pt-1 text-[14px] text-[#efe9df]/65">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 						</div>
 						<div className="flex flex-col gap-3">
-							{p.permitirVisita && (
+							{sePuedeVisitar && (
 								<button
 									type="button"
 									onClick={() => visita.current?.abrir()}
@@ -235,7 +237,7 @@ export default function DetallePropiedad() {
 								target="_blank"
 								rel="noreferrer"
 								className={`calma-micro flex items-center justify-center gap-2.5 rounded-full px-6 py-4 text-[12px] transition-colors ${
-									p.permitirVisita ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
+									sePuedeVisitar ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
 								}`}
 							>
 								Escribir por WhatsApp
@@ -252,7 +254,7 @@ export default function DetallePropiedad() {
 				</aside>
 			</div>
 
-			{p.permitirVisita && <AgendarVisita ref={visita} propiedad={p} precio={precio.principal} />}
+			{sePuedeVisitar && <AgendarVisita ref={visita} propiedad={p} precio={precio.principal} />}
 		</SitioBase>
 	);
 }
