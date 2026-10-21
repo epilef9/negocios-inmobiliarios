@@ -15,6 +15,13 @@ type Props = {
   revelar?: boolean;
 };
 
+// Cada operación con un color de la marca: rojo para venta, azul para alquiler, crema para por días
+const COLOR_OPERACION: Record<string, string> = {
+  venta: 'bg-[#e3141b] text-white',
+  alquiler: 'bg-[#1d47c4] text-white',
+  temporario: 'bg-[#efe9df] text-[#071733]',
+};
+
 const ALTO = {
   grande: 'h-[min(600px,70vw)]',
   normal: 'h-[min(260px,60vw)]',
@@ -55,9 +62,12 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
         ) : (
           <div className="flex h-full items-center justify-center text-[13px] text-[#efe9df]/70">Sin foto todavía</div>
         )}
-        {estado && (
-          <span className="calma-micro absolute left-4 top-4 rounded-full bg-[#efe9df] px-3 py-1.5 text-[#071733]">{estado}</span>
-        )}
+        <span className="absolute left-4 top-4 flex flex-wrap gap-2">
+          {COLOR_OPERACION[propiedad.categoria_operacion || ''] && (
+            <span className={`calma-micro rounded-full px-3 py-1.5 ${COLOR_OPERACION[propiedad.categoria_operacion || '']}`}>{operacion}</span>
+          )}
+          {estado && <span className="calma-micro rounded-full bg-[#efe9df] px-3 py-1.5 text-[#071733]">{estado}</span>}
+        </span>
       </div>
       {/* En la tarjeta grande el precio va a la derecha; en las demás, debajo de los datos y alineado a la izquierda */}
       <div className={grande ? 'flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2' : 'flex flex-col gap-3'}>

@@ -155,7 +155,7 @@ export default function PerfilPage() {
 
 	return (
 		<SitioBase pieSimple>
-			<header className="px-5 pb-12 pt-32 sm:px-10 lg:pt-40">
+			<header className="encabezado-color encabezado-azul px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 				<h1 className="font-display m-0 text-[clamp(56px,8vw,128px)] font-normal leading-[0.9] tracking-[-0.02em]">Mi cuenta</h1>
 				{user && (
 					<p className="m-0 mt-4 text-[15px] text-[#efe9df]/70">

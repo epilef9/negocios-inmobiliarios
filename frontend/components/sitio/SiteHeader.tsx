@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import LogoEmpresa from './LogoEmpresa';
 
 const WHATSAPP = 'https://wa.me/543434469522';
 
@@ -82,14 +83,10 @@ export default function SiteHeader() {
           {menuAbierto ? 'Cerrar' : 'Menú'}
         </button>
 
-        <Link href="/" className="flex items-center gap-2.5 text-[13px] tracking-[0.3em] lg:text-[14px] lg:tracking-[0.32em]">
-          <svg width="26" height="22" viewBox="0 0 40 34" aria-hidden="true">
-            <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-            <rect x="15" y="17" width="10" height="10" fill="#d9382b" />
-            <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-          </svg>
-          <span className="hidden lg:inline">Negocios Inmobiliarios</span>
-          <span className="lg:hidden">Negocios</span>
+        <Link href="/" aria-label="Ir al inicio" className="flex items-center">
+          {/* En una sola línea solo si entra al lado de los enlaces; si no, la versión de dos renglones */}
+          <LogoEmpresa className="h-11 w-auto lg:h-12 min-[1536px]:hidden" prioridad />
+          <LogoEmpresa version="linea" className="hidden h-10 w-auto min-[1536px]:block min-[1800px]:h-11" prioridad />
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">

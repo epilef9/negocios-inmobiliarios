@@ -9,6 +9,7 @@ import { getVisitas, type Visita } from '@/services/visitas';
 import { getContratos, type Contrato } from '@/services/contratos';
 import { fechaDeVisita } from '@/components/panel/estados';
 import { marcarBienvenidaVista } from '@/components/panel/bienvenida';
+import LogoEmpresa from '@/components/sitio/LogoEmpresa';
 
 const TABLILLAS = 8;
 const HORA = new Intl.DateTimeFormat('es-AR', { hour: '2-digit', minute: '2-digit' });
@@ -147,14 +148,8 @@ export default function BienvenidaPage() {
 
       <div className="relative flex min-h-dvh flex-col px-5 py-6 sm:px-10 lg:px-16">
         <header className="calma-micro bienvenida-aparecer flex items-center justify-between gap-4" style={{ animationDelay: '0.9s' }}>
-          <span className="flex items-center gap-2.5 text-[13px] tracking-[0.3em]">
-            <svg width="26" height="22" viewBox="0 0 40 34" aria-hidden="true">
-              <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-              <rect x="15" y="17" width="10" height="10" fill="#d9382b" />
-              <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-            </svg>
-            Negocios<span className="hidden sm:inline">&nbsp;Inmobiliarios</span>
-          </span>
+          <LogoEmpresa className="h-11 w-auto sm:hidden" prioridad />
+          <LogoEmpresa version="linea" className="hidden h-11 w-auto sm:block" prioridad />
           <span className="flex items-center gap-3 text-[#efe9df]/75">
             <span className="calma-dot" aria-hidden="true" />
             <span className="hidden sm:inline">Villa Libertador San Martín</span>
