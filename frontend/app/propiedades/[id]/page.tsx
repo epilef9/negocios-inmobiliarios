@@ -8,6 +8,7 @@ import SitioBase from "@/components/sitio/SitioBase";
 import BotonFavorito from "@/components/sitio/BotonFavorito";
 import Galeria from "@/components/detalle/Galeria";
 import ConsultaEmail from "@/components/detalle/ConsultaEmail";
+import CalendarioEstadia from "@/components/detalle/CalendarioEstadia";
 import AgendarVisita, { type AgendarVisitaHandle } from "@/components/detalle/AgendarVisita";
 import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { etiquetaOperacion } from "@/components/sitio/datos";
@@ -189,6 +190,15 @@ export default function DetallePropiedad() {
 								))}
 							</ul>
 							{p.otrasComodidades && <p className="m-0 text-[15px] text-[#efe9df]/70">{p.otrasComodidades}</p>}
+						</section>
+					)}
+
+					{p.categoria_operacion === "temporario" && (
+						<section aria-labelledby="titulo-disponibilidad" className="flex flex-col gap-5">
+							<h2 id="titulo-disponibilidad" className="font-display m-0 text-[32px] font-normal">
+								Fechas libres
+							</h2>
+							<CalendarioEstadia propiedadId={p._id} />
 						</section>
 					)}
 
