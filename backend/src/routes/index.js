@@ -16,6 +16,7 @@ router.use('/auth', authRoutes);
 router.use('/localidades', localidadesRoutes);
 router.use('/contratos', contratosRoutes);
 router.use('/visitas', visitasRoutes);
+router.use('/disponibilidad', require('./disponibilidad.routes'));
 router.use('/contacto', require('./contacto.routes'));
 
 module.exports = router;

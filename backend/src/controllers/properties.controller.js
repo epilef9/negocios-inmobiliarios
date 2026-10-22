@@ -1,6 +1,7 @@
 // properties.controller.js
 
 const PropertyService = require('../services/properties.service');
+const DisponibilidadService = require('../services/disponibilidad.service');
 
 const extractCoordinates = (value) => {
     const coordinateMatch = value.match(/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/)
@@ -115,6 +116,8 @@ exports.deleteProperty = async (req, res) => {
         if (!deletedProperty) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
+        // Sus fechas bloqueadas u ocupadas (alquiler temporario) ya no tienen sentido
+        await DisponibilidadService.eliminarDePropiedad(id);
         res.status(204).send();
     } catch (error) {
         res.status(500).json({ message: 'Error al eliminar la propiedad' });
