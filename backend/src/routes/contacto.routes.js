@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const emailService = require('../services/email.service');
-const { validateContacto, limitarContacto } = require('../validators/contacto.validator');
+const { validateContacto } = require('../validators/contacto.validator');
+const { frenos } = require('../middlewares/seguridad');
 
 // Consulta del formulario de contacto: llega por mail a la inmobiliaria (CONTACT_TO) y se responde al visitante
-router.post('/', limitarContacto, validateContacto, async (req, res) => {
+router.post('/', frenos.contacto, validateContacto, async (req, res) => {
     try {
         await emailService.enviarConsulta(req.body);
         res.status(200).json({ message: 'Consulta enviada. Te respondemos por email.' });
