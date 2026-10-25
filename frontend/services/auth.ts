@@ -32,6 +32,7 @@ export interface AuthResponse {
 export interface RegisterPayload {
   nombre: string;
   apellido: string;
+  dni?: string;
   telefono?: string;
   email: string;
   password: string;

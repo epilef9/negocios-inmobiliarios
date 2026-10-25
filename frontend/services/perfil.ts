@@ -34,6 +34,7 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<{ dat
 export type DatosPerfil = {
   nombre: string;
   apellido: string;
+  dni: string;
   email: string;
   telefono: string;
   passwordActual?: string;

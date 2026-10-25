@@ -1,10 +1,14 @@
 'use client';
 
-import { useState, useId, type FormEvent } from 'react';
+import { useState, useId, useRef, type FormEvent, type DragEvent, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import SitioBase from '@/components/sitio/SitioBase';
 import { useAuth } from '@/context/AuthContext';
-import { enviarSolicitudPublicacion, type CrearSolicitudPayload } from '@/services/solicitudesPublicacion';
+import {
+  enviarSolicitudPublicacion,
+  subirFotosPublicacion,
+  type CrearSolicitudPayload,
+} from '@/services/solicitudesPublicacion';
 
 const etiqueta = 'calma-micro text-[#efe9df]/70';
 const control =
@@ -16,8 +20,15 @@ const botonPrincipal =
 const botonLinea =
   'calma-micro inline-flex items-center justify-center rounded-full border border-[#efe9df]/40 px-6 py-3.5 text-[12px] text-[#efe9df] transition-colors duration-500 hover:border-[#efe9df] hover:bg-[#efe9df]/10';
 
+interface FotoLocal {
+  id: string;
+  file: File;
+  previewUrl: string;
+}
+
 export default function PublicarPropiedadPage() {
   const id = useId();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, isLoading } = useAuth();
 
   const [tipoPropiedad, setTipoPropiedad] = useState('casa');
@@ -32,11 +43,73 @@ export default function PublicarPropiedadPage() {
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD');
   const [descripcion, setDescripcion] = useState('');
+
+  // Subida de fotos
+  const [fotosLocales, setFotosLocales] = useState<FotoLocal[]>([]);
+  const [arrastrando, setArrastrando] = useState(false);
   const [fotosTexto, setFotosTexto] = useState('');
+  const [mostrarUrlsExtra, setMostrarUrlsExtra] = useState(false);
 
   const [enviando, setEnviando] = useState(false);
+  const [mensajeEnvio, setMensajeEnvio] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [enviadoExitoso, setEnviadoExitoso] = useState(false);
+
+  const agregarArchivos = (nuevos: FileList | File[]) => {
+    const permitidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/avif'];
+    const validos = Array.from(nuevos).filter((f) => permitidos.includes(f.type));
+
+    if (validos.length === 0) {
+      setError('Solo se aceptan fotos en formato JPG, PNG, WEBP o GIF.');
+      return;
+    }
+
+    if (fotosLocales.length + validos.length > 15) {
+      setError('Podés subir hasta 15 fotos como máximo.');
+      return;
+    }
+
+    setError(null);
+    const mapeados: FotoLocal[] = validos.map((f) => ({
+      id: `${f.name}-${Date.now()}-${Math.random()}`,
+      file: f,
+      previewUrl: URL.createObjectURL(f),
+    }));
+
+    setFotosLocales((prev) => [...prev, ...mapeados]);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setArrastrando(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setArrastrando(false);
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setArrastrando(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      agregarArchivos(e.dataTransfer.files);
+    }
+  };
+
+  const handleInputChange = (e: ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      agregarArchivos(e.target.files);
+    }
+  };
+
+  const eliminarFoto = (idFoto: string) => {
+    setFotosLocales((prev) => {
+      const encontrada = prev.find((f) => f.id === idFoto);
+      if (encontrada) URL.revokeObjectURL(encontrada.previewUrl);
+      return prev.filter((f) => f.id !== idFoto);
+    });
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -52,15 +125,28 @@ export default function PublicarPropiedadPage() {
       return;
     }
 
-    const fotos = fotosTexto
-      .split('\n')
-      .map((f) => f.trim())
-      .filter((f) => f.length > 0 && f.startsWith('http'));
-
     setError(null);
     setEnviando(true);
 
     try {
+      let urlsSubidas: string[] = [];
+
+      // Si hay archivos seleccionados, subirlos primero
+      if (fotosLocales.length > 0) {
+        setMensajeEnvio(`Subiendo ${fotosLocales.length} foto(s)…`);
+        const archivos = fotosLocales.map((f) => f.file);
+        urlsSubidas = await subirFotosPublicacion(archivos);
+      }
+
+      // Si cargó URLs adicionales por texto
+      const urlsExtra = fotosTexto
+        .split('\n')
+        .map((f) => f.trim())
+        .filter((f) => f.length > 0 && f.startsWith('http'));
+
+      const todasLasFotos = [...urlsSubidas, ...urlsExtra];
+
+      setMensajeEnvio('Registrando solicitud…');
       const payload: CrearSolicitudPayload = {
         tipoPropiedad,
         operacion,
@@ -76,7 +162,7 @@ export default function PublicarPropiedadPage() {
           moneda,
         },
         descripcion: descripcion.trim(),
-        fotos,
+        fotos: todasLasFotos,
         contacto: user
           ? {
               nombre: user.nombre || '',
@@ -94,6 +180,7 @@ export default function PublicarPropiedadPage() {
       setError(err instanceof Error ? err.message : 'No se pudo enviar el pedido.');
     } finally {
       setEnviando(false);
+      setMensajeEnvio('');
     }
   };
 
@@ -106,7 +193,7 @@ export default function PublicarPropiedadPage() {
             Publicá tu propiedad
           </h1>
           <p className="m-0 mt-5 max-w-2xl text-[17px] leading-relaxed text-[#efe9df]/75">
-            Completá este formulario con los datos de tu inmueble. Nuestro equipo revisará la información, coordinará una visita o tasación si corresponde y la publicará en nuestro catálogo.
+            Completá este formulario con los datos y fotos de tu inmueble. Nuestro equipo revisará la información, coordinará una visita o tasación si corresponde y la publicará en nuestro catálogo.
           </p>
         </div>
       </header>
@@ -135,7 +222,7 @@ export default function PublicarPropiedadPage() {
               </div>
               <h2 className="font-display m-0 text-[32px] text-[#efe9df]">¡Solicitud enviada con éxito!</h2>
               <p className="mx-auto mt-4 max-w-xl text-[16px] text-[#efe9df]/80">
-                Recibimos el pedido de publicación de tu propiedad en <strong className="text-white">{direccion}</strong>. Araceli y nuestro equipo la revisarán en breve.
+                Recibimos el pedido de publicación con las fotos de tu propiedad en <strong className="text-white">{direccion}</strong>. Araceli y nuestro equipo la revisarán en breve.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
                 <Link href="/perfil" className={botonPrincipal}>
@@ -148,6 +235,7 @@ export default function PublicarPropiedadPage() {
                     setDireccion('');
                     setMonto('');
                     setDescripcion('');
+                    setFotosLocales([]);
                     setFotosTexto('');
                   }}
                   className={botonLinea}
@@ -346,10 +434,10 @@ export default function PublicarPropiedadPage() {
                 </div>
               </section>
 
-              {/* Sección 5: Descripción y Fotos */}
+              {/* Sección 5: Descripción y Fotos (Caja interactiva de subida) */}
               <section className="border-t border-[#efe9df]/15 pt-8">
                 <h2 className="font-display m-0 text-[24px] text-[#efe9df]">5. Descripción y fotografías</h2>
-                <div className="mt-6 flex flex-col gap-6">
+                <div className="mt-6 flex flex-col gap-8">
                   <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-descripcion`} className={etiqueta}>
                       Descripción o detalles adicionales
@@ -364,21 +452,117 @@ export default function PublicarPropiedadPage() {
                     />
                   </div>
 
-                  <div className="flex flex-col gap-2">
-                    <label htmlFor={`${id}-fotos`} className={etiqueta}>
-                      Enlaces de fotos (uno por línea)
-                    </label>
-                    <textarea
-                      id={`${id}-fotos`}
-                      rows={3}
-                      value={fotosTexto}
-                      onChange={(e) => setFotosTexto(e.target.value)}
-                      placeholder="https://ejemplo.com/foto1.jpg&#10;https://ejemplo.com/foto2.jpg"
-                      className={`${control} font-mono text-sm resize-y`}
+                  {/* Caja de subida de fotos */}
+                  <div className="flex flex-col gap-3">
+                    <label className={etiqueta}>Fotografías del inmueble</label>
+
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      accept="image/jpeg,image/png,image/webp,image/gif,image/avif"
+                      onChange={handleInputChange}
+                      className="hidden"
                     />
-                    <p className="m-0 text-[13px] text-[#efe9df]/50">
-                      Podés pegar enlaces de fotos que tengas en Google Drive, Dropbox, Cloudinary o cualquier sitio web público.
-                    </p>
+
+                    <div
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                      className={`group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed p-8 text-center transition-all cursor-pointer ${
+                        arrastrando
+                          ? 'border-white bg-white/15 scale-[1.01]'
+                          : 'border-[#efe9df]/30 bg-[#efe9df]/5 hover:border-[#efe9df]/60 hover:bg-[#efe9df]/10'
+                      }`}
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#efe9df]/10 text-2xl text-[#efe9df] transition-transform group-hover:scale-110">
+                        📷
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <p className="m-0 text-[16px] font-medium text-[#efe9df]">
+                          Arrastrá tus fotos acá o <span className="underline decoration-[#d9382b] decoration-2">hacé clic para elegirlas</span>
+                        </p>
+                        <p className="m-0 text-[13px] text-[#efe9df]/55">
+                          Formatos JPG, PNG, WEBP o GIF (hasta 10 MB cada una, máximo 15 fotos).
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Previsualización de fotos seleccionadas */}
+                    {fotosLocales.length > 0 && (
+                      <div className="mt-4 flex flex-col gap-2">
+                        <div className="flex items-center justify-between text-xs text-[#efe9df]/70">
+                          <span>{fotosLocales.length} foto(s) lista(s) para subir:</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              fotosLocales.forEach((f) => URL.revokeObjectURL(f.previewUrl));
+                              setFotosLocales([]);
+                            }}
+                            className="text-[#ff8a7d] hover:underline"
+                          >
+                            Quitar todas
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                          {fotosLocales.map((foto) => (
+                            <div
+                              key={foto.id}
+                              className="group relative aspect-video overflow-hidden rounded-xl border border-[#efe9df]/20 bg-black/40"
+                            >
+                              <img
+                                src={foto.previewUrl}
+                                alt="Previsualización"
+                                className="h-full w-full object-cover transition-transform group-hover:scale-105"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  eliminarFoto(foto.id);
+                                }}
+                                title="Eliminar foto"
+                                className="absolute right-1.5 top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-black/75 text-xs text-white opacity-90 transition-opacity hover:bg-[#d9382b] hover:opacity-100"
+                              >
+                                ✕
+                              </button>
+                              <div className="absolute bottom-0 left-0 right-0 truncate bg-gradient-to-t from-black/80 to-transparent p-1.5 text-[10px] text-white">
+                                {foto.file.name}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Alternativa: Enlaces web adicionales */}
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={() => setMostrarUrlsExtra(!mostrarUrlsExtra)}
+                        className="text-[13px] text-[#efe9df]/60 hover:text-[#efe9df] transition-colors underline"
+                      >
+                        {mostrarUrlsExtra ? 'Ocultar enlaces web' : '+ ¿Querés agregar enlaces web de fotos existentes?'}
+                      </button>
+
+                      {mostrarUrlsExtra && (
+                        <div className="mt-3 flex flex-col gap-2">
+                          <label htmlFor={`${id}-fotos`} className={etiqueta}>
+                            Enlaces de fotos (uno por línea)
+                          </label>
+                          <textarea
+                            id={`${id}-fotos`}
+                            rows={3}
+                            value={fotosTexto}
+                            onChange={(e) => setFotosTexto(e.target.value)}
+                            placeholder="https://ejemplo.com/foto1.jpg&#10;https://ejemplo.com/foto2.jpg"
+                            className={`${control} font-mono text-sm resize-y`}
+                          />
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </section>
@@ -391,7 +575,7 @@ export default function PublicarPropiedadPage() {
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <button type="submit" disabled={enviando} className={botonPrincipal}>
-                  {enviando ? 'Enviando solicitud…' : 'Enviar solicitud de publicación'}
+                  {enviando ? mensajeEnvio || 'Enviando solicitud…' : 'Enviar solicitud de publicación'}
                 </button>
                 <p className="m-0 text-[13px] text-[#efe9df]/55">
                   Al enviar, nos pondremos en contacto con vos para coordinar los próximos pasos.
