@@ -1,7 +1,40 @@
 import type { NextConfig } from "next";
 
 // Encabezados de seguridad para todas las páginas del sitio
+const enDesarrollo = process.env.NODE_ENV !== "production";
+
+// Origen de la API cuando no es el mismo sitio (en local es el backend en :4000; en Vercel es /api, o sea 'self')
+const origenApi = (() => {
+  try {
+    return process.env.NEXT_PUBLIC_API_URL ? new URL(process.env.NEXT_PUBLIC_API_URL).origin : enDesarrollo ? "http://localhost:4000" : "";
+  } catch {
+    return "";
+  }
+})();
+
+// Política de contenido: el navegador solo carga lo que el sitio usa de verdad.
+// - Fotos: Cloudinary (propiedades), Unsplash (foto de relleno) y los mosaicos de OpenStreetMap (mapas Leaflet)
+// - Conexiones: la API, los buscadores de direcciones del mapa del panel (ArcGIS, Nominatim, Photon) y dolarapi
+// - Iframe: solo el mapa de Google de la página Contacto
+// - Scripts/estilos con 'unsafe-inline': Next.js inyecta scripts de arranque y el tema oscuro se aplica con un script en línea
+//   (con nonce habría que renderizar todas las páginas en cada pedido y se perdería el sitio estático)
+const politicaContenido = [
+  "default-src 'self'",
+  `script-src 'self' 'unsafe-inline'${enDesarrollo ? " 'unsafe-eval'" : ""}`,
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://res.cloudinary.com https://images.unsplash.com https://*.tile.openstreetmap.org",
+  "font-src 'self' data:",
+  `connect-src 'self' ${origenApi} https://geocode.arcgis.com https://nominatim.openstreetmap.org https://photon.komoot.io https://dolarapi.com${enDesarrollo ? " ws://localhost:* http://localhost:*" : ""}`.replace(/\s+/g, " "),
+  "frame-src https://maps.google.com https://www.google.com",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  ...(enDesarrollo ? [] : ["upgrade-insecure-requests"]),
+].join("; ");
+
 const encabezadosSeguridad = [
+  { key: "Content-Security-Policy", value: politicaContenido },
   // Nadie puede mostrar el sitio dentro de otra página (evita que engañen a alguien para que haga clic)
   { key: "X-Frame-Options", value: "DENY" },
   // El navegador no adivina tipos de archivo
