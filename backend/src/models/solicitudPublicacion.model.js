@@ -93,11 +93,13 @@ const solicitudPublicacionSchema = new mongoose.Schema({
         default: [],
     },
     documentos: {
-        dni: { type: String, required: true, trim: true },
-        escritura: { type: String, required: true, trim: true },
-        impuestos: { type: String, required: true, trim: true },
-        planos: { type: String, required: true, trim: true },
-        reglamento: { type: String, required: true, trim: true },
+        // Se validan al crear solicitudes nuevas en el servicio. No son required
+        // aquí para permitir actualizar o rechazar solicitudes históricas.
+        dni: { type: String, trim: true },
+        escritura: { type: String, trim: true },
+        impuestos: { type: String, trim: true },
+        planos: { type: String, trim: true },
+        reglamento: { type: String, trim: true },
     },
     estado: {
         type: String,
