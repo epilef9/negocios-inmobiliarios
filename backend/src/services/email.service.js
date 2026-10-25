@@ -147,4 +147,30 @@ const avisarPasswordCambiada = ({ para, nombre }) =>
         html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>La contraseña de tu cuenta en Negocios Inmobiliarios se cambió recién y se cerraron las sesiones abiertas.</p><p style="color:#666;font-size:13px">Si no fuiste vos, pedí un enlace nuevo desde «¿La olvidaste?» en el ingreso y escribinos.</p>`,
     });
 
-module.exports = { enviar, enviarVerificacion, enviarConsulta, enviarRestablecimiento, enviarCambioEmail, avisarEmailCambiado, avisarPasswordCambiada };
+const avisarSolicitudPublicacionAprobada = ({ para, nombre, direccion }) =>
+    enviar({
+        para,
+        asunto: '¡Tu solicitud de publicación fue aprobada!',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, te informamos que tu pedido de publicación para la propiedad en ${direccion} fue aprobado por el equipo de Araceli Balbuena Negocios Inmobiliarios. Ya se encuentra dada de alta en nuestro catálogo.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Te informamos que tu pedido de publicación para la propiedad en <b>${escapar(direccion)}</b> fue <b>aprobado</b> por nuestro equipo.</p><p>Ya se encuentra dada de alta en nuestro catálogo de propiedades con vos como propietario/a.</p><p style="color:#666;font-size:13px">Cualquier consulta no dudes en comunicarte con nosotros.</p>`,
+    });
+
+const avisarSolicitudPublicacionRechazada = ({ para, nombre, direccion, motivo }) =>
+    enviar({
+        para,
+        asunto: 'Actualización sobre tu solicitud de publicación',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, te informamos que tu pedido de publicación para la propiedad en ${direccion} no pudo ser aprobado. Motivo: ${motivo || 'No cumple con los criterios de publicación'}.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Te informamos sobre tu pedido de publicación para la propiedad en <b>${escapar(direccion)}</b>.</p><p>Motivo: <i>${escapar(motivo || 'No cumple con los criterios de publicación')}</i>.</p><p style="color:#666;font-size:13px">Si tenés dudas o querés corregir la información, podés contactarnos por WhatsApp o teléfono.</p>`,
+    });
+
+module.exports = {
+    enviar,
+    enviarVerificacion,
+    enviarConsulta,
+    enviarRestablecimiento,
+    enviarCambioEmail,
+    avisarEmailCambiado,
+    avisarPasswordCambiada,
+    avisarSolicitudPublicacionAprobada,
+    avisarSolicitudPublicacionRechazada,
+};

@@ -1,0 +1,114 @@
+import { request } from './api';
+
+export type EstadoSolicitudPublicacion = 'pendiente' | 'aprobada' | 'rechazada';
+
+export interface SolicitudPublicacion {
+  _id: string;
+  cliente: {
+    _id: string;
+    nombre?: string;
+    apellido?: string;
+    email?: string;
+    telefono?: string;
+    dni?: string;
+  } | string;
+  contacto: {
+    nombre?: string;
+    apellido?: string;
+    email?: string;
+    telefono?: string;
+    dni?: string;
+  };
+  tipoPropiedad: 'casa' | 'departamento' | 'terreno' | 'local' | 'monoambiente' | 'oficina' | 'cochera' | 'otro';
+  operacion: 'venta' | 'alquiler' | 'temporario';
+  titulo?: string;
+  direccion: string;
+  ciudad?: string;
+  ambientes?: number;
+  dormitorios?: number;
+  banos?: number;
+  superficieTotal?: number;
+  superficieCubierta?: number;
+  precioPretendido: {
+    monto: number;
+    moneda: 'ARS' | 'USD';
+  };
+  descripcion?: string;
+  fotos?: string[];
+  estado: EstadoSolicitudPublicacion;
+  motivoRechazo?: string;
+  propiedadCreada?: {
+    _id: string;
+    title: string;
+    price: number;
+    location: string;
+  } | string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CrearSolicitudPayload {
+  tipoPropiedad: string;
+  operacion: string;
+  titulo?: string;
+  direccion: string;
+  ciudad?: string;
+  ambientes?: number;
+  dormitorios?: number;
+  banos?: number;
+  superficieTotal?: number;
+  superficieCubierta?: number;
+  precioPretendido: {
+    monto: number;
+    moneda: 'ARS' | 'USD';
+  };
+  descripcion?: string;
+  fotos?: string[];
+  contacto?: {
+    nombre?: string;
+    apellido?: string;
+    email?: string;
+    telefono?: string;
+    dni?: string;
+  };
+}
+
+export async function enviarSolicitudPublicacion(payload: CrearSolicitudPayload): Promise<SolicitudPublicacion> {
+  return request<SolicitudPublicacion>('/solicitudes-publicacion', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getMisSolicitudesPublicacion(): Promise<SolicitudPublicacion[]> {
+  return request<SolicitudPublicacion[]>('/solicitudes-publicacion/mis-solicitudes');
+}
+
+export async function getSolicitudesPublicacionAdmin(estado?: string): Promise<SolicitudPublicacion[]> {
+  const query = estado && estado !== 'todas' ? `?estado=${encodeURIComponent(estado)}` : '';
+  return request<SolicitudPublicacion[]>(`/solicitudes-publicacion${query}`);
+}
+
+export async function aprobarSolicitudPublicacion(id: string): Promise<{ data: SolicitudPublicacion; propiedadId: string }> {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
+  const res = await fetch(`${API_URL}/solicitudes-publicacion/${id}/aprobar`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(body.message || 'No se pudo aprobar la solicitud');
+  }
+  return { data: body.data, propiedadId: body.propiedadId };
+}
+
+export async function rechazarSolicitudPublicacion(id: string, motivo: string): Promise<SolicitudPublicacion> {
+  return request<SolicitudPublicacion>(`/solicitudes-publicacion/${id}/rechazar`, {
+    method: 'PUT',
+    body: JSON.stringify({ motivo }),
+  });
+}
