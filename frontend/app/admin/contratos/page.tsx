@@ -7,13 +7,14 @@ import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
 
-type Pestana = 'activos' | 'por_vencer' | 'borradores' | 'cerrados' | 'todos';
+type Pestana = 'activos' | 'por_vencer' | 'firmados' | 'borradores' | 'cerrados' | 'todos';
 
 const PESTANAS: { id: Pestana; texto: string; incluye: (e: string) => boolean }[] = [
   { id: 'activos', texto: 'Activos', incluye: (e) => e === 'activo' },
   { id: 'por_vencer', texto: 'Por vencer', incluye: (e) => e === 'por_vencer' },
+  { id: 'firmados', texto: 'Firmados', incluye: (e) => e === 'firmado' },
   { id: 'borradores', texto: 'Borradores', incluye: (e) => e === 'borrador' },
-  { id: 'cerrados', texto: 'Finalizados y cancelados', incluye: (e) => e === 'finalizado' || e === 'cancelado' },
+  { id: 'cerrados', texto: 'Vencidos y cancelados', incluye: (e) => e === 'finalizado' || e === 'cancelado' || e === 'vencido' },
   { id: 'todos', texto: 'Todos', incluye: () => true },
 ];
 
@@ -45,9 +46,9 @@ function Vencimiento({ contrato }: { contrato: Contrato }) {
   // Una compraventa no vence: su fecha es la de posesión
   if (contrato.tipoContrato === 'Compraventa') return null;
   const dias = diasHasta(contrato.fechaFin);
-  if (dias === null || !['activo', 'por_vencer'].includes(contrato.estado)) return null;
+  if (dias === null || !['activo', 'firmado', 'por_vencer'].includes(contrato.estado)) return null;
   if (dias < 0) return <span className="text-[12.5px] text-red-600 dark:text-red-400">Venció hace {-dias} {dias === -1 ? 'día' : 'días'}</span>;
-  if (dias <= 60) return <span className="text-[12.5px] text-amber-700 dark:text-amber-400">Vence en {dias} {dias === 1 ? 'día' : 'días'}</span>;
+  if (dias <= 30) return <span className="text-[12.5px] text-amber-700 dark:text-amber-400">Vence en {dias} {dias === 1 ? 'día' : 'días'}</span>;
   return null;
 }
 

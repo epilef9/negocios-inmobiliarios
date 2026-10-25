@@ -4,6 +4,7 @@ import { Suspense, useEffect, useId, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { createContrato, generarNumeroContrato, getContratoById, updateContrato, type ContratoInput, type EstadoContrato } from '@/services/contratos';
 import { getProperties, type ApiProperty } from '@/services/api';
+import { getPanelClientes, type PropiedadParaAsignar, type UsuarioRegistrado } from '@/services/clientes';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, Insignia, Tarjeta, areaTexto, control, useAviso } from '@/components/panel/ui';
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
 import Icono from '@/components/panel/Icono';
@@ -73,9 +74,13 @@ type Datos = {
   propiedadDireccion: string;
   propiedadCiudad: string;
   clienteNombre: string;
+  clienteDni: string;
   clienteTelefono: string;
   clienteEmail: string;
+  clienteUsuarioId: string;
   locadora: string;
+  locadoraDni: string;
+  locadoraUsuarioId: string;
   fechaInicio: string; // AAAA-MM-DD
   duracionMeses: string;
   montoMensual: string;
@@ -94,9 +99,13 @@ const VACIO: Datos = {
   propiedadDireccion: '',
   propiedadCiudad: '',
   clienteNombre: '',
+  clienteDni: '',
   clienteTelefono: '',
   clienteEmail: '',
+  clienteUsuarioId: '',
   locadora: 'Araceli Balbuena',
+  locadoraDni: '',
+  locadoraUsuarioId: '',
   fechaInicio: '',
   duracionMeses: '24',
   montoMensual: '',
@@ -132,6 +141,8 @@ function GeneradorContrato() {
   const [ultimaActualizacion, setUltimaActualizacion] = useState<string | null>(null);
   const [datos, setDatos] = useState<Datos>(VACIO);
   const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
+  const [usuarios, setUsuarios] = useState<UsuarioRegistrado[]>([]);
+  const [propiedadesPanel, setPropiedadesPanel] = useState<PropiedadParaAsignar[]>([]);
   const [cargando, setCargando] = useState(Boolean(parametro));
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [faltan, setFaltan] = useState<string[]>([]);
@@ -143,6 +154,12 @@ function GeneradorContrato() {
     getProperties()
       .then((lista) => setPropiedades(lista ?? []))
       .catch(() => setPropiedades([]));
+    getPanelClientes()
+      .then((panel) => {
+        setUsuarios(panel.usuarios ?? []);
+        setPropiedadesPanel(panel.propiedades ?? []);
+      })
+      .catch(() => setUsuarios([]));
   }, []);
 
   useEffect(() => {
@@ -160,9 +177,13 @@ function GeneradorContrato() {
           propiedadDireccion: c.propiedad?.direccion ?? '',
           propiedadCiudad: '',
           clienteNombre: c.cliente?.nombre ?? '',
+          clienteDni: c.cliente?.dni ?? '',
           clienteTelefono: c.cliente?.telefono ?? '',
           clienteEmail: c.cliente?.email ?? '',
+          clienteUsuarioId: c.cliente?.usuario ?? '',
           locadora: c.locadora || VACIO.locadora,
+          locadoraDni: c.locadoraDni ?? '',
+          locadoraUsuarioId: c.locadoraUsuario ?? '',
           fechaInicio: aIso(c.fechaInicio),
           duracionMeses: String(c.duracionMeses ?? 24),
           montoMensual: c.montoMensual ?? '',
@@ -188,6 +209,8 @@ function GeneradorContrato() {
   // Al elegir la propiedad se completan el tipo de contrato y el monto según cómo está publicada
   const elegirPropiedad = (idPropiedad: string) => {
     const p = propiedades.find((x) => x._id === idPropiedad);
+    const vinculada = propiedadesPanel.find((item) => item.id === idPropiedad);
+    const propietario = vinculada?.propietarioUsuarioId ? usuarios.find((item) => item.id === vinculada.propietarioUsuarioId) : null;
     setDatos((d) => {
       const tipos = tiposPara(p);
       const tipoContrato = tipos.includes(d.tipoContrato) ? d.tipoContrato : tipos[0];
@@ -201,9 +224,30 @@ function GeneradorContrato() {
         plantilla: PLANTILLA_DE[tipoContrato],
         montoMensual: p ? precioDe(p) : d.montoMensual,
         duracionMeses: tipoContrato === 'Alquiler temporario' ? '1' : tipoContrato === 'Compraventa' ? '' : d.duracionMeses || '24',
+        locadoraUsuarioId: propietario?.id ?? vinculada?.propietarioUsuarioId ?? '',
+        locadora: propietario?.nombre ?? vinculada?.propietarioNombre ?? d.locadora,
+        locadoraDni: propietario?.dni ?? vinculada?.propietarioDni ?? '',
       };
+
     });
     setFaltan((f) => f.filter((x) => x !== 'propiedadId' && x !== 'montoMensual'));
+  };
+
+  const elegirUsuario = (idUsuario: string) => {
+    const usuario = usuarios.find((item) => item.id === idUsuario);
+    if (!usuario) {
+      cambiar('clienteUsuarioId', '');
+      return;
+    }
+    setDatos((d) => ({
+      ...d,
+      clienteUsuarioId: usuario.id,
+      clienteNombre: usuario.nombre,
+      clienteDni: usuario.dni,
+      clienteTelefono: usuario.telefono,
+      clienteEmail: usuario.email,
+    }));
+    setFaltan((f) => f.filter((x) => !['clienteNombre', 'clienteDni', 'clienteTelefono'].includes(x)));
   };
 
   const cambiarTipo = (tipoContrato: TipoContrato) => {
@@ -232,6 +276,7 @@ function GeneradorContrato() {
   const revisar = () => {
     const pendientes: string[] = [];
     if (!datos.clienteNombre.trim()) pendientes.push('clienteNombre');
+    if (!datos.clienteDni.trim()) pendientes.push('clienteDni');
     if (!datos.clienteTelefono.trim()) pendientes.push('clienteTelefono');
     if (!datos.propiedadTitulo) pendientes.push('propiedadId');
     if (!datos.fechaInicio) pendientes.push('fechaInicio');
@@ -249,8 +294,14 @@ function GeneradorContrato() {
     setGuardando(nuevoEstado);
     const marca = ahoraTexto();
     const campos: Omit<ContratoInput, 'numeroContrato'> = {
-      cliente: { nombre: datos.clienteNombre.trim(), telefono: datos.clienteTelefono.trim(), email: datos.clienteEmail.trim() },
-      propiedad: { titulo: datos.propiedadTitulo, direccion: domicilio || datos.propiedadTitulo },
+      cliente: {
+        ...(datos.clienteUsuarioId ? { usuario: datos.clienteUsuarioId } : {}),
+        nombre: datos.clienteNombre.trim(),
+        dni: datos.clienteDni.trim(),
+        telefono: datos.clienteTelefono.trim(),
+        email: datos.clienteEmail.trim(),
+      },
+      propiedad: { id: datos.propiedadId || undefined, titulo: datos.propiedadTitulo, direccion: domicilio || datos.propiedadTitulo },
       fechaInicio: aLatina(datos.fechaInicio),
       fechaFin,
       montoMensual: datos.montoMensual.trim(),
@@ -264,6 +315,8 @@ function GeneradorContrato() {
       incluyeGarante: !esVenta && datos.incluyeGarante,
       observaciones: datos.observaciones.trim(),
       locadora: datos.locadora.trim(),
+      locadoraDni: datos.locadoraDni.trim(),
+      ...(datos.locadoraUsuarioId ? { locadoraUsuario: datos.locadoraUsuarioId } : {}),
       ultimaActualizacion: marca,
     };
     try {
@@ -348,10 +401,23 @@ function GeneradorContrato() {
                   <OpcionesPropiedad propiedades={propiedades.filter((p) => propiedadOfrecida(p) || p._id === propiedadElegida)} />
                 </select>
               </Campo>
+              <Campo etiqueta="Perfil registrado" htmlFor={`${id}-perfil`} ayuda="Al elegir una cuenta se completan nombre, DNI, teléfono y email.">
+                <select id={`${id}-perfil`} value={datos.clienteUsuarioId} onChange={(e) => elegirUsuario(e.target.value)} className={control}>
+                  <option value="">Carga manual (sin cuenta)</option>
+                  {usuarios.map((usuario) => (
+                    <option key={usuario.id} value={usuario.id}>
+                      {usuario.nombre} · DNI {usuario.dni}
+                    </option>
+                  ))}
+                </select>
+              </Campo>
               <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-cli`} error={error('clienteNombre', 'Escribí el nombre del cliente.')}>
                 <input id={`${id}-cli`} type="text" value={datos.clienteNombre} aria-invalid={faltan.includes('clienteNombre')} onChange={(e) => cambiar('clienteNombre', e.target.value)} className={control} />
               </Campo>
               <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta="DNI *" htmlFor={`${id}-dni`} error={error('clienteDni', 'Escribí el DNI.')}>
+                  <input id={`${id}-dni`} type="text" inputMode="numeric" value={datos.clienteDni} aria-invalid={faltan.includes('clienteDni')} onChange={(e) => cambiar('clienteDni', e.target.value)} className={control} />
+                </Campo>
                 <Campo etiqueta="Teléfono *" htmlFor={`${id}-tel`} error={error('clienteTelefono', 'Escribí el teléfono.')}>
                   <input id={`${id}-tel`} type="tel" value={datos.clienteTelefono} aria-invalid={faltan.includes('clienteTelefono')} onChange={(e) => cambiar('clienteTelefono', e.target.value)} placeholder="Ej.: 343 444 4444" className={control} />
                 </Campo>
@@ -359,8 +425,31 @@ function GeneradorContrato() {
                   <input id={`${id}-mail`} type="email" value={datos.clienteEmail} onChange={(e) => cambiar('clienteEmail', e.target.value)} className={control} />
                 </Campo>
               </div>
-              <Campo etiqueta={esVenta ? 'Parte vendedora' : 'Parte locadora'} htmlFor={`${id}-loc`} ayuda={esVenta ? 'Quien vende la propiedad.' : 'Quien alquila la propiedad (dueño/a o apoderado/a).'}>
+              <Campo etiqueta={esVenta ? 'Propietario / vendedor' : 'Propietario / locador'} htmlFor={`${id}-locador`} ayuda="Si la propiedad tiene un propietario registrado, se completa automáticamente.">
+                <select
+                  id={`${id}-locador`}
+                  value={datos.locadoraUsuarioId}
+                  onChange={(e) => {
+                    const usuario = usuarios.find((item) => item.id === e.target.value);
+                    cambiar('locadoraUsuarioId', usuario?.id ?? '');
+                    if (usuario) {
+                      cambiar('locadora', usuario.nombre);
+                      cambiar('locadoraDni', usuario.dni);
+                    }
+                  }}
+                  className={control}
+                >
+                  <option value="">Carga manual</option>
+                  {usuarios.map((usuario) => (
+                    <option key={usuario.id} value={usuario.id}>{usuario.nombre} · DNI {usuario.dni}</option>
+                  ))}
+                </select>
+              </Campo>
+              <Campo etiqueta={esVenta ? 'Nombre del vendedor' : 'Nombre del locador'} htmlFor={`${id}-loc`} ayuda="Podés corregirlo si actúa un apoderado.">
                 <input id={`${id}-loc`} type="text" value={datos.locadora} onChange={(e) => cambiar('locadora', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="DNI del propietario" htmlFor={`${id}-loc-dni`}>
+                <input id={`${id}-loc-dni`} type="text" inputMode="numeric" value={datos.locadoraDni} onChange={(e) => cambiar('locadoraDni', e.target.value)} className={control} />
               </Campo>
             </div>
           </Tarjeta>
@@ -446,7 +535,7 @@ function GeneradorContrato() {
               <h2 className="m-0 mb-1 text-center text-[17px] font-bold uppercase tracking-[0.12em]">{tituloDocumento}</h2>
               {numero && <p className="m-0 mb-6 text-center text-[12.5px] text-slate-500">N.º {numero}</p>}
               <p>
-                Entre <Hueco valor={datos.locadora} texto={parteDuena} />, en adelante «LA {parteDuena.toUpperCase()}», y <Hueco valor={datos.clienteNombre} texto="cliente" />, en adelante «LA {parteCliente.toUpperCase()}», se celebra el presente {esVenta ? 'boleto' : 'contrato'} sobre el inmueble ubicado en{' '}
+                Entre <Hueco valor={datos.locadora} texto={parteDuena} />, DNI <Hueco valor={datos.locadoraDni} texto="DNI" />, en adelante «LA {parteDuena.toUpperCase()}», y <Hueco valor={datos.clienteNombre} texto="cliente" />, DNI <Hueco valor={datos.clienteDni} texto="DNI" />, en adelante «LA {parteCliente.toUpperCase()}», se celebra el presente {esVenta ? 'boleto' : 'contrato'} sobre el inmueble ubicado en{' '}
                 <Hueco valor={domicilio} texto="propiedad" />, sujeto a las siguientes cláusulas:
               </p>
               {esVenta ? (
@@ -502,6 +591,7 @@ function GeneradorContrato() {
                 <div>
                   <div className="mb-2 border-t border-slate-400" />
                   <span className="block font-semibold">{datos.locadora || ' '}</span>
+                  <span className="block text-slate-500">{datos.locadoraDni ? `DNI ${datos.locadoraDni}` : 'DNI pendiente'}</span>
                   <span className="text-slate-500">{esVenta ? 'Parte vendedora' : 'Parte locadora'}</span>
                 </div>
                 <div>

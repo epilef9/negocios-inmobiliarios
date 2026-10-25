@@ -54,7 +54,8 @@ exports.actualizar = async (req, res) => {
         else if (nombre.length > 80) errores.nombre = 'Es demasiado largo.';
         if (!apellido) errores.apellido = 'Escribí tu apellido.';
         else if (apellido.length > 80) errores.apellido = 'Es demasiado largo.';
-        if (dni && !/^\d{7,8}$/.test(dni)) errores.dni = 'El DNI debe tener 7 u 8 dígitos numéricos.';
+        if (!dni) errores.dni = 'El DNI es obligatorio.';
+        else if (!/^\d{7,8}$/.test(dni)) errores.dni = 'El DNI debe tener 7 u 8 dígitos numéricos.';
         if (!email) errores.email = 'El email es obligatorio.';
         else if (!EMAIL.test(email) || email.length > 150) errores.email = 'Ese email no parece válido.';
         if (!telefono) errores.telefono = 'El teléfono es obligatorio.';

@@ -12,11 +12,14 @@ const contratoSchema = new mongoose.Schema({
         trim: true,
     },
     cliente: {
+        usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
         nombre: { type: String, required: true, trim: true },
+        dni: { type: String, trim: true },
         telefono: { type: String, required: true, trim: true },
         email: { type: String, trim: true },
     },
     propiedad: {
+        id: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
         titulo: { type: String, required: true, trim: true },
         direccion: { type: String, required: true, trim: true },
     },
@@ -34,7 +37,7 @@ const contratoSchema = new mongoose.Schema({
     },
     estado: {
         type: String,
-        enum: ['activo', 'finalizado', 'cancelado', 'por_vencer', 'borrador'],
+        enum: ['activo', 'firmado', 'finalizado', 'cancelado', 'por_vencer', 'vencido', 'borrador'],
         default: 'borrador',
     },
     tipoContrato: {
@@ -71,6 +74,14 @@ const contratoSchema = new mongoose.Schema({
     },
     locadora: {
         type: String,
+    },
+    locadoraUsuario: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+    },
+    locadoraDni: {
+        type: String,
+        trim: true,
     },
     ultimaActualizacion: {
         type: String,

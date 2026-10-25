@@ -49,6 +49,8 @@ const solicitudPublicacionSchema = new mongoose.Schema({
         trim: true,
         default: 'Libertador San Martín',
     },
+    provincia: { type: String, trim: true, default: 'Entre Ríos' },
+    referenciasUbicacion: { type: String, trim: true, default: '' },
     ambientes: {
         type: Number,
         default: 1,
@@ -72,6 +74,12 @@ const solicitudPublicacionSchema = new mongoose.Schema({
         type: Number,
         min: 0,
     },
+    expensas: { type: String, trim: true, default: '' },
+    montoExpensas: { type: Number, min: 0, default: 0 },
+    cochera: { type: String, trim: true, default: 'no' },
+    pisoUnidad: { type: String, trim: true, default: '' },
+    comodidades: { type: [String], default: [] },
+    otrasComodidades: { type: String, trim: true, default: '' },
     precioPretendido: {
         type: precioSchema,
         required: true,
@@ -83,6 +91,13 @@ const solicitudPublicacionSchema = new mongoose.Schema({
     fotos: {
         type: [String],
         default: [],
+    },
+    documentos: {
+        dni: { type: String, required: true, trim: true },
+        escritura: { type: String, required: true, trim: true },
+        impuestos: { type: String, required: true, trim: true },
+        planos: { type: String, required: true, trim: true },
+        reglamento: { type: String, required: true, trim: true },
     },
     estado: {
         type: String,

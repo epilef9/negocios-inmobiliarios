@@ -65,6 +65,9 @@ export interface PropiedadParaAsignar {
   direccion: string;
   estado: string;
   propietario: string | null;
+  propietarioUsuarioId: string | null;
+  propietarioNombre: string | null;
+  propietarioDni: string;
   inquilino: string | null;
 }
 
@@ -73,6 +76,7 @@ export interface UsuarioRegistrado {
   nombre: string;
   email: string;
   telefono: string;
+  dni: string;
   emailVerificado: boolean;
   creadoEn: string | null;
 }

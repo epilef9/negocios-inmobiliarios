@@ -7,7 +7,7 @@ const { requireAdmin } = authMiddleware;
 router.use(authMiddleware, requireAdmin);
 const contratosController = require('../controllers/contratos.controller');
 
-// Obtener todos los contratos (acepta ?estado=activo|finalizado|cancelado|por_vencer|borrador)
+// Obtener todos los contratos (acepta ?estado=activo|firmado|finalizado|cancelado|por_vencer|vencido|borrador)
 router.get('/', contratosController.getAllContratos);
 
 // Obtener un contrato específico

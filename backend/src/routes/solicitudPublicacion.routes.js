@@ -40,6 +40,20 @@ const upload = multer({
     },
 });
 
+const DOCUMENTOS_PERMITIDOS = { ...TIPOS_PERMITIDOS, 'application/pdf': '.pdf' };
+const uploadDocumentos = multer({
+    storage: usaCloudinary() ? multer.memoryStorage() : almacenamientoLocal,
+    limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+    fileFilter: (_req, file, callback) => {
+        if (!DOCUMENTOS_PERMITIDOS[file.mimetype]) {
+            const error = new Error('Cada documento debe ser PDF o una imagen JPG, PNG, WEBP o GIF');
+            error.statusCode = 415;
+            return callback(error);
+        }
+        return callback(null, true);
+    },
+});
+
 // Subida de fotos de la propiedad por parte del cliente
 router.post('/fotos', authMiddleware, (req, res, next) => {
     upload.array('fotos', 15)(req, res, async (error) => {
@@ -73,6 +87,29 @@ router.post('/fotos', authMiddleware, (req, res, next) => {
         const baseUrl = `${req.protocol}://${req.get('host')}`;
         const urls = archivos.map((file) => `${baseUrl}/uploads/${file.filename}`);
         return res.status(201).json({ data: urls });
+    });
+
+    router.post('/documentos', authMiddleware, (req, res, next) => {
+        uploadDocumentos.array('documentos', 5)(req, res, async (error) => {
+            if (error) {
+                if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Cada documento puede pesar hasta 10 MB' });
+                if (error.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ message: 'Adjuntá hasta 5 documentos' });
+                if (error.statusCode === 415) return res.status(415).json({ message: error.message });
+                return next(error);
+            }
+            try {
+                const archivos = req.files || [];
+                if (usaCloudinary()) {
+                    const urls = [];
+                    for (const archivo of archivos) urls.push(await subirACloudinary(archivo.buffer, archivo.mimetype, archivo.originalname));
+                    return res.status(201).json({ data: urls });
+                }
+                const baseUrl = `${req.protocol}://${req.get('host')}`;
+                return res.status(201).json({ data: archivos.map((file) => `${baseUrl}/uploads/${file.filename}`) });
+            } catch (errorSubida) {
+                return res.status(errorSubida.statusCode || 502).json({ message: errorSubida.message });
+            }
+        });
     });
 });
 

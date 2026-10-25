@@ -16,7 +16,7 @@ const botonPrincipal =
 	"calma-micro inline-flex items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60";
 const enlaceCuenta = "calma-link calma-link-sutil text-[15px] text-[#efe9df]/80 hover:text-[#efe9df]";
 
-const VACIO: DatosPerfil = { nombre: "", apellido: "", email: "", telefono: "" };
+const VACIO: DatosPerfil = { nombre: "", apellido: "", dni: "", email: "", telefono: "" };
 const DESDE = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" });
 
 type Aviso = { tono: "bien" | "mal"; texto: string } | null;
@@ -77,7 +77,7 @@ export default function PerfilPage() {
 		getPerfil()
 			.then((perfil) => {
 				if (!activo) return;
-				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
+				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", dni: perfil.dni ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
 				setEmailGuardado(perfil.email ?? "");
 				setEmailPendiente(perfil.emailPendiente ?? null);
 				setMiembroDesde(perfil.createdAt ? DESDE.format(new Date(perfil.createdAt)) : null);
@@ -110,6 +110,8 @@ export default function PerfilPage() {
 		const e: Record<string, string> = {};
 		if (!datos.nombre.trim()) e.nombre = "Escribí tu nombre.";
 		if (!datos.apellido.trim()) e.apellido = "Escribí tu apellido.";
+		if (!datos.dni.trim()) e.dni = "El DNI es obligatorio.";
+		else if (!/^\d{7,8}$/.test(datos.dni.trim())) e.dni = "El DNI debe tener 7 u 8 dígitos numéricos.";
 		if (!datos.email.trim()) e.email = "El email es obligatorio.";
 		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) e.email = "Ese email no parece válido.";
 		const digitos = datos.telefono.replace(/\D/g, "");
@@ -207,6 +209,9 @@ export default function PerfilPage() {
 									</Campo>
 									<Campo id={`${id}-apellido`} texto="Apellido *" error={errores.apellido}>
 										<input id={`${id}-apellido`} type="text" autoComplete="family-name" disabled={cargando} value={datos.apellido} aria-invalid={Boolean(errores.apellido)} onChange={(e) => cambiar("apellido", e.target.value)} className={control} />
+									</Campo>
+									<Campo id={`${id}-dni`} texto="DNI *" error={errores.dni} ayuda="Solo números, sin puntos.">
+										<input id={`${id}-dni`} type="text" inputMode="numeric" disabled={cargando} value={datos.dni} aria-invalid={Boolean(errores.dni)} onChange={(e) => cambiar("dni", e.target.value)} className={control} />
 									</Campo>
 									<Campo id={`${id}-email`} texto="Email *" error={errores.email} ayuda="Es con el que ingresás. Si lo cambiás, te mandamos un mail para confirmarlo.">
 										<input id={`${id}-email`} type="email" autoComplete="email" required disabled={cargando} value={datos.email} aria-invalid={Boolean(errores.email)} onChange={(e) => cambiar("email", e.target.value)} className={control} />

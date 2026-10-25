@@ -21,18 +21,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
-export type EstadoContrato = 'activo' | 'finalizado' | 'cancelado' | 'por_vencer' | 'borrador';
+export type EstadoContrato = 'activo' | 'firmado' | 'finalizado' | 'cancelado' | 'por_vencer' | 'vencido' | 'borrador';
 
 export interface Contrato {
   _id: string;
   numeroContrato: string;
   codigoId?: string;
   cliente: {
+    usuario?: string;
     nombre: string;
+    dni?: string;
     telefono: string;
     email?: string;
   };
   propiedad: {
+    id?: string;
     titulo: string;
     direccion: string;
   };
@@ -50,6 +53,8 @@ export interface Contrato {
   permitirEdicionManual?: boolean;
   observaciones?: string;
   locadora?: string;
+  locadoraUsuario?: string;
+  locadoraDni?: string;
   ultimaActualizacion?: string;
   createdAt?: string;
   updatedAt?: string;

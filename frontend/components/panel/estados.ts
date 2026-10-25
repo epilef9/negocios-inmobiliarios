@@ -11,7 +11,9 @@ export const ESTADO_VISITA: Record<string, { texto: string; tono: Tono }> = {
 
 export const ESTADO_CONTRATO: Record<string, { texto: string; tono: Tono }> = {
   activo: { texto: 'Activo', tono: 'exito' },
+  firmado: { texto: 'Firmado', tono: 'exito' },
   por_vencer: { texto: 'Por vencer', tono: 'aviso' },
+  vencido: { texto: 'Vencido', tono: 'peligro' },
   borrador: { texto: 'Borrador', tono: 'neutro' },
   finalizado: { texto: 'Finalizado', tono: 'neutro' },
   cancelado: { texto: 'Cancelado', tono: 'peligro' },

@@ -19,5 +19,6 @@ router.use('/visitas', visitasRoutes);
 router.use('/disponibilidad', require('./disponibilidad.routes'));
 router.use('/contacto', require('./contacto.routes'));
 router.use('/solicitudes-publicacion', require('./solicitudPublicacion.routes'));
+router.use('/requisitos', require('./requisitos.routes'));
 
 module.exports = router;

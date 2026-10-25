@@ -98,6 +98,10 @@ const propertySchema = new mongoose.Schema({
         required: true,
         min: 0,
     },
+    superficieCubierta: {
+        type: Number,
+        min: 0,
+    },
     images: [{
         type: String,
     }],

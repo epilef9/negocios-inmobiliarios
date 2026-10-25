@@ -4,9 +4,12 @@ import { useState, useId, useRef, type FormEvent, type DragEvent, type ChangeEve
 import Link from 'next/link';
 import SitioBase from '@/components/sitio/SitioBase';
 import { useAuth } from '@/context/AuthContext';
+import { GUIAS } from '@/components/requisitos/datos';
+import { useChecklist } from '@/components/requisitos/useChecklist';
 import {
   enviarSolicitudPublicacion,
   subirFotosPublicacion,
+  subirDocumentosPublicacion,
   type CrearSolicitudPayload,
 } from '@/services/solicitudesPublicacion';
 
@@ -25,16 +28,30 @@ interface FotoLocal {
   file: File;
   previewUrl: string;
 }
+const DOCUMENTOS = [
+  ['dni', 'DNI del propietario (frente y dorso)'],
+  ['escritura', 'Escritura o título de propiedad'],
+  ['impuestos', 'Impuestos y servicios al día'],
+  ['planos', 'Planos de la propiedad'],
+  ['reglamento', 'Reglamento de copropiedad'],
+] as const;
+type DocumentoId = (typeof DOCUMENTOS)[number][0];
 
 export default function PublicarPropiedadPage() {
   const id = useId();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { user, isLoading } = useAuth();
+  const { marcas: requisitosMarcados, estado: estadoRequisitos } = useChecklist();
+  const requisitosPublicar = GUIAS.find((guia) => guia.id === 'publicar')?.secciones.flatMap((seccion) => seccion.items) ?? [];
+  const requisitosCompletos = requisitosPublicar.every((requisito) => requisitosMarcados[requisito.id]);
 
   const [tipoPropiedad, setTipoPropiedad] = useState('casa');
   const [operacion, setOperacion] = useState('venta');
+  const [titulo, setTitulo] = useState('');
   const [direccion, setDireccion] = useState('');
   const [ciudad, setCiudad] = useState('Libertador San Martín');
+  const [provincia, setProvincia] = useState('Entre Ríos');
+  const [referenciasUbicacion, setReferenciasUbicacion] = useState('');
   const [ambientes, setAmbientes] = useState('2');
   const [dormitorios, setDormitorios] = useState('1');
   const [banos, setBanos] = useState('1');
@@ -43,11 +60,24 @@ export default function PublicarPropiedadPage() {
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD');
   const [descripcion, setDescripcion] = useState('');
+  const [expensas, setExpensas] = useState('');
+  const [montoExpensas, setMontoExpensas] = useState('');
+  const [cochera, setCochera] = useState('no');
+  const [pisoUnidad, setPisoUnidad] = useState('');
+  const [comodidades, setComodidades] = useState<string[]>([]);
+  const [otrasComodidades, setOtrasComodidades] = useState('');
+
+  const COMODIDADES = [
+    ['patio', 'Patio'], ['parque', 'Parque'], ['quincho', 'Quincho'],
+    ['pileta', 'Pileta'], ['lavadero', 'Lavadero'], ['balcon', 'Balcón'],
+    ['amoblado', 'Amoblado'], ['aire_acondicionado', 'Aire acondicionado'],
+  ] as const;
 
   // Subida de fotos
   const [fotosLocales, setFotosLocales] = useState<FotoLocal[]>([]);
   const [arrastrando, setArrastrando] = useState(false);
   const [fotosTexto, setFotosTexto] = useState('');
+  const [documentos, setDocumentos] = useState<Partial<Record<DocumentoId, File>>>({});
   const [mostrarUrlsExtra, setMostrarUrlsExtra] = useState(false);
 
   const [enviando, setEnviando] = useState(false);
@@ -113,9 +143,39 @@ export default function PublicarPropiedadPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    if (!requisitosCompletos) {
+      setError('Antes de enviar la solicitud tenés que marcar todos los requisitos para publicar tu propiedad.');
+      return;
+    }
     if (!direccion.trim()) {
       setError('Por favor indicá la dirección del inmueble.');
       document.getElementById(`${id}-direccion`)?.focus();
+      return;
+    }
+    if (!titulo.trim()) {
+      setError('Escribí un título para la publicación.');
+      document.getElementById(`${id}-titulo`)?.focus();
+      return;
+    }
+    const numericos = [
+      ['ambientes', ambientes], ['superficie total', superficieTotal], ['superficie cubierta', superficieCubierta],
+    ];
+    const faltanteNumerico = numericos.find(([, valor]) => !valor.trim() || Number(valor) <= 0);
+    if (faltanteNumerico) {
+      setError(`Completá ${faltanteNumerico[0]} con un valor mayor a cero.`);
+      return;
+    }
+    if (!descripcion.trim() || descripcion.trim().length < 20) {
+      setError('Agregá una descripción de al menos 20 caracteres.');
+      return;
+    }
+    if (fotosLocales.length === 0 && !fotosTexto.trim()) {
+      setError('Adjuntá al menos una foto de la propiedad.');
+      return;
+    }
+    const faltanteDocumento = DOCUMENTOS.find(([clave]) => !documentos[clave]);
+    if (faltanteDocumento) {
+      setError(`Adjuntá: ${faltanteDocumento[1]}.`);
       return;
     }
     const montoNum = parseFloat(monto);
@@ -145,16 +205,27 @@ export default function PublicarPropiedadPage() {
         .filter((f) => f.length > 0 && f.startsWith('http'));
 
       const todasLasFotos = [...urlsSubidas, ...urlsExtra];
+      setMensajeEnvio('Subiendo documentación…');
+      const documentosSubidos = await subirDocumentosPublicacion(DOCUMENTOS.map(([clave]) => documentos[clave] as File));
 
       setMensajeEnvio('Registrando solicitud…');
       const payload: CrearSolicitudPayload = {
         tipoPropiedad,
         operacion,
+        titulo: titulo.trim(),
         direccion: direccion.trim(),
         ciudad: ciudad.trim() || 'Libertador San Martín',
+        provincia,
+        referenciasUbicacion: referenciasUbicacion.trim(),
         ambientes: parseInt(ambientes, 10) || 1,
         dormitorios: parseInt(dormitorios, 10) || 0,
         banos: parseInt(banos, 10) || 1,
+        expensas,
+        montoExpensas: parseFloat(montoExpensas) || 0,
+        cochera,
+        pisoUnidad: pisoUnidad.trim(),
+        comodidades,
+        otrasComodidades: otrasComodidades.trim(),
         superficieTotal: parseFloat(superficieTotal) || 0,
         superficieCubierta: parseFloat(superficieCubierta) || 0,
         precioPretendido: {
@@ -163,6 +234,7 @@ export default function PublicarPropiedadPage() {
         },
         descripcion: descripcion.trim(),
         fotos: todasLasFotos,
+        documentos: Object.fromEntries(DOCUMENTOS.map(([clave], indice) => [clave, documentosSubidos[indice]])) as CrearSolicitudPayload['documentos'],
         contacto: user
           ? {
               nombre: user.nombre || '',
@@ -237,6 +309,7 @@ export default function PublicarPropiedadPage() {
                     setDescripcion('');
                     setFotosLocales([]);
                     setFotosTexto('');
+                    setDocumentos({});
                   }}
                   className={botonLinea}
                 >
@@ -245,11 +318,30 @@ export default function PublicarPropiedadPage() {
               </div>
             </div>
           ) : (
+            <>
+            {!requisitosCompletos && (
+              <div role="alert" className="rounded-2xl border border-[#d9382b]/50 bg-[#d9382b]/10 p-5 text-[15px] leading-relaxed text-[#efe9df]">
+                <p className="m-0 font-medium">Completá todos los requisitos antes de solicitar la publicación.</p>
+                <p className="m-0 mt-2 text-[#efe9df]/70">
+                  Te faltan {requisitosPublicar.filter((requisito) => !requisitosMarcados[requisito.id]).length} requisitos.{' '}
+                  <Link href="/requisitos?para=publicar" className="underline underline-offset-4 hover:text-white">
+                    Ver la lista para publicar
+                  </Link>
+                </p>
+              </div>
+            )}
+            {estadoRequisitos === 'cargando' && (
+              <p className="m-0 text-[14px] text-[#efe9df]/60">Verificando tus requisitos…</p>
+            )}
             <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-14">
               {/* Sección 1: Tipo y Operación */}
               <section className="border-t border-[#efe9df]/15 pt-8">
                 <h2 className="font-display m-0 text-[24px] text-[#efe9df]">1. Tipo de inmueble y operación</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <label htmlFor={`${id}-titulo`} className={etiqueta}>Título de la publicación *</label>
+                    <input id={`${id}-titulo`} type="text" value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Ej: Casa con patio y cochera" className={control} required />
+                  </div>
                   <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-operacion`} className={etiqueta}>
                       Operación deseada *
@@ -319,6 +411,14 @@ export default function PublicarPropiedadPage() {
                       placeholder="Libertador San Martín"
                       className={control}
                     />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <label htmlFor={`${id}-provincia`} className={etiqueta}>Provincia *</label>
+                    <input id={`${id}-provincia`} type="text" value={provincia} onChange={(e) => setProvincia(e.target.value)} className={control} required />
+                  </div>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                    <label htmlFor={`${id}-referencias`} className={etiqueta}>Referencias de ubicación</label>
+                    <input id={`${id}-referencias`} type="text" value={referenciasUbicacion} onChange={(e) => setReferenciasUbicacion(e.target.value)} placeholder="Entre qué calles, cerca de qué" className={control} />
                   </div>
                 </div>
               </section>
@@ -394,10 +494,54 @@ export default function PublicarPropiedadPage() {
                       className={control}
                     />
                   </div>
+                  <div className="flex flex-col gap-2">
+                      <label htmlFor={`${id}-cochera`} className={etiqueta}>Cochera</label>
+                      <select id={`${id}-cochera`} value={cochera} onChange={(e) => setCochera(e.target.value)} className={selector}>
+                        <option value="no">No</option>
+                        <option value="si">Sí</option>
+                      </select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                      <label htmlFor={`${id}-piso`} className={etiqueta}>Piso / unidad</label>
+                      <input id={`${id}-piso`} type="text" value={pisoUnidad} onChange={(e) => setPisoUnidad(e.target.value)} placeholder="Ej: 2° B" className={control} />
+                  </div>
                 </div>
               </section>
 
-              {/* Sección 4: Precio Pretendido */}
+              <section className="border-t border-[#efe9df]/15 pt-8">
+                <h2 className="font-display m-0 text-[24px] text-[#efe9df]">4. Comodidades y expensas</h2>
+                <div className="mt-6 grid gap-6 sm:grid-cols-2">
+                  <div className="flex flex-col gap-2">
+                      <label htmlFor={`${id}-expensas`} className={etiqueta}>Expensas</label>
+                      <select id={`${id}-expensas`} value={expensas} onChange={(e) => setExpensas(e.target.value)} className={selector}>
+                        <option value="">Sin indicar</option>
+                        <option value="no">No paga expensas</option>
+                        <option value="si">Sí paga expensas</option>
+                      </select>
+                  </div>
+                  <div className="flex flex-col gap-2">
+                      <label htmlFor={`${id}-montoExpensas`} className={etiqueta}>Monto de expensas</label>
+                      <input id={`${id}-montoExpensas`} type="number" min="0" value={montoExpensas} onChange={(e) => setMontoExpensas(e.target.value)} className={control} />
+                  </div>
+                  <div className="sm:col-span-2">
+                      <p className={etiqueta}>Comodidades</p>
+                      <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                        {COMODIDADES.map(([valor, nombre]) => (
+                          <label key={valor} className="flex items-center gap-2 text-[15px] text-[#efe9df]/80">
+                            <input type="checkbox" checked={comodidades.includes(valor)} onChange={(e) => setComodidades((actuales) => e.target.checked ? [...actuales, valor] : actuales.filter((actual) => actual !== valor))} />
+                            {nombre}
+                          </label>
+                        ))}
+                      </div>
+                  </div>
+                  <div className="flex flex-col gap-2 sm:col-span-2">
+                      <label htmlFor={`${id}-otrasComodidades`} className={etiqueta}>Otras comodidades</label>
+                      <input id={`${id}-otrasComodidades`} type="text" value={otrasComodidades} onChange={(e) => setOtrasComodidades(e.target.value)} placeholder="Detalles adicionales de la propiedad" className={control} />
+                  </div>
+                </div>
+              </section>
+
+              {/* Sección 5: Precio Pretendido */}
               <section className="border-t border-[#efe9df]/15 pt-8">
                 <h2 className="font-display m-0 text-[24px] text-[#efe9df]">4. Precio pretendido</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
@@ -440,7 +584,7 @@ export default function PublicarPropiedadPage() {
                 <div className="mt-6 flex flex-col gap-8">
                   <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-descripcion`} className={etiqueta}>
-                      Descripción o detalles adicionales
+                      Descripción o detalles adicionales *
                     </label>
                     <textarea
                       id={`${id}-descripcion`}
@@ -454,7 +598,7 @@ export default function PublicarPropiedadPage() {
 
                   {/* Caja de subida de fotos */}
                   <div className="flex flex-col gap-3">
-                    <label className={etiqueta}>Fotografías del inmueble</label>
+                    <label className={etiqueta}>Fotografías del inmueble *</label>
 
                     <input
                       ref={fileInputRef}
@@ -478,6 +622,30 @@ export default function PublicarPropiedadPage() {
                     >
                       <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[#efe9df]/10 text-2xl text-[#efe9df] transition-transform group-hover:scale-110">
                         📷
+                      </div>
+                      <div className="flex flex-col gap-4">
+                        <div>
+                          <p className={`${etiqueta} m-0`}>Documentación obligatoria *</p>
+                          <p className="m-0 mt-1 text-[13px] text-[#efe9df]/55">Aceptamos PDF, JPG, PNG o WEBP (hasta 10 MB por archivo).</p>
+                        </div>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {DOCUMENTOS.map(([clave, nombre]) => (
+                            <label key={clave} className="flex cursor-pointer flex-col gap-2 rounded-xl border border-[#efe9df]/20 bg-[#efe9df]/5 p-4 text-[14px] text-[#efe9df]/80">
+                              <span>{nombre} *</span>
+                              <input
+                                type="file"
+                                accept=".pdf,image/jpeg,image/png,image/webp,image/gif"
+                                onChange={(e) => {
+                                  const archivo = e.target.files?.[0];
+                                  if (archivo && archivo.size <= 10 * 1024 * 1024) setDocumentos((actual) => ({ ...actual, [clave]: archivo }));
+                                  else if (archivo) setError('Cada documento puede pesar hasta 10 MB.');
+                                }}
+                                className="text-xs"
+                              />
+                              <span className="truncate text-[12px] text-[#efe9df]/55">{documentos[clave]?.name || 'Todavía no adjuntado'}</span>
+                            </label>
+                          ))}
+                        </div>
                       </div>
                       <div className="flex flex-col gap-1">
                         <p className="m-0 text-[16px] font-medium text-[#efe9df]">
@@ -574,7 +742,7 @@ export default function PublicarPropiedadPage() {
               )}
 
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <button type="submit" disabled={enviando} className={botonPrincipal}>
+                <button type="submit" disabled={enviando || !requisitosCompletos || estadoRequisitos === 'cargando'} className={botonPrincipal}>
                   {enviando ? mensajeEnvio || 'Enviando solicitud…' : 'Enviar solicitud de publicación'}
                 </button>
                 <p className="m-0 text-[13px] text-[#efe9df]/55">
@@ -582,6 +750,7 @@ export default function PublicarPropiedadPage() {
                 </p>
               </div>
             </form>
+            </>
           )}
         </div>
       </div>

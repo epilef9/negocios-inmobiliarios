@@ -1,6 +1,13 @@
 import { request } from './api';
 
 export type EstadoSolicitudPublicacion = 'pendiente' | 'aprobada' | 'rechazada';
+export type DocumentosPublicacion = {
+  dni: string;
+  escritura: string;
+  impuestos: string;
+  planos: string;
+  reglamento: string;
+};
 
 export interface SolicitudPublicacion {
   _id: string;
@@ -24,6 +31,14 @@ export interface SolicitudPublicacion {
   titulo?: string;
   direccion: string;
   ciudad?: string;
+  provincia?: string;
+  referenciasUbicacion?: string;
+  expensas?: string;
+  montoExpensas?: number;
+  cochera?: string;
+  pisoUnidad?: string;
+  comodidades?: string[];
+  otrasComodidades?: string;
   ambientes?: number;
   dormitorios?: number;
   banos?: number;
@@ -35,6 +50,7 @@ export interface SolicitudPublicacion {
   };
   descripcion?: string;
   fotos?: string[];
+  documentos: DocumentosPublicacion;
   estado: EstadoSolicitudPublicacion;
   motivoRechazo?: string;
   propiedadCreada?: {
@@ -53,6 +69,14 @@ export interface CrearSolicitudPayload {
   titulo?: string;
   direccion: string;
   ciudad?: string;
+  provincia?: string;
+  referenciasUbicacion?: string;
+  expensas?: string;
+  montoExpensas?: number;
+  cochera?: string;
+  pisoUnidad?: string;
+  comodidades?: string[];
+  otrasComodidades?: string;
   ambientes?: number;
   dormitorios?: number;
   banos?: number;
@@ -64,6 +88,7 @@ export interface CrearSolicitudPayload {
   };
   descripcion?: string;
   fotos?: string[];
+  documentos: DocumentosPublicacion;
   contacto?: {
     nombre?: string;
     apellido?: string;
@@ -135,3 +160,17 @@ export async function subirFotosPublicacion(archivos: File[]): Promise<string[]>
   return body.data as string[];
 }
 
+export async function subirDocumentosPublicacion(archivos: File[]): Promise<string[]> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+    const formData = new FormData();
+    archivos.forEach((file) => formData.append('documentos', file));
+    const API_URL = process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
+    const response = await fetch(`${API_URL}/solicitudes-publicacion/documentos`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.message || 'No se pudieron subir los documentos.');
+    return body.data as string[];
+}

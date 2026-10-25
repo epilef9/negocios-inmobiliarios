@@ -422,6 +422,24 @@ export default function AdminPublicacionesPage() {
               </div>
             </div>
 
+            <div className="rounded-xl bg-panel-hundido p-4">
+              <p className="m-0 mb-3 text-xs font-semibold uppercase tracking-wider text-panel-suave">Documentación adjunta</p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  ['DNI', solicitudDetalle.documentos?.dni],
+                  ['Escritura', solicitudDetalle.documentos?.escritura],
+                  ['Impuestos', solicitudDetalle.documentos?.impuestos],
+                  ['Planos', solicitudDetalle.documentos?.planos],
+                  ['Reglamento', solicitudDetalle.documentos?.reglamento],
+                ].map(([nombre, url]) => (
+                  <a key={nombre} href={typeof url === 'string' ? url : undefined} target="_blank" rel="noreferrer" className="rounded-lg border border-panel-borde bg-panel-superficie px-3 py-2 text-sm hover:border-panel-acento">
+                    <span className="block text-panel-suave">{nombre}</span>
+                    <span className="block truncate text-panel-texto">{url ? 'Abrir documento' : 'No adjuntado'}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+
             {solicitudDetalle.descripcion && (
               <div>
                 <p className="text-xs font-semibold uppercase text-panel-suave mb-1">Descripción y detalles adicionales</p>

@@ -3,6 +3,21 @@ const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
 
+const REQUISITOS_PUBLICAR = [
+    'pub-escritura',
+    'pub-planos',
+    'pub-impuestos',
+    'pub-reglamento',
+    'pub-datos',
+    'pub-desc',
+    'pub-fotos',
+    'pub-precio',
+    'pub-condiciones',
+    'pub-autorizacion',
+    'pub-disponibilidad',
+];
+const DOCUMENTOS_OBLIGATORIOS = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
+
 const errorHttp = (mensaje, statusCode) => {
     const error = new Error(mensaje);
     error.statusCode = statusCode;
@@ -23,6 +38,18 @@ const solicitudPublicacionService = {
         const user = await User.findById(userId);
         if (!user) {
             throw errorHttp('Usuario no encontrado.', 404);
+        }
+        const checklist = new Set(user.checklistRequisitos || []);
+        const faltantes = REQUISITOS_PUBLICAR.filter((id) => !checklist.has(id));
+        if (faltantes.length) {
+            throw errorHttp('Completá todos los requisitos para publicar tu propiedad antes de enviar la solicitud.', 400);
+        }
+        const documentos = datos.documentos || {};
+        if (DOCUMENTOS_OBLIGATORIOS.some((nombre) => typeof documentos[nombre] !== 'string' || !documentos[nombre].trim())) {
+            throw errorHttp('Tenés que adjuntar toda la documentación obligatoria para publicar.', 400);
+        }
+        if (!Array.isArray(datos.fotos) || datos.fotos.length === 0) {
+            throw errorHttp('Tenés que adjuntar al menos una foto de la propiedad.', 400);
         }
 
         const contacto = {
@@ -45,17 +72,26 @@ const solicitudPublicacionService = {
             titulo,
             direccion: datos.direccion.trim(),
             ciudad: datos.ciudad?.trim() || 'Libertador San Martín',
+            provincia: datos.provincia?.trim() || 'Entre Ríos',
+            referenciasUbicacion: datos.referenciasUbicacion?.trim() || '',
             ambientes: Number(datos.ambientes) || 1,
             dormitorios: Number(datos.dormitorios) || 0,
             banos: Number(datos.banos) || 1,
             superficieTotal: Number(datos.superficieTotal) || 0,
             superficieCubierta: Number(datos.superficieCubierta) || 0,
+            expensas: datos.expensas?.trim() || '',
+            montoExpensas: Number(datos.montoExpensas) || 0,
+            cochera: datos.cochera?.trim() || 'no',
+            pisoUnidad: datos.pisoUnidad?.trim() || '',
+            comodidades: Array.isArray(datos.comodidades) ? datos.comodidades.filter((item) => typeof item === 'string') : [],
+            otrasComodidades: datos.otrasComodidades?.trim() || '',
             precioPretendido: {
                 monto: Number(datos.precioPretendido.monto),
                 moneda: datos.precioPretendido.moneda === 'ARS' ? 'ARS' : 'USD',
             },
             descripcion: datos.descripcion ? datos.descripcion.trim() : '',
             fotos: Array.isArray(datos.fotos) ? datos.fotos.filter((f) => typeof f === 'string' && f.trim().length > 0) : [],
+            documentos: Object.fromEntries(DOCUMENTOS_OBLIGATORIOS.map((nombre) => [nombre, documentos[nombre].trim()])),
             estado: 'pendiente',
         });
 
@@ -118,13 +154,21 @@ const solicitudPublicacionService = {
             location: solicitud.direccion,
             direccionCompleta: `${solicitud.direccion}, ${solicitud.ciudad || 'Libertador San Martín'}`,
             ciudad: solicitud.ciudad || 'Libertador San Martín',
+            provincia: 'entre_rios',
+            referenciasUbicacion: solicitud.referenciasUbicacion || '',
             categoria_operacion: solicitud.operacion,
             tipo_inmueble: tipoInmueble,
             cantidad_ambientes: solicitud.ambientes || 1,
             dormitorios: solicitud.dormitorios || 0,
             banos: solicitud.banos || 1,
-            superficie_total: solicitud.superficieTotal || 0,
-            superficie_cubierta: solicitud.superficieCubierta || 0,
+            area: solicitud.superficieTotal || 0,
+            superficieCubierta: solicitud.superficieCubierta || 0,
+            expensas: solicitud.expensas || '',
+            montoExpensas: solicitud.montoExpensas || 0,
+            cochera: solicitud.cochera || 'no',
+            pisoUnidad: solicitud.pisoUnidad || '',
+            comodidades: solicitud.comodidades || [],
+            otrasComodidades: solicitud.otrasComodidades || '',
             images: solicitud.fotos && solicitud.fotos.length ? solicitud.fotos : [],
             estado: 'disponible',
             propietario: {

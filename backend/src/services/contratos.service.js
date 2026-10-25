@@ -6,7 +6,19 @@ class ContratoService {
     }
 
     async getAllContratos(filters = {}) {
-        return await ContratoRepository.findAll(filters);
+        const contratos = await ContratoRepository.findAll(filters);
+        const hoy = new Date();
+        hoy.setHours(0, 0, 0, 0);
+        return Promise.all(contratos.map(async (contrato) => {
+            if (!contrato.fechaFin || !['activo', 'firmado', 'por_vencer'].includes(contrato.estado)) return contrato;
+            const partes = contrato.fechaFin.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (!partes) return contrato;
+            const vencimiento = new Date(Number(partes[3]), Number(partes[2]) - 1, Number(partes[1]));
+            const dias = Math.round((vencimiento.getTime() - hoy.getTime()) / 86400000);
+            const estadoNuevo = dias < 0 ? 'vencido' : contrato.estado === 'activo' && dias <= 30 ? 'por_vencer' : contrato.estado;
+            if (estadoNuevo === contrato.estado) return contrato;
+            return ContratoRepository.update(contrato._id, { estado: estadoNuevo });
+        }));
     }
 
     async getContratoById(id) {
