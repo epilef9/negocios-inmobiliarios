@@ -9,6 +9,14 @@ export const ESTADO_VISITA: Record<string, { texto: string; tono: Tono }> = {
   rechazada: { texto: 'Rechazada', tono: 'neutro' },
 };
 
+export const ESTADO_RESERVA: Record<string, { texto: string; tono: Tono }> = {
+  pendiente: { texto: 'Por confirmar', tono: 'aviso' },
+  confirmada: { texto: 'Confirmada', tono: 'exito' },
+  vencida: { texto: 'Vencida', tono: 'neutro' },
+  rechazada: { texto: 'Rechazada', tono: 'peligro' },
+  cancelada: { texto: 'Cancelada', tono: 'neutro' },
+};
+
 export const ESTADO_CONTRATO: Record<string, { texto: string; tono: Tono }> = {
   activo: { texto: 'Activo', tono: 'exito' },
   por_vencer: { texto: 'Por vencer', tono: 'aviso' },

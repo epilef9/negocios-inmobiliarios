@@ -15,7 +15,7 @@ import { MESES, SEMANA, celdasDelMes, fechaCorta, fechaLarga, hoyIso, mesSiguien
 const TIPOS: Record<TipoRango, { texto: string; icono: NombreIcono; ayuda: string; leyenda: string }> = {
   bloqueo: { texto: 'Bloqueada', icono: 'candado', ayuda: 'El dueño no la alquila esas noches: uso propio, arreglos.', leyenda: 'el dueño no la alquila' },
   ocupada: { texto: 'Ocupada', icono: 'maleta', ayuda: 'Ya está alquilada por fuera del sitio.', leyenda: 'alquilada por fuera del sitio' },
-  reserva: { texto: 'Reserva', icono: 'estrella', ayuda: 'Reserva hecha desde el sitio.', leyenda: 'hecha desde el sitio' },
+  reserva: { texto: 'Por confirmar', icono: 'reloj', ayuda: 'Reserva del sitio esperando confirmación.', leyenda: 'reserva del sitio esperando confirmación' },
 };
 // Cada tipo tiene su textura, que se distingue de un vistazo aunque la casilla sea chica:
 // ocupada es sólida, reserva es un tinte suave del mismo color con una base firme abajo y bloqueo va rayado
@@ -71,7 +71,10 @@ export default function DisponibilidadAdminPage() {
       .then((todas) => {
         const temporarias = (todas ?? []).filter((p) => p.categoria_operacion === 'temporario');
         setPropiedades(temporarias);
-        if (temporarias[0]) setPropiedadId(temporarias[0]._id);
+        // Desde el detalle de una reserva se llega con ?propiedad=<id>
+        const pedida = new URLSearchParams(window.location.search).get('propiedad');
+        const inicial = temporarias.find((p) => p._id === pedida) ?? temporarias[0];
+        if (inicial) setPropiedadId(inicial._id);
       })
       .catch((e) => setError(e instanceof Error ? e.message : 'No se pudieron cargar las propiedades'));
   }, [intento]);
@@ -256,9 +259,15 @@ export default function DisponibilidadAdminPage() {
           <Boton tamano="sm" variante="fantasma" onClick={() => setFijo(null)} className="max-sm:h-10">
             Cerrar
           </Boton>
-          <Boton tamano="sm" icono="borrar" onClick={() => liberar(activo)} className="max-sm:h-10">
-            Liberar noches
-          </Boton>
+          {activo.reserva ? (
+            <BotonLink href="/admin/reservas" tamano="sm" icono="maleta" className="max-sm:h-10">
+              Ver en Reservas
+            </BotonLink>
+          ) : (
+            <Boton tamano="sm" icono="borrar" onClick={() => liberar(activo)} className="max-sm:h-10">
+              Liberar noches
+            </Boton>
+          )}
         </span>
       </div>
     ) : (
@@ -542,7 +551,14 @@ export default function DisponibilidadAdminPage() {
                         {r.motivo ? `. ${r.motivo}` : ''}
                       </span>
                     </div>
-                    <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Liberar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                    {/* Las noches de una reserva del sitio se confirman o liberan desde Reservas */}
+                    {r.reserva ? (
+                      <BotonLink href="/admin/reservas" variante="fantasma" tamano="sm" icono="maleta" className="max-sm:h-10">
+                        Reservas
+                      </BotonLink>
+                    ) : (
+                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Liberar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                    )}
                   </>,
                   { activo: activoId === r.id, alEntrar: () => setApuntado(r.id), alSalir: () => setApuntado(null) }
                 );
@@ -595,7 +611,9 @@ export default function DisponibilidadAdminPage() {
                     <span className="tabular flex-1">
                       {fechaCorta(r.desde)} al {fechaCorta(r.hasta)}
                     </span>
-                    <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Borrar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                    {!r.reserva && (
+                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Borrar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                    )}
                   </li>
                 ))}
               </ul>
