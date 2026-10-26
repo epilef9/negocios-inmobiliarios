@@ -72,8 +72,9 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
 
   const diaElegido = fecha ? porFecha.get(fecha) : undefined;
   const turnos = diaElegido?.turnos ?? [];
-  const manana = turnos.filter((t) => t < '14:00');
-  const tarde = turnos.filter((t) => t >= '14:00');
+  // Desde las 13:00 ya es la tarde
+  const manana = turnos.filter((t) => t < '13:00');
+  const tarde = turnos.filter((t) => t >= '13:00');
 
   const huecos = primerDia(vista.anio, vista.mes);
   const total = diasDelMes(vista.anio, vista.mes);
@@ -215,7 +216,6 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
             )}
           </>
         )}
-        {agenda && agenda !== 'error' && <p className="m-0 text-[12.5px] text-[#efe9df]/45">Atención: {agenda.horario}.</p>}
       </div>
     </div>
   );
