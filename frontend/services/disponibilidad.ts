@@ -12,13 +12,19 @@ export interface RangoDisponibilidad {
   hasta: string; // "AAAA-MM-DD"
   tipo: TipoRango;
   motivo: string;
+  // Reserva del sitio que retiene o ocupa estas noches (HU-20): no se borra desde Disponibilidad
+  reserva: string | null;
+  // Solo en las retenciones por confirmar
+  venceEn: string | null;
 }
 
-// Lo que ve el público: solo qué noches están tomadas
+// Lo que ve el público: solo qué noches están tomadas, y cuáles todavía esperan confirmación
 export interface DisponibilidadPublica {
-  ocupadas: { desde: string; hasta: string }[];
+  ocupadas: { desde: string; hasta: string; porConfirmar?: boolean }[];
   minimoNoches: number;
   precioPorNocheUSD: number | null;
+  // Horas que tiene la inmobiliaria para confirmar una reserva (o hasta las 12 del día de entrada)
+  plazoConfirmacionHoras?: number;
   hoy: string;
   hasta: string;
 }
@@ -34,6 +40,8 @@ function normalizeRango(raw: RangoCrudo): RangoDisponibilidad {
     hasta: raw.hasta || '',
     tipo: (raw.tipo as TipoRango) || 'bloqueo',
     motivo: raw.motivo || '',
+    reserva: raw.reserva ? String(raw.reserva) : null,
+    venceEn: raw.venceEn || null,
   };
 }
 
@@ -55,7 +63,7 @@ export async function getRangos(propiedadId: string): Promise<RangoDisponibilida
 /**
  * Marca un rango de noches como bloqueado u ocupado
  */
-export async function createRango(nuevo: Omit<RangoDisponibilidad, 'id'>): Promise<RangoDisponibilidad> {
+export async function createRango(nuevo: Omit<RangoDisponibilidad, 'id' | 'reserva' | 'venceEn'>): Promise<RangoDisponibilidad> {
   const data = await request<RangoCrudo>('/disponibilidad', {
     method: 'POST',
     body: JSON.stringify(nuevo),

@@ -4,61 +4,79 @@ import { useEffect, useMemo, useState } from 'react';
 import { getDisponibilidad, type DisponibilidadPublica } from '@/services/disponibilidad';
 import { MESES, SEMANA, celdasDelMes, diasDelMes, fechaLarga, isoDe, mesSiguiente, rangoDeLaNoche, sumarDias } from '@/components/calendario/fechas';
 
-// Calendario de solo lectura para alquiler temporario: qué noches están libres.
+// Calendario de alquiler temporario: qué noches están libres.
 // Cada día es una baldosa partida en diagonal: la mitad de arriba es la mañana (la noche anterior) y la
 // de abajo, la tarde (la noche de ese día). Un día ocupado entero va todo en rojo suave; el día en que
 // alguien sale o entra queda pintado a medias, y la mitad libre dice que ese día se puede salir o entrar.
+// Las noches de una reserva que todavía no se confirmó van rayadas: están tomadas, pero pueden liberarse.
 //
-// Para HU-20 (reservas): si se pasa `alElegirDia`, los días se vuelven botones; la selección de entrada
-// y salida y su validación (estadía mínima, noches libres) se agregan ahí.
+// Con `alElegirDia` los días se vuelven botones (HU-20): el componente que reserva decide qué días se
+// pueden tocar (`diaHabilitado`) y pinta la estadía elegida con `seleccion`.
 
 type Props = {
   propiedadId: string;
   alElegirDia?: (iso: string) => void;
+  diaHabilitado?: (iso: string) => boolean;
+  seleccion?: { entrada: string | null; salida: string | null };
+  // Cambiarlo vuelve a pedir las fechas (por ejemplo, después de enviar una reserva)
+  version?: number;
+  alCargar?: (datos: DisponibilidadPublica) => void;
 };
+
+// Cómo está una mitad de la baldosa
+type Mitad = 'libre' | 'ocupada' | 'porConfirmar';
 
 const ROJO_SUAVE = 'rgb(217 56 43 / 0.32)';
 const BORDE_ROJO = 'rgb(217 56 43 / 0.55)';
-// Fondo de la baldosa según qué mitades están tomadas
-function fondoDia(manana: boolean, tarde: boolean): React.CSSProperties | undefined {
-  if (manana && tarde) return { background: ROJO_SUAVE, boxShadow: `inset 0 0 0 1px ${BORDE_ROJO}` };
-  if (manana) return { background: `linear-gradient(135deg, ${ROJO_SUAVE} 50%, transparent 50%)` };
-  if (tarde) return { background: `linear-gradient(135deg, transparent 50%, ${ROJO_SUAVE} 50%)` };
-  return undefined;
+const RAYADO = `repeating-linear-gradient(135deg, ${ROJO_SUAVE} 0 3px, transparent 3px 7px)`;
+// La mañana es el triángulo de arriba a la izquierda; la tarde, el de abajo a la derecha
+const TRIANGULO = { manana: 'polygon(0 0, 100% 0, 0 100%)', tarde: 'polygon(100% 0, 100% 100%, 0 100%)' };
+
+function capa(mitad: Mitad, lado: 'manana' | 'tarde') {
+  if (mitad === 'libre') return null;
+  return <span key={lado} className="absolute inset-0" style={{ background: mitad === 'ocupada' ? ROJO_SUAVE : RAYADO, clipPath: TRIANGULO[lado] }} />;
 }
 
 // Una baldosa: la misma en el calendario y en la leyenda, para que se reconozca sin leer
-function Baldosa({ manana, tarde, apagado, children }: { manana: boolean; tarde: boolean; apagado?: boolean; children: React.ReactNode }) {
-  const libre = !manana && !tarde;
+function Baldosa({ manana, tarde, apagado, children }: { manana: Mitad; tarde: Mitad; apagado?: boolean; children: React.ReactNode }) {
+  const libre = manana === 'libre' && tarde === 'libre';
+  const llena = manana !== 'libre' && tarde !== 'libre';
+  const borde = llena ? (manana === 'ocupada' && tarde === 'ocupada' ? BORDE_ROJO : 'rgb(217 56 43 / 0.4)') : undefined;
   return (
     <span
       aria-hidden="true"
-      style={fondoDia(manana, tarde)}
+      style={borde ? { boxShadow: `inset 0 0 0 1px ${borde}` } : undefined}
       // Libre y medio día llevan un borde crema tenue: se ven como baldosas disponibles
-      className={`absolute inset-[3px] flex items-center justify-center rounded-lg ${
-        apagado ? 'text-[#efe9df]/18' : manana && tarde ? 'text-[#efe9df]/50' : `text-[#efe9df] ring-1 ring-inset ${libre ? 'ring-[#efe9df]/15' : 'ring-[#efe9df]/25'}`
+      className={`absolute inset-[3px] flex items-center justify-center overflow-hidden rounded-lg ${
+        apagado ? 'text-[#efe9df]/18' : llena ? 'text-[#efe9df]/55' : `text-[#efe9df] ring-1 ring-inset ${libre ? 'ring-[#efe9df]/15' : 'ring-[#efe9df]/25'}`
       }`}
     >
-      {children}
+      {capa(manana, 'manana')}
+      {capa(tarde, 'tarde')}
+      <span className="relative">{children}</span>
     </span>
   );
 }
 
 const plural = (n: number, uno: string, varios: string) => `${n} ${n === 1 ? uno : varios}`;
 
-// Primer día desde `hoy` en el que entra una estadía mínima completa antes del límite
-function primeraEstadiaLibre(datos: DisponibilidadPublica) {
+const mitadDe = (rango?: { porConfirmar?: boolean }): Mitad => (!rango ? 'libre' : rango.porConfirmar ? 'porConfirmar' : 'ocupada');
+
+// Primer día desde `desde` en el que entra una estadía mínima completa antes del límite
+function primeraEstadiaLibre(datos: DisponibilidadPublica, desde: string) {
   const minimo = Math.max(1, datos.minimoNoches);
-  for (let entrada = datos.hoy; sumarDias(entrada, minimo) <= datos.hasta; entrada = sumarDias(entrada, 1)) {
+  for (let entrada = desde; sumarDias(entrada, minimo) <= datos.hasta; entrada = sumarDias(entrada, 1)) {
     const salida = sumarDias(entrada, minimo);
     if (!datos.ocupadas.some((r) => r.desde < salida && entrada < r.hasta)) return entrada;
   }
   return null;
 }
 
-export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
+export default function CalendarioEstadia({ propiedadId, alElegirDia, diaHabilitado, seleccion, version = 0, alCargar }: Props) {
   const [datos, setDatos] = useState<DisponibilidadPublica | 'error' | null>(null);
   const [intento, setIntento] = useState(0);
+  // Día bajo el puntero mientras se elige la salida: adelanta cómo quedaría la estadía
+  const [apuntado, setApuntado] = useState<string | null>(null);
   const [vista, setVista] = useState(() => {
     const d = new Date();
     return { anio: d.getFullYear(), mes: d.getMonth() };
@@ -67,15 +85,22 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
   useEffect(() => {
     let activo = true;
     getDisponibilidad(propiedadId)
-      .then((d) => activo && setDatos(d))
+      .then((d) => {
+        if (!activo) return;
+        setDatos(d);
+        alCargar?.(d);
+      })
       .catch(() => activo && setDatos('error'));
     return () => {
       activo = false;
     };
-  }, [propiedadId, intento]);
+    // alCargar puede cambiar en cada render del padre: solo se vuelve a pedir por propiedad, reintento o versión
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propiedadId, intento, version]);
 
   const listos = datos && datos !== 'error' ? datos : null;
-  const primeraLibre = useMemo(() => (listos ? primeraEstadiaLibre(listos) : null), [listos]);
+  // Para reservar, la entrada es desde mañana
+  const primeraLibre = useMemo(() => (listos ? primeraEstadiaLibre(listos, alElegirDia ? sumarDias(listos.hoy, 1) : listos.hoy) : null), [listos, alElegirDia]);
 
   if (datos === 'error') {
     return (
@@ -99,6 +124,14 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
   const limite = listos?.hasta ?? '';
   const fueraDeRango = (iso: string) => !listos || iso < hoy || iso > limite;
 
+  const entrada = seleccion?.entrada ?? null;
+  // Sin salida elegida, el día apuntado hace de salida provisoria (solo si no hay noches tomadas en el medio)
+  const apuntadoSirve = Boolean(
+    listos && entrada && apuntado && apuntado > entrada && !listos.ocupadas.some((r) => r.desde < apuntado && entrada < r.hasta)
+  );
+  const salida = seleccion?.salida ?? (apuntadoSirve ? apuntado : null);
+  const provisoria = !seleccion?.salida && Boolean(salida);
+
   const esMesActual = (() => {
     const d = new Date();
     return vista.anio === d.getFullYear() && vista.mes === d.getMonth();
@@ -118,25 +151,48 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
     const fuera = fueraDeRango(iso);
     // Mitad izquierda: la noche anterior (llega un huésped que sale hoy). Mitad derecha: la noche de hoy.
     const ayer = sumarDias(iso, -1);
-    const rangoAyer = !fuera && ayer >= hoy && listos ? rangoDeLaNoche(ayer, listos.ocupadas) : undefined;
-    const rangoHoy = !fuera && listos ? rangoDeLaNoche(iso, listos.ocupadas) : undefined;
-    const nocheAnterior = Boolean(rangoAyer);
-    const nocheDeHoy = Boolean(rangoHoy);
+    const rangoAyer = !fuera && ayer >= hoy ? rangoDeLaNoche(ayer, listos.ocupadas) : undefined;
+    const rangoHoy = !fuera ? rangoDeLaNoche(iso, listos.ocupadas) : undefined;
+    const manana = mitadDe(rangoAyer);
+    const tarde = mitadDe(rangoHoy);
+    const sufijo = (m: Mitad) => (m === 'porConfirmar' ? ' (reservado, por confirmar)' : '');
     const etiqueta = fuera
       ? `${fechaLarga(iso)}: sin fechas para reservar`
-      : nocheAnterior && nocheDeHoy
-        ? `${fechaLarga(iso)}: ocupado`
-        : nocheAnterior
+      : manana !== 'libre' && tarde !== 'libre'
+        ? `${fechaLarga(iso)}: ocupado${sufijo(tarde)}`
+        : manana !== 'libre'
           ? `${fechaLarga(iso)}: medio día libre, se puede entrar a la tarde`
-          : nocheDeHoy
-            ? `${fechaLarga(iso)}: medio día libre, se puede salir a la mañana`
+          : tarde !== 'libre'
+            ? `${fechaLarga(iso)}: medio día libre, se puede salir a la mañana${sufijo(tarde)}`
             : `${fechaLarga(iso)}: libre`;
+
+    const esEntrada = iso === entrada;
+    const esSalida = iso === salida;
+    const enMedio = Boolean(entrada && salida && iso > entrada && iso < salida);
+    // La estadía elegida va en crema: los extremos llenos, las noches del medio con un velo
+    const marca = esEntrada || (esSalida && !provisoria)
+      ? 'bg-[#efe9df] text-[#071733]'
+      : esSalida
+        ? 'ring-1 ring-inset ring-[#efe9df]'
+        : enMedio
+          ? provisoria
+            ? 'bg-[#efe9df]/[0.08]'
+            : 'bg-[#efe9df]/[0.16]'
+          : '';
 
     const contenido = (
       <>
-        <Baldosa manana={nocheAnterior} tarde={nocheDeHoy} apagado={fuera}>
+        <Baldosa manana={manana} tarde={tarde} apagado={fuera}>
           {Number(iso.slice(8))}
         </Baldosa>
+        {marca && (
+          <span
+            aria-hidden="true"
+            className={`absolute inset-[3px] flex items-center justify-center rounded-lg transition-colors duration-200 ease-out motion-reduce:transition-none ${marca}`}
+          >
+            {(esEntrada || (esSalida && !provisoria)) && Number(iso.slice(8))}
+          </span>
+        )}
         {/* Hoy: un subrayado crema. El rojo queda solo para lo que no está disponible */}
         {iso === hoy && <span aria-hidden="true" className="absolute bottom-[20%] h-px w-3.5 bg-[#efe9df]" />}
         {!alElegirDia && <span className="sr-only">{etiqueta}</span>}
@@ -145,9 +201,26 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
     const clases = 'tabular relative flex aspect-square items-center justify-center text-[15px]';
 
     if (alElegirDia) {
+      const habilitado = !fuera && (diaHabilitado ? diaHabilitado(iso) : true);
+      // Un día libre que no se puede tocar (hoy, por ejemplo) se ve más tenue que uno que sí
+      const tenue = !habilitado && !fuera && !marca && manana === 'libre' && tarde === 'libre';
+      const estado = esEntrada ? ', elegido como entrada' : esSalida && !provisoria ? ', elegido como salida' : enMedio && !provisoria ? ', dentro de tu estadía' : '';
       return (
-        <button key={iso} type="button" disabled={fuera} aria-label={etiqueta} onClick={() => alElegirDia(iso)} className={`${clases} cursor-pointer disabled:cursor-not-allowed`}>
+        <button
+          key={iso}
+          type="button"
+          disabled={!habilitado}
+          aria-label={`${etiqueta}${estado}`}
+          aria-pressed={esEntrada || (esSalida && !provisoria)}
+          onClick={() => alElegirDia(iso)}
+          onMouseEnter={() => setApuntado(iso)}
+          onFocus={() => setApuntado(iso)}
+          className={`${clases} group cursor-pointer rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-[#efe9df] disabled:cursor-not-allowed ${tenue ? 'opacity-45' : ''}`}
+        >
           {contenido}
+          {habilitado && !marca && (
+            <span aria-hidden="true" className="absolute inset-[3px] rounded-lg opacity-0 ring-1 ring-inset ring-[#efe9df]/70 transition-opacity duration-150 group-hover:opacity-100 motion-reduce:transition-none" />
+          )}
         </button>
       );
     }
@@ -157,6 +230,13 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
       </li>
     );
   };
+
+  const leyenda: { manana: Mitad; tarde: Mitad; titulo: string; texto: string }[] = [
+    { manana: 'libre', tarde: 'libre', titulo: 'Libre', texto: 'Se puede reservar' },
+    { manana: 'ocupada', tarde: 'ocupada', titulo: 'Ocupado', texto: 'No disponible' },
+    { manana: 'porConfirmar', tarde: 'porConfirmar', titulo: 'Por confirmar', texto: 'Reservado, esperando confirmación' },
+    { manana: 'ocupada', tarde: 'libre', titulo: 'Medio día', texto: 'Se sale o se entra ese día' },
+  ];
 
   return (
     <div className="flex flex-col gap-6">
@@ -196,7 +276,7 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
       </div>
 
       {/* Dos meses solo con lugar de sobra: así cada día mide al menos 40 px */}
-      <div className="grid gap-10 xl:grid-cols-2 xl:gap-8">
+      <div className="grid gap-10 xl:grid-cols-2 xl:gap-8" onMouseLeave={() => setApuntado(null)}>
         {[vista, mesSiguiente(vista)].map(({ anio, mes }, indice) => (
           <div key={`${anio}-${mes}`} className={indice === 1 ? 'hidden xl:block' : ''}>
             <p className="font-display m-0 mb-4 text-[26px] leading-none" aria-live={indice === 0 ? 'polite' : undefined}>
@@ -204,13 +284,13 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
             </p>
             <div className="mb-2 grid grid-cols-7" aria-hidden="true">
               {SEMANA.map((d) => (
-                <span key={d} className="calma-micro text-center text-[10.5px] text-[#efe9df]/45">
+                <span key={d} className="calma-micro text-center text-[10.5px] text-[#efe9df]/65">
                   {d}
                 </span>
               ))}
             </div>
             {alElegirDia ? (
-              <div aria-label={`${MESES[mes]} ${anio}`} aria-busy={!listos} className="grid grid-cols-7">
+              <div role="group" aria-label={`${MESES[mes]} ${anio}`} aria-busy={!listos} className="grid grid-cols-7">
                 {celdasDelMes(anio, mes).map(dia)}
               </div>
             ) : (
@@ -223,12 +303,8 @@ export default function CalendarioEstadia({ propiedadId, alElegirDia }: Props) {
       </div>
 
       {/* Leyenda: la misma baldosa del calendario, con una frase corta de qué significa */}
-      <ul className="m-0 grid list-none gap-3 border-t border-[#efe9df]/15 p-0 pt-5 text-[14px] sm:grid-cols-3">
-        {[
-          { manana: false, tarde: false, titulo: 'Libre', texto: 'Se puede reservar' },
-          { manana: true, tarde: true, titulo: 'Ocupado', texto: 'No disponible' },
-          { manana: true, tarde: false, titulo: 'Medio día', texto: 'Se sale o se entra ese día' },
-        ].map((m) => (
+      <ul className="m-0 grid list-none gap-3 border-t border-[#efe9df]/15 p-0 pt-5 text-[14px] sm:grid-cols-2">
+        {leyenda.map((m) => (
           <li key={m.titulo} className="flex items-center gap-3">
             <span className="tabular relative h-11 w-11 shrink-0 text-[15px]">
               <Baldosa manana={m.manana} tarde={m.tarde}>
