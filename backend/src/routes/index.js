@@ -18,6 +18,7 @@ router.use('/contratos', contratosRoutes);
 router.use('/visitas', visitasRoutes);
 router.use('/disponibilidad', require('./disponibilidad.routes'));
 router.use('/reservas', require('./reservas.routes'));
+router.use('/agenda', require('./agenda.routes'));
 router.use('/contacto', require('./contacto.routes'));
 
 module.exports = router;
