@@ -2,7 +2,7 @@ const SolicitudPublicacion = require('../models/solicitudPublicacion.model');
 const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
-const path = require('node:path');
+const documentosPublicacion = require('./documentosPublicacion.service');
 
 const REQUISITOS_PUBLICAR = [
     'pub-escritura',
@@ -48,6 +48,10 @@ const solicitudPublicacionService = {
         const documentos = datos.documentos || {};
         if (DOCUMENTOS_OBLIGATORIOS.some((nombre) => typeof documentos[nombre] !== 'string' || !documentos[nombre].trim())) {
             throw errorHttp('Tenés que adjuntar toda la documentación obligatoria para publicar.', 400);
+        }
+        // Cada referencia tiene que ser un documento que este mismo usuario subió
+        if (!(await documentosPublicacion.sonDelUsuario(DOCUMENTOS_OBLIGATORIOS.map((nombre) => documentos[nombre].trim()), userId))) {
+            throw errorHttp('Los documentos adjuntos no son válidos. Volvé a adjuntarlos.', 400);
         }
         if (!Array.isArray(datos.fotos) || datos.fotos.length === 0) {
             throw errorHttp('Tenés que adjuntar al menos una foto de la propiedad.', 400);
@@ -135,23 +139,20 @@ const solicitudPublicacionService = {
         return solicitud;
     },
 
-    obtenerDocumento: async (nombre, user) => {
-        const archivo = path.basename(String(nombre || ''));
-        if (!archivo || archivo !== nombre || !archivo.startsWith('documento-')) {
-            throw errorHttp('Documento no encontrado.', 404);
+    // Devuelve el documento descifrado si quien lo pide es el administrador o el dueño de la solicitud
+    obtenerDocumento: async (id, user) => {
+        if (!/^[a-f\d]{24}$/i.test(String(id || ''))) throw errorHttp('Documento no encontrado.', 404);
+        const documento = await documentosPublicacion.leer(id);
+        if (!documento) throw errorHttp('Documento no encontrado.', 404);
+        if (user.role !== 'admin') {
+            const referencia = `privado:${String(id).toLowerCase()}`;
+            const solicitud = await SolicitudPublicacion.findOne({
+                $or: DOCUMENTOS_OBLIGATORIOS.map((campo) => ({ [`documentos.${campo}`]: referencia })),
+            }).select('cliente');
+            const duenio = solicitud ? String(solicitud.cliente) : documento.usuario;
+            if (duenio !== String(user._id)) throw errorHttp('No tenés permiso para ver este documento.', 403);
         }
-        const campos = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
-        const solicitud = await SolicitudPublicacion.findOne({
-            $or: campos.flatMap((campo) => [
-                { [`documentos.${campo}`]: `privado:${archivo}` },
-                { [`documentos.${campo}`]: { $regex: `${archivo}$` } },
-            ]),
-        }).select('+documentos cliente');
-        if (!solicitud) throw errorHttp('Documento no encontrado.', 404);
-        if (user.role !== 'admin' && String(solicitud.cliente) !== String(user._id)) {
-            throw errorHttp('No tenés permiso para ver este documento.', 403);
-        }
-        return path.resolve(__dirname, '../../uploads', archivo);
+        return documento;
     },
 
     aprobar: async (id) => {

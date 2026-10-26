@@ -626,7 +626,7 @@ export default function PublicarPropiedadPage() {
                       <div className="flex flex-col gap-4">
                         <div>
                           <p className={`${etiqueta} m-0`}>Documentación obligatoria *</p>
-                          <p className="m-0 mt-1 text-[13px] text-[#efe9df]/55">Aceptamos PDF, JPG, PNG o WEBP (hasta 10 MB por archivo).</p>
+                          <p className="m-0 mt-1 text-[13px] text-[#efe9df]/55">Aceptamos PDF, JPG, PNG o WEBP (hasta 4 MB por archivo).</p>
                         </div>
                         <div className="grid gap-4 sm:grid-cols-2">
                           {DOCUMENTOS.map(([clave, nombre]) => (
@@ -634,11 +634,11 @@ export default function PublicarPropiedadPage() {
                               <span>{nombre} *</span>
                               <input
                                 type="file"
-                                accept=".pdf,image/jpeg,image/png,image/webp,image/gif"
+                                accept=".pdf,image/jpeg,image/png,image/webp"
                                 onChange={(e) => {
                                   const archivo = e.target.files?.[0];
-                                  if (archivo && archivo.size <= 10 * 1024 * 1024) setDocumentos((actual) => ({ ...actual, [clave]: archivo }));
-                                  else if (archivo) setError('Cada documento puede pesar hasta 10 MB.');
+                                  if (archivo && archivo.size <= 4 * 1024 * 1024) setDocumentos((actual) => ({ ...actual, [clave]: archivo }));
+                                  else if (archivo) setError('Cada documento puede pesar hasta 4 MB.');
                                 }}
                                 className="text-xs"
                               />

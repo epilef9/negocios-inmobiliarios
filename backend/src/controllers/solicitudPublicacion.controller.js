@@ -56,8 +56,14 @@ exports.obtenerPorId = async (req, res) => {
 
 exports.obtenerDocumento = async (req, res) => {
     try {
-        const documento = await solicitudPublicacionService.obtenerDocumento(req.params.nombre, req.user);
-        res.sendFile(documento);
+        const documento = await solicitudPublicacionService.obtenerDocumento(req.params.id, req.user);
+        res.set({
+            'Content-Type': documento.mimeType,
+            'Content-Disposition': `inline; filename="documento.${documento.extension}"`,
+            'Cache-Control': 'private, no-store',
+            'X-Content-Type-Options': 'nosniff',
+        });
+        res.send(documento.contenido);
     } catch (error) {
         res.status(error.statusCode || 404).json({ message: error.message || 'Documento no encontrado.' });
     }

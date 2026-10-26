@@ -1,4 +1,4 @@
-import { request } from './api';
+import { API_URL, request } from './api';
 
 export type EstadoSolicitudPublicacion = 'pendiente' | 'aprobada' | 'rechazada';
 export type DocumentosPublicacion = {
@@ -138,39 +138,25 @@ export async function rechazarSolicitudPublicacion(id: string, motivo: string): 
   });
 }
 
+// Usan request(), que manda la cookie de sesión y el token CSRF (con FormData no fija Content-Type)
 export async function subirFotosPublicacion(archivos: File[]): Promise<string[]> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const formData = new FormData();
   archivos.forEach((file) => formData.append('fotos', file));
-
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
-  const response = await fetch(`${API_URL}/solicitudes-publicacion/fotos`, {
-    method: 'POST',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: formData,
-  });
-
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    throw new Error(body.message || 'No se pudieron subir las fotos.');
-  }
-
-  return body.data as string[];
+  return request<string[]>('/solicitudes-publicacion/fotos', { method: 'POST', body: formData });
 }
 
+// Los documentos se suben de a uno (Vercel no acepta pedidos de más de ~4,5 MB); el backend los guarda cifrados
 export async function subirDocumentosPublicacion(archivos: File[]): Promise<string[]> {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+  const referencias: string[] = [];
+  for (const archivo of archivos) {
     const formData = new FormData();
-    archivos.forEach((file) => formData.append('documentos', file));
-    const API_URL = process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
-    const response = await fetch(`${API_URL}/solicitudes-publicacion/documentos`, {
-      method: 'POST',
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-      body: formData,
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.message || 'No se pudieron subir los documentos.');
-    return body.data as string[];
+    formData.append('documentos', archivo);
+    const [referencia] = await request<string[]>('/solicitudes-publicacion/documentos', { method: 'POST', body: formData });
+    referencias.push(referencia);
+  }
+  return referencias;
 }
+
+// Dirección para abrir un documento privado (solo el admin o quien lo subió pueden verlo)
+export const urlDocumentoPublicacion = (referencia: string) =>
+  `${API_URL}/solicitudes-publicacion/documentos/${encodeURIComponent(referencia.replace(/^privado:/, ''))}`;

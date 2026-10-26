@@ -65,14 +65,6 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
-        // DNI opcional al registrarse
-        const dni = typeof userData.dni === 'string' ? userData.dni.trim() : '';
-        if (dni && !/^\d{7,8}$/.test(dni)) {
-            const error = new Error('El DNI debe tener 7 u 8 dígitos numéricos.');
-            error.statusCode = 400;
-            throw error;
-        }
-
         // El teléfono es opcional, pero si viene tiene que ser un número de verdad (no un email ni letras)
         const telefono = typeof userData.telefono === 'string' ? userData.telefono.trim() : '';
         const digitosTelefono = telefono.replace(/\D/g, '').length;
@@ -99,7 +91,6 @@ const authService = {
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
-            dni,
             telefono,
             username: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),

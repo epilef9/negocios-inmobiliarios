@@ -3,7 +3,6 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const path = require('node:path');
 const routes = require('./routes/index');
-const SolicitudPublicacion = require('./models/solicitudPublicacion.model');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
 const { encabezados, limpiarEntrada } = require('./middlewares/seguridad');
 
@@ -37,24 +36,7 @@ app.use(express.urlencoded({ extended: false, limit: '100kb' }));
 app.use(limpiarEntrada);
 // Fotos guardadas en disco (solo cuando no hay Cloudinary). Con la política de seguridad de arriba
 // el navegador nunca ejecuta lo que se sirve acá, aunque alguien suba un archivo disfrazado de imagen.
-app.use('/uploads', async (req, res, next) => {
-    if (path.basename(req.path).startsWith('documento-')) {
-        return res.status(403).json({ message: 'Ese archivo requiere autenticación.' });
-    }
-    const archivo = path.basename(req.path).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    try {
-        const esDocumento = await SolicitudPublicacion.exists({
-            $or: ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'].flatMap((campo) => [
-                { [`documentos.${campo}`]: `privado:${path.basename(req.path)}` },
-                { [`documentos.${campo}`]: { $regex: `${archivo}$` } },
-            ]),
-        });
-        if (esDocumento) return res.status(403).json({ message: 'Ese archivo requiere autenticación.' });
-        return next();
-    } catch (error) {
-        return next(error);
-    }
-}, express.static(path.join(__dirname, '../uploads'), { dotfiles: 'deny', index: false }));
+app.use('/uploads', express.static(path.join(__dirname, '../uploads'), { dotfiles: 'deny', index: false }));
 
 // Routes
 app.get('/api/health', (req, res) => {

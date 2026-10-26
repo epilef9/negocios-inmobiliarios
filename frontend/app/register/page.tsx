@@ -9,17 +9,15 @@ import PantallaCuenta, { BotonVerPassword, RevisaTuCorreo, YaIngresaste, botonPr
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMO_PASSWORD = 8;
 
-type Campo = 'nombre' | 'apellido' | 'dni' | 'telefono' | 'email' | 'password' | 'confirmPassword';
+type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confirmPassword';
 type Datos = Record<Campo, string>;
 
-const VACIOS: Datos = { nombre: '', apellido: '', dni: '', telefono: '', email: '', password: '', confirmPassword: '' };
+const VACIOS: Datos = { nombre: '', apellido: '', telefono: '', email: '', password: '', confirmPassword: '' };
 
 // Revisa los datos antes de mandarlos; devuelve el primer problema con el campo a corregir
 function revisar(datos: Datos): { texto: string; campo: Campo } | null {
   if (!datos.nombre.trim()) return { texto: 'Escribí tu nombre.', campo: 'nombre' };
   if (!datos.apellido.trim()) return { texto: 'Escribí tu apellido.', campo: 'apellido' };
-  if (!datos.dni.trim()) return { texto: 'El DNI es obligatorio.', campo: 'dni' };
-  if (!/^\d{7,8}$/.test(datos.dni.trim())) return { texto: 'El DNI debe tener 7 u 8 dígitos numéricos.', campo: 'dni' };
   if (!EMAIL_VALIDO.test(datos.email.trim())) return { texto: 'Escribí un email válido, por ejemplo nombre@email.com.', campo: 'email' };
   // El teléfono es opcional; si se escribe, tiene que ser un número (con característica)
   const telefono = datos.telefono.trim();
@@ -63,7 +61,6 @@ function FormularioRegistro() {
       const resultado = await register({
         nombre: datos.nombre.trim(),
         apellido: datos.apellido.trim(),
-        dni: datos.dni.trim(),
         telefono: datos.telefono.trim(),
         email: datos.email.trim(),
         password: datos.password,
@@ -128,7 +125,6 @@ function FormularioRegistro() {
         {campo('nombre', 'Nombre', { autoComplete: 'given-name' })}
         {campo('apellido', 'Apellido', { autoComplete: 'family-name' })}
       </div>
-      {campo('dni', 'DNI *', { inputMode: 'numeric', placeholder: 'Ej.: 12345678' }, 'Solo números, sin puntos.')}
       {campo('email', 'Email', { type: 'email', autoComplete: 'email', inputMode: 'email', placeholder: 'nombre@email.com' })}
       {campo(
         'telefono',

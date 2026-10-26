@@ -8,6 +8,7 @@ const authMiddleware = require('../middlewares/auth.middleware');
 const { usaCloudinary, subirACloudinary } = require('../services/imagenes.service');
 const { requireAdmin } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
+const documentosPublicacion = require('../services/documentosPublicacion.service');
 
 const uploadsDirectory = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadsDirectory, { recursive: true });
@@ -41,20 +42,15 @@ const upload = multer({
     },
 });
 
-const DOCUMENTOS_PERMITIDOS = { ...TIPOS_PERMITIDOS, 'application/pdf': '.pdf' };
-const almacenamientoDocumentos = multer.diskStorage({
-    destination: uploadsDirectory,
-    filename: (_req, file, callback) => {
-        const extension = DOCUMENTOS_PERMITIDOS[file.mimetype] || '.bin';
-        callback(null, `documento-${Date.now()}-${Math.random().toString(36).slice(2)}${extension}`);
-    },
-});
+// Documentos: quedan en memoria solo para cifrarlos y guardarlos en MongoDB (nunca en disco).
+// Se suben de a uno: Vercel no acepta pedidos de más de ~4,5 MB.
 const uploadDocumentos = multer({
-    storage: almacenamientoDocumentos,
-    limits: { fileSize: 10 * 1024 * 1024, files: 5 },
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 4 * 1024 * 1024, files: 1 },
     fileFilter: (_req, file, callback) => {
-        if (!DOCUMENTOS_PERMITIDOS[file.mimetype]) {
-            const error = new Error('Cada documento debe ser PDF o una imagen JPG, PNG, WEBP o GIF');
+        const mime = file.mimetype === 'image/jpg' ? 'image/jpeg' : file.mimetype;
+        if (!documentosPublicacion.MIME_PERMITIDOS.includes(mime)) {
+            const error = new Error('Cada documento debe ser un PDF o una imagen JPG, PNG o WEBP');
             error.statusCode = 415;
             return callback(error);
         }
@@ -98,25 +94,29 @@ router.post('/fotos', authMiddleware, frenos.uploads, (req, res, next) => {
     });
 });
 
-// Subida de documentos de la solicitud por parte del cliente
+// Subida de un documento de la solicitud por parte del cliente: se cifra y se guarda en MongoDB
 router.post('/documentos', authMiddleware, frenos.uploads, (req, res, next) => {
-    uploadDocumentos.array('documentos', 5)(req, res, async (error) => {
+    uploadDocumentos.array('documentos', 1)(req, res, async (error) => {
         if (error) {
-            if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Cada documento puede pesar hasta 10 MB' });
-            if (error.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ message: 'Adjuntá hasta 5 documentos' });
+            if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Cada documento puede pesar hasta 4 MB' });
+            if (error.code === 'LIMIT_FILE_COUNT' || error.code === 'LIMIT_UNEXPECTED_FILE') return res.status(400).json({ message: 'Subí los documentos de a uno' });
             if (error.statusCode === 415) return res.status(415).json({ message: error.message });
             return next(error);
         }
+        const archivos = req.files || [];
+        if (!archivos.length) return res.status(400).json({ message: 'No llegó ningún documento' });
         try {
-            const archivos = req.files || [];
-            return res.status(201).json({ data: archivos.map((file) => `privado:${file.filename}`) });
+            return res.status(201).json({ data: await documentosPublicacion.guardar(archivos, req.user._id) });
         } catch (errorSubida) {
-            return res.status(errorSubida.statusCode || 502).json({ message: errorSubida.message });
+            if (errorSubida.statusCode) return res.status(errorSubida.statusCode).json({ message: errorSubida.message });
+            console.error('[publicaciones] No se pudo guardar un documento:', errorSubida.message);
+            return res.status(500).json({ message: 'No pudimos guardar el documento. Probá de nuevo en un momento.' });
         }
     });
-
-    router.get('/documentos/:nombre', authMiddleware, solicitudPublicacionController.obtenerDocumento);
 });
+
+// Descarga de un documento: solo el administrador o quien lo subió
+router.get('/documentos/:id', authMiddleware, solicitudPublicacionController.obtenerDocumento);
 
 // Rutas de cliente (requiere estar autenticado)
 router.post('/', authMiddleware, solicitudPublicacionController.crear);

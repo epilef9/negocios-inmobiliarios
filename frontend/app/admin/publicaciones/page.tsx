@@ -18,6 +18,7 @@ import {
   rechazarSolicitudPublicacion,
   type SolicitudPublicacion,
   type EstadoSolicitudPublicacion,
+  urlDocumentoPublicacion,
 } from '@/services/solicitudesPublicacion';
 
 type FiltroEstado = 'todas' | EstadoSolicitudPublicacion;
@@ -433,7 +434,7 @@ export default function AdminPublicacionesPage() {
                   ['Planos', solicitudDetalle.documentos?.planos],
                   ['Reglamento', solicitudDetalle.documentos?.reglamento],
                 ].map(([nombre, url]) => (
-                  <a key={nombre} href={typeof url === 'string' ? `${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'}/solicitudes-publicacion/documentos/${encodeURIComponent((url.replace(/^privado:/, '').split('/').pop() ?? ''))}` : undefined} target="_blank" rel="noreferrer" className="rounded-lg border border-panel-borde bg-panel-superficie px-3 py-2 text-sm hover:border-panel-acento">
+                  <a key={nombre} href={typeof url === 'string' && url ? urlDocumentoPublicacion(url) : undefined} target="_blank" rel="noreferrer" className="rounded-lg border border-panel-borde bg-panel-superficie px-3 py-2 text-sm hover:border-panel-acento">
                     <span className="block text-panel-suave">{nombre}</span>
                     <span className="block truncate text-panel-texto">{url ? 'Abrir documento' : 'No adjuntado'}</span>
                   </a>
