@@ -26,8 +26,9 @@ const patrones = origenesPermitidos().map(
 app.use(
     cors(
         patrones.length
-            ? { origin: (origen, listo) => listo(null, !origen || patrones.some((patron) => patron.test(origen))) }
-            : undefined
+            ? { origin: (origen, listo) => listo(null, !origen || patrones.some((patron) => patron.test(origen))), credentials: true }
+            : // Desarrollo: el frontend (localhost:3000) y la API (localhost:4000) son orígenes distintos y la cookie de sesión necesita credentials
+              { origin: true, credentials: true }
     )
 );
 app.use(express.json({ limit: '100kb' }));

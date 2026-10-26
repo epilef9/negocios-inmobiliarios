@@ -28,23 +28,4 @@ const validateContacto = (req, res, next) => {
     next();
 };
 
-// Freno simple por IP para que el formulario no se use para mandar spam: 5 consultas cada 10 minutos
-const VENTANA_MS = 10 * 60 * 1000;
-const MAXIMO = 5;
-const intentos = new Map();
-
-const limitarContacto = (req, res, next) => {
-    const ahora = Date.now();
-    const recientes = (intentos.get(req.ip) || []).filter((t) => ahora - t < VENTANA_MS);
-    if (recientes.length >= MAXIMO) {
-        return res.status(429).json({ message: 'Enviaste muchas consultas seguidas. Probá de nuevo en unos minutos.' });
-    }
-    recientes.push(ahora);
-    intentos.set(req.ip, recientes);
-    if (intentos.size > 1000) {
-        for (const [ip, tiempos] of intentos) if (!tiempos.some((t) => ahora - t < VENTANA_MS)) intentos.delete(ip);
-    }
-    next();
-};
-
-module.exports = { validateContacto, limitarContacto };
+module.exports = { validateContacto };
