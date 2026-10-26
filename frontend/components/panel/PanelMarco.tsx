@@ -14,6 +14,7 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin/propiedades', texto: 'Propiedades', icono: 'propiedades' },
   { href: '/admin/catalogo', texto: 'Orden del catálogo', icono: 'catalogo' },
   { href: '/admin/visitas', texto: 'Visitas', icono: 'visitas' },
+  { href: '/admin/horario', texto: 'Horario de visitas', icono: 'reloj' },
   { href: '/admin/reservas', texto: 'Reservas', icono: 'maleta' },
   { href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
   { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
