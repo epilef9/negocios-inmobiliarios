@@ -194,6 +194,18 @@ export default function PerfilPage() {
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
 					<div className="flex flex-col gap-16">
 						{user && user.role !== "admin" && <MisReservas id={id} />}
+						{user && user.role !== "admin" && (
+							<Link
+								href="/solicitudes"
+								className="group flex items-center justify-between gap-6 rounded-xl border border-[#efe9df]/20 bg-[#efe9df]/5 p-6 transition-colors hover:border-[#efe9df]/50 hover:bg-[#efe9df]/10 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] sm:p-8"
+							>
+								<div>
+									<h2 className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">Mis solicitudes</h2>
+									<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">Consultá tus solicitudes de alquiler o compra y los comentarios de la inmobiliaria.</p>
+								</div>
+								<span aria-hidden="true" className="shrink-0 text-3xl text-[#efe9df]/70 transition-colors group-hover:text-[#efe9df]">→</span>
+							</Link>
+						)}
 
 						<section aria-labelledby={`${id}-datos-titulo`} className="border-t border-[#efe9df]/15 pt-10">
 							<h2 id={`${id}-datos-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
@@ -378,6 +390,11 @@ export default function PerfilPage() {
 								<a href="#reservas" className={enlaceCuenta}>
 									Mis reservas
 								</a>
+							)}
+							{user?.role !== "admin" && (
+								<Link href="/solicitudes" className={enlaceCuenta}>
+									Tus solicitudes
+								</Link>
 							)}
 							<Link href="/favoritos" className={enlaceCuenta}>
 								Mis favoritos

@@ -228,7 +228,7 @@ const serializarSolicitudAdmin = (solicitud) => {
 
 const listarMias = async (usuario) => {
     const solicitudes = await Solicitud.find({ usuario })
-        .populate('propiedad', 'title ciudad location')
+        .populate('propiedad', 'title ciudad location images')
         .sort({ createdAt: -1 })
         .limit(100)
         .lean();

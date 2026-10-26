@@ -19,10 +19,12 @@ export type SolicitudNotificacion = {
 	propiedad: string;
 };
 
+export type EstadoSolicitud = "pendiente" | "aprobada" | "rechazada";
+
 export type SolicitudResumen = {
 	id: string;
 	operacion: TipoOperacionSolicitud;
-	estado: string;
+	estado: EstadoSolicitud;
 	createdAt: string;
 	comentarioEstado?: string;
 	historialEstados?: { estado: string; comentario: string; comentarioReferenciaIndice?: number; fecha: string }[];
@@ -45,8 +47,6 @@ export type SolicitudAdmin = SolicitudResumen & {
 	documentos?: DocumentoSolicitud[];
 	problemaDescifrado?: boolean;
 };
-
-export type EstadoSolicitud = "pendiente" | "aprobada" | "rechazada";
 
 export const crearSolicitud = async (formData: FormData, claveIdempotencia: string) => {
 	const resultado = await request<SolicitudCreada>("/solicitudes", {
