@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion, normalizar, obtenerPropiedades } from '@/components/sitio/datos';
 import { datosCortos, precioDePropiedad, useDolarBlue } from '@/components/sitio/precio';
@@ -223,7 +223,6 @@ export default function MapaZonasCalma() {
           encuadre={encuadre}
           puntos={puntos}
           activo={activo?.id ?? null}
-          fijo={Boolean(activo?.fijo)}
           onElegir={elegir}
           onSalir={salir}
           onFondo={cerrar}
@@ -300,18 +299,6 @@ function TarjetaMapa({
   onCerrar: () => void;
 }) {
   const imagen = propiedad.images?.[0];
-  const caja = useRef<HTMLElement>(null);
-
-  // La posición se calcula antes de que exista la tarjeta, sin saber cuánto mide. Ya dibujada, si se pasa
-  // del borde de abajo del mapa se sube lo justo para que entre entera (sin taparse con el corte del mapa).
-  useLayoutEffect(() => {
-    const el = caja.current;
-    const mapa = el?.offsetParent as HTMLElement | null;
-    if (!el || !mapa || angosto || !estilo) return;
-    const limite = mapa.clientHeight - 16;
-    const top = Math.max(16, Math.min(estilo.top, limite - el.offsetHeight));
-    el.style.top = `${top}px`;
-  }, [estilo, angosto]);
   const [fotoRota, setFotoRota] = useState(false);
   const operacion = propiedad.categoria_operacion || '';
   const precio = precioDePropiedad(propiedad, blue);
@@ -319,7 +306,6 @@ function TarjetaMapa({
 
   return (
     <article
-      ref={caja}
       onMouseEnter={onEntrar}
       onMouseLeave={onSalir}
       style={estilo}

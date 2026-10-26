@@ -1,4 +1,56 @@
 const mongoose = require('mongoose');
+const { cifrar, descifrar } = require('../utils/cifrado-solicitudes');
+
+// Los datos personales sensibles se guardan cifrados con la misma clave que las solicitudes.
+// Además quedan con select:false, así solo aparecen cuando el repositorio los pide de forma explícita
+// (la ruta que usa el panel) y nunca en los listados. Los contratos viejos con texto plano se siguen leyendo.
+const cifrado = {
+    set(valor) {
+        if (typeof valor !== 'string' || !valor.trim()) return '';
+        try {
+            return cifrar(Buffer.from(valor.trim(), 'utf8')).toString('base64');
+        } catch {
+            // Sin clave configurada (por ejemplo, en pruebas o datos históricos): se guarda tal cual.
+            return valor.trim();
+        }
+    },
+    get(valor) {
+        if (!valor) return '';
+        try {
+            return descifrar(Buffer.from(valor, 'base64')).toString('utf8');
+        } catch {
+            // Valores viejos en texto plano.
+            return valor;
+        }
+    },
+};
+
+const camposProtegidos = () => ({
+    dni: { type: String, trim: true, select: false, set: cifrado.set, get: cifrado.get },
+    cuil: { type: String, trim: true, select: false, set: cifrado.set, get: cifrado.get },
+    domicilio: { type: String, trim: true, select: false, set: cifrado.set, get: cifrado.get },
+});
+
+const datosPersona = () => ({
+    nombre: { type: String, trim: true },
+    apellido: { type: String, trim: true },
+    ...camposProtegidos(),
+    localidad: { type: String, trim: true },
+    provincia: { type: String, trim: true },
+    telefono: { type: String, trim: true },
+    email: { type: String, trim: true, lowercase: true },
+});
+
+// Cliente del contrato: mantiene los campos históricos (usuario, nombre, teléfono) y suma los del formulario.
+const clienteSchema = new mongoose.Schema({
+    usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    ...datosPersona(),
+    nombre: { type: String, required: true, trim: true },
+    telefono: { type: String, required: true, trim: true },
+}, { _id: false });
+
+// Cotitular, garante y propietario son opcionales: un contrato viejo no los tiene.
+const personaSchema = new mongoose.Schema(datosPersona(), { _id: false });
 
 const contratoSchema = new mongoose.Schema({
     numeroContrato: {
@@ -12,17 +64,31 @@ const contratoSchema = new mongoose.Schema({
         trim: true,
     },
     cliente: {
-        usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-        nombre: { type: String, required: true, trim: true },
-        dni: { type: String, trim: true },
-        telefono: { type: String, required: true, trim: true },
-        email: { type: String, trim: true },
+        type: clienteSchema,
+        required: true,
+    },
+    cotitular: {
+        type: personaSchema,
+    },
+    garante: {
+        type: personaSchema,
+    },
+    tipoGarantia: {
+        type: String,
+        enum: ['propietaria', 'caucion'],
+    },
+    // Locador (alquiler) o vendedor (compraventa)
+    propietario: {
+        type: personaSchema,
     },
     propiedad: {
         id: { type: mongoose.Schema.Types.ObjectId, ref: 'Property' },
         titulo: { type: String, required: true, trim: true },
         direccion: { type: String, required: true, trim: true },
     },
+    // De dónde salieron los datos precargados
+    solicitud: { type: mongoose.Schema.Types.ObjectId, ref: 'Solicitud' },
+    publicacion: { type: mongoose.Schema.Types.ObjectId, ref: 'SolicitudPublicacion' },
     fechaInicio: {
         type: String,
         required: true,
@@ -82,6 +148,9 @@ const contratoSchema = new mongoose.Schema({
     locadoraDni: {
         type: String,
         trim: true,
+        select: false,
+        set: cifrado.set,
+        get: cifrado.get,
     },
     ultimaActualizacion: {
         type: String,
@@ -100,6 +169,11 @@ contratoSchema.pre('save', function () {
     // Mongoose 9 ya no pasa next: el gancho termina solo
     this.updatedAt = Date.now();
 });
+
+// Al serializar (respuestas del panel) se aplican los getters para devolver los datos descifrados.
+// Los listados no traen los campos con select:false, así que no se exponen.
+contratoSchema.set('toJSON', { getters: true });
+contratoSchema.set('toObject', { getters: true });
 
 const Contrato = mongoose.model('Contrato', contratoSchema);
 

@@ -93,6 +93,7 @@ const solicitudPublicacionSchema = new mongoose.Schema({
         default: [],
     },
     documentos: {
+        select: false,
         // Se validan al crear solicitudes nuevas en el servicio. No son required
         // aquí para permitir actualizar o rechazar solicitudes históricas.
         dni: { type: String, trim: true },

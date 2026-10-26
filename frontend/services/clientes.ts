@@ -70,6 +70,7 @@ export interface PropiedadParaAsignar {
 export interface UsuarioRegistrado {
   id: string;
   nombre: string;
+  apellido: string;
   email: string;
   telefono: string;
   dni: string;

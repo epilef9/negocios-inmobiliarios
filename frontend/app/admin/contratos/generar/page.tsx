@@ -2,7 +2,17 @@
 
 import { Suspense, useEffect, useId, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { createContrato, generarNumeroContrato, getContratoById, updateContrato, type ContratoInput, type EstadoContrato } from '@/services/contratos';
+import {
+  createContrato,
+  generarNumeroContrato,
+  getContratoById,
+  getDatosDeSolicitud,
+  getSolicitudesParaContrato,
+  updateContrato,
+  type ContratoInput,
+  type EstadoContrato,
+  type SolicitudParaContrato,
+} from '@/services/contratos';
 import { getProperties, type ApiProperty } from '@/services/api';
 import { getPanelClientes, type PropiedadParaAsignar, type UsuarioRegistrado } from '@/services/clientes';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, Insignia, Tarjeta, areaTexto, control, useAviso } from '@/components/panel/ui';
@@ -61,10 +71,21 @@ const sumarMeses = (iso: string, meses: number) => {
   return `${String(fecha.getDate()).padStart(2, '0')}/${String(fecha.getMonth() + 1).padStart(2, '0')}/${fecha.getFullYear()}`;
 };
 const FECHA_LARGA = new Intl.DateTimeFormat('es-AR', { day: 'numeric', month: 'long', year: 'numeric' });
+const FECHA_CORTA = new Intl.DateTimeFormat('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+const fechaCorta = (iso?: string) => {
+  if (!iso) return '';
+  const fecha = new Date(iso);
+  return Number.isNaN(fecha.getTime()) ? '' : FECHA_CORTA.format(fecha);
+};
 const ahoraTexto = () => {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} hs`;
 };
+const unir = (...partes: (string | null | undefined)[]) =>
+  partes.map((parte) => (parte ?? '').trim()).filter(Boolean).join(' ');
+const soloDigitos = (valor: string) => valor.replace(/\D/g, '');
+const dniValido = (valor: string) => /^\d{7,8}$/.test(soloDigitos(valor));
+const cuilValido = (valor: string) => /^\d{11}$/.test(soloDigitos(valor));
 
 type Datos = {
   tipoContrato: TipoContrato;
@@ -74,13 +95,43 @@ type Datos = {
   propiedadDireccion: string;
   propiedadCiudad: string;
   clienteNombre: string;
+  clienteApellido: string;
   clienteDni: string;
+  clienteCuil: string;
   clienteTelefono: string;
   clienteEmail: string;
+  clienteDomicilio: string;
+  clienteLocalidad: string;
+  clienteProvincia: string;
   clienteUsuarioId: string;
-  locadora: string;
-  locadoraDni: string;
-  locadoraUsuarioId: string;
+  cotitularNombre: string;
+  cotitularApellido: string;
+  cotitularDni: string;
+  cotitularCuil: string;
+  cotitularTelefono: string;
+  cotitularEmail: string;
+  cotitularDomicilio: string;
+  cotitularLocalidad: string;
+  cotitularProvincia: string;
+  tipoGarantia: 'propietaria' | 'caucion';
+  garanteNombre: string;
+  garanteApellido: string;
+  garanteDni: string;
+  garanteCuil: string;
+  garanteTelefono: string;
+  garanteEmail: string;
+  garanteDomicilio: string;
+  garanteLocalidad: string;
+  garanteProvincia: string;
+  propietarioNombre: string;
+  propietarioApellido: string;
+  propietarioDni: string;
+  propietarioDomicilio: string;
+  propietarioTelefono: string;
+  propietarioEmail: string;
+  propietarioUsuarioId: string;
+  solicitudId: string;
+  publicacionId: string;
   fechaInicio: string; // AAAA-MM-DD
   duracionMeses: string;
   montoMensual: string;
@@ -99,13 +150,43 @@ const VACIO: Datos = {
   propiedadDireccion: '',
   propiedadCiudad: '',
   clienteNombre: '',
+  clienteApellido: '',
   clienteDni: '',
+  clienteCuil: '',
   clienteTelefono: '',
   clienteEmail: '',
+  clienteDomicilio: '',
+  clienteLocalidad: '',
+  clienteProvincia: '',
   clienteUsuarioId: '',
-  locadora: 'Araceli Balbuena',
-  locadoraDni: '',
-  locadoraUsuarioId: '',
+  cotitularNombre: '',
+  cotitularApellido: '',
+  cotitularDni: '',
+  cotitularCuil: '',
+  cotitularTelefono: '',
+  cotitularEmail: '',
+  cotitularDomicilio: '',
+  cotitularLocalidad: '',
+  cotitularProvincia: '',
+  tipoGarantia: 'propietaria',
+  garanteNombre: '',
+  garanteApellido: '',
+  garanteDni: '',
+  garanteCuil: '',
+  garanteTelefono: '',
+  garanteEmail: '',
+  garanteDomicilio: '',
+  garanteLocalidad: '',
+  garanteProvincia: '',
+  propietarioNombre: 'Araceli Balbuena',
+  propietarioApellido: '',
+  propietarioDni: '',
+  propietarioDomicilio: '',
+  propietarioTelefono: '',
+  propietarioEmail: '',
+  propietarioUsuarioId: '',
+  solicitudId: '',
+  publicacionId: '',
   fechaInicio: '',
   duracionMeses: '24',
   montoMensual: '',
@@ -143,9 +224,14 @@ function GeneradorContrato() {
   const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
   const [usuarios, setUsuarios] = useState<UsuarioRegistrado[]>([]);
   const [propiedadesPanel, setPropiedadesPanel] = useState<PropiedadParaAsignar[]>([]);
+  const [solicitudes, setSolicitudes] = useState<SolicitudParaContrato[]>([]);
+  const [solicitudElegida, setSolicitudElegida] = useState('');
+  const [cargandoSolicitud, setCargandoSolicitud] = useState(false);
+  const [resumenCarga, setResumenCarga] = useState<{ estado: string; completados: string[]; pendientes: string[]; datosIlegibles?: boolean } | null>(null);
   const [cargando, setCargando] = useState(Boolean(parametro));
   const [errorCarga, setErrorCarga] = useState<string | null>(null);
   const [faltan, setFaltan] = useState<string[]>([]);
+  const [formatos, setFormatos] = useState<Record<string, string>>({});
   const [guardando, setGuardando] = useState<'borrador' | 'activo' | null>(null);
   const [enviarAbierto, setEnviarAbierto] = useState(false);
   const { mostrar, aviso } = useAviso();
@@ -160,6 +246,9 @@ function GeneradorContrato() {
         setPropiedadesPanel(panel.propiedades ?? []);
       })
       .catch(() => setUsuarios([]));
+    getSolicitudesParaContrato()
+      .then((lista) => setSolicitudes(lista ?? []))
+      .catch(() => setSolicitudes([]));
   }, []);
 
   useEffect(() => {
@@ -172,18 +261,48 @@ function GeneradorContrato() {
         setDatos({
           tipoContrato: (TIPOS as readonly string[]).includes(c.tipoContrato ?? '') ? (c.tipoContrato as Datos['tipoContrato']) : 'Alquiler permanente',
           plantilla: c.plantilla || PLANTILLA_DE['Alquiler permanente'],
-          propiedadId: '',
+          propiedadId: c.propiedad?.id ?? '',
           propiedadTitulo: c.propiedad?.titulo ?? '',
           propiedadDireccion: c.propiedad?.direccion ?? '',
           propiedadCiudad: '',
           clienteNombre: c.cliente?.nombre ?? '',
+          clienteApellido: c.cliente?.apellido ?? '',
           clienteDni: c.cliente?.dni ?? '',
+          clienteCuil: c.cliente?.cuil ?? '',
           clienteTelefono: c.cliente?.telefono ?? '',
           clienteEmail: c.cliente?.email ?? '',
+          clienteDomicilio: c.cliente?.domicilio ?? '',
+          clienteLocalidad: c.cliente?.localidad ?? '',
+          clienteProvincia: c.cliente?.provincia ?? '',
           clienteUsuarioId: c.cliente?.usuario ?? '',
-          locadora: c.locadora || VACIO.locadora,
-          locadoraDni: c.locadoraDni ?? '',
-          locadoraUsuarioId: c.locadoraUsuario ?? '',
+          cotitularNombre: c.cotitular?.nombre ?? '',
+          cotitularApellido: c.cotitular?.apellido ?? '',
+          cotitularDni: c.cotitular?.dni ?? '',
+          cotitularCuil: c.cotitular?.cuil ?? '',
+          cotitularTelefono: c.cotitular?.telefono ?? '',
+          cotitularEmail: c.cotitular?.email ?? '',
+          cotitularDomicilio: c.cotitular?.domicilio ?? '',
+          cotitularLocalidad: c.cotitular?.localidad ?? '',
+          cotitularProvincia: c.cotitular?.provincia ?? '',
+          tipoGarantia: c.tipoGarantia === 'caucion' ? 'caucion' : 'propietaria',
+          garanteNombre: c.garante?.nombre ?? '',
+          garanteApellido: c.garante?.apellido ?? '',
+          garanteDni: c.garante?.dni ?? '',
+          garanteCuil: c.garante?.cuil ?? '',
+          garanteTelefono: c.garante?.telefono ?? '',
+          garanteEmail: c.garante?.email ?? '',
+          garanteDomicilio: c.garante?.domicilio ?? '',
+          garanteLocalidad: c.garante?.localidad ?? '',
+          garanteProvincia: c.garante?.provincia ?? '',
+          propietarioNombre: c.propietario?.nombre || c.locadora || VACIO.propietarioNombre,
+          propietarioApellido: c.propietario?.apellido ?? '',
+          propietarioDni: c.propietario?.dni || c.locadoraDni || '',
+          propietarioDomicilio: c.propietario?.domicilio ?? '',
+          propietarioTelefono: c.propietario?.telefono ?? '',
+          propietarioEmail: c.propietario?.email ?? '',
+          propietarioUsuarioId: c.locadoraUsuario ?? '',
+          solicitudId: c.solicitud ?? '',
+          publicacionId: c.publicacion ?? '',
           fechaInicio: aIso(c.fechaInicio),
           duracionMeses: String(c.duracionMeses ?? 24),
           montoMensual: c.montoMensual ?? '',
@@ -204,6 +323,12 @@ function GeneradorContrato() {
   const cambiar = <K extends keyof Datos>(campo: K, valor: Datos[K]) => {
     setDatos((d) => ({ ...d, [campo]: valor }));
     setFaltan((f) => f.filter((x) => x !== campo));
+    setFormatos((f) => {
+      if (!(campo in f)) return f;
+      const copia = { ...f };
+      delete copia[campo as string];
+      return copia;
+    });
   };
 
   // Al elegir la propiedad se completan el tipo de contrato y el monto según cómo está publicada
@@ -224,11 +349,13 @@ function GeneradorContrato() {
         plantilla: PLANTILLA_DE[tipoContrato],
         montoMensual: p ? precioDe(p) : d.montoMensual,
         duracionMeses: tipoContrato === 'Alquiler temporario' ? '1' : tipoContrato === 'Compraventa' ? '' : d.duracionMeses || '24',
-        locadoraUsuarioId: propietario?.id ?? vinculada?.propietarioUsuarioId ?? '',
-        locadora: propietario?.nombre ?? vinculada?.propietarioNombre ?? d.locadora,
-        locadoraDni: propietario?.dni ?? vinculada?.propietarioDni ?? '',
+        propietarioUsuarioId: propietario?.id ?? vinculada?.propietarioUsuarioId ?? '',
+        propietarioNombre: propietario?.nombre ?? vinculada?.propietarioNombre ?? d.propietarioNombre,
+        propietarioApellido: propietario || vinculada?.propietarioNombre ? '' : d.propietarioApellido,
+        propietarioDni: propietario?.dni ?? vinculada?.propietarioDni ?? '',
+        propietarioTelefono: propietario?.telefono ?? d.propietarioTelefono,
+        propietarioEmail: propietario?.email ?? d.propietarioEmail,
       };
-
     });
     setFaltan((f) => f.filter((x) => x !== 'propiedadId' && x !== 'montoMensual'));
   };
@@ -243,11 +370,135 @@ function GeneradorContrato() {
       ...d,
       clienteUsuarioId: usuario.id,
       clienteNombre: usuario.nombre,
+      clienteApellido: usuario.apellido,
       clienteDni: usuario.dni,
       clienteTelefono: usuario.telefono,
       clienteEmail: usuario.email,
     }));
     setFaltan((f) => f.filter((x) => !['clienteNombre', 'clienteDni', 'clienteTelefono'].includes(x)));
+  };
+
+  const elegirPropietario = (idUsuario: string) => {
+    const usuario = usuarios.find((item) => item.id === idUsuario);
+    setDatos((d) => ({
+      ...d,
+      propietarioUsuarioId: usuario?.id ?? '',
+      ...(usuario
+        ? {
+            propietarioNombre: usuario.nombre,
+            propietarioApellido: '',
+            propietarioDni: usuario.dni,
+            propietarioTelefono: usuario.telefono,
+            propietarioEmail: usuario.email,
+          }
+        : {}),
+    }));
+  };
+
+  // Precarga el contrato con los datos (ya descifrados) de la solicitud elegida
+  const cargarDesdeSolicitud = async (solicitudId: string) => {
+    setSolicitudElegida(solicitudId);
+    setResumenCarga(null);
+    if (!solicitudId) return;
+    setCargandoSolicitud(true);
+    try {
+      const d = await getDatosDeSolicitud(solicitudId);
+      const tipoContrato: TipoContrato = d.solicitud.operacion === 'compra'
+        ? 'Compraventa'
+        : d.propiedad?.tipoInmueble === 'local' ? 'Comercial' : 'Alquiler permanente';
+      const titular = d.titular;
+      const cotitular = d.cotitular;
+      const garante = d.garantia?.garante ?? null;
+      const propietario = d.propietario;
+      const precio = d.propiedad?.precio != null ? `${d.propiedad.moneda ?? 'USD'} ${miles(d.propiedad.precio)}` : '';
+
+      setDatos((prev) => ({
+        ...prev,
+        tipoContrato,
+        plantilla: PLANTILLA_DE[tipoContrato],
+        solicitudId: d.solicitud.id,
+        publicacionId: d.publicacionId || '',
+        propiedadId: d.propiedad?.id || '',
+        propiedadTitulo: d.propiedad?.titulo || '',
+        propiedadDireccion: d.propiedad?.direccion || '',
+        propiedadCiudad: d.propiedad?.ciudad || '',
+        montoMensual: precio,
+        duracionMeses: tipoContrato === 'Compraventa' ? '' : prev.duracionMeses || '24',
+        clienteUsuarioId: d.solicitud.usuarioId || '',
+        clienteNombre: titular.nombre || '',
+        clienteApellido: titular.apellido || '',
+        clienteDni: titular.dni || '',
+        clienteCuil: titular.cuil || '',
+        clienteTelefono: titular.telefono || '',
+        clienteEmail: titular.email || '',
+        clienteDomicilio: titular.domicilio || '',
+        clienteLocalidad: titular.localidad || '',
+        clienteProvincia: titular.provincia || '',
+        cotitularNombre: cotitular?.nombre || '',
+        cotitularApellido: cotitular?.apellido || '',
+        cotitularDni: cotitular?.dni || '',
+        cotitularCuil: cotitular?.cuil || '',
+        cotitularTelefono: cotitular?.telefono || '',
+        cotitularEmail: cotitular?.email || '',
+        cotitularDomicilio: cotitular?.domicilio || '',
+        cotitularLocalidad: cotitular?.localidad || '',
+        cotitularProvincia: cotitular?.provincia || '',
+        tipoGarantia: d.garantia?.tipo === 'caucion' ? 'caucion' : 'propietaria',
+        garanteNombre: garante?.nombre || '',
+        garanteApellido: garante?.apellido || '',
+        garanteDni: garante?.dni || '',
+        garanteCuil: garante?.cuil || '',
+        garanteTelefono: garante?.telefono || '',
+        garanteEmail: garante?.email || '',
+        garanteDomicilio: garante?.domicilio || '',
+        garanteLocalidad: garante?.localidad || '',
+        garanteProvincia: garante?.provincia || '',
+        propietarioUsuarioId: propietario?.usuarioId || '',
+        propietarioNombre: propietario?.nombre || '',
+        propietarioApellido: propietario?.apellido || '',
+        propietarioDni: propietario?.dni || '',
+        propietarioDomicilio: propietario?.domicilio || '',
+        propietarioTelefono: propietario?.telefono || '',
+        propietarioEmail: propietario?.email || '',
+        incluyeGarante: tipoContrato === 'Compraventa' ? false : Boolean(d.garantia) || prev.incluyeGarante,
+      }));
+
+      setFaltan([]);
+      setFormatos({});
+
+      const completados: string[] = ['Tipo de contrato'];
+      const pendientes: string[] = [];
+      const cargado = (etiqueta: string, valor?: string | null) => {
+        if (valor && valor.trim()) completados.push(etiqueta);
+        else pendientes.push(etiqueta);
+      };
+      cargado('Propiedad', d.propiedad?.titulo);
+      cargado('Monto', precio);
+      cargado('Nombre del cliente', titular.nombre);
+      cargado('Apellido del cliente', titular.apellido);
+      cargado('DNI del cliente', titular.dni);
+      cargado('CUIL del cliente', titular.cuil);
+      cargado('Teléfono del cliente', titular.telefono);
+      cargado('Email del cliente', titular.email);
+      cargado('Domicilio del cliente', titular.domicilio);
+      cargado('Localidad del cliente', titular.localidad);
+      cargado('Provincia del cliente', titular.provincia);
+      if (cotitular) completados.push('Datos del cotitular');
+      if (d.garantia?.tipo) completados.push(d.garantia.tipo === 'propietaria' ? 'Garantía propietaria' : 'Garantía de caución');
+      if (garante) completados.push('Datos del garante');
+      else if (d.garantia?.tipo === 'propietaria') pendientes.push('Datos del garante');
+      cargado('Nombre del propietario', unir(propietario?.nombre, propietario?.apellido));
+      cargado('DNI del propietario', propietario?.dni);
+      cargado('Domicilio del propietario', propietario?.domicilio);
+      cargado('Teléfono del propietario', propietario?.telefono);
+      cargado('Email del propietario', propietario?.email);
+      setResumenCarga({ estado: d.solicitud.estado, completados, pendientes, datosIlegibles: d.datosIlegibles });
+      mostrar('Datos de la solicitud cargados. Revisalos y editá lo que haga falta.', 'exito');
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudieron cargar los datos de la solicitud', 'peligro');
+    } finally {
+      setCargandoSolicitud(false);
+    }
   };
 
   const cambiarTipo = (tipoContrato: TipoContrato) => {
@@ -265,43 +516,112 @@ function GeneradorContrato() {
   const parteCliente = esVenta ? 'parte compradora' : 'parte locataria';
   const ciudad = datos.propiedadCiudad || 'Villa Libertador San Martín';
   // Domicilio sin partes repetidas (la dirección a veces ya trae la ciudad o la provincia)
-  const domicilio = datos.propiedadDireccion || datos.propiedadCiudad
+  const domicilioPropiedad = datos.propiedadDireccion || datos.propiedadCiudad
     ? [...datos.propiedadDireccion.split(','), datos.propiedadCiudad, 'Entre Ríos']
         .map((parte) => parte.trim())
         .filter((parte, i, todas) => parte && todas.findIndex((otra) => otra.toLowerCase() === parte.toLowerCase()) === i)
         .join(', ')
     : '';
+  const nombreCliente = unir(datos.clienteNombre, datos.clienteApellido);
+  const nombrePropietario = unir(datos.propietarioNombre, datos.propietarioApellido);
+  const nombreCotitular = unir(datos.cotitularNombre, datos.cotitularApellido);
+  const nombreGarante = unir(datos.garanteNombre, datos.garanteApellido);
+  const domicilioCliente = [datos.clienteDomicilio, datos.clienteLocalidad, datos.clienteProvincia].map((parte) => parte.trim()).filter(Boolean).join(', ');
   const tituloDocumento = TITULO_DOCUMENTO[datos.tipoContrato] ?? 'Contrato de locación';
+  const solicitudSeleccionada = solicitudes.find((s) => s.id === solicitudElegida);
+  const aprobadas = solicitudes.filter((s) => s.estado === 'aprobada');
+  const pendientes = solicitudes.filter((s) => s.estado === 'pendiente');
 
   const revisar = () => {
-    const pendientes: string[] = [];
-    if (!datos.clienteNombre.trim()) pendientes.push('clienteNombre');
-    if (!datos.clienteDni.trim()) pendientes.push('clienteDni');
-    if (!datos.clienteTelefono.trim()) pendientes.push('clienteTelefono');
-    if (!datos.propiedadTitulo) pendientes.push('propiedadId');
-    if (!datos.fechaInicio) pendientes.push('fechaInicio');
-    if (!esVenta && !meses) pendientes.push('duracionMeses');
-    if (!datos.montoMensual.trim()) pendientes.push('montoMensual');
-    setFaltan(pendientes);
-    return pendientes.length === 0;
+    const camposPendientes: string[] = [];
+    const erroresFormato: Record<string, string> = {};
+
+    if (!datos.clienteNombre.trim()) camposPendientes.push('clienteNombre');
+    if (!datos.clienteDni.trim()) camposPendientes.push('clienteDni');
+    else if (!dniValido(datos.clienteDni)) erroresFormato.clienteDni = 'Ingresá 7 u 8 números.';
+    if (datos.clienteCuil.trim() && !cuilValido(datos.clienteCuil)) erroresFormato.clienteCuil = 'Ingresá 11 números.';
+    if (!datos.clienteTelefono.trim()) camposPendientes.push('clienteTelefono');
+    if (!datos.propiedadTitulo) camposPendientes.push('propiedadId');
+    if (!datos.fechaInicio) camposPendientes.push('fechaInicio');
+    if (!esVenta && !meses) camposPendientes.push('duracionMeses');
+    if (!datos.montoMensual.trim()) camposPendientes.push('montoMensual');
+
+    if (datos.cotitularDni.trim() && !dniValido(datos.cotitularDni)) erroresFormato.cotitularDni = 'Ingresá 7 u 8 números.';
+    if (datos.cotitularCuil.trim() && !cuilValido(datos.cotitularCuil)) erroresFormato.cotitularCuil = 'Ingresá 11 números.';
+    if (datos.garanteDni.trim() && !dniValido(datos.garanteDni)) erroresFormato.garanteDni = 'Ingresá 7 u 8 números.';
+    if (datos.garanteCuil.trim() && !cuilValido(datos.garanteCuil)) erroresFormato.garanteCuil = 'Ingresá 11 números.';
+    if (datos.propietarioDni.trim() && !dniValido(datos.propietarioDni)) erroresFormato.propietarioDni = 'Ingresá 7 u 8 números.';
+
+    setFaltan(camposPendientes);
+    setFormatos(erroresFormato);
+    return camposPendientes.length === 0 && Object.keys(erroresFormato).length === 0;
   };
 
   const guardar = async (nuevoEstado: 'borrador' | 'activo') => {
     if (!revisar()) {
-      mostrar('Faltan datos obligatorios: están marcados en el formulario.', 'peligro');
+      mostrar('Faltan datos obligatorios o hay formatos para corregir: están marcados en el formulario.', 'peligro');
       return;
     }
     setGuardando(nuevoEstado);
     const marca = ahoraTexto();
+
+    const cotitular = datos.cotitularNombre.trim() || datos.cotitularApellido.trim() || datos.cotitularDni.trim() || datos.cotitularTelefono.trim()
+      ? {
+          nombre: datos.cotitularNombre.trim(),
+          apellido: datos.cotitularApellido.trim(),
+          dni: datos.cotitularDni.trim(),
+          cuil: datos.cotitularCuil.trim(),
+          domicilio: datos.cotitularDomicilio.trim(),
+          localidad: datos.cotitularLocalidad.trim(),
+          provincia: datos.cotitularProvincia.trim(),
+          telefono: datos.cotitularTelefono.trim(),
+          email: datos.cotitularEmail.trim(),
+        }
+      : undefined;
+    const garante = datos.garanteNombre.trim() || datos.garanteApellido.trim() || datos.garanteDni.trim() || datos.garanteTelefono.trim()
+      ? {
+          nombre: datos.garanteNombre.trim(),
+          apellido: datos.garanteApellido.trim(),
+          dni: datos.garanteDni.trim(),
+          cuil: datos.garanteCuil.trim(),
+          domicilio: datos.garanteDomicilio.trim(),
+          localidad: datos.garanteLocalidad.trim(),
+          provincia: datos.garanteProvincia.trim(),
+          telefono: datos.garanteTelefono.trim(),
+          email: datos.garanteEmail.trim(),
+        }
+      : undefined;
+    const propietario = datos.propietarioNombre.trim() || datos.propietarioApellido.trim() || datos.propietarioDni.trim() || datos.propietarioDomicilio.trim() || datos.propietarioTelefono.trim() || datos.propietarioEmail.trim()
+      ? {
+          nombre: datos.propietarioNombre.trim(),
+          apellido: datos.propietarioApellido.trim(),
+          dni: datos.propietarioDni.trim(),
+          domicilio: datos.propietarioDomicilio.trim(),
+          telefono: datos.propietarioTelefono.trim(),
+          email: datos.propietarioEmail.trim(),
+        }
+      : undefined;
+
     const campos: Omit<ContratoInput, 'numeroContrato'> = {
       cliente: {
         ...(datos.clienteUsuarioId ? { usuario: datos.clienteUsuarioId } : {}),
         nombre: datos.clienteNombre.trim(),
+        apellido: datos.clienteApellido.trim(),
         dni: datos.clienteDni.trim(),
+        cuil: datos.clienteCuil.trim(),
         telefono: datos.clienteTelefono.trim(),
         email: datos.clienteEmail.trim(),
+        domicilio: datos.clienteDomicilio.trim(),
+        localidad: datos.clienteLocalidad.trim(),
+        provincia: datos.clienteProvincia.trim(),
       },
-      propiedad: { id: datos.propiedadId || undefined, titulo: datos.propiedadTitulo, direccion: domicilio || datos.propiedadTitulo },
+      ...(cotitular ? { cotitular } : {}),
+      ...(garante ? { garante } : {}),
+      tipoGarantia: !esVenta && datos.incluyeGarante ? datos.tipoGarantia : undefined,
+      ...(propietario ? { propietario } : {}),
+      ...(datos.solicitudId ? { solicitud: datos.solicitudId } : {}),
+      ...(datos.publicacionId ? { publicacion: datos.publicacionId } : {}),
+      propiedad: { id: datos.propiedadId || undefined, titulo: datos.propiedadTitulo, direccion: domicilioPropiedad || datos.propiedadTitulo },
       fechaInicio: aLatina(datos.fechaInicio),
       fechaFin,
       montoMensual: datos.montoMensual.trim(),
@@ -314,9 +634,9 @@ function GeneradorContrato() {
       comision: datos.comision,
       incluyeGarante: !esVenta && datos.incluyeGarante,
       observaciones: datos.observaciones.trim(),
-      locadora: datos.locadora.trim(),
-      locadoraDni: datos.locadoraDni.trim(),
-      ...(datos.locadoraUsuarioId ? { locadoraUsuario: datos.locadoraUsuarioId } : {}),
+      locadora: nombrePropietario,
+      locadoraDni: datos.propietarioDni.trim(),
+      ...(datos.propietarioUsuarioId ? { locadoraUsuario: datos.propietarioUsuarioId } : {}),
       ultimaActualizacion: marca,
     };
     try {
@@ -341,13 +661,13 @@ function GeneradorContrato() {
     }
   };
 
-  const textoEnvio = `Hola ${datos.clienteNombre}, te escribimos de Negocios Inmobiliarios por el ${tituloDocumento.toLowerCase()} de "${datos.propiedadTitulo}". Te lo adjuntamos para que lo revises.`;
+  const textoEnvio = `Hola ${nombreCliente}, te escribimos de Negocios Inmobiliarios por el ${tituloDocumento.toLowerCase()} de "${datos.propiedadTitulo}". Te lo adjuntamos para que lo revises.`;
   const whatsapp = enlaceWhatsApp(datos.clienteTelefono, textoEnvio);
   const correo = datos.clienteEmail
     ? `mailto:${datos.clienteEmail}?subject=${encodeURIComponent(`${tituloDocumento} - ${datos.propiedadTitulo}`)}&body=${encodeURIComponent(textoEnvio)}`
     : null;
 
-  const error = (campo: string, texto: string) => (faltan.includes(campo) ? texto : null);
+  const error = (campo: string, texto: string) => formatos[campo] ?? (faltan.includes(campo) ? texto : null);
 
   if (cargando) {
     return (
@@ -391,6 +711,77 @@ function GeneradorContrato() {
         </div>
       )}
 
+      <div className="mb-6">
+        <Tarjeta
+          titulo="Cargar datos desde una solicitud"
+          descripcion="Elegí una solicitud de alquiler o compra para completar el contrato con los datos que ya cargó el cliente. Después podés editar todo."
+        >
+          <div className="grid gap-4">
+            <Campo
+              etiqueta="Solicitud"
+              htmlFor={`${id}-solicitud`}
+              ayuda="Primero aparecen las aprobadas. Las pendientes se pueden usar igual, con un aviso."
+            >
+              <select
+                id={`${id}-solicitud`}
+                value={solicitudElegida}
+                onChange={(e) => cargarDesdeSolicitud(e.target.value)}
+                disabled={cargandoSolicitud}
+                className={control}
+              >
+                <option value="">{cargandoSolicitud ? 'Cargando datos…' : 'Elegí una solicitud'}</option>
+                {aprobadas.length > 0 && (
+                  <optgroup label="Aprobadas">
+                    {aprobadas.map((solicitud) => (
+                      <option key={solicitud.id} value={solicitud.id}>
+                        {unir(solicitud.titular.nombre, solicitud.titular.apellido) || 'Sin titular'} · {solicitud.propiedad?.titulo || 'Propiedad'} · {fechaCorta(solicitud.createdAt)} · {solicitud.operacion === 'compra' ? 'Compra' : 'Alquiler'}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {pendientes.length > 0 && (
+                  <optgroup label="Pendientes">
+                    {pendientes.map((solicitud) => (
+                      <option key={solicitud.id} value={solicitud.id}>
+                        {unir(solicitud.titular.nombre, solicitud.titular.apellido) || 'Sin titular'} · {solicitud.propiedad?.titulo || 'Propiedad'} · {fechaCorta(solicitud.createdAt)} · Pendiente
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+              </select>
+            </Campo>
+
+            {solicitudes.length === 0 && (
+              <p className="m-0 text-[13px] text-panel-suave">Todavía no hay solicitudes de alquiler o compra para usar.</p>
+            )}
+
+            {solicitudSeleccionada?.estado === 'pendiente' && (
+              <Alerta tono="aviso" titulo="La solicitud todavía está pendiente">
+                Se puede usar para precargar el contrato, pero conviene revisar los datos y confirmar la operación antes de guardarlo.
+              </Alerta>
+            )}
+
+            {resumenCarga && (
+              <Alerta
+                tono={resumenCarga.estado === 'aprobada' ? 'exito' : 'aviso'}
+                titulo={resumenCarga.estado === 'aprobada' ? 'Datos cargados de una solicitud aprobada' : 'Datos cargados de una solicitud pendiente'}
+              >
+                <p className="m-0">Se completaron: {resumenCarga.completados.join(', ')}.</p>
+                {resumenCarga.datosIlegibles && (
+                  <p className="m-0 mt-1">
+                    No pudimos leer los datos personales guardados en esta solicitud (puede ser una solicitud vieja). Se cargaron la propiedad, la operación y el dueño; completá el resto a mano.
+                  </p>
+                )}
+                {resumenCarga.pendientes.length > 0 && (
+                  <p className="m-0 mt-1">Quedaron para completar a mano: {resumenCarga.pendientes.join(', ')}. No hace falta que estén todos para guardar.</p>
+                )}
+                <p className="m-0 mt-1">Todos los campos siguen siendo editables.</p>
+              </Alerta>
+            )}
+          </div>
+        </Tarjeta>
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
         <div className="flex flex-col gap-6">
           <Tarjeta titulo="Partes y propiedad">
@@ -411,12 +802,19 @@ function GeneradorContrato() {
                   ))}
                 </select>
               </Campo>
-              <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-cli`} error={error('clienteNombre', 'Escribí el nombre del cliente.')}>
-                <input id={`${id}-cli`} type="text" value={datos.clienteNombre} aria-invalid={faltan.includes('clienteNombre')} onChange={(e) => cambiar('clienteNombre', e.target.value)} className={control} />
-              </Campo>
+
               <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta="Nombre del cliente *" htmlFor={`${id}-cli`} error={error('clienteNombre', 'Escribí el nombre del cliente.')}>
+                  <input id={`${id}-cli`} type="text" value={datos.clienteNombre} aria-invalid={faltan.includes('clienteNombre')} onChange={(e) => cambiar('clienteNombre', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Apellido del cliente" htmlFor={`${id}-cli-apellido`}>
+                  <input id={`${id}-cli-apellido`} type="text" value={datos.clienteApellido} onChange={(e) => cambiar('clienteApellido', e.target.value)} className={control} />
+                </Campo>
                 <Campo etiqueta="DNI *" htmlFor={`${id}-dni`} error={error('clienteDni', 'Escribí el DNI.')}>
                   <input id={`${id}-dni`} type="text" inputMode="numeric" value={datos.clienteDni} aria-invalid={faltan.includes('clienteDni')} onChange={(e) => cambiar('clienteDni', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="CUIL / CUIT" htmlFor={`${id}-cuil`} error={error('clienteCuil', 'Ingresá 11 números.')} ayuda="11 números, sin guiones.">
+                  <input id={`${id}-cuil`} type="text" inputMode="numeric" value={datos.clienteCuil} onChange={(e) => cambiar('clienteCuil', e.target.value)} className={control} />
                 </Campo>
                 <Campo etiqueta="Teléfono *" htmlFor={`${id}-tel`} error={error('clienteTelefono', 'Escribí el teléfono.')}>
                   <input id={`${id}-tel`} type="tel" value={datos.clienteTelefono} aria-invalid={faltan.includes('clienteTelefono')} onChange={(e) => cambiar('clienteTelefono', e.target.value)} placeholder="Ej.: 343 444 4444" className={control} />
@@ -424,35 +822,117 @@ function GeneradorContrato() {
                 <Campo etiqueta="Email" htmlFor={`${id}-mail`}>
                   <input id={`${id}-mail`} type="email" value={datos.clienteEmail} onChange={(e) => cambiar('clienteEmail', e.target.value)} className={control} />
                 </Campo>
+                <Campo etiqueta="Domicilio" htmlFor={`${id}-domicilio`} className="sm:col-span-2">
+                  <input id={`${id}-domicilio`} type="text" value={datos.clienteDomicilio} onChange={(e) => cambiar('clienteDomicilio', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Localidad" htmlFor={`${id}-localidad`}>
+                  <input id={`${id}-localidad`} type="text" value={datos.clienteLocalidad} onChange={(e) => cambiar('clienteLocalidad', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Provincia" htmlFor={`${id}-provincia`}>
+                  <input id={`${id}-provincia`} type="text" value={datos.clienteProvincia} onChange={(e) => cambiar('clienteProvincia', e.target.value)} className={control} />
+                </Campo>
               </div>
-              <Campo etiqueta={esVenta ? 'Propietario / vendedor' : 'Propietario / locador'} htmlFor={`${id}-locador`} ayuda="Si la propiedad tiene un propietario registrado, se completa automáticamente.">
-                <select
-                  id={`${id}-locador`}
-                  value={datos.locadoraUsuarioId}
-                  onChange={(e) => {
-                    const usuario = usuarios.find((item) => item.id === e.target.value);
-                    cambiar('locadoraUsuarioId', usuario?.id ?? '');
-                    if (usuario) {
-                      cambiar('locadora', usuario.nombre);
-                      cambiar('locadoraDni', usuario.dni);
-                    }
-                  }}
-                  className={control}
-                >
+            </div>
+          </Tarjeta>
+
+          <Tarjeta titulo={esVenta ? 'Propietario / vendedor' : 'Propietario / locador'} descripcion="Se completa desde la publicación o desde la propiedad. Podés corregirlo si actúa un apoderado.">
+            <div className="grid gap-4">
+              <Campo etiqueta="Perfil registrado" htmlFor={`${id}-locador-perfil`}>
+                <select id={`${id}-locador-perfil`} value={datos.propietarioUsuarioId} onChange={(e) => elegirPropietario(e.target.value)} className={control}>
                   <option value="">Carga manual</option>
                   {usuarios.map((usuario) => (
                     <option key={usuario.id} value={usuario.id}>{usuario.nombre} · DNI {usuario.dni}</option>
                   ))}
                 </select>
               </Campo>
-              <Campo etiqueta={esVenta ? 'Nombre del vendedor' : 'Nombre del locador'} htmlFor={`${id}-loc`} ayuda="Podés corregirlo si actúa un apoderado.">
-                <input id={`${id}-loc`} type="text" value={datos.locadora} onChange={(e) => cambiar('locadora', e.target.value)} className={control} />
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta={esVenta ? 'Nombre del vendedor' : 'Nombre del locador'} htmlFor={`${id}-loc`}>
+                  <input id={`${id}-loc`} type="text" value={datos.propietarioNombre} onChange={(e) => cambiar('propietarioNombre', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Apellido" htmlFor={`${id}-loc-apellido`}>
+                  <input id={`${id}-loc-apellido`} type="text" value={datos.propietarioApellido} onChange={(e) => cambiar('propietarioApellido', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="DNI" htmlFor={`${id}-loc-dni`} error={error('propietarioDni', 'Ingresá 7 u 8 números.')}>
+                  <input id={`${id}-loc-dni`} type="text" inputMode="numeric" value={datos.propietarioDni} onChange={(e) => cambiar('propietarioDni', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Teléfono" htmlFor={`${id}-loc-tel`}>
+                  <input id={`${id}-loc-tel`} type="tel" value={datos.propietarioTelefono} onChange={(e) => cambiar('propietarioTelefono', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Email" htmlFor={`${id}-loc-mail`}>
+                  <input id={`${id}-loc-mail`} type="email" value={datos.propietarioEmail} onChange={(e) => cambiar('propietarioEmail', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Domicilio" htmlFor={`${id}-loc-dom`} ayuda={datos.solicitudId && !datos.propietarioDomicilio ? 'La solicitud de publicación no trae el domicilio del dueño: completalo si hace falta.' : undefined}>
+                  <input id={`${id}-loc-dom`} type="text" value={datos.propietarioDomicilio} onChange={(e) => cambiar('propietarioDomicilio', e.target.value)} className={control} />
+                </Campo>
+              </div>
+            </div>
+          </Tarjeta>
+
+          <Tarjeta titulo="Cotitular (opcional)" descripcion="Si la solicitud tiene cotitular, se completa solo. Si no, podés dejarlo vacío.">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Campo etiqueta="Nombre" htmlFor={`${id}-coti-nombre`}>
+                <input id={`${id}-coti-nombre`} type="text" value={datos.cotitularNombre} onChange={(e) => cambiar('cotitularNombre', e.target.value)} className={control} />
               </Campo>
-              <Campo etiqueta="DNI del propietario" htmlFor={`${id}-loc-dni`}>
-                <input id={`${id}-loc-dni`} type="text" inputMode="numeric" value={datos.locadoraDni} onChange={(e) => cambiar('locadoraDni', e.target.value)} className={control} />
+              <Campo etiqueta="Apellido" htmlFor={`${id}-coti-apellido`}>
+                <input id={`${id}-coti-apellido`} type="text" value={datos.cotitularApellido} onChange={(e) => cambiar('cotitularApellido', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="DNI" htmlFor={`${id}-coti-dni`} error={error('cotitularDni', 'Ingresá 7 u 8 números.')}>
+                <input id={`${id}-coti-dni`} type="text" inputMode="numeric" value={datos.cotitularDni} onChange={(e) => cambiar('cotitularDni', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="CUIL / CUIT" htmlFor={`${id}-coti-cuil`} error={error('cotitularCuil', 'Ingresá 11 números.')}>
+                <input id={`${id}-coti-cuil`} type="text" inputMode="numeric" value={datos.cotitularCuil} onChange={(e) => cambiar('cotitularCuil', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Teléfono" htmlFor={`${id}-coti-tel`}>
+                <input id={`${id}-coti-tel`} type="tel" value={datos.cotitularTelefono} onChange={(e) => cambiar('cotitularTelefono', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Email" htmlFor={`${id}-coti-mail`}>
+                <input id={`${id}-coti-mail`} type="email" value={datos.cotitularEmail} onChange={(e) => cambiar('cotitularEmail', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Domicilio" htmlFor={`${id}-coti-dom`} className="sm:col-span-2">
+                <input id={`${id}-coti-dom`} type="text" value={datos.cotitularDomicilio} onChange={(e) => cambiar('cotitularDomicilio', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Localidad" htmlFor={`${id}-coti-loc`}>
+                <input id={`${id}-coti-loc`} type="text" value={datos.cotitularLocalidad} onChange={(e) => cambiar('cotitularLocalidad', e.target.value)} className={control} />
+              </Campo>
+              <Campo etiqueta="Provincia" htmlFor={`${id}-coti-prov`}>
+                <input id={`${id}-coti-prov`} type="text" value={datos.cotitularProvincia} onChange={(e) => cambiar('cotitularProvincia', e.target.value)} className={control} />
               </Campo>
             </div>
           </Tarjeta>
+
+          {!esVenta && (
+            <Tarjeta titulo="Garante (opcional)" descripcion="Viene de la garantía de la solicitud. Si es seguro de caución, podés dejarlo vacío.">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Campo etiqueta="Nombre" htmlFor={`${id}-gar-nombre`}>
+                  <input id={`${id}-gar-nombre`} type="text" value={datos.garanteNombre} onChange={(e) => cambiar('garanteNombre', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Apellido" htmlFor={`${id}-gar-apellido`}>
+                  <input id={`${id}-gar-apellido`} type="text" value={datos.garanteApellido} onChange={(e) => cambiar('garanteApellido', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="DNI" htmlFor={`${id}-gar-dni`} error={error('garanteDni', 'Ingresá 7 u 8 números.')}>
+                  <input id={`${id}-gar-dni`} type="text" inputMode="numeric" value={datos.garanteDni} onChange={(e) => cambiar('garanteDni', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="CUIL / CUIT" htmlFor={`${id}-gar-cuil`} error={error('garanteCuil', 'Ingresá 11 números.')}>
+                  <input id={`${id}-gar-cuil`} type="text" inputMode="numeric" value={datos.garanteCuil} onChange={(e) => cambiar('garanteCuil', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Teléfono" htmlFor={`${id}-gar-tel`}>
+                  <input id={`${id}-gar-tel`} type="tel" value={datos.garanteTelefono} onChange={(e) => cambiar('garanteTelefono', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Email" htmlFor={`${id}-gar-mail`}>
+                  <input id={`${id}-gar-mail`} type="email" value={datos.garanteEmail} onChange={(e) => cambiar('garanteEmail', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Domicilio" htmlFor={`${id}-gar-dom`} className="sm:col-span-2">
+                  <input id={`${id}-gar-dom`} type="text" value={datos.garanteDomicilio} onChange={(e) => cambiar('garanteDomicilio', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Localidad" htmlFor={`${id}-gar-loc`}>
+                  <input id={`${id}-gar-loc`} type="text" value={datos.garanteLocalidad} onChange={(e) => cambiar('garanteLocalidad', e.target.value)} className={control} />
+                </Campo>
+                <Campo etiqueta="Provincia" htmlFor={`${id}-gar-prov`}>
+                  <input id={`${id}-gar-prov`} type="text" value={datos.garanteProvincia} onChange={(e) => cambiar('garanteProvincia', e.target.value)} className={control} />
+                </Campo>
+              </div>
+            </Tarjeta>
+          )}
 
           <Tarjeta titulo="Condiciones">
             <div className="grid gap-4 sm:grid-cols-2">
@@ -501,6 +981,14 @@ function GeneradorContrato() {
                   ))}
                 </select>
               </Campo>
+              {!esVenta && datos.incluyeGarante && (
+                <Campo etiqueta="Tipo de garantía" htmlFor={`${id}-tipo-garantia`} ayuda="Según lo que haya presentado el cliente.">
+                  <select id={`${id}-tipo-garantia`} value={datos.tipoGarantia} onChange={(e) => cambiar('tipoGarantia', e.target.value as Datos['tipoGarantia'])} className={control}>
+                    <option value="propietaria">Garantía propietaria</option>
+                    <option value="caucion">Seguro de caución</option>
+                  </select>
+                </Campo>
+              )}
               {!esVenta && (
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-panel-borde p-3 sm:col-span-2">
                   <input type="checkbox" checked={datos.incluyeGarante} onChange={(e) => cambiar('incluyeGarante', e.target.checked)} className="h-4 w-4 accent-[var(--p-acento)]" />
@@ -535,8 +1023,9 @@ function GeneradorContrato() {
               <h2 className="m-0 mb-1 text-center text-[17px] font-bold uppercase tracking-[0.12em]">{tituloDocumento}</h2>
               {numero && <p className="m-0 mb-6 text-center text-[12.5px] text-slate-500">N.º {numero}</p>}
               <p>
-                Entre <Hueco valor={datos.locadora} texto={parteDuena} />, DNI <Hueco valor={datos.locadoraDni} texto="DNI" />, en adelante «LA {parteDuena.toUpperCase()}», y <Hueco valor={datos.clienteNombre} texto="cliente" />, DNI <Hueco valor={datos.clienteDni} texto="DNI" />, en adelante «LA {parteCliente.toUpperCase()}», se celebra el presente {esVenta ? 'boleto' : 'contrato'} sobre el inmueble ubicado en{' '}
-                <Hueco valor={domicilio} texto="propiedad" />, sujeto a las siguientes cláusulas:
+                Entre <Hueco valor={nombrePropietario} texto={parteDuena} />, DNI <Hueco valor={datos.propietarioDni} texto="DNI" />, con domicilio en <Hueco valor={datos.propietarioDomicilio} texto="domicilio del propietario" />, en adelante «LA {parteDuena.toUpperCase()}», y <Hueco valor={nombreCliente} texto="cliente" />, DNI <Hueco valor={datos.clienteDni} texto="DNI" />, CUIL/CUIT <Hueco valor={datos.clienteCuil} texto="CUIL" />, con domicilio en <Hueco valor={domicilioCliente} texto="domicilio del cliente" />, en adelante «LA {parteCliente.toUpperCase()}»
+                {nombreCotitular && <>, y <Hueco valor={nombreCotitular} texto="cotitular" />, DNI <Hueco valor={datos.cotitularDni} texto="DNI" />, en carácter de cotitular</>}, se celebra el presente {esVenta ? 'boleto' : 'contrato'} sobre el inmueble ubicado en{' '}
+                <Hueco valor={domicilioPropiedad} texto="propiedad" />, sujeto a las siguientes cláusulas:
               </p>
               {esVenta ? (
                 <>
@@ -573,7 +1062,13 @@ function GeneradorContrato() {
               )}
               {!esVenta && datos.incluyeGarante && (
                 <p>
-                  <strong>{datos.depositoGarantia ? 'CUARTA' : 'TERCERA'}:</strong> La parte locataria presenta garantía debidamente conformada; el fiador se constituye en principal pagador y responde solidariamente por todas las obligaciones de este contrato.
+                  <strong>{datos.depositoGarantia ? 'CUARTA' : 'TERCERA'}:</strong> La parte locataria presenta garantía {datos.tipoGarantia === 'caucion' ? 'de seguro de caución' : 'propietaria'}
+                  {datos.tipoGarantia === 'propietaria' && (
+                    <>
+                      {' '}a cargo de <Hueco valor={nombreGarante} texto="garante" />, DNI <Hueco valor={datos.garanteDni} texto="DNI" />, con domicilio en <Hueco valor={datos.garanteDomicilio} texto="domicilio del garante" />
+                    </>
+                  )}
+                  ; el fiador se constituye en principal pagador y responde solidariamente por todas las obligaciones de este contrato.
                 </p>
               )}
               <p>
@@ -590,15 +1085,32 @@ function GeneradorContrato() {
               <div className="mt-16 grid grid-cols-2 gap-10 text-center text-[13px]">
                 <div>
                   <div className="mb-2 border-t border-slate-400" />
-                  <span className="block font-semibold">{datos.locadora || ' '}</span>
-                  <span className="block text-slate-500">{datos.locadoraDni ? `DNI ${datos.locadoraDni}` : 'DNI pendiente'}</span>
+                  <span className="block font-semibold">{nombrePropietario || ' '}</span>
+                  <span className="block text-slate-500">{datos.propietarioDni ? `DNI ${datos.propietarioDni}` : 'DNI pendiente'}</span>
                   <span className="text-slate-500">{esVenta ? 'Parte vendedora' : 'Parte locadora'}</span>
                 </div>
                 <div>
                   <div className="mb-2 border-t border-slate-400" />
-                  <span className="block font-semibold">{datos.clienteNombre || ' '}</span>
+                  <span className="block font-semibold">{nombreCliente || ' '}</span>
+                  <span className="block text-slate-500">{datos.clienteDni ? `DNI ${datos.clienteDni}` : 'DNI pendiente'}</span>
                   <span className="text-slate-500">{esVenta ? 'Parte compradora' : 'Parte locataria'}</span>
                 </div>
+                {nombreCotitular && (
+                  <div>
+                    <div className="mb-2 border-t border-slate-400" />
+                    <span className="block font-semibold">{nombreCotitular}</span>
+                    <span className="block text-slate-500">{datos.cotitularDni ? `DNI ${datos.cotitularDni}` : 'DNI pendiente'}</span>
+                    <span className="text-slate-500">Cotitular</span>
+                  </div>
+                )}
+                {!esVenta && datos.incluyeGarante && datos.tipoGarantia === 'propietaria' && nombreGarante && (
+                  <div>
+                    <div className="mb-2 border-t border-slate-400" />
+                    <span className="block font-semibold">{nombreGarante}</span>
+                    <span className="block text-slate-500">{datos.garanteDni ? `DNI ${datos.garanteDni}` : 'DNI pendiente'}</span>
+                    <span className="text-slate-500">Garante</span>
+                  </div>
+                )}
               </div>
             </article>
           </div>

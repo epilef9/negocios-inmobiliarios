@@ -15,8 +15,6 @@ type Props = {
   encuadre: Encuadre;
   puntos: PuntoMapa[];
   activo: string | null;
-  // La tarjeta quedó abierta con un clic: el "+" se convierte en "−" para indicar que otro clic la cierra
-  fijo: boolean;
   onElegir: (id: string, posicion: Posicion, via: 'hover' | 'click') => void;
   onSalir: (id: string) => void;
   onFondo: () => void;
@@ -32,8 +30,7 @@ const ATRIBUCION = 'Imágenes © Esri, Maxar, Earthstar Geographics';
 const iconoPin = () =>
   L.divIcon({
     className: 'mapa-pin',
-    // El "+" son dos rayitas: al fijar la tarjeta la vertical gira y se acuesta, y queda un "−"
-    html: '<span class="mapa-pin-anillo" aria-hidden="true"></span><span class="mapa-pin-boton" aria-hidden="true"><i class="mapa-pin-raya"></i><i class="mapa-pin-raya mapa-pin-raya-v"></i></span>',
+    html: '<span class="mapa-pin-anillo" aria-hidden="true"></span><span class="mapa-pin-boton" aria-hidden="true">+</span>',
     iconSize: [44, 44],
     iconAnchor: [22, 22],
   });
@@ -41,7 +38,7 @@ const iconoPin = () =>
 const sinMovimiento = () =>
   typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-export default function MapaSatelital({ encuadre, puntos, activo, fijo, onElegir, onSalir, onFondo, onMoviendo, onPosicion }: Props) {
+export default function MapaSatelital({ encuadre, puntos, activo, onElegir, onSalir, onFondo, onMoviendo, onPosicion }: Props) {
   const contenedor = useRef<HTMLDivElement>(null);
   const mapa = useRef<L.Map | null>(null);
   const marcadores = useRef(new Map<string, L.Marker>());
@@ -150,10 +147,9 @@ export default function MapaSatelital({ encuadre, puntos, activo, fijo, onElegir
     activoRef.current = activo;
     for (const [id, marcador] of marcadores.current) {
       marcador.getElement()?.classList.toggle('es-activo', id === activo);
-      marcador.getElement()?.classList.toggle('es-fijo', id === activo && fijo);
     }
     avisos.current.onPosicion(posicionDe(activo));
-  }, [activo, fijo, puntos]);
+  }, [activo, puntos]);
 
   return <div ref={contenedor} className="mapa-satelital absolute inset-0" />;
 }

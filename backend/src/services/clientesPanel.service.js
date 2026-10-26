@@ -126,7 +126,8 @@ const panel = async () => {
         propiedades: propiedadesParaElegir,
         usuarios: usuarios.map((u) => ({
             id: String(u._id),
-            nombre: `${u.nombre || ''} ${u.apellido || ''}`.trim() || u.email,
+            nombre: u.nombre || '',
+            apellido: u.apellido || '',
             email: u.email,
             telefono: u.telefono || '',
             dni: u.dni || '',

@@ -10,6 +10,10 @@ const contratosController = require('../controllers/contratos.controller');
 // Obtener todos los contratos (acepta ?estado=activo|firmado|finalizado|cancelado|por_vencer|vencido|borrador)
 router.get('/', contratosController.getAllContratos);
 
+// Datos para precargar un contrato desde una solicitud (van antes de /:id)
+router.get('/solicitudes', contratosController.getSolicitudesParaContrato);
+router.get('/datos-de-solicitud/:id', contratosController.getDatosDeSolicitud);
+
 // Obtener un contrato específico
 router.get('/:id', contratosController.getContratoById);
 

@@ -54,6 +54,15 @@ exports.obtenerPorId = async (req, res) => {
     }
 };
 
+exports.obtenerDocumento = async (req, res) => {
+    try {
+        const documento = await solicitudPublicacionService.obtenerDocumento(req.params.nombre, req.user);
+        res.sendFile(documento);
+    } catch (error) {
+        res.status(error.statusCode || 404).json({ message: error.message || 'Documento no encontrado.' });
+    }
+};
+
 exports.aprobar = async (req, res) => {
     try {
         const resultado = await solicitudPublicacionService.aprobar(req.params.id, req.user._id);

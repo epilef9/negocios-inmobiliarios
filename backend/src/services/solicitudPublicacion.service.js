@@ -2,6 +2,7 @@ const SolicitudPublicacion = require('../models/solicitudPublicacion.model');
 const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
+const path = require('node:path');
 
 const REQUISITOS_PUBLICAR = [
     'pub-escritura',
@@ -111,6 +112,7 @@ const solicitudPublicacionService = {
         }
 
         return await SolicitudPublicacion.find(query)
+            .select('+documentos')
             .populate('cliente', 'nombre apellido email telefono dni')
             .populate('propiedadCreada', 'title price location')
             .sort({ createdAt: -1 });
@@ -118,6 +120,7 @@ const solicitudPublicacionService = {
 
     obtenerPorId: async (id, user) => {
         const solicitud = await SolicitudPublicacion.findById(id)
+            .select('+documentos')
             .populate('cliente', 'nombre apellido email telefono dni')
             .populate('propiedadCreada', 'title price location');
 
@@ -130,6 +133,25 @@ const solicitudPublicacionService = {
         }
 
         return solicitud;
+    },
+
+    obtenerDocumento: async (nombre, user) => {
+        const archivo = path.basename(String(nombre || ''));
+        if (!archivo || archivo !== nombre || !archivo.startsWith('documento-')) {
+            throw errorHttp('Documento no encontrado.', 404);
+        }
+        const campos = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
+        const solicitud = await SolicitudPublicacion.findOne({
+            $or: campos.flatMap((campo) => [
+                { [`documentos.${campo}`]: `privado:${archivo}` },
+                { [`documentos.${campo}`]: { $regex: `${archivo}$` } },
+            ]),
+        }).select('+documentos cliente');
+        if (!solicitud) throw errorHttp('Documento no encontrado.', 404);
+        if (user.role !== 'admin' && String(solicitud.cliente) !== String(user._id)) {
+            throw errorHttp('No tenés permiso para ver este documento.', 403);
+        }
+        return path.resolve(__dirname, '../../uploads', archivo);
     },
 
     aprobar: async (id) => {
@@ -171,9 +193,13 @@ const solicitudPublicacionService = {
             otrasComodidades: solicitud.otrasComodidades || '',
             images: solicitud.fotos && solicitud.fotos.length ? solicitud.fotos : [],
             estado: 'disponible',
+            // Vínculo con la solicitud de publicación: los contratos sacan de ahí los datos del dueño.
+            publicacion: solicitud._id,
             propietario: {
                 usuario: solicitud.cliente?._id || solicitud.cliente,
                 nombre: `${solicitud.contacto?.nombre || ''} ${solicitud.contacto?.apellido || ''}`.trim() || 'Propietario',
+                apellido: solicitud.contacto?.apellido || '',
+                dni: solicitud.contacto?.dni || '',
                 email: solicitud.contacto?.email || '',
                 telefono: solicitud.contacto?.telefono || '',
             },

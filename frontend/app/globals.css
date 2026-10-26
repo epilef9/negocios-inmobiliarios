@@ -428,14 +428,6 @@ html.dark .panel {
 .mapa-pin.es-activo .mapa-pin-boton { background: #e3141b; color: #fff; transform: scale(1.15); }
 .mapa-pin:focus-visible .mapa-pin-boton { box-shadow: 0 0 0 3px #071733, 0 0 0 5px #efe9df; }
 .mapa-pin.es-activo .mapa-pin-anillo { border-color: #e3141b; }
-/* Rayitas del "+": con la tarjeta fijada, la vertical gira hasta acostarse y queda un "−" */
-.mapa-pin-raya {
-  position: absolute; left: 50%; top: 50%; width: 12px; height: 1.6px; margin: -0.8px 0 0 -6px;
-  border-radius: 2px; background: currentColor;
-  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.mapa-pin-raya-v { transform: rotate(90deg); }
-.mapa-pin.es-fijo .mapa-pin-raya-v { transform: rotate(180deg); }
 @keyframes mapa-latido {
   from { transform: scale(0.75); opacity: 0.9; }
   to { transform: scale(1.45); opacity: 0; }
@@ -453,7 +445,6 @@ html.dark .panel {
 }
 @media (prefers-reduced-motion: reduce) {
   .mapa-pin-anillo, .mapa-zona-nombre, .mapa-tarjeta { animation: none; }
-  .mapa-pin-raya { transition: none; }
   .mapa-pin-anillo { opacity: 0.6; }
 }
 

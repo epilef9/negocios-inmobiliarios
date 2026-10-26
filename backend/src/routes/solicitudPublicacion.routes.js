@@ -42,8 +42,15 @@ const upload = multer({
 });
 
 const DOCUMENTOS_PERMITIDOS = { ...TIPOS_PERMITIDOS, 'application/pdf': '.pdf' };
+const almacenamientoDocumentos = multer.diskStorage({
+    destination: uploadsDirectory,
+    filename: (_req, file, callback) => {
+        const extension = DOCUMENTOS_PERMITIDOS[file.mimetype] || '.bin';
+        callback(null, `documento-${Date.now()}-${Math.random().toString(36).slice(2)}${extension}`);
+    },
+});
 const uploadDocumentos = multer({
-    storage: usaCloudinary() ? multer.memoryStorage() : almacenamientoLocal,
+    storage: almacenamientoDocumentos,
     limits: { fileSize: 10 * 1024 * 1024, files: 5 },
     fileFilter: (_req, file, callback) => {
         if (!DOCUMENTOS_PERMITIDOS[file.mimetype]) {
@@ -102,17 +109,13 @@ router.post('/documentos', authMiddleware, frenos.uploads, (req, res, next) => {
         }
         try {
             const archivos = req.files || [];
-            if (usaCloudinary()) {
-                const urls = [];
-                for (const archivo of archivos) urls.push(await subirACloudinary(archivo.buffer, archivo.mimetype, archivo.originalname));
-                return res.status(201).json({ data: urls });
-            }
-            const baseUrl = `${req.protocol}://${req.get('host')}`;
-            return res.status(201).json({ data: archivos.map((file) => `${baseUrl}/uploads/${file.filename}`) });
+            return res.status(201).json({ data: archivos.map((file) => `privado:${file.filename}`) });
         } catch (errorSubida) {
             return res.status(errorSubida.statusCode || 502).json({ message: errorSubida.message });
         }
     });
+
+    router.get('/documentos/:nombre', authMiddleware, solicitudPublicacionController.obtenerDocumento);
 });
 
 // Rutas de cliente (requiere estar autenticado)

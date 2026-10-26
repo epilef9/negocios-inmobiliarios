@@ -35,8 +35,6 @@ export default function Navbar() {
           <div className="hidden lg:flex space-x-8 items-center">
             <Link href="/" className="text-white/80 hover:text-white font-medium transition-colors">Inicio</Link>
             <Link href="/propiedades" className="text-white/80 hover:text-white font-medium transition-colors">Propiedades</Link>
-            <Link href="/publicar" className="text-white/80 hover:text-white font-medium transition-colors">Publicar</Link>
-            <Link href="/requisitos" className="text-white/80 hover:text-white font-medium transition-colors">Requisitos</Link>
             <Link href="/contacto" className="text-white/80 hover:text-white font-medium transition-colors">Contacto</Link>
             
             {isLoading ? (
@@ -109,8 +107,6 @@ export default function Navbar() {
           <div className="px-4 pt-4 pb-6 space-y-3">
             <Link href="/" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Inicio</Link>
             <Link href="/propiedades" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Propiedades</Link>
-            <Link href="/publicar" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Publicar</Link>
-            <Link href="/requisitos" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Requisitos</Link>
             <Link href="/contacto" className="block px-3 py-2 text-white/80 hover:text-white hover:bg-white/10 font-medium rounded-md transition-colors">Contacto</Link>
             
             {isLoading ? (
