@@ -1,4 +1,5 @@
 const disponibilidadService = require('../services/disponibilidad.service');
+const reservasService = require('../services/reservas.service');
 
 // Los errores esperados (id inválido, rango que se pisa…) traen su código; el resto es un 500
 const responderError = (res, error, mensaje) => {
@@ -7,10 +8,14 @@ const responderError = (res, error, mensaje) => {
     return res.status(500).json({ message: mensaje });
 };
 
-// Público: noches ocupadas, estadía mínima y precio por noche (sin datos internos)
+// Público: noches ocupadas, estadía mínima y precio por noche (sin datos internos).
+// De paso marca como vencidas las reservas de esta propiedad que pasaron su plazo (no hay cron).
 exports.getDisponibilidad = async (req, res) => {
     try {
-        return res.status(200).json({ data: await disponibilidadService.disponibilidadPublica(req.params.propiedadId) });
+        await reservasService.barrerVencidas({ propiedad: req.params.propiedadId });
+        const datos = await disponibilidadService.disponibilidadPublica(req.params.propiedadId);
+        // Para que la ficha le diga al cliente cuánto tarda la confirmación
+        return res.status(200).json({ data: { ...datos, plazoConfirmacionHoras: reservasService.plazoHoras() } });
     } catch (error) {
         return responderError(res, error, 'No se pudo consultar la disponibilidad');
     }
@@ -18,6 +23,7 @@ exports.getDisponibilidad = async (req, res) => {
 
 exports.getRangos = async (req, res) => {
     try {
+        await reservasService.barrerVencidas({ propiedad: req.params.propiedadId });
         return res.status(200).json({ data: await disponibilidadService.listarRangos(req.params.propiedadId) });
     } catch (error) {
         return responderError(res, error, 'No se pudieron obtener los rangos');
