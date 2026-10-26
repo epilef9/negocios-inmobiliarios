@@ -465,3 +465,50 @@ html.dark .panel {
 @media (prefers-reduced-motion: reduce) {
   .filtro-chip, .filtro-limpiar { animation: none; }
 }
+
+/* ===== Barra superior de vidrio esmerilado ===== */
+/* El vidrio va en un ::before que se desvanece hacia abajo (mask), así no se nota el borde del recuadro:
+   la foto se ve desenfocada arriba y nítida otra vez a medida que baja. Una luz clara detrás del logo
+   hace que el rojo y el azul se lean; hacia los costados el vidrio es casi transparente. */
+.barra-vidrio {
+  text-shadow: 0 1px 12px rgba(7, 23, 51, 0.5);
+  translate: 0 0;
+  opacity: 1;
+  /* Al volver: entra deslizándose y aparece en 0,7 s, frenando al final */
+  transition:
+    translate 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    opacity 0.55s ease-out;
+}
+.barra-vidrio::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -28px 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 340px 100px at 50% 45%, rgba(250, 247, 242, 0.38), rgba(250, 247, 242, 0) 100%),
+    linear-gradient(to bottom, rgba(7, 23, 51, 0.1), rgba(7, 23, 51, 0));
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  transition: background-color 0.6s ease;
+}
+/* Al bajar por la página el vidrio se oscurece apenas para que el texto se lea sobre partes claras */
+.barra-vidrio.con-fondo::before { background-color: rgba(7, 23, 51, 0.18); }
+/* Al irse: sube y se desvanece un poco más rápido, acelerando de a poco */
+.barra-vidrio.es-oculta {
+  translate: 0 -100%;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    translate 0.55s cubic-bezier(0.55, 0, 0.75, 0.3),
+    opacity 0.45s ease-in 0.08s;
+}
+/* Si el navegador no desenfoca, el vidrio va más oscuro para que se lean los textos */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .barra-vidrio::before { background-color: rgba(7, 23, 51, 0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-vidrio, .barra-vidrio.es-oculta { transition: opacity 0.2s linear; translate: 0 0; }
+}

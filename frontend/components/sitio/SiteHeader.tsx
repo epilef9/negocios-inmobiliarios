@@ -14,7 +14,9 @@ const enlaces = [
   { href: '/contacto', texto: 'Contacto' },
 ];
 
-// Barra del sitio: se esconde al bajar, vuelve al subir y toma fondo al dejar el inicio de la página
+// Barra del sitio de vidrio esmerilado: transparente y desenfocada, deja ver la foto de atrás, con una luz
+// suave detrás del logo para que se lea con sus colores originales. Al bajar se desliza hacia arriba y se
+// desvanece; al subir vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
 export default function SiteHeader() {
   const { user, isLoading, logout } = useAuth();
   const ruta = usePathname();
@@ -61,11 +63,11 @@ export default function SiteHeader() {
 
   return (
     <header
-      className={`calma-micro fixed inset-x-0 top-0 z-50 text-[#efe9df] transition-[transform,background-color] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
-        oculta && !menuAbierto ? '-translate-y-full' : 'translate-y-0'
-      } ${conFondo || menuAbierto ? 'bg-[#071733]/92 backdrop-blur-md' : 'bg-transparent'}`}
+      className={`barra-vidrio calma-micro fixed inset-x-0 top-0 z-50 text-[#efe9df] ${oculta && !menuAbierto ? 'es-oculta' : ''} ${
+        conFondo || menuAbierto ? 'con-fondo' : ''
+      }`}
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-5 sm:px-10">
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-2.5 sm:px-10">
         <nav aria-label="Principal" className="hidden gap-7 lg:flex">
           {enlaces.map((enlace) => (
             <Link key={enlace.href} href={enlace.href} className="calma-link calma-link-sutil">
@@ -84,9 +86,8 @@ export default function SiteHeader() {
         </button>
 
         <Link href="/" aria-label="Ir al inicio" className="flex items-center">
-          {/* En una sola línea solo si entra al lado de los enlaces; si no, la versión de dos renglones */}
-          <LogoEmpresa className="h-11 w-auto lg:h-12 min-[1536px]:hidden" prioridad />
-          <LogoEmpresa version="linea" className="hidden h-10 w-auto min-[1536px]:block min-[1800px]:h-11" prioridad />
+          {/* Logo original: ARACELI BALBUENA arriba, línea azul y NEGOCIOS INMOBILIARIOS abajo */}
+          <LogoEmpresa className="h-12 w-auto sm:h-14 lg:h-16" prioridad />
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">
@@ -99,7 +100,7 @@ export default function SiteHeader() {
       </div>
 
       {menuAbierto && (
-        <nav id="menu-movil" aria-label="Menú" className="flex flex-col gap-6 border-t border-[#efe9df]/15 px-5 pb-8 pt-6 lg:hidden">
+        <nav id="menu-movil" aria-label="Menú" className="flex flex-col gap-6 border-t border-white/15 px-5 pb-8 pt-6 lg:hidden">
           {enlaces.map((enlace) => (
             <Link key={enlace.href} href={enlace.href} onClick={() => setMenuAbierto(false)} className="font-display text-3xl normal-case tracking-normal">
               {enlace.texto}
