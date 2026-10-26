@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '@/services/api';
 import { conSesion } from '@/services/sesion';
-import { actualizarArchivadoSolicitud, actualizarEstadoSolicitud, agregarComentarioSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
+import { EVENTO_SOLICITUDES, actualizarArchivadoSolicitud, actualizarEstadoSolicitud, agregarComentarioSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, Dialogo, Encabezado, EstadoVacio, Insignia, Tarjeta, useAviso } from '@/components/panel/ui';
 
@@ -11,6 +11,8 @@ const estadoTono: Record<string, 'aviso' | 'exito' | 'peligro' | 'neutro'> = {
   pendiente: 'aviso',
   aprobada: 'exito',
   rechazada: 'peligro',
+  vencida: 'neutro',
+  cerrada: 'neutro',
 };
 
 const formatoFecha = (valor: string | undefined) => {
@@ -143,7 +145,7 @@ function ImagenPropiedad({ src, alt, className = '' }: { src?: string | null; al
   return <img src={src} alt={alt} onError={() => setUrlFallida(src)} className={className} />;
 }
 
-const etiquetaEstado = (estado: string) => estado === 'aprobada' ? 'Aprobada' : estado === 'rechazada' ? 'Rechazada' : 'Pendiente';
+const etiquetaEstado = (estado: string) => estado === 'aprobada' ? 'Aprobada' : estado === 'rechazada' ? 'Rechazada' : estado === 'vencida' ? 'Vencida' : estado === 'cerrada' ? 'Cerrada' : 'Pendiente';
 
 const nombreDocumentoPresentado = (documentos: DocumentoSolicitud[], indice: number) => {
   const documento = documentos[indice];
@@ -159,7 +161,7 @@ export default function SolicitudesAdminPage() {
   const [error, setError] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
   const [tipo, setTipo] = useState<'todas' | 'alquiler' | 'compra'>('todas');
-  const [estado, setEstado] = useState<'todas' | 'pendiente' | 'aprobada' | 'rechazada'>('todas');
+  const [estado, setEstado] = useState<'todas' | EstadoSolicitud>('todas');
   const [orden, setOrden] = useState<'recientes' | 'antiguos'>('recientes');
   const [pestana, setPestana] = useState<'activas' | 'historial'>('activas');
   const [verArchivadas, setVerArchivadas] = useState(false);
@@ -201,7 +203,7 @@ export default function SolicitudesAdminPage() {
   const solicitudesPestana = useMemo(() => solicitudes.filter((solicitud) => {
     if (pestana === 'activas') return !solicitud.archivada && solicitud.estado === 'pendiente';
     if (verArchivadas) return solicitud.archivada === true;
-    return !solicitud.archivada && ['aprobada', 'rechazada'].includes(solicitud.estado);
+    return !solicitud.archivada && ['aprobada', 'rechazada', 'vencida', 'cerrada'].includes(solicitud.estado);
   }), [pestana, solicitudes, verArchivadas]);
 
   const visibles = useMemo(() => {
@@ -324,6 +326,7 @@ export default function SolicitudesAdminPage() {
       };
       setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
       setSeleccionada(solicitudActualizada);
+      window.dispatchEvent(new Event(EVENTO_SOLICITUDES));
       setComentarioEstado('');
       setEstadoEsperandoComentario(null);
       setReutilizarComentarioEstado(false);
@@ -339,6 +342,7 @@ export default function SolicitudesAdminPage() {
         setMensajeAccion(mensaje);
         mostrar(mensaje);
         if (nuevoEstado === 'rechazada') cambiarPestana('historial');
+        if (nuevoEstado === 'pendiente') cambiarPestana('activas');
       }
     } catch (e) {
       mostrar(e instanceof Error ? e.message : 'No se pudo actualizar el estado de la solicitud.', 'peligro');
@@ -371,6 +375,7 @@ export default function SolicitudesAdminPage() {
       };
       setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
       setSeleccionada(solicitudActualizada);
+      window.dispatchEvent(new Event(EVENTO_SOLICITUDES));
       setComentarioEstado('');
       setEstadoEsperandoComentario(null);
       setMensajeAccion(null);
@@ -468,7 +473,7 @@ export default function SolicitudesAdminPage() {
                 className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${pestana === 'historial' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
               >
                 Historial
-                <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && ['aprobada', 'rechazada'].includes(item.estado)).length}</span>
+                <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && ['aprobada', 'rechazada', 'vencida', 'cerrada'].includes(item.estado)).length}</span>
               </button>
               {pestana === 'historial' && (
                 <div className="ml-auto flex rounded-lg border border-panel-borde bg-panel-hundido/50 p-1" aria-label="Filtro de archivado">
@@ -519,6 +524,8 @@ export default function SolicitudesAdminPage() {
                   {(pestana === 'activas' || verArchivadas) && <option value="pendiente">Pendiente</option>}
                   {(pestana === 'historial' || verArchivadas) && <option value="aprobada">Aprobada</option>}
                   {(pestana === 'historial' || verArchivadas) && <option value="rechazada">Rechazada</option>}
+                  {(pestana === 'historial' || verArchivadas) && <option value="vencida">Vencida</option>}
+                  {(pestana === 'historial' || verArchivadas) && <option value="cerrada">Cerrada</option>}
                 </select>
               </label>
 
@@ -748,11 +755,13 @@ export default function SolicitudesAdminPage() {
                         <textarea
                           value={comentarioEstado}
                           onChange={(event) => setComentarioEstado(event.target.value)}
-                          maxLength={1000}
+                          maxLength={500}
                           rows={3}
                           placeholder="Escribí el comentario que querés guardar"
-                          className="w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
+                          aria-describedby="contador-comentario"
+                          className="min-w-0 w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
                         />
+                        <span id="contador-comentario" className="block text-right text-[12px] text-panel-tenue">{comentarioEstado.length}/500</span>
                       </label>
                       <p className="m-0 text-[12px] text-panel-tenue">
                         Guardar comentario lo agrega al historial sin cambiar el estado actual. El comentario es obligatorio para mantener pendiente o rechazar.
@@ -780,7 +789,7 @@ export default function SolicitudesAdminPage() {
                     {estadoEsperandoComentario && ultimoComentarioGuardado && (
                       <Alerta tono="aviso" titulo="No escribiste un comentario nuevo">
                         ¿Querés asociar el último comentario guardado a este cambio de estado?
-                        <p className="my-2 whitespace-pre-wrap break-words text-[13px] text-panel-texto">
+                        <p className="my-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13px] text-panel-texto">
                           “{ultimoComentarioGuardado.comentario}”
                         </p>
                         <div className="flex flex-wrap gap-2">
@@ -842,7 +851,7 @@ export default function SolicitudesAdminPage() {
                           disabled={actualizandoEstado || guardandoComentario}
                           cargando={actualizandoEstado}
                         >
-                          Mantener pendiente
+                          {seleccionada.estado === 'vencida' || seleccionada.estado === 'cerrada' ? 'Reactivar solicitud' : 'Mantener pendiente'}
                         </Boton>
                         <Boton onClick={() => setConfirmandoAprobacion(true)} variante="principal" disabled={actualizandoEstado || guardandoComentario || seleccionada.estado === 'aprobada'}>
                           {seleccionada.estado === 'aprobada' ? 'Ya aprobada' : 'Aprobar'}
@@ -865,7 +874,7 @@ export default function SolicitudesAdminPage() {
                               <p className="m-0 text-[13px] font-medium text-panel-texto">
                                 {etiquetaEstado(cambio.estado)} · {formatoFecha(cambio.fecha)}
                               </p>
-                              {cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[13px] text-panel-suave">{cambio.comentario}</p>}
+                              {cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13px] text-panel-suave">{cambio.comentario}</p>}
                               {cambio.comentarioReferenciaIndice !== undefined && (
                                 <p className="m-0 mt-1 text-[13px] text-panel-suave">
                                   Se reutilizó el comentario guardado el {formatoFecha(seleccionada.historialEstados?.[cambio.comentarioReferenciaIndice]?.fecha)}.

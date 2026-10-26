@@ -32,7 +32,9 @@ export interface VisitaFiltros {
   search?: string;
 }
 
-function normalizeVisita(raw: any): Visita {
+type VisitaCruda = Omit<Partial<Visita>, 'cliente' | 'propiedad'> & { cliente?: Partial<Visita['cliente']>; propiedad?: Partial<Visita['propiedad']> };
+
+function normalizeVisita(raw: VisitaCruda): Visita {
   const id = raw.id || raw._id || '';
   const iniciales =
     raw.cliente?.iniciales ||
@@ -86,7 +88,7 @@ export async function getVisitas(filtros: VisitaFiltros = {}): Promise<Visita[]>
 
   const query = params.toString() ? `?${params.toString()}` : '';
   try {
-    const data = await request<any[]>(`/visitas${query}`);
+    const data = await request<VisitaCruda[]>(`/visitas${query}`);
     return Array.isArray(data) ? data.map(normalizeVisita) : [];
   } catch (error) {
     if (error instanceof Error && error.message === 'Not Found') {
@@ -100,7 +102,7 @@ export async function getVisitas(filtros: VisitaFiltros = {}): Promise<Visita[]>
  * Obtiene una visita específica por su ID
  */
 export async function getVisitaById(id: string): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}`);
+  const data = await request<VisitaCruda>(`/visitas/${id}`);
   return normalizeVisita(data);
 }
 
@@ -108,7 +110,7 @@ export async function getVisitaById(id: string): Promise<Visita> {
  * Crea una nueva visita en la base de datos
  */
 export async function createVisita(nueva: Omit<Visita, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Visita> {
-  const data = await request<any>('/visitas', {
+  const data = await request<VisitaCruda>('/visitas', {
     method: 'POST',
     body: JSON.stringify(nueva),
   });
@@ -119,7 +121,7 @@ export async function createVisita(nueva: Omit<Visita, 'id' | '_id' | 'createdAt
  * Actualiza una visita existente
  */
 export async function updateVisita(id: string, actualizacion: Partial<Visita>): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}`, {
+  const data = await request<VisitaCruda>(`/visitas/${id}`, {
     method: 'PUT',
     body: JSON.stringify(actualizacion),
   });
@@ -134,7 +136,7 @@ export async function updateVisitaEstado(
   estado: EstadoVisita,
   extra?: { nuevaFecha?: string; nuevoHorario?: string; motivo?: string }
 ): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}/estado`, {
+  const data = await request<VisitaCruda>(`/visitas/${id}/estado`, {
     method: 'PATCH',
     body: JSON.stringify({
       estado,
@@ -159,7 +161,7 @@ export async function deleteVisita(id: string): Promise<void> {
  * Restablece las visitas en la base de datos con los datos de ejemplo iniciales
  */
 export async function resetVisitasToDefault(): Promise<Visita[]> {
-  const data = await request<any[]>('/visitas/reset', {
+  const data = await request<VisitaCruda[]>('/visitas/reset', {
     method: 'POST',
   });
   return Array.isArray(data) ? data.map(normalizeVisita) : [];

@@ -12,6 +12,140 @@ const solicitudesController = require('../src/controllers/solicitudes.controller
 const authMiddleware = require('../src/middlewares/auth.middleware');
 const solicitudesRouter = require('../src/routes/solicitudes.routes');
 
+test('vence exactamente a los 60 días sin respuesta; las resueltas no vencen', () => {
+    const createdAt = new Date('2026-01-01T12:00:00Z');
+    const limite = new Date(createdAt.getTime() + ciclo.DIAS_VENCIMIENTO_SOLICITUD * 86400000);
+    const pendiente = { estado: 'pendiente', createdAt, historialEstados: [] };
+    assert.equal(ciclo.cambioAutomatico(pendiente, {}, new Date(limite.getTime() - 1)), null);
+    assert.equal(ciclo.cambioAutomatico(pendiente, {}, limite).estado, 'vencida');
+    for (const estado of ['aprobada', 'rechazada', 'cerrada', 'vencida']) {
+        assert.equal(ciclo.cambioAutomatico({ ...pendiente, estado }, {}, limite), null);
+    }
+    assert.equal(ciclo.cambioAutomatico({ ...pendiente, historialEstados: [{ comentario: 'En revisión', fecha: new Date('2026-01-02') }] }, {}, limite), null);
+    assert.equal(ciclo.cambioAutomatico({ ...pendiente, reactivadaAt: limite }, {}, limite), null);
+});
+
+test('vendido y alquilado cierran pendientes, incluso si también vencerían', () => {
+    for (const estado of ['vendido', 'alquilado']) {
+        const cambio = ciclo.cambioAutomatico({ estado: 'pendiente', createdAt: new Date('2020-01-01') }, { estado });
+        assert.equal(cambio.estado, 'cerrada');
+        assert.equal(cambio.comentario, 'La propiedad ya no está disponible');
+        assert.equal(ciclo.cambioAutomatico({ estado: 'aprobada' }, { estado }), null);
+    }
+});
+
+test('cliente: oculta mensajes de más de 90 días, referencias duplicadas y datos internos', () => {
+    const ahora = new Date();
+    const reciente = new Date(ahora.getTime() - 86400000);
+    const solicitud = { _id: 'id', estado: 'pendiente', datosCifrados: 'secreto', archivadaPor: 'admin',
+        comentarioEstado: 'mensaje viejo', historialEstados: [
+            { estado: 'pendiente', comentario: 'mensaje viejo', fecha: new Date(ahora.getTime() - 91 * 86400000), administradoPor: 'admin' },
+            { estado: 'pendiente', comentario: 'mensaje actual', fecha: reciente, administradoPor: 'admin' },
+            { estado: 'rechazada', comentario: '', comentarioReferenciaIndice: 1, fecha: ahora, administradoPor: 'admin' },
+        ] };
+    const resultado = solicitudesService.infoCliente(solicitud);
+    assert.equal(resultado.comentarioEstado, 'mensaje actual');
+    assert.equal(resultado.comentarioFecha, reciente);
+    assert.equal(resultado.historialEstados.length, 1);
+    assert.equal(JSON.stringify(resultado).includes('administradoPor'), false);
+    assert.equal(JSON.stringify(resultado).includes('datosCifrados'), false);
+    assert.equal(JSON.stringify(resultado).includes('archivadaPor'), false);
+    assert.equal(solicitud.historialEstados.length, 3, 'el panel conserva todo el historial');
+    assert.equal(solicitudesService.infoCliente({ ...solicitud, historialEstados: [solicitud.historialEstados[0]] }).comentarioEstado, '');
+});
+
+test('controller y modelo rechazan 501 caracteres y aceptan 500, incluidos links largos', async () => {
+    const id = new mongoose.Types.ObjectId().toString();
+    const largo = 'https://ejemplo.com/' + 'a'.repeat(480);
+    assert.equal(largo.length, 500);
+    const datos = { usuario: id, propiedad: id, operacion: 'compra', datosCifrados: 'cifrado', claveIdempotencia: crypto.randomUUID(), comentarioEstado: largo,
+        historialEstados: [{ estado: 'pendiente', comentario: largo, administradoPor: id }] };
+    assert.equal(new Solicitud(datos).validateSync(), undefined);
+    assert.ok(new Solicitud({ ...datos, comentarioEstado: largo + 'a' }).validateSync().errors.comentarioEstado);
+    assert.ok(new Solicitud({ ...datos, historialEstados: [{ estado: 'pendiente', comentario: 'a'.repeat(501) }] }).validateSync());
+    for (const controlador of [solicitudesController.agregarComentario, solicitudesController.actualizarEstado]) {
+        const res = { status(n) { this.codigo = n; return this; }, json(body) { this.body = body; return this; } };
+        await controlador({ params: { id }, body: { estado: 'pendiente', comentario: 'a'.repeat(501) } }, res);
+        assert.equal(res.codigo, 400);
+        assert.match(res.body.message, /500/);
+    }
+    await assert.rejects(solicitudesService.agregarComentario({ comentario: 'a'.repeat(501) }), /500/);
+});
+
+test('sincronizar guarda cierre una sola vez y envía un aviso, sin base real', async (t) => {
+    const solicitud = { _id: 'prueba', usuario: 'usuario', estado: 'pendiente', createdAt: new Date(), historialEstados: [], propiedad: 'propiedad' };
+    let guardada;
+    t.mock.method(Solicitud, 'findOneAndUpdate', (filtro, cambios) => {
+        assert.equal(filtro.estado, 'pendiente');
+        guardada = { ...solicitud, ...cambios.$set, historialEstados: [cambios.$push.historialEstados] };
+        return { select() { return this; }, lean: async () => guardada };
+    });
+    const antes = emailService.avisarEstadoSolicitud.mock.callCount();
+    const cerrada = await ciclo.sincronizarSolicitud(solicitud, { estado: 'vendido' });
+    assert.equal(cerrada.estado, 'cerrada');
+    assert.equal(cerrada.historialEstados[0].automatico, true);
+    await ciclo.sincronizarSolicitud(cerrada, { estado: 'vendido' });
+    assert.equal(emailService.avisarEstadoSolicitud.mock.callCount(), antes + 1);
+    assert.equal(emailService.avisarEstadoSolicitud.mock.calls.at(-1).arguments[0].mensaje, 'La propiedad ya no está disponible');
+});
+
+test('no se crean solicitudes sobre propiedades vendidas ni alquiladas', async (t) => {
+    t.mock.method(Solicitud, 'findOne', async () => null);
+    for (const estado of ['vendido', 'alquilado']) {
+        const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', estado, categoria_operacion: 'venta' }) }));
+        await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'compra' }), (error) => error.statusCode === 409);
+        consulta.mock.restore();
+    }
+});
+
+test('el servicio de propiedades dispara el cierre al guardar vendido', async (t) => {
+    const repositorio = require('../src/repositories/properties.repository');
+    const servicio = require('../src/services/properties.service');
+    const propiedad = { _id: 'prueba', estado: 'vendido' };
+    t.mock.method(repositorio, 'updateProperty', async () => propiedad);
+    const cierre = t.mock.method(ciclo, 'cerrarPorPropiedad', async () => {});
+    await servicio.updateProperty('prueba', { estado: 'vendido' });
+    assert.deepEqual(cierre.mock.calls[0].arguments, [propiedad]);
+});
+
+test('documentos individuales: valida propietario, lote, tipo, duplicados y vencimiento', async () => {
+    const servicio = require('../src/services/solicitudes-documentos.service');
+    const id = new mongoose.Types.ObjectId();
+    const clave = crypto.randomUUID();
+    const originalDb = mongoose.connection.db;
+    let metadata = { usuario: 'cliente', tipo: 'dniTitularFrente', clave, tamano: 12, mimeType: 'application/pdf', temporalHasta: new Date(Date.now() + 60000) };
+    mongoose.connection.db = { collection: () => ({ find: () => ({ toArray: async () => [{ _id: id, metadata }] }) }) };
+    const refs = [{ id: String(id), tipo: 'dniTitularFrente' }];
+    try {
+        const archivos = await servicio.resolver(refs, 'cliente', clave);
+        assert.equal(archivos.dniTitularFrente[0].size, 12);
+        await assert.rejects(servicio.resolver(refs, 'otro-cliente', clave), /no pertenece/);
+        await assert.rejects(servicio.resolver(refs, 'cliente', crypto.randomUUID()), /no pertenece/);
+        await assert.rejects(servicio.resolver([{ ...refs[0], tipo: 'domicilio' }], 'cliente', clave), /no pertenece/);
+        await assert.rejects(servicio.resolver([...refs, ...refs], 'cliente', clave), /repetidos/);
+        metadata = { ...metadata, temporalHasta: new Date(0) };
+        await assert.rejects(servicio.resolver(refs, 'cliente', clave), /venció/);
+    } finally { mongoose.connection.db = originalDb; }
+});
+
+test('documentos individuales: no permite asociar un archivo ya reclamado', async () => {
+    const servicio = require('../src/services/solicitudes-documentos.service');
+    const originalDb = mongoose.connection.db;
+    mongoose.connection.db = { collection: () => ({ updateOne: async () => ({ modifiedCount: 0 }) }) };
+    try {
+        await assert.rejects(servicio.vincular([{ fileId: new mongoose.Types.ObjectId(), tipo: 'domicilio' }], { _id: 's', usuario: 'u', claveIdempotencia: 'c' }, {}), /ya se usó/);
+    } finally { mongoose.connection.db = originalDb; }
+});
+
+// Ninguna prueba envía correos ni consulta usuarios reales.
+const ciclo = require('../src/services/solicitudes-ciclo.service');
+const User = require('../src/models/user.model');
+const emailService = require('../src/services/email.service');
+const { mock, after } = require('node:test');
+mock.method(User, 'findById', () => ({ select() { return this; }, lean: async () => ({ email: 'cliente@example.com', nombre: 'Ana' }) }));
+mock.method(emailService, 'avisarEstadoSolicitud', async () => ({ enviado: true }));
+after(() => mock.restoreAll());
+
 const titular = {
     nombre: 'Ana',
     apellido: 'Pérez',
@@ -93,7 +227,7 @@ test('lista solicitudes válidas y conserva las que no pueden descifrarse sin ex
             propiedad: '507f1f77bcf86cd799439011',
             operacion: 'alquiler',
             estado: 'pendiente',
-            createdAt: new Date('2026-10-01T12:00:00.000Z'),
+            createdAt: new Date(),
             datosCifrados: cifradoValido,
             documentos: [],
         },
@@ -187,7 +321,7 @@ test('actualiza el estado y conserva el comentario e historial sin tocar la prop
             tamano: 1234,
             mimeType: 'image/jpeg',
         }],
-        createdAt: new Date('2026-10-01T12:00:00.000Z'),
+        createdAt: new Date(),
     };
     const actualizada = {
         ...solicitud,
@@ -264,7 +398,8 @@ test('reutiliza el último comentario al cambiar estado sin duplicarlo en el his
     ];
     const solicitud = {
         _id: 'solicitud-valida',
-        propiedad: 'propiedad-no-encontrada',
+        propiedad: 'propiedad-de-prueba',
+        operacion: 'alquiler',
         estado: 'rechazada',
         comentarioEstado: 'Documento ilegible.',
         historialEstados: historialAnterior,
@@ -305,7 +440,7 @@ test('reutiliza el último comentario al cambiar estado sin duplicarlo en el his
     };
     Property.findById = () => ({
         select() { return this; },
-        lean: async () => null,
+        lean: async () => ({ title: 'Casa', estado: 'disponible', categoria_operacion: 'alquiler' }),
     });
 
     try {

@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from './Icono';
 import LogoEmpresa from '@/components/sitio/LogoEmpresa';
+import { EVENTO_SOLICITUDES, getCantidadSolicitudesPendientes } from '@/services/solicitudes';
 import { EVENTO_RESERVAS, getCantidadPendientes } from '@/services/reservas';
 
 const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boolean }[] = [
@@ -35,31 +36,31 @@ function Logo() {
 
 // Reservas esperando confirmación: se vuelve a contar al cambiar de página, cada 2 minutos y cuando la
 // pantalla de Reservas avisa que confirmó o rechazó alguna
-function usePendientes(ruta: string) {
+function usePendientes(ruta: string, solicitudes = false) {
   const [pendientes, setPendientes] = useState(0);
 
   useEffect(() => {
     let activo = true;
     const contar = () =>
-      getCantidadPendientes()
+      (solicitudes ? getCantidadSolicitudesPendientes() : getCantidadPendientes())
         .then((n) => activo && setPendientes(n))
         .catch(() => {
           // Sin conexión o sin permiso: el menú sigue sin el número
         });
     contar();
     const intervalo = setInterval(contar, 120000);
-    window.addEventListener(EVENTO_RESERVAS, contar);
+    window.addEventListener(solicitudes ? EVENTO_SOLICITUDES : EVENTO_RESERVAS, contar);
     return () => {
       activo = false;
       clearInterval(intervalo);
-      window.removeEventListener(EVENTO_RESERVAS, contar);
+      window.removeEventListener(solicitudes ? EVENTO_SOLICITUDES : EVENTO_RESERVAS, contar);
     };
-  }, [ruta]);
+  }, [ruta, solicitudes]);
 
   return pendientes;
 }
 
-function Menu({ alElegir, pendientes }: { alElegir?: () => void; pendientes: number }) {
+function Menu({ alElegir, pendientes, solicitudes }: { alElegir?: () => void; pendientes: number; solicitudes: number }) {
   const ruta = usePathname() ?? '';
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -74,7 +75,7 @@ function Menu({ alElegir, pendientes }: { alElegir?: () => void; pendientes: num
       <nav aria-label="Secciones del panel" className="flex flex-1 flex-col gap-0.5">
         {SECCIONES.map((seccion) => {
           const activa = seccion.exacta ? ruta === seccion.href : ruta === seccion.href || ruta.startsWith(`${seccion.href}/`);
-          const cantidad = seccion.href === '/admin/reservas' ? pendientes : 0;
+          const cantidad = seccion.href === '/admin/reservas' ? pendientes : seccion.href === '/admin/solicitudes' ? solicitudes : 0;
           return (
             <Link
               key={seccion.href}
@@ -137,6 +138,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
   const [abierto, setAbierto] = useState(false);
   const ruta = usePathname();
   const pendientes = usePendientes(ruta ?? '');
+  const solicitudes = usePendientes(ruta ?? '', true);
 
   // El cajón del celular se cierra solo al cambiar de página o con Escape
   useEffect(() => {
@@ -151,19 +153,19 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
   return (
     <div className="panel min-h-dvh font-sans lg:grid lg:grid-cols-[248px_1fr]">
       <aside className="sticky top-0 hidden h-dvh lg:block">
-        <Menu pendientes={pendientes} />
+        <Menu solicitudes={solicitudes} pendientes={pendientes} />
       </aside>
 
       <div className="sticky top-0 z-40 flex items-center gap-3 border-b border-white/10 bg-panel-menu px-4 py-3 text-white lg:hidden">
         <button
           type="button"
           onClick={() => setAbierto(true)}
-          aria-label={pendientes ? `Abrir menú (${pendientes} reservas por confirmar)` : 'Abrir menú'}
+          aria-label={pendientes + solicitudes ? `Abrir menú (${pendientes} reservas y ${solicitudes} solicitudes pendientes)` : 'Abrir menú'}
           aria-expanded={abierto}
           className="relative rounded-md p-1.5 hover:bg-white/10"
         >
           <Icono nombre="menu" />
-          {pendientes > 0 && <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[var(--p-acento)] ring-2 ring-panel-menu" />}
+          {(pendientes + solicitudes) > 0 && <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[var(--p-acento)] ring-2 ring-panel-menu" />}
         </button>
         <span className="text-[15px] font-medium">{seccion}</span>
       </div>
@@ -175,7 +177,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
             <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar menú" className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white">
               <Icono nombre="cerrar" />
             </button>
-            <Menu alElegir={() => setAbierto(false)} pendientes={pendientes} />
+            <Menu solicitudes={solicitudes} alElegir={() => setAbierto(false)} pendientes={pendientes} />
           </div>
         </div>
       )}

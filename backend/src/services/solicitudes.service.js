@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const Solicitud = require('../models/solicitud.model');
 const SolicitudNotificacion = require('../models/solicitud-notificacion.model');
 const Property = require('../models/property.model');
+const ciclo = require('./solicitudes-ciclo.service');
 const { cifrar, descifrar, obtenerClave } = require('../utils/cifrado-solicitudes');
 
 const TIPOS_DOCUMENTO = {
@@ -112,7 +113,7 @@ const asegurarPropiedadSolicitable = async (propiedadId, operacion) => {
 
 const descripcionSolicitud = (operacion) => (operacion === 'alquiler' ? 'alquiler' : 'compra');
 
-const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveIdempotencia }) => {
+const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveIdempotencia, porReferencias = false }) => {
     const existente = await Solicitud.findOne({ usuario, claveIdempotencia });
     if (existente) return { solicitud: existente, repetida: true };
 
@@ -125,6 +126,30 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
         datosCifrados: cifrar(Buffer.from(JSON.stringify(datos), 'utf8')).toString('base64'),
         claveIdempotencia,
     });
+    if (porReferencias) {
+        const documentosService = require('./solicitudes-documentos.service');
+        solicitud.documentos = Object.entries(archivos).flatMap(([tipo, lista]) => lista.map((archivo) => ({
+            tipo, fileId: archivo.fileId, tamano: archivo.size, mimeType: archivo.mimetype,
+        })));
+        try {
+            await mongoose.connection.transaction(async (session) => {
+                const disponible = await Property.updateOne({ _id: propiedadId, estado: 'disponible', permitirSolicitudes: { $ne: false } },
+                    { $inc: { versionDisponibilidad: 1 } }, { session });
+                if (!disponible.matchedCount) throw Object.assign(new Error('La propiedad ya no está disponible.'), { statusCode: 409 });
+                await documentosService.vincular(solicitud.documentos, solicitud, session);
+                await solicitud.save({ session });
+                await SolicitudNotificacion.create([{ solicitud: solicitud._id,
+                    mensaje: `Nueva solicitud de ${descripcionSolicitud(operacion)} para ${propiedad.title}.` }], { session });
+            });
+            return { solicitud, repetida: false };
+        } catch (error) {
+            if (error.code === 11000) {
+                const repetida = await Solicitud.findOne({ usuario, claveIdempotencia });
+                if (repetida) return { solicitud: repetida, repetida: true };
+            }
+            throw error;
+        }
+    }
     const { bucket, ids, documentos } = await cifrarDocumentos(solicitud, archivos);
     solicitud.documentos = documentos;
 
@@ -191,6 +216,13 @@ const infoPublica = (solicitud) => {
     });
 };
 
+const infoCliente = (solicitud) => {
+    const mensajes = ciclo.mensajesCliente(solicitud);
+    const publica = infoPublica(solicitud);
+    return { id: publica.id, operacion: publica.operacion, estado: publica.estado, createdAt: publica.createdAt, propiedad: publica.propiedad, historialEstados: mensajes, comentarioEstado: mensajes[0]?.comentario || '',
+        comentarioFecha: mensajes[0]?.fecha || null };
+};
+
 const infoDocumentos = (solicitudId, documentos) => (Array.isArray(documentos) ? documentos : []).map(({ tipo, tamano, mimeType }) => ({
     tipo,
     nombre: TIPOS_DOCUMENTO[tipo] || 'Documento',
@@ -228,11 +260,14 @@ const serializarSolicitudAdmin = (solicitud) => {
 
 const listarMias = async (usuario) => {
     const solicitudes = await Solicitud.find({ usuario })
-        .populate('propiedad', 'title ciudad location images')
+        .populate('propiedad', 'title ciudad location images estado')
         .sort({ createdAt: -1 })
         .limit(100)
         .lean();
-    return solicitudes.map(infoPublica);
+    return Promise.all(solicitudes.map(async (solicitud) => {
+        const actual = await ciclo.sincronizarSolicitud(solicitud, solicitud.propiedad);
+        return infoCliente(actual);
+    }));
 };
 
 const listarAdmin = async () => {
@@ -251,11 +286,10 @@ const listarAdmin = async () => {
         ? await Property.find({ _id: { $in: propiedadIds } }).select(camposPropiedadAdmin).lean()
         : [];
     const propiedadesPorId = new Map(propiedades.map((propiedad) => [String(propiedad._id), propiedad]));
-    return solicitudes.map((solicitud) => ({
-        ...serializarSolicitudAdmin({
-            ...solicitud,
-            propiedad: propiedadesPorId.get(String(solicitud.propiedad)) || solicitud.propiedad,
-        }),
+    return Promise.all(solicitudes.map(async (solicitud) => {
+        const propiedad = propiedadesPorId.get(String(solicitud.propiedad));
+        const actual = await ciclo.sincronizarSolicitud(solicitud, propiedad);
+        return serializarSolicitudAdmin({ ...actual, propiedad: propiedad || actual.propiedad });
     }));
 };
 
@@ -267,16 +301,24 @@ const obtenerPorId = async (id, usuario, esAdmin) => {
     const propiedad = mongoose.isValidObjectId(solicitud.propiedad)
         ? await Property.findById(solicitud.propiedad).select(camposPropiedadAdmin).lean()
         : null;
+    solicitud = await ciclo.sincronizarSolicitud(solicitud, propiedad);
     solicitud = { ...solicitud, propiedad: propiedad || solicitud.propiedad };
     if (esAdmin) return serializarSolicitudAdmin(solicitud);
     return {
-        ...infoPublica(solicitud),
+        ...infoCliente(solicitud),
         datosPersonales: leerDatos(solicitud),
         documentos: infoDocumentos(solicitud._id, solicitud.documentos),
     };
 };
 
+const validarComentario = (comentario) => {
+    if (typeof comentario !== 'string' || comentario.length > ciclo.MAXIMO_COMENTARIO) {
+        throw Object.assign(new Error('El comentario no puede superar los 500 caracteres.'), { statusCode: 400 });
+    }
+};
+
 const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario = false, administradoPor }) => {
+    validarComentario(comentario || '');
     const solicitud = await Solicitud.findById(id).select('+datosCifrados').lean();
     if (!solicitud) {
         const error = new Error('No encontramos esa solicitud.');
@@ -309,6 +351,7 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
             throw error;
         }
         const comentarioReferencia = historial[comentarioReferenciaIndice].comentario.trim();
+        validarComentario(comentarioReferencia);
         filtro = {
             ...filtro,
             [`historialEstados.${comentarioReferenciaIndice}.comentario`]: comentarioReferencia,
@@ -332,6 +375,12 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
         };
     }
 
+    if (['pendiente', 'aprobada'].includes(estado)) {
+        await asegurarPropiedadSolicitable(solicitud.propiedad, solicitud.operacion);
+    }
+    if (estado === 'pendiente' && ['vencida', 'cerrada'].includes(solicitud.estado)) {
+        cambios.$set.reactivadaAt = new Date();
+    }
     const actualizada = await Solicitud.findOneAndUpdate(
         filtro,
         cambios,
@@ -343,6 +392,7 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
         throw error;
     }
 
+    if (solicitud.estado !== actualizada.estado) await ciclo.avisarCambio(actualizada);
     const propiedad = mongoose.isValidObjectId(actualizada.propiedad)
         ? await Property.findById(actualizada.propiedad).select(camposPropiedadAdmin).lean()
         : null;
@@ -353,6 +403,7 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
 };
 
 const agregarComentario = async ({ id, comentario, administradoPor }) => {
+    validarComentario(comentario);
     const solicitud = await Solicitud.findById(id).select('+datosCifrados').lean();
     if (!solicitud) {
         const error = new Error('No encontramos esa solicitud.');
@@ -501,6 +552,17 @@ const listarNotificacionesAdmin = async () => {
         }));
 };
 
+const contarPendientes = async () => {
+    const pendientes = await Solicitud.find({ estado: 'pendiente', archivada: { $ne: true } })
+        .populate('propiedad', 'title estado').lean();
+    let cantidad = 0;
+    for (const solicitud of pendientes) {
+        const actual = await ciclo.sincronizarSolicitud(solicitud, solicitud.propiedad);
+        if (actual.estado === 'pendiente') cantidad++;
+    }
+    return cantidad;
+};
+
 const obtenerDocumento = async (solicitudId, usuario, esAdmin, tipo) => {
     const query = Solicitud.findById(solicitudId);
     if (!esAdmin) query.where({ usuario });
@@ -518,7 +580,9 @@ const obtenerDocumento = async (solicitudId, usuario, esAdmin, tipo) => {
 };
 
 module.exports = {
+    contarPendientes,
     crear,
+    infoCliente,
     listarMias,
     listarAdmin,
     obtenerPorId,

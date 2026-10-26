@@ -66,7 +66,7 @@ const estilosControl =
 	"w-full rounded-xl border border-[#efe9df]/25 bg-[#0b2048] px-4 py-3 text-[15px] text-[#efe9df] placeholder:text-[#efe9df]/35 focus-visible:border-[#efe9df] focus-visible:outline-none [color-scheme:dark]";
 const estilosEtiqueta = "calma-micro text-[11px] text-[#efe9df]/70";
 const TIPOS_ARCHIVO = ["application/pdf", "image/jpeg", "image/jpg", "image/png"];
-const MAXIMO_ARCHIVO = 5 * 1024 * 1024;
+const MAXIMO_ARCHIVO = 20 * 1024 * 1024;
 
 const OPERACIONES: Record<TipoOperacionSolicitud, string> = { alquiler: "alquiler", compra: "compra" };
 
@@ -135,6 +135,7 @@ function SolicitudForm() {
 	const [documentos, setDocumentos] = useState<Record<string, File[]>>({});
 	const [error, setError] = useState("");
 	const [enviando, setEnviando] = useState(false);
+	const [progreso, setProgreso] = useState("");
 	const [enviada, setEnviada] = useState(false);
 	const claveIdempotencia = useRef("");
 	const completadoPerfil = useRef(false);
@@ -177,7 +178,7 @@ function SolicitudForm() {
 			: propiedad.categoria_operacion === "venta" || propiedad.categoria_operacion === "alquiler"
 				? [propiedad.categoria_operacion]
 				: [];
-		return propiedad.permitirSolicitudes !== false && propiedad.categoria_operacion !== "temporario" && permitidas.includes(actual);
+		return propiedad.estado === "disponible" && propiedad.permitirSolicitudes !== false && propiedad.categoria_operacion !== "temporario" && permitidas.includes(actual);
 	}, [operacion, propiedad]);
 
 	const archivosAdjuntos = useMemo(() => {
@@ -203,8 +204,8 @@ function SolicitudForm() {
 	const seleccionarArchivos = (clave: string, evento: ChangeEvent<HTMLInputElement>, multiple = false) => {
 		const seleccionados = Array.from(evento.target.files || []);
 		evento.target.value = "";
-		if (seleccionados.some((archivo) => !TIPOS_ARCHIVO.includes(archivo.type) || archivo.size > MAXIMO_ARCHIVO)) {
-			setError("Cada archivo debe ser PDF, JPG, JPEG o PNG y pesar hasta 5 MB.");
+		if (seleccionados.some((archivo) => !TIPOS_ARCHIVO.includes(archivo.type) || archivo.size > (archivo.type === "application/pdf" ? 4 * 1024 * 1024 : MAXIMO_ARCHIVO))) {
+			setError("Elegí un PDF de hasta 4 MB o una foto JPG/PNG de hasta 20 MB.");
 			return;
 		}
 		setError("");
@@ -326,7 +327,7 @@ function SolicitudForm() {
 		setError("");
 		setEnviando(true);
 		try {
-			await crearSolicitud(formData, claveIdempotencia.current);
+			await crearSolicitud(formData, claveIdempotencia.current, setProgreso);
 			setEnviada(true);
 		} catch (fallo) {
 			setError(fallo instanceof Error ? fallo.message : "No pudimos enviar la solicitud. Probá de nuevo.");
@@ -463,7 +464,7 @@ function SolicitudForm() {
 						<div>
 							<p className={estilosEtiqueta}>02 · ARCHIVOS</p>
 							<h2 id="documentacion" className="font-display m-0 text-3xl">Documentación personal</h2>
-							<p className="m-0 pt-2 text-[13px] text-[#efe9df]/55">PDF, JPG, JPEG o PNG · hasta 5 MB por archivo. Podés reemplazar o quitar cada documento antes de enviar.</p>
+							<p className="m-0 pt-2 text-[13px] text-[#efe9df]/55">PDF hasta 4 MB · fotos JPG/PNG hasta 20 MB (se optimizan antes de subir). Podés reemplazar o quitar cada documento antes de enviar.</p>
 						</div>
 						<div className="grid gap-3 sm:grid-cols-2">
 							{archivo("dniTitularFrente", "DNI del titular · frente", "Imagen legible de la parte frontal.")}
@@ -599,7 +600,7 @@ function SolicitudForm() {
 						<p className="m-0 text-[12px] leading-relaxed text-[#efe9df]/50">Al enviar, confirmás que los datos y documentos son correctos. La propiedad no cambia de estado por recibir esta solicitud.</p>
 						{error && <p role="alert" className="m-0 rounded-xl border border-[#d9382b]/35 bg-[#d9382b]/10 p-4 text-[13px] leading-relaxed text-[#ffb4ad]">{error}</p>}
 						<button type="submit" disabled={enviando} className="calma-micro flex min-h-14 items-center justify-center gap-2 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] font-medium text-[#071733] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-60">
-							{enviando ? "Enviando solicitud…" : "Confirmar y enviar solicitud"}
+							{enviando ? progreso || "Enviando solicitud…" : "Confirmar y enviar solicitud"}
 						</button>
 					</section>
 				</form>

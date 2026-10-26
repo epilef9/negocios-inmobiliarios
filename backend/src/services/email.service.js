@@ -163,7 +163,15 @@ const avisarSolicitudPublicacionRechazada = ({ para, nombre, direccion, motivo }
         html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Te informamos sobre tu pedido de publicación para la propiedad en <b>${escapar(direccion)}</b>.</p><p>Motivo: <i>${escapar(motivo || 'No cumple con los criterios de publicación')}</i>.</p><p style="color:#666;font-size:13px">Si tenés dudas o querés corregir la información, podés contactarnos por WhatsApp o teléfono.</p>`,
     });
 
+const avisarEstadoSolicitud = ({ para, nombre, estado, mensaje, enlace }) => enviar({
+    para,
+    asunto: 'Novedades sobre tu solicitud · Negocios Inmobiliarios',
+    texto: `Hola${nombre ? ` ${nombre}` : ''}, tu solicitud ahora está ${estado}.\n\n${mensaje}\n\nConsultá tus solicitudes: ${enlace}`,
+    html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Tu solicitud ahora está <b>${escapar(estado)}</b>.</p>${mensaje ? `<p>Último mensaje del administrador:</p><p style="white-space:pre-wrap;overflow-wrap:anywhere">${escapar(mensaje)}</p>` : ''}<p><a href="${escapar(enlace)}">Consultá Mis solicitudes</a></p>`,
+});
+
 module.exports = {
+    avisarEstadoSolicitud,
     enviar,
     enviarVerificacion,
     enviarConsulta,

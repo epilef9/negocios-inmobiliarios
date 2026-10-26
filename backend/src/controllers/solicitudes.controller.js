@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const { validarSolicitud } = require('../validators/solicitud.validator');
 const solicitudesService = require('../services/solicitudes.service');
+const documentosService = require('../services/solicitudes-documentos.service');
 
 const MIME_PERMITIDOS = new Set(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png']);
 const CAMPOS_PERSONALES = [
@@ -58,8 +59,16 @@ exports.crear = async (req, res) => {
         return res.status(400).json({ message: 'No pudimos identificar el envío. Actualizá la página y volvé a intentarlo.' });
     }
 
-    const archivos = archivosPorTipo(req.files);
-    const errores = [...validarSolicitud({ datos, archivos, operacion }), ...validarArchivos(archivos)];
+    const porReferencias = req.is('application/json');
+    let archivos;
+    try {
+        archivos = porReferencias
+            ? await documentosService.resolver(req.body.documentos, req.user._id, claveIdempotencia)
+            : archivosPorTipo(req.files);
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'No pudimos validar los documentos.' });
+    }
+    const errores = [...validarSolicitud({ datos, archivos, operacion }), ...(porReferencias ? [] : validarArchivos(archivos))];
     if (errores.length) return res.status(400).json({ message: 'Revisá la información marcada antes de enviar.', errores });
 
     const datosCifrables = {
@@ -86,6 +95,7 @@ exports.crear = async (req, res) => {
             operacion,
             datos: datosCifrables,
             archivos,
+            porReferencias,
             claveIdempotencia,
         });
         return res.status(repetida ? 200 : 201).json({
@@ -142,8 +152,8 @@ exports.actualizarEstado = async (req, res) => {
         return res.status(400).json({ message: 'La opción para reutilizar el comentario no es válida.' });
     }
     const comentarioLimpio = typeof comentario === 'string' ? comentario.trim() : '';
-    if (comentarioLimpio.length > 1000) {
-        return res.status(400).json({ message: 'El comentario no puede superar los 1000 caracteres.' });
+    if (comentarioLimpio.length > 500) {
+        return res.status(400).json({ message: 'El comentario no puede superar los 500 caracteres.' });
     }
     if (reutilizarComentario && (!['pendiente', 'rechazada'].includes(estado) || comentarioLimpio)) {
         return res.status(400).json({ message: 'El comentario guardado solo puede reutilizarse en un cambio pendiente o rechazado.' });
@@ -178,8 +188,8 @@ exports.agregarComentario = async (req, res) => {
     if (!comentarioLimpio) {
         return res.status(400).json({ message: 'Ingresá un comentario antes de guardarlo.' });
     }
-    if (comentarioLimpio.length > 1000) {
-        return res.status(400).json({ message: 'El comentario no puede superar los 1000 caracteres.' });
+    if (comentarioLimpio.length > 500) {
+        return res.status(400).json({ message: 'El comentario no puede superar los 500 caracteres.' });
     }
 
     try {
@@ -263,4 +273,22 @@ exports.documento = async (req, res) => {
         console.error('[solicitudes] No se pudo descargar un documento privado:', error);
         return res.status(500).json({ message: 'No se pudo descargar el documento.' });
     }
+};
+
+exports.subirDocumento = async (req, res) => {
+    const errores = req.file ? validarArchivos({ archivo: [req.file] }) : ['Elegí un documento.'];
+    if (errores.length) return res.status(400).json({ message: errores.join(' ') });
+    try {
+        await documentosService.limpiarTemporales();
+        const data = await documentosService.guardar({ archivo: req.file, usuario: req.user._id,
+            tipo: req.params.tipo, clave: req.get('Idempotency-Key') });
+        return res.status(201).json({ data });
+    } catch (error) {
+        return res.status(error.statusCode || 500).json({ message: error.statusCode ? error.message : 'No pudimos subir el documento. Volvé a intentarlo.' });
+    }
+};
+
+exports.contarPendientes = async (_req, res) => {
+    try { return res.json({ data: await solicitudesService.contarPendientes() }); }
+    catch { return res.status(500).json({ message: 'No pudimos contar las solicitudes pendientes.' }); }
 };
