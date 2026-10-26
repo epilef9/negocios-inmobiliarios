@@ -92,6 +92,31 @@ function Desplegable({ value, onChange, children }: { value: string; onChange: (
 // Campo de número: muestra una línea al pasar el mouse, como un renglón para escribir
 const numeroInteractivo = 'cursor-text border-b border-transparent pb-1 transition-colors duration-500 group-hover:border-[#efe9df]/35 focus:border-[#efe9df]';
 
+const etiquetaDe = (lista: { value: string; label: string }[], valor: string) => lista.find((item) => item.value === valor)?.label ?? valor;
+const dolares = (valor: string) => `USD ${Number(valor).toLocaleString('es-AR')}`;
+
+// Un chip por cada filtro puesto, en el mismo orden que la barra, para poder sacarlos de a uno
+function filtrosActivos(f: FiltrosPropiedades): { clave: keyof FiltrosPropiedades; texto: string }[] {
+  const lista: { clave: keyof FiltrosPropiedades; texto: string }[] = [];
+  if (f.operation) lista.push({ clave: 'operation', texto: etiquetaDe(OPERACIONES, f.operation) });
+  if (f.location) lista.push({ clave: 'location', texto: f.location });
+  if (f.propertyType) lista.push({ clave: 'propertyType', texto: etiquetaDe(TIPOS, f.propertyType) });
+  if (f.minPrice) lista.push({ clave: 'minPrice', texto: `Desde ${dolares(f.minPrice)}` });
+  if (f.maxPrice) lista.push({ clave: 'maxPrice', texto: `Hasta ${dolares(f.maxPrice)}` });
+  if (f.rooms) lista.push({ clave: 'rooms', texto: `${f.rooms}+ ambientes` });
+  if (f.amenities) lista.push({ clave: 'amenities', texto: etiquetaDe(COMODIDADES, f.amenities) });
+  if (f.status) lista.push({ clave: 'status', texto: etiquetaDe(ESTADOS, f.status) });
+  return lista;
+}
+
+function IconoCruz({ className = 'h-3 w-3' }: { className?: string }) {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" className={className}>
+      <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 type Props = {
   filtros: FiltrosPropiedades;
   localidades: string[];
@@ -103,7 +128,8 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
   const id = useId();
   const extrasActivos = [filtros.minPrice, filtros.rooms, filtros.amenities, filtros.status].filter(Boolean).length;
   const [abierto, setAbierto] = useState(extrasActivos > 0);
-  const hayFiltros = Object.values(filtros).some(Boolean);
+  const activos = filtrosActivos(filtros);
+  const hayFiltros = activos.length > 0;
   const cambiar = (clave: keyof FiltrosPropiedades, valor: string) => onCambiar({ ...filtros, [clave]: valor });
 
   return (
@@ -169,7 +195,7 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
             className={`${control} ${numeroInteractivo}`}
           />
         </label>
-        <div className="flex items-center border-l border-t border-[#efe9df]/20 py-5 pl-4 lg:border-t-0 lg:pl-6">
+        <div className="flex items-center gap-5 border-l border-t border-[#efe9df]/20 py-5 pl-4 lg:border-t-0 lg:pl-6">
           <button
             type="button"
             aria-expanded={abierto}
@@ -187,11 +213,21 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
             {abierto ? 'Menos filtros' : 'Más filtros'}
             {extrasActivos > 0 && ` (${extrasActivos})`}
           </button>
+          {hayFiltros && (
+            <button
+              type="button"
+              onClick={onLimpiar}
+              className="calma-micro filtro-limpiar hidden cursor-pointer items-center gap-2 whitespace-nowrap text-[#efe9df]/70 transition-colors duration-300 hover:text-[#efe9df] sm:inline-flex"
+            >
+              <IconoCruz />
+              Limpiar ({activos.length})
+            </button>
+          )}
         </div>
       </div>
 
       {abierto && (
-        <div id={`${id}-mas`} className="grid grid-cols-2 border-t border-[#efe9df]/20 lg:grid-cols-[repeat(4,minmax(0,1fr))_auto]">
+        <div id={`${id}-mas`} className="grid grid-cols-2 border-t border-[#efe9df]/20 lg:grid-cols-4">
           <label className={`${campo} group cursor-text pr-4 lg:pr-6`}>
             <span className={etiqueta}>Desde USD</span>
             <input
@@ -238,14 +274,30 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
               ))}
             </Desplegable>
           </label>
-          <div className="col-span-2 flex items-center border-t border-[#efe9df]/20 py-5 lg:col-span-1 lg:border-l lg:border-t-0 lg:pl-6">
-            <button
-              type="button"
-              onClick={onLimpiar}
-              disabled={!hayFiltros}
-              className="calma-micro calma-link calma-link-sutil cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Limpiar filtros
+        </div>
+      )}
+
+      {hayFiltros && (
+        <div className="flex items-center gap-3 border-t border-[#efe9df]/20 py-4">
+          <ul aria-label="Filtros aplicados" className="m-0 flex min-w-0 flex-1 list-none gap-2 overflow-x-auto p-0 [mask-image:linear-gradient(to_right,#000_82%,transparent)] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:[mask-image:none]">
+            {activos.map(({ clave, texto }) => (
+              <li key={clave} className="filtro-chip shrink-0">
+                <button
+                  type="button"
+                  onClick={() => cambiar(clave, '')}
+                  aria-label={`Quitar filtro: ${texto}`}
+                  className="group/chip flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-[#efe9df]/25 py-1.5 pl-3.5 pr-3 text-[13px] text-[#efe9df]/85 transition-colors duration-300 hover:border-[#d9382b] hover:text-[#efe9df] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#efe9df]"
+                >
+                  {texto}
+                  <IconoCruz className="h-3 w-3 text-[#efe9df]/50 transition-colors duration-300 group-hover/chip:text-[#d9382b]" />
+                </button>
+              </li>
+            ))}
+          </ul>
+          {/* En la compu el "Limpiar" ya está en la fila principal; en el celular va acá */}
+          <div className="shrink-0 sm:hidden">
+            <button type="button" onClick={onLimpiar} className="calma-micro calma-link calma-link-sutil cursor-pointer whitespace-nowrap">
+              Limpiar todo
             </button>
           </div>
         </div>

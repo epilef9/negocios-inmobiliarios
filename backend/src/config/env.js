@@ -51,6 +51,7 @@ const validarConfiguracion = () => {
     if (!process.env.MONGODB_URI && !process.env.DB_URI) faltan.push('MONGODB_URI');
     if (!process.env.JWT_SECRET) faltan.push('JWT_SECRET');
     else if (process.env.JWT_SECRET.length < 32) faltan.push('JWT_SECRET (al menos 32 caracteres)');
+    if (!/^[\da-f]{64}$/i.test(process.env.SOLICITUDES_ENCRYPTION_KEY || '')) faltan.push('SOLICITUDES_ENCRYPTION_KEY (64 caracteres hexadecimales)');
     if (origenesPermitidos().length === 0) faltan.push('CORS_ORIGIN (la dirección del frontend)');
     if (faltan.length) {
         throw new Error(`Faltan variables de entorno para producción: ${faltan.join(', ')}`);
