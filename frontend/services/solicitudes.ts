@@ -24,8 +24,29 @@ export type SolicitudResumen = {
 	operacion: TipoOperacionSolicitud;
 	estado: string;
 	createdAt: string;
-	propiedad: { id: string; titulo: string; ciudad: string } | null;
+	comentarioEstado?: string;
+	historialEstados?: { estado: string; comentario: string; comentarioReferenciaIndice?: number; fecha: string }[];
+	archivada?: boolean;
+	archivadaAt?: string | null;
+	propiedad: { id: string; disponible?: boolean; titulo: string | null; ciudad: string | null; imagen?: string | null; direccion?: string | null; tipoInmueble?: string | null; estadoPropiedad?: string | null; tipoOperacion?: string | null; precio?: number | null; moneda?: string | null } | null;
 };
+
+export type DocumentoSolicitud = {
+	tipo: string;
+	nombre: string;
+	tamano: number;
+	mimeType: string;
+	url?: string;
+};
+
+export type SolicitudAdmin = SolicitudResumen & {
+	updatedAt?: string;
+	datosPersonales?: Record<string, unknown>;
+	documentos?: DocumentoSolicitud[];
+	problemaDescifrado?: boolean;
+};
+
+export type EstadoSolicitud = "pendiente" | "aprobada" | "rechazada";
 
 export const crearSolicitud = async (formData: FormData, claveIdempotencia: string) => {
 	const resultado = await request<SolicitudCreada>("/solicitudes", {
@@ -40,6 +61,31 @@ export const crearSolicitud = async (formData: FormData, claveIdempotencia: stri
 };
 
 export const getMisSolicitudes = () => request<SolicitudResumen[]>("/solicitudes/mias");
+
+export const getSolicitudesAdmin = () => request<SolicitudAdmin[]>("/solicitudes/admin");
+
+export const getSolicitudAdmin = (id: string) => request<SolicitudAdmin>(`/solicitudes/${id}`);
+
+export const actualizarEstadoSolicitud = (id: string, estado: EstadoSolicitud, comentario: string, reutilizarComentario = false) =>
+	request<SolicitudAdmin>(`/solicitudes/${id}/estado`, {
+		method: "PATCH",
+		body: JSON.stringify({ estado, comentario, reutilizarComentario }),
+	});
+
+export const agregarComentarioSolicitud = (id: string, comentario: string) =>
+	request<SolicitudAdmin>(`/solicitudes/${id}/comentarios`, {
+		method: "POST",
+		body: JSON.stringify({ comentario }),
+	});
+
+export const actualizarArchivadoSolicitud = (id: string, archivada: boolean) =>
+	request<{ id: string; archivada: boolean; archivadaAt: string | null }>(`/solicitudes/${id}/archivo`, {
+		method: "PATCH",
+		body: JSON.stringify({ archivada }),
+	});
+
+export const eliminarSolicitudDefinitivamente = (id: string) =>
+	request<{ id: string }>(`/solicitudes/${id}`, { method: "DELETE" });
 
 export const getNotificacionesSolicitudes = () =>
 	request<SolicitudNotificacion[]>("/solicitudes/admin/notificaciones");

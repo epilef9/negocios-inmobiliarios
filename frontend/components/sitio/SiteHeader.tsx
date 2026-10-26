@@ -10,6 +10,7 @@ const WHATSAPP = 'https://wa.me/543434469522';
 
 const enlaces = [
   { href: '/propiedades', texto: 'Propiedades' },
+  { href: '/publicar', texto: 'Publicar' },
   { href: '/requisitos', texto: 'Requisitos' },
   { href: '/contacto', texto: 'Contacto' },
 ];

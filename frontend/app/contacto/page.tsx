@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import SitioBase from '@/components/sitio/SitioBase';
 import Revelar from '@/components/sitio/Revelar';
 import { useAuth } from '@/context/AuthContext';
@@ -157,6 +158,22 @@ export default function ContactoPage() {
                 </li>
               ))}
             </ul>
+
+            <div className="mt-10 rounded-2xl border border-[#efe9df]/20 bg-[#efe9df]/5 p-6 sm:p-8">
+              <p className="calma-micro m-0 text-[#d9382b]">¿Tenés una propiedad?</p>
+              <h3 className="font-display m-0 mt-2 text-[24px] text-[#efe9df]">
+                Quiero publicar mi propiedad
+              </h3>
+              <p className="m-0 mt-3 text-[14px] leading-relaxed text-[#efe9df]/70">
+                Si querés vender o alquilar tu inmueble con nosotros, completá la solicitud y coordinamos los detalles.
+              </p>
+              <Link
+                href="/publicar"
+                className="calma-micro mt-6 inline-flex items-center gap-2 rounded-full bg-[#efe9df] px-5 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white"
+              >
+                Solicitar publicación →
+              </Link>
+            </div>
           </div>
 
           <div data-reveal="suave" className="lg:col-span-7 lg:col-start-6">

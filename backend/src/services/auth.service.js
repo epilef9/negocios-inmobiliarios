@@ -28,6 +28,7 @@ const datosPublicos = (user) => ({
     id: user._id,
     nombre: user.nombre,
     apellido: user.apellido,
+    dni: user.dni || '',
     telefono: user.telefono,
     email: user.email,
     role: user.role,
