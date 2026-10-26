@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import PantallaCuenta, { botonPrincipal } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { botonPrincipal, destinoSeguro } from '@/components/cuenta/PantallaCuenta';
 
 // Destino del enlace del mail: confirma el email y deja la sesión iniciada
 function Confirmacion() {
@@ -14,12 +14,21 @@ function Confirmacion() {
   const [mensaje, setMensaje] = useState(token ? '' : 'Falta el enlace de verificación. Abrilo de nuevo desde el mail.');
   // El enlace se usa una sola vez: evita que el doble render de desarrollo lo gaste dos veces
   const usado = useRef(false);
+  const [destino, setDestino] = useState<string | null>(null);
 
   useEffect(() => {
     if (!token || usado.current) return;
     usado.current = true;
     verifyEmail(token)
-      .then(() => setEstado('listo'))
+      .then(() => {
+        const pendiente = localStorage.getItem('continuarSolicitudTrasVerificacion');
+        const seguro = destinoSeguro(pendiente);
+        if (seguro?.startsWith('/solicitudes/nueva?')) {
+          setDestino(seguro);
+          localStorage.removeItem('continuarSolicitudTrasVerificacion');
+        }
+        setEstado('listo');
+      })
       .catch((err) => {
         setMensaje(err instanceof Error ? err.message : 'No pudimos confirmar tu email.');
         setEstado('error');
@@ -38,8 +47,8 @@ function Confirmacion() {
     return (
       <div role="status" className="flex flex-col gap-6 border-t border-[#efe9df]/20 pt-8">
         <p className="m-0 text-[17px] leading-relaxed">Listo, tu email quedó confirmado y ya ingresaste.</p>
-        <Link href="/propiedades" className={`${botonPrincipal} w-auto self-start`}>
-          Ver propiedades
+        <Link href={destino || '/propiedades'} className={`${botonPrincipal} w-auto self-start`}>
+          {destino ? 'Continuar con la solicitud' : 'Ver propiedades'}
         </Link>
       </div>
     );

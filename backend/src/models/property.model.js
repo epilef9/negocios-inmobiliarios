@@ -46,6 +46,11 @@ const propertySchema = new mongoose.Schema({
         type: String,
         enum: ['venta', 'alquiler', 'temporario'],
     },
+    operacionesSolicitud: {
+        type: [{ type: String, enum: ['venta', 'alquiler'] }],
+        default: [],
+    },
+    permitirSolicitudes: { type: Boolean, default: true },
     tipo_inmueble: {
         type: String,
         enum: ['departamento', 'local', 'casa', 'monoambiente', 'terreno'],

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import BotonFavorito from "@/components/sitio/BotonFavorito";
@@ -54,6 +54,7 @@ function caracteristicas(p: ApiProperty) {
 
 export default function DetallePropiedad() {
 	const params = useParams<{ id: string }>();
+	const router = useRouter();
 	const id = Array.isArray(params.id) ? params.id[0] : params.id;
 	const blue = useDolarBlue();
 	const visita = useRef<AgendarVisitaHandle>(null);
@@ -113,11 +114,19 @@ export default function DetallePropiedad() {
 
 	const p = propiedad;
 	const precio = precioDePropiedad(p, blue);
-	const operacion = etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad";
+	const operacionesSolicitud = p.operacionesSolicitud?.length
+		? p.operacionesSolicitud
+		: p.categoria_operacion === "venta" || p.categoria_operacion === "alquiler"
+			? [p.categoria_operacion]
+			: [];
+	const operacion = operacionesSolicitud.includes("venta") && operacionesSolicitud.includes("alquiler")
+		? "Venta y alquiler"
+		: etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad";
 	const ubicacion = [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ") || p.location;
 	const estadoNoDisponible = p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
 	// Una propiedad vendida o alquilada ya no se puede visitar
 	const sePuedeVisitar = Boolean(p.permitirVisita) && p.estado !== "vendido" && p.estado !== "alquilado";
+	const puedeSolicitar = p.permitirSolicitudes !== false && (!p.estado || p.estado === "disponible") && p.categoria_operacion !== "temporario";
 	const esTemporario = p.categoria_operacion === "temporario";
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
@@ -233,6 +242,17 @@ export default function DetallePropiedad() {
 							{p.montoExpensas ? <p className="m-0 pt-1 text-[14px] text-[#efe9df]/65">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 						</div>
 						<div className="flex flex-col gap-3">
+							{puedeSolicitar && operacionesSolicitud.map((operacion) => (
+								<button
+									key={operacion}
+									type="button"
+									onClick={() => router.push(`/solicitudes/nueva?propiedad=${encodeURIComponent(p._id)}&operacion=${operacion === "venta" ? "compra" : "alquiler"}`)}
+									className="calma-micro flex items-center justify-center gap-2.5 rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors hover:border-[#efe9df] hover:bg-[#efe9df]/5"
+								>
+									<span className="calma-dot" aria-hidden="true" />
+									Solicitar {operacion === "venta" ? "compra" : "alquiler"}
+								</button>
+							))}
 							{esTemporario && (
 								<a
 									href="#reservar"

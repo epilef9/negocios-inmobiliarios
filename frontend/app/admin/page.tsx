@@ -6,11 +6,12 @@ import { useAuth } from '@/context/AuthContext';
 import { getProperties, type ApiProperty } from '@/services/api';
 import { getVisitas, type Visita } from '@/services/visitas';
 import { getContratos, type Contrato } from '@/services/contratos';
+import { getNotificacionesSolicitudes, type SolicitudNotificacion } from '@/services/solicitudes';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { BotonLink, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, Alerta } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
 
-type Datos = { propiedades: ApiProperty[]; visitas: Visita[]; contratos: Contrato[]; fallas: string[] };
+type Datos = { propiedades: ApiProperty[]; visitas: Visita[]; contratos: Contrato[]; notificaciones: SolicitudNotificacion[]; fallas: string[] };
 
 const HOY = new Intl.DateTimeFormat('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 
@@ -48,16 +49,18 @@ export default function AdminInicioPage() {
   useEffect(() => {
     let vigente = true;
     // Cada fuente puede fallar por separado: se muestra lo que llegó y se avisa lo que no
-    Promise.allSettled([getProperties(), getVisitas(), getContratos()]).then(([p, v, c]) => {
+    Promise.allSettled([getProperties(), getVisitas(), getContratos(), getNotificacionesSolicitudes()]).then(([p, v, c, s]) => {
       if (!vigente) return;
       const fallas: string[] = [];
       if (p.status === 'rejected') fallas.push('propiedades');
       if (v.status === 'rejected') fallas.push('visitas');
       if (c.status === 'rejected') fallas.push('contratos');
+      if (s.status === 'rejected') fallas.push('notificaciones de solicitudes');
       setDatos({
         propiedades: p.status === 'fulfilled' ? p.value ?? [] : [],
         visitas: v.status === 'fulfilled' ? v.value ?? [] : [],
         contratos: c.status === 'fulfilled' ? c.value ?? [] : [],
+        notificaciones: s.status === 'fulfilled' ? s.value ?? [] : [],
         fallas,
       });
     });
@@ -70,6 +73,7 @@ export default function AdminInicioPage() {
   const propiedades = datos?.propiedades ?? [];
   const visitas = datos?.visitas ?? [];
   const contratos = datos?.contratos ?? [];
+  const notificaciones = datos?.notificaciones.filter((notificacion) => !notificacion.leida) ?? [];
 
   const pendientes = visitas.filter((v) => v.estado === 'pendiente');
   const ahora = new Date();
@@ -112,6 +116,25 @@ export default function AdminInicioPage() {
             Revisá que el backend esté funcionando y volvé a cargar la página.
           </Alerta>
         ) : null}
+
+        {notificaciones.length > 0 && (
+          <Tarjeta titulo="Nuevas solicitudes" descripcion="Solicitudes de alquiler o compra recibidas para revisar." relleno={false}>
+            <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+              {notificaciones.slice(0, 5).map((notificacion) => (
+                <li key={notificacion.id} className="flex items-start gap-3 px-5 py-4">
+                  <span aria-hidden="true" className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-panel-acento" />
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[14px] font-medium">{notificacion.mensaje}</span>
+                    <span className="block pt-1 text-[12px] text-panel-suave">
+                      {new Intl.DateTimeFormat('es-AR', { dateStyle: 'short', timeStyle: 'short' }).format(new Date(notificacion.createdAt))}
+                    </span>
+                  </span>
+                  <Insignia tono="aviso">Pendiente</Insignia>
+                </li>
+              ))}
+            </ul>
+          </Tarjeta>
+        )}
 
         <section aria-label="Resumen" className="grid divide-y divide-panel-borde overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie sm:grid-cols-3 sm:divide-x sm:divide-y-0">
           <Resumen
