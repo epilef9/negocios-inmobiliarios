@@ -129,6 +129,74 @@ exports.obtener = async (req, res) => {
     }
 };
 
+exports.actualizarEstado = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
+    const { estado, comentario } = req.body || {};
+    if (!['pendiente', 'aprobada', 'rechazada'].includes(estado)) {
+        return res.status(400).json({ message: 'Elegí un estado válido para la solicitud.' });
+    }
+    if (comentario !== undefined && typeof comentario !== 'string') {
+        return res.status(400).json({ message: 'El comentario debe ser texto.' });
+    }
+    const comentarioLimpio = typeof comentario === 'string' ? comentario.trim() : '';
+    if (comentarioLimpio.length > 1000) {
+        return res.status(400).json({ message: 'El comentario no puede superar los 1000 caracteres.' });
+    }
+    if (['pendiente', 'rechazada'].includes(estado) && !comentarioLimpio) {
+        return res.status(400).json({ message: 'Ingresá un comentario para mantener pendiente o rechazar la solicitud.' });
+    }
+
+    try {
+        const solicitud = await solicitudesService.actualizarEstado({
+            id: req.params.id,
+            estado,
+            comentario: comentarioLimpio,
+            administradoPor: req.user._id,
+        });
+        return res.status(200).json({ data: solicitud, message: 'Estado de la solicitud actualizado.' });
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+        console.error('[solicitudes] No se pudo actualizar el estado de una solicitud administrativa:', error.name || 'Error');
+        return res.status(500).json({ message: 'No se pudo actualizar el estado de la solicitud.' });
+    }
+};
+
+exports.actualizarArchivado = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
+    const { archivada } = req.body || {};
+    if (typeof archivada !== 'boolean') {
+        return res.status(400).json({ message: 'Indicá si la solicitud debe archivarse o restaurarse.' });
+    }
+
+    try {
+        const solicitud = await solicitudesService.actualizarArchivado({
+            id: req.params.id,
+            archivada,
+            administradoPor: req.user._id,
+        });
+        return res.status(200).json({
+            data: solicitud,
+            message: archivada ? 'Solicitud archivada correctamente.' : 'Solicitud restaurada correctamente.',
+        });
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+        console.error('[solicitudes] No se pudo actualizar el archivado:', error.name || 'Error');
+        return res.status(500).json({ message: 'No se pudo actualizar el archivado de la solicitud.' });
+    }
+};
+
+exports.eliminarDefinitivamente = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
+    try {
+        await solicitudesService.eliminarDefinitivamente(req.params.id);
+        return res.status(200).json({ data: { id: req.params.id }, message: 'Solicitud eliminada definitivamente.' });
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+        console.error('[solicitudes] No se pudo eliminar definitivamente una solicitud:', error.name || 'Error');
+        return res.status(500).json({ message: 'No se pudo eliminar la solicitud de forma segura.' });
+    }
+};
+
 exports.notificacionesAdmin = async (_req, res) => {
     try {
         return res.status(200).json({ data: await solicitudesService.listarNotificacionesAdmin() });
