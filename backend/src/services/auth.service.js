@@ -65,14 +65,9 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
-        // DNI obligatorio al registrarse
+        // DNI opcional al registrarse
         const dni = typeof userData.dni === 'string' ? userData.dni.trim() : '';
-        if (!dni) {
-            const error = new Error('El DNI es obligatorio.');
-            error.statusCode = 400;
-            throw error;
-        }
-        if (!/^\d{7,8}$/.test(dni)) {
+        if (dni && !/^\d{7,8}$/.test(dni)) {
             const error = new Error('El DNI debe tener 7 u 8 dígitos numéricos.');
             error.statusCode = 400;
             throw error;

@@ -56,7 +56,7 @@ export default function AdminPublicacionesPage() {
   };
 
   useEffect(() => {
-    cargar();
+    void cargar();
   }, [filtro]);
 
   const handleAprobar = async (sol: SolicitudPublicacion) => {

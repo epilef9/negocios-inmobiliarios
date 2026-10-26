@@ -7,6 +7,7 @@ const solicitudPublicacionController = require('../controllers/solicitudPublicac
 const authMiddleware = require('../middlewares/auth.middleware');
 const { usaCloudinary, subirACloudinary } = require('../services/imagenes.service');
 const { requireAdmin } = authMiddleware;
+const { frenos } = require('../middlewares/seguridad');
 
 const uploadsDirectory = path.join(__dirname, '../../uploads');
 fs.mkdirSync(uploadsDirectory, { recursive: true });
@@ -55,7 +56,7 @@ const uploadDocumentos = multer({
 });
 
 // Subida de fotos de la propiedad por parte del cliente
-router.post('/fotos', authMiddleware, (req, res, next) => {
+router.post('/fotos', authMiddleware, frenos.uploads, (req, res, next) => {
     upload.array('fotos', 15)(req, res, async (error) => {
         if (error) {
             if (error.code === 'LIMIT_FILE_SIZE') {
@@ -88,28 +89,29 @@ router.post('/fotos', authMiddleware, (req, res, next) => {
         const urls = archivos.map((file) => `${baseUrl}/uploads/${file.filename}`);
         return res.status(201).json({ data: urls });
     });
+});
 
-    router.post('/documentos', authMiddleware, (req, res, next) => {
-        uploadDocumentos.array('documentos', 5)(req, res, async (error) => {
-            if (error) {
-                if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Cada documento puede pesar hasta 10 MB' });
-                if (error.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ message: 'Adjuntá hasta 5 documentos' });
-                if (error.statusCode === 415) return res.status(415).json({ message: error.message });
-                return next(error);
+// Subida de documentos de la solicitud por parte del cliente
+router.post('/documentos', authMiddleware, frenos.uploads, (req, res, next) => {
+    uploadDocumentos.array('documentos', 5)(req, res, async (error) => {
+        if (error) {
+            if (error.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Cada documento puede pesar hasta 10 MB' });
+            if (error.code === 'LIMIT_FILE_COUNT') return res.status(413).json({ message: 'Adjuntá hasta 5 documentos' });
+            if (error.statusCode === 415) return res.status(415).json({ message: error.message });
+            return next(error);
+        }
+        try {
+            const archivos = req.files || [];
+            if (usaCloudinary()) {
+                const urls = [];
+                for (const archivo of archivos) urls.push(await subirACloudinary(archivo.buffer, archivo.mimetype, archivo.originalname));
+                return res.status(201).json({ data: urls });
             }
-            try {
-                const archivos = req.files || [];
-                if (usaCloudinary()) {
-                    const urls = [];
-                    for (const archivo of archivos) urls.push(await subirACloudinary(archivo.buffer, archivo.mimetype, archivo.originalname));
-                    return res.status(201).json({ data: urls });
-                }
-                const baseUrl = `${req.protocol}://${req.get('host')}`;
-                return res.status(201).json({ data: archivos.map((file) => `${baseUrl}/uploads/${file.filename}`) });
-            } catch (errorSubida) {
-                return res.status(errorSubida.statusCode || 502).json({ message: errorSubida.message });
-            }
-        });
+            const baseUrl = `${req.protocol}://${req.get('host')}`;
+            return res.status(201).json({ data: archivos.map((file) => `${baseUrl}/uploads/${file.filename}`) });
+        } catch (errorSubida) {
+            return res.status(errorSubida.statusCode || 502).json({ message: errorSubida.message });
+        }
     });
 });
 
