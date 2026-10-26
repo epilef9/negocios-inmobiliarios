@@ -257,7 +257,7 @@ export default function MapaZonasCalma() {
             key={propiedadActiva._id}
             propiedad={propiedadActiva}
             blue={blue}
-            estilo={estiloTarjeta}
+            estilo={angosto ? undefined : estiloTarjeta}
             angosto={angosto}
             onEntrar={cancelarCierre}
             onSalir={() => !activo?.fijo && programarCierre()}
@@ -310,23 +310,23 @@ function TarjetaMapa({
       onMouseLeave={onSalir}
       style={estilo}
       className={`mapa-tarjeta absolute z-[700] overflow-hidden rounded-2xl border border-[#efe9df]/15 bg-[#0a1d42]/95 text-[#efe9df] shadow-[0_24px_60px_-20px_rgba(0,0,0,0.7)] backdrop-blur-md ${
-        angosto ? 'inset-x-4 bottom-4' : ''
+        angosto ? 'inset-x-4 bottom-4 flex' : ''
       }`}
     >
-      <div className={`relative bg-[#0e2652] ${angosto ? 'hidden' : 'h-36'}`}>
+      <div className={`relative shrink-0 bg-[#0e2652] ${angosto ? 'w-28' : 'h-36'}`}>
         {imagen && !fotoRota && (
           // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen del backend con dominio variable
-          <img src={imagen} alt="" onError={() => setFotoRota(true)} className="h-full w-full object-cover" />
+          <img src={imagen} alt="" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
         )}
         {etiquetaOperacion[operacion] && (
-          <span className={`calma-micro absolute left-3 top-3 rounded-full px-2.5 py-1 ${COLOR_OPERACION[operacion] ?? ''}`}>
+          <span className={`calma-micro absolute rounded-full px-2.5 py-1 ${angosto ? 'left-2 top-2' : 'left-3 top-3'} ${COLOR_OPERACION[operacion] ?? ''}`}>
             {etiquetaOperacion[operacion]}
           </span>
         )}
       </div>
-      <div className="flex flex-col gap-2 p-4">
+      <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className="font-display m-0 text-[22px] font-normal leading-tight">{propiedad.title}</h3>
+          <h3 className={`font-display m-0 font-normal leading-tight ${angosto ? 'text-[19px]' : 'text-[22px]'}`}>{propiedad.title}</h3>
           <button
             type="button"
             onClick={onCerrar}
