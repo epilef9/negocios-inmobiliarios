@@ -14,9 +14,9 @@ const enlaces = [
   { href: '/contacto', texto: 'Contacto' },
 ];
 
-// Barra del sitio de vidrio esmerilado: transparente y desenfocada, deja ver la foto de atrás, con una luz
-// suave detrás del logo para que se lea con sus colores originales. Al bajar se desliza hacia arriba y se
-// desvanece; al subir vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
+// Barra del sitio de vidrio esmerilado: transparente y desenfocada, deja ver la foto de atrás; el logo
+// lleva un halo fino para leerse con sus colores. Al bajar se desliza hacia arriba y se desvanece; al subir
+// vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
 export default function SiteHeader() {
   const { user, isLoading, logout } = useAuth();
   const ruta = usePathname();
@@ -85,9 +85,10 @@ export default function SiteHeader() {
           {menuAbierto ? 'Cerrar' : 'Menú'}
         </button>
 
-        <Link href="/" aria-label="Ir al inicio" className="flex items-center">
-          {/* Logo original: ARACELI BALBUENA arriba, línea azul y NEGOCIOS INMOBILIARIOS abajo */}
-          <LogoEmpresa className="h-12 w-auto sm:h-14 lg:h-16" prioridad />
+        <Link href="/" aria-label="Ir al inicio" className="flex items-start self-start sm:-mb-6 lg:-mb-12">
+          {/* Logo original: ARACELI BALBUENA arriba, línea azul y NEGOCIOS INMOBILIARIOS abajo.
+              En pantallas grandes sobresale por debajo de la barra (margen negativo), sin agrandarla. */}
+          <LogoEmpresa className="barra-logo h-12 w-auto sm:h-[72px] lg:h-24" prioridad />
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">

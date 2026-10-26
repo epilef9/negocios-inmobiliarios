@@ -26,14 +26,19 @@ export default function Home() {
               <Image src="/images/home-inmobiliaria.webp" alt="Frente de la oficina de Negocios Inmobiliarios al anochecer" fill sizes="(min-width: 1024px) 33vw, 100vw" className="object-cover object-[center_45%]" />
             </div>
           </div>
-          <div className="flex flex-col gap-10 lg:col-span-6 lg:col-start-7">
+          <div className="flex flex-col gap-10 lg:col-span-6 lg:col-start-7 lg:pl-10">
             <h2 className="sr-only">La inmobiliaria</h2>
-            <p data-reveal="suave" data-motion-hide className="font-display m-0 text-[clamp(28px,2.7vw,38px)] leading-[1.18] [text-indent:3.2em]">
-              Somos de Villa Libertador San Martín. Te ayudamos a comprar, alquilar o pasar unos días en el centro de Entre Ríos, con alguien que conoce cada barrio y te atiende en persona.
-            </p>
+            <div data-reveal="suave" data-motion-hide className="flex flex-col gap-5">
+              <p className="font-display m-0 text-[clamp(30px,2.9vw,42px)] leading-[1.12] [text-wrap:balance]">
+                Somos Araceli Balbuena Negocios Inmobiliarios, de Villa Libertador San Martín.
+              </p>
+              <p className="font-display m-0 text-[clamp(21px,1.8vw,26px)] leading-[1.3] text-[#efe9df]/80 [text-wrap:pretty]">
+                Te acompañamos a comprar, alquilar o pasar unos días en Libertador, Crespo y Diamante, con atención en persona y alguien que conoce cada barrio.
+              </p>
+            </div>
             <div className="grid gap-8 text-[15px] leading-[1.65] text-[#efe9df]/70 sm:grid-cols-2">
-              <p className="m-0">Desde la oficina de 25 de Mayo 726 coordinamos las visitas, los contratos y los requisitos de cada operación.</p>
-              <p className="m-0">Venta, alquiler y alquiler por días de casas, departamentos, locales y terrenos.</p>
+              <p className="m-0">Desde nuestra oficina en 25 de Mayo 726 coordinamos cada visita, preparamos los contratos y te explicamos qué necesitás para cada operación.</p>
+              <p className="m-0">Casas, departamentos, locales y terrenos en venta y en alquiler, y alojamientos por días para quienes vienen de visita a la zona.</p>
             </div>
             <Link href="/requisitos" className="calma-micro calma-link self-start">
               Ver requisitos para alquilar
