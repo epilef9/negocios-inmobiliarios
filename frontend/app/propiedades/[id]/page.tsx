@@ -8,6 +8,7 @@ import SitioBase from "@/components/sitio/SitioBase";
 import BotonFavorito from "@/components/sitio/BotonFavorito";
 import Galeria from "@/components/detalle/Galeria";
 import ConsultaEmail from "@/components/detalle/ConsultaEmail";
+import ReservarEstadia from "@/components/detalle/ReservarEstadia";
 import AgendarVisita, { type AgendarVisitaHandle } from "@/components/detalle/AgendarVisita";
 import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { etiquetaOperacion } from "@/components/sitio/datos";
@@ -117,6 +118,7 @@ export default function DetallePropiedad() {
 	const estadoNoDisponible = p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
 	// Una propiedad vendida o alquilada ya no se puede visitar
 	const sePuedeVisitar = Boolean(p.permitirVisita) && p.estado !== "vendido" && p.estado !== "alquilado";
+	const esTemporario = p.categoria_operacion === "temporario";
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
 	const enlace = typeof window !== "undefined" ? window.location.href : "";
@@ -192,6 +194,15 @@ export default function DetallePropiedad() {
 						</section>
 					)}
 
+					{p.categoria_operacion === "temporario" && (
+						<section aria-labelledby="titulo-disponibilidad" className="flex flex-col gap-5">
+							<h2 id="titulo-disponibilidad" className="font-display m-0 text-[32px] font-normal">
+								Reservá tu estadía
+							</h2>
+							<ReservarEstadia propiedad={p} />
+						</section>
+					)}
+
 					<section aria-labelledby="titulo-ubicacion" className="flex flex-col gap-5">
 						<h2 id="titulo-ubicacion" className="font-display m-0 text-[32px] font-normal">
 							Ubicación
@@ -222,13 +233,24 @@ export default function DetallePropiedad() {
 							{p.montoExpensas ? <p className="m-0 pt-1 text-[14px] text-[#efe9df]/65">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 						</div>
 						<div className="flex flex-col gap-3">
+							{esTemporario && (
+								<a
+									href="#reservar"
+									className="calma-micro flex items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white"
+								>
+									<span className="calma-dot" aria-hidden="true" />
+									Reservar estadía
+								</a>
+							)}
 							{sePuedeVisitar && (
 								<button
 									type="button"
 									onClick={() => visita.current?.abrir()}
-									className="calma-micro flex items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white"
+									className={`calma-micro flex items-center justify-center gap-2.5 rounded-full px-6 py-4 text-[12px] transition-colors ${
+										esTemporario ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
+									}`}
 								>
-									<span className="calma-dot" aria-hidden="true" />
+									{!esTemporario && <span className="calma-dot" aria-hidden="true" />}
 									Agendar una visita
 								</button>
 							)}
@@ -237,7 +259,7 @@ export default function DetallePropiedad() {
 								target="_blank"
 								rel="noreferrer"
 								className={`calma-micro flex items-center justify-center gap-2.5 rounded-full px-6 py-4 text-[12px] transition-colors ${
-									sePuedeVisitar ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
+									sePuedeVisitar || esTemporario ? "border border-[#efe9df]/40 hover:border-[#efe9df]" : "bg-[#efe9df] text-[#071733] hover:bg-white"
 								}`}
 							>
 								Escribir por WhatsApp

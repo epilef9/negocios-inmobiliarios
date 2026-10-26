@@ -118,4 +118,4 @@ const motivoNoDisponible = async (fecha, horario, { controlarHorario = true } = 
     return null;
 };
 
-module.exports = { disponibilidad, motivoNoDisponible, HORARIO_TEXTO };
+module.exports = { disponibilidad, motivoNoDisponible, HORARIO_TEXTO, ahoraEnArgentina, sumarDias };
