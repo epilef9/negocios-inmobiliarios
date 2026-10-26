@@ -56,6 +56,13 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
+const requireClient = (req, res, next) => {
+    if (!req.user || req.user.role !== 'cliente') {
+        return res.status(403).json({ message: 'Esta acción está disponible únicamente para cuentas de cliente.' });
+    }
+    next();
+};
+
 // Para rutas públicas que se comportan distinto con sesión (por ejemplo, el administrador agenda fuera de horario).
 // Si no hay token, o no es válido, sigue igual que un visitante.
 const sesionOpcional = async (req, res, next) => {
@@ -76,4 +83,5 @@ const sesionOpcional = async (req, res, next) => {
 
 module.exports = authMiddleware;
 module.exports.requireAdmin = requireAdmin;
+module.exports.requireClient = requireClient;
 module.exports.sesionOpcional = sesionOpcional;

@@ -21,7 +21,7 @@ const allowedFields = new Set([
     'location', 'ciudad', 'provincia', 'direccionCompleta', 'referenciasUbicacion',
     'categoria_operacion', 'tipo_inmueble', 'cantidad_ambientes', 'comodidades', 'otrasComodidades',
     'expensas', 'montoExpensas', 'cochera', 'pisoUnidad', 'linkGoogleMaps', 'latitud', 'longitud',
-    'permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'horarioAtencion', 'telefonoWhatsApp',
+    'permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'permitirSolicitudes', 'operacionesSolicitud', 'horarioAtencion', 'telefonoWhatsApp',
     'precioPorNocheUSD', 'minimoNoches', 'huespedesMaximos', 'costoLimpiezaUSD',
     'duracionAlquilerMeses', 'unidadDuracionAlquiler', 'checkInDesde', 'checkOutHasta',
     'checkInFlexible', 'estado', 'images',
@@ -63,11 +63,22 @@ const validateProperty = (req, res, next) => {
         }
     });
 
-    ['permitirVisita', 'permitirWhatsApp', 'permitirEmail'].forEach((field) => {
+    ['permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'permitirSolicitudes'].forEach((field) => {
         if (req.body[field] !== undefined && typeof req.body[field] !== 'boolean') {
             errors.push(`${field} debe ser booleano`);
         }
     });
+
+    if (req.body.operacionesSolicitud !== undefined && (
+        !Array.isArray(req.body.operacionesSolicitud) ||
+        req.body.operacionesSolicitud.some((operacion) => !['venta', 'alquiler'].includes(operacion)) ||
+        new Set(req.body.operacionesSolicitud).size !== req.body.operacionesSolicitud.length
+    )) {
+        errors.push('operacionesSolicitud debe contener una sola vez cada operación válida (venta o alquiler)');
+    }
+    if (req.body.categoria_operacion === 'temporario' && Array.isArray(req.body.operacionesSolicitud) && req.body.operacionesSolicitud.length) {
+        errors.push('Las propiedades temporarias no admiten solicitudes de compra o alquiler permanente');
+    }
 
     if (!isUpdate) {
         requiredFields.forEach((field) => {
