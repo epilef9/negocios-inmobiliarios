@@ -101,6 +101,7 @@ const frenos = {
     visitas: limitar({ nombre: 'visitas', ventanaMinutos: 10, maximo: 5, mensaje: 'Pediste muchas visitas seguidas. Si necesitás más, escribinos por WhatsApp.' }),
     perfil: limitar({ nombre: 'perfil', ventanaMinutos: 15, maximo: 10 }),
     contacto: limitar({ nombre: 'contacto', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas consultas seguidas. Probá de nuevo en unos minutos.' }),
+    reservas: limitar({ nombre: 'reservas', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas reservas seguidas. Esperá unos minutos o escribinos por WhatsApp.' }),
 };
 
 module.exports = { encabezados, limpiarEntrada, limitar, frenos };

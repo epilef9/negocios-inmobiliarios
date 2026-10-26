@@ -6,6 +6,7 @@ import Revelar from "@/components/sitio/Revelar";
 import HeroCalma from "@/components/home/calma/HeroCalma";
 import DestacadasCalma from "@/components/home/calma/DestacadasCalma";
 import LocalidadesCalma from "@/components/home/calma/LocalidadesCalma";
+import MapaZonasCalma from "@/components/home/calma/MapaZonasCalma";
 
 // Texto que se anima renglón por renglón. Va como HTML fijo para que React no reconcilie
 // los nodos que GSAP SplitText reorganiza (es un texto propio, nunca datos de usuarios).
@@ -56,6 +57,9 @@ export default function Home() {
         </section>
 
         <LocalidadesCalma />
+
+        {/* Mapa satelital de las tres localidades con las propiedades marcadas */}
+        <MapaZonasCalma />
 
       </Revelar>
     </SitioBase>
