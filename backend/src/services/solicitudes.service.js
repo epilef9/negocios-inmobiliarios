@@ -253,4 +253,6 @@ module.exports = {
     obtenerPorId,
     listarNotificacionesAdmin,
     obtenerDocumento,
+    // Los datos personales se descifran solo en los servicios que los necesitan (panel/contratos)
+    leerDatos,
 };

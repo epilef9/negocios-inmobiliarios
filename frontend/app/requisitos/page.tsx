@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import SitioBase from '@/components/sitio/SitioBase';
@@ -8,6 +8,7 @@ import Revelar from '@/components/sitio/Revelar';
 import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
 import { GUIAS, esOperacion, type Operacion } from '@/components/requisitos/datos';
 import { useChecklist, type EstadoGuardado } from '@/components/requisitos/useChecklist';
+import { getRequisitos, type Requisito } from '@/services/requisitos';
 
 // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
 const TITULO = 'Requisitos';
@@ -43,10 +44,34 @@ function TextoGuardado({ estado, nombre }: { estado: EstadoGuardado; nombre: str
 
 function Requisitos({ inicial }: { inicial: Operacion }) {
   const [activa, setActiva] = useState<Operacion>(inicial);
+  const [guias, setGuias] = useState(GUIAS);
   const { marcas, alternar, desmarcar, estado, nombre } = useChecklist();
 
-  const guia = GUIAS.find((g) => g.id === activa) ?? GUIAS[0];
-  const idsDe = (id: Operacion) => (GUIAS.find((g) => g.id === id)?.secciones ?? []).flatMap((s) => s.items.map((i) => i.id));
+  useEffect(() => {
+    getRequisitos()
+      .then((items) => {
+        const actualizadas = GUIAS.map((guia) => {
+          const deOperacion = items.filter((item: Requisito) => item.operacion === guia.id);
+          let indice = 0;
+          const secciones = [...new Set(deOperacion.map((item) => item.seccion))].map((titulo) => ({
+            titulo,
+            items: deOperacion.filter((item) => item.seccion === titulo).map((item) => ({
+              // Se conserva el id histórico de la guía fija para no perder checks ya guardados.
+              id: guia.secciones.flatMap((seccion) => seccion.items)[indice++]?.id ?? item._id,
+              texto: item.texto,
+            })),
+          }));
+          return secciones.length ? { ...guia, secciones } : guia;
+        });
+        setGuias(actualizadas);
+      })
+      .catch(() => {
+        // La guía fija queda disponible si la API todavía no está levantada.
+      });
+  }, []);
+
+  const guia = guias.find((g) => g.id === activa) ?? guias[0];
+  const idsDe = (id: Operacion) => (guias.find((g) => g.id === id)?.secciones ?? []).flatMap((s) => s.items.map((i) => i.id));
   const ids = idsDe(guia.id);
   const listos = ids.filter((id) => marcas[id]).length;
   const completo = listos === ids.length;
@@ -75,7 +100,7 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
 
         <div data-reveal="suave" className="px-5 sm:px-10">
           <div role="group" aria-label="Elegí una guía" className="flex flex-wrap gap-x-8 gap-y-3 border-y border-[#efe9df]/20 py-5">
-            {GUIAS.map((g) => {
+            {guias.map((g) => {
               const elegida = g.id === activa;
               const delGrupo = idsDe(g.id);
               const hechos = delGrupo.filter((id) => marcas[id]).length;

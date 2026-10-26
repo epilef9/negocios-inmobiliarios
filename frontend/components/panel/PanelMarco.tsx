@@ -17,7 +17,9 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin/reservas', texto: 'Reservas', icono: 'maleta' },
   { href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
   { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
-  { href: '/admin/contratos', texto: 'Contratos', icono: 'contratos' },
+  { href: '/admin/contratos', texto: 'Contratos', icono: 'documento' },
+  { href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir' },
+  { href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
   { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion' },
 ];
 

@@ -7,6 +7,7 @@ import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
 import MisReservas from "@/components/cuenta/MisReservas";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
+import { getMisSolicitudesPublicacion, type SolicitudPublicacion } from "@/services/solicitudesPublicacion";
 
 // Estilos del formulario, iguales a los de ingreso y registro
 const etiqueta = "calma-micro text-[#efe9df]/70";
@@ -16,7 +17,7 @@ const botonPrincipal =
 	"calma-micro inline-flex items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60";
 const enlaceCuenta = "calma-link calma-link-sutil text-[15px] text-[#efe9df]/80 hover:text-[#efe9df]";
 
-const VACIO: DatosPerfil = { nombre: "", apellido: "", email: "", telefono: "" };
+const VACIO: DatosPerfil = { nombre: "", apellido: "", dni: "", email: "", telefono: "" };
 const DESDE = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" });
 
 type Aviso = { tono: "bien" | "mal"; texto: string } | null;
@@ -68,19 +69,30 @@ export default function PerfilPage() {
 	const [avisoClave, setAvisoClave] = useState<Aviso>(null);
 	const [enlaceDevClave, setEnlaceDevClave] = useState<string | null>(null);
 
+	const [solicitudes, setSolicitudes] = useState<SolicitudPublicacion[]>([]);
+	const [cargandoSolicitudes, setCargandoSolicitudes] = useState(true);
+
 	useEffect(() => {
 		if (isLoading || !user) return;
 		let activo = true;
 		getPerfil()
 			.then((perfil) => {
 				if (!activo) return;
-				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
+				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", dni: perfil.dni ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
 				setEmailGuardado(perfil.email ?? "");
 				setEmailPendiente(perfil.emailPendiente ?? null);
 				setMiembroDesde(perfil.createdAt ? DESDE.format(new Date(perfil.createdAt)) : null);
 			})
 			.catch((e: Error) => activo && setErrorCarga(e.message))
 			.finally(() => activo && setCargando(false));
+
+		getMisSolicitudesPublicacion()
+			.then((res) => {
+				if (activo) setSolicitudes(res);
+			})
+			.catch(() => {})
+			.finally(() => activo && setCargandoSolicitudes(false));
+
 		return () => {
 			activo = false;
 		};
@@ -99,6 +111,8 @@ export default function PerfilPage() {
 		const e: Record<string, string> = {};
 		if (!datos.nombre.trim()) e.nombre = "Escribí tu nombre.";
 		if (!datos.apellido.trim()) e.apellido = "Escribí tu apellido.";
+		if (!datos.dni.trim()) e.dni = "El DNI es obligatorio.";
+		else if (!/^\d{7,8}$/.test(datos.dni.trim())) e.dni = "El DNI debe tener 7 u 8 dígitos numéricos.";
 		if (!datos.email.trim()) e.email = "El email es obligatorio.";
 		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) e.email = "Ese email no parece válido.";
 		const digitos = datos.telefono.replace(/\D/g, "");
@@ -199,6 +213,9 @@ export default function PerfilPage() {
 									<Campo id={`${id}-apellido`} texto="Apellido *" error={errores.apellido}>
 										<input id={`${id}-apellido`} type="text" autoComplete="family-name" disabled={cargando} value={datos.apellido} aria-invalid={Boolean(errores.apellido)} onChange={(e) => cambiar("apellido", e.target.value)} className={control} />
 									</Campo>
+									<Campo id={`${id}-dni`} texto="DNI *" error={errores.dni} ayuda="Solo números, sin puntos.">
+										<input id={`${id}-dni`} type="text" inputMode="numeric" disabled={cargando} value={datos.dni} aria-invalid={Boolean(errores.dni)} onChange={(e) => cambiar("dni", e.target.value)} className={control} />
+									</Campo>
 									<Campo id={`${id}-email`} texto="Email *" error={errores.email} ayuda="Es con el que ingresás. Si lo cambiás, te mandamos un mail para confirmarlo.">
 										<input id={`${id}-email`} type="email" autoComplete="email" required disabled={cargando} value={datos.email} aria-invalid={Boolean(errores.email)} onChange={(e) => cambiar("email", e.target.value)} className={control} />
 									</Campo>
@@ -247,6 +264,106 @@ export default function PerfilPage() {
 							</div>
 							{enlaceDevClave && <EnlaceDeDesarrollo enlace={enlaceDevClave} para="elegir la contraseña nueva" accion="Elegir contraseña nueva" />}
 						</section>
+
+						{/* Sección de publicaciones solicitadas (HU-08) */}
+						<section id="mis-publicaciones" aria-labelledby={`${id}-publicaciones-titulo`} className="border-t border-[#efe9df]/15 pt-10">
+							<div className="flex flex-wrap items-center justify-between gap-4">
+								<div>
+									<h2 id={`${id}-publicaciones-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
+										Mis publicaciones
+									</h2>
+									<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">
+										Estado de las propiedades que solicitaste publicar con nosotros.
+									</p>
+								</div>
+								<Link
+									href="/publicar"
+									className="calma-micro inline-flex items-center gap-2 rounded-full border border-[#efe9df]/40 px-5 py-3 text-[12px] text-[#efe9df] transition-colors hover:border-[#efe9df] hover:bg-[#efe9df]/10"
+								>
+									+ Publicar propiedad
+								</Link>
+							</div>
+
+							<div className="mt-8 flex flex-col gap-4">
+								{cargandoSolicitudes ? (
+									<p className="m-0 text-[15px] text-[#efe9df]/50">Cargando publicaciones…</p>
+								) : solicitudes.length === 0 ? (
+									<div className="rounded-xl border border-[#efe9df]/15 bg-[#efe9df]/5 p-6 text-center sm:p-10">
+										<p className="m-0 text-[16px] text-[#efe9df]/80">Todavía no enviaste ninguna propiedad para publicar.</p>
+										<p className="m-0 mt-2 text-[14px] text-[#efe9df]/50">
+											Si sos dueño o querés alquilar tu inmueble, podés solicitar la publicación en minutos.
+										</p>
+										<Link
+											href="/publicar"
+											className="calma-micro mt-6 inline-flex items-center gap-2 rounded-full bg-[#efe9df] px-6 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white"
+										>
+											Solicitar publicación
+										</Link>
+									</div>
+								) : (
+									<div className="grid gap-4 sm:grid-cols-2">
+										{solicitudes.map((sol) => {
+											const estadoColor =
+												sol.estado === "aprobada"
+													? "bg-[#9fd8b4]/20 text-[#9fd8b4] border-[#9fd8b4]/30"
+													: sol.estado === "rechazada"
+													? "bg-[#d9382b]/20 text-[#ff8b80] border-[#d9382b]/30"
+													: "bg-amber-500/20 text-amber-300 border-amber-500/30";
+
+											const estadoTexto =
+												sol.estado === "aprobada"
+													? "Aprobada"
+													: sol.estado === "rechazada"
+													? "No aprobada"
+													: "En revisión";
+
+											return (
+												<div key={sol._id} className="flex flex-col justify-between rounded-xl border border-[#efe9df]/15 bg-[#efe9df]/5 p-5">
+													<div>
+														<div className="flex items-center justify-between gap-2">
+															<span className="calma-micro uppercase text-[11px] tracking-wider text-[#efe9df]/50">
+																{sol.tipoPropiedad} en {sol.operacion}
+															</span>
+															<span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${estadoColor}`}>
+																{estadoTexto}
+															</span>
+														</div>
+														<h3 className="m-0 mt-2 text-[17px] font-semibold text-[#efe9df]">
+															{sol.direccion}
+														</h3>
+														<p className="m-0 mt-1 text-[14px] text-[#efe9df]/60">
+															{sol.ciudad || "Libertador San Martín"}
+														</p>
+														<p className="m-0 mt-2 text-[15px] font-medium text-[#efe9df]">
+															{sol.precioPretendido?.moneda === "ARS" ? "$" : "USD "}{" "}
+															{sol.precioPretendido?.monto?.toLocaleString("es-AR")}
+														</p>
+														{sol.estado === "rechazada" && sol.motivoRechazo && (
+															<div className="mt-3 rounded-lg border border-[#d9382b]/30 bg-[#d9382b]/10 p-3 text-[13px] text-[#ff8b80]">
+																<strong className="font-semibold">Motivo:</strong> {sol.motivoRechazo}
+															</div>
+														)}
+													</div>
+													<div className="mt-4 flex items-center justify-between border-t border-[#efe9df]/10 pt-3 text-[12px] text-[#efe9df]/40">
+														<span>
+															Enviado {new Date(sol.createdAt).toLocaleDateString("es-AR")}
+														</span>
+														{sol.estado === "aprobada" && sol.propiedadCreada && typeof sol.propiedadCreada === "object" && (
+															<Link
+																href={`/propiedades/${sol.propiedadCreada._id}`}
+																className="calma-link text-[#9fd8b4]"
+															>
+																Ver en catálogo →
+															</Link>
+														)}
+													</div>
+												</div>
+											);
+										})}
+									</div>
+								)}
+							</div>
+						</section>
 					</div>
 
 					<aside aria-label="Accesos de tu cuenta" className="flex flex-col gap-8 border-t border-[#efe9df]/15 pt-10 lg:self-start">
@@ -264,6 +381,9 @@ export default function PerfilPage() {
 							)}
 							<Link href="/favoritos" className={enlaceCuenta}>
 								Mis favoritos
+							</Link>
+							<Link href="/publicar" className={enlaceCuenta}>
+								Publicar mi propiedad
 							</Link>
 							<Link href="/requisitos" className={enlaceCuenta}>
 								Mis requisitos para alquilar o comprar
