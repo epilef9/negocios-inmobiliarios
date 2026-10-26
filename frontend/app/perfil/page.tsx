@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
+import MisSolicitudes from "@/components/cuenta/MisSolicitudes";
 import MisReservas from "@/components/cuenta/MisReservas";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
@@ -194,6 +195,7 @@ export default function PerfilPage() {
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
 					<div className="flex flex-col gap-16">
 						{user && user.role !== "admin" && <MisReservas id={id} />}
+						{user && user.role !== "admin" && <MisSolicitudes key={user.id} />}
 
 						<section aria-labelledby={`${id}-datos-titulo`} className="border-t border-[#efe9df]/15 pt-10">
 							<h2 id={`${id}-datos-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
@@ -377,6 +379,11 @@ export default function PerfilPage() {
 							{user?.role !== "admin" && (
 								<a href="#reservas" className={enlaceCuenta}>
 									Mis reservas
+								</a>
+							)}
+							{user?.role !== "admin" && (
+								<a href="#solicitudes" className={enlaceCuenta}>
+									Mis solicitudes
 								</a>
 							)}
 							<Link href="/favoritos" className={enlaceCuenta}>
