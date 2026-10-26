@@ -214,14 +214,13 @@ export default function ClientesPage() {
   };
 
   const propiedadElegida = panel?.propiedades.find((p) => p.id === dialogo?.propiedadId);
-  // Un inquilino necesita que la propiedad tenga dueño cargado y que no esté vendida (lo exige el servidor)
+  // Un inquilino necesita que la propiedad tenga dueño cargado (lo exige el servidor).
+  // Si estaba vendida igual se puede: el dueño se la alquila a alguien y pasa a figurar como alquilada.
   const motivoSinInquilino = !propiedadElegida
     ? null
     : !propiedadElegida.propietario
       ? 'Primero cargá el dueño de esta propiedad.'
-      : propiedadElegida.estado === 'vendido'
-        ? 'Está vendida: no puede tener inquilino.'
-        : null;
+      : null;
 
   const guardar = async () => {
     if (!dialogo) return;

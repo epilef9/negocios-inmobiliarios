@@ -25,3 +25,6 @@ Thumbs.db
 
 Aplicada.pdf
 backend/uploads/
+# Herramientas de diseño locales (no son parte de las funcionalidades)
+.impeccable/
+PRODUCT.md

@@ -1,6 +1,8 @@
 // frontend/services/auth.ts
 // Servicio para conexion con los endpoints de autenticacion de la API
 
+import { conSesion } from "./sesion";
+
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ??
   (process.env.NODE_ENV === "production" ? "/api" : "http://localhost:4000/api");
@@ -24,8 +26,8 @@ export interface UserPreferences {
   paleta: string;
 }
 
+// El token de sesión no llega a la página: el backend lo deja en una cookie httpOnly
 export interface AuthResponse {
-  token: string;
   user: User;
 }
 
@@ -70,14 +72,9 @@ export class AuthRequestError extends Error {
 
 // Peticion HTTP generica para autenticacion
 async function authRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    ...conSesion(options, { "Content-Type": "application/json", ...(options.headers as Record<string, string> | undefined) }),
   });
 
   const body = await response.json().catch(() => ({}));
@@ -98,10 +95,7 @@ export async function loginUser(payload: LoginPayload): Promise<AuthResponse> {
     body: JSON.stringify(payload),
   });
 
-  if (typeof window !== "undefined" && data.token) {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-  }
+  guardarUsuario(data.user);
 
   return data;
 }
@@ -121,10 +115,7 @@ export async function verifyEmail(token: string): Promise<AuthResponse> {
     body: JSON.stringify({ token }),
   });
 
-  if (typeof window !== "undefined" && data.token) {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-  }
+  guardarUsuario(data.user);
 
   return data;
 }
@@ -159,11 +150,14 @@ export async function confirmarCambioEmail(token: string): Promise<AuthResponse>
     method: "POST",
     body: JSON.stringify({ token }),
   });
-  if (typeof window !== "undefined" && data.token) {
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("user", JSON.stringify(data.user));
-  }
+  guardarUsuario(data.user);
   return data;
+}
+
+// Solo se guarda el perfil (sin token) para mostrar la sesión al instante y saber si vale la pena consultar al backend
+function guardarUsuario(user: User | null | undefined): void {
+  if (typeof window === "undefined" || !user) return;
+  localStorage.setItem("user", JSON.stringify(user));
 }
 
 function readStoredUser(): User | null {
@@ -179,23 +173,18 @@ function readStoredUser(): User | null {
 
 // Obtener datos del usuario actual
 export async function getCurrentUser(): Promise<User | null> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  if (!token) return null;
+  // Sin perfil guardado no hay sesión iniciada en este navegador: no se consulta al backend
+  if (!readStoredUser()) return null;
 
   try {
     const user = await authRequest<User>("/auth/me");
-    if (typeof window !== "undefined" && user) {
-      localStorage.setItem("user", JSON.stringify(user));
-    }
+    guardarUsuario(user);
     return user;
   } catch (error) {
-    // Solo cerrar sesion si el backend rechaza el token (401).
+    // Solo cerrar sesion si el backend rechaza la sesión (401).
     // Errores de red o temporales no deben borrar la cuenta al recargar (F5).
     if (error instanceof AuthRequestError && error.status === 401) {
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-      }
+      if (typeof window !== "undefined") localStorage.removeItem("user");
       return null;
     }
 
@@ -250,7 +239,10 @@ export async function saveUserChecklist(items: string[]): Promise<string[]> {
 // Cerrar sesion
 export function logoutUser(): void {
   if (typeof window !== "undefined") {
-    localStorage.removeItem("token");
     localStorage.removeItem("user");
+    // Quedaba el token de las sesiones anteriores a la cookie
+    localStorage.removeItem("token");
   }
+  // El backend borra la cookie de sesión
+  authRequest("/auth/logout", { method: "POST" }).catch(() => undefined);
 }

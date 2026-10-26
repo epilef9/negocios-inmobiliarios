@@ -218,10 +218,10 @@ const asignar = async (propertyId, rol, persona, reemplazar = false) => {
         }
     }
 
-    // Tener inquilino implica que está alquilada; una propiedad vendida no se puede alquilar
+    // Tener inquilino implica que está alquilada. Una propiedad vendida también se puede alquilar:
+    // el dueño que la compró se la alquila a alguien, y pasa a figurar como alquilada.
     const cambios = { updatedAt: Date.now() };
     if (rol === 'inquilino') {
-        if (valor && propiedad.estado === 'vendido') throw errorHttp('Una propiedad vendida no puede tener inquilino.', 400);
         if (valor && propiedad.estado !== 'alquilado') cambios.estado = 'alquilado';
         if (!valor && propiedad.estado === 'alquilado') cambios.estado = 'disponible';
     }

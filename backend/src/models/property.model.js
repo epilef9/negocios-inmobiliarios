@@ -46,6 +46,11 @@ const propertySchema = new mongoose.Schema({
         type: String,
         enum: ['venta', 'alquiler', 'temporario'],
     },
+    operacionesSolicitud: {
+        type: [{ type: String, enum: ['venta', 'alquiler'] }],
+        default: [],
+    },
+    permitirSolicitudes: { type: Boolean, default: true },
     tipo_inmueble: {
         type: String,
         enum: ['departamento', 'local', 'casa', 'monoambiente', 'terreno'],
@@ -69,6 +74,9 @@ const propertySchema = new mongoose.Schema({
     minimoNoches: { type: Number, min: 0 },
     huespedesMaximos: { type: Number, min: 0 },
     costoLimpiezaUSD: { type: Number, min: 0 },
+    // Candado de la disponibilidad (HU-20): cada alta de rango o reserva lo incrementa dentro de su transacción.
+    // Dos pedidos simultáneos escriben este mismo documento, así Mongo detecta el conflicto y el segundo se reintenta.
+    versionDisponibilidad: { type: Number, default: 0, select: false },
     duracionAlquilerMeses: { type: Number, min: 0 },
     unidadDuracionAlquiler: { type: String, enum: ['meses', 'años'] },
     checkInDesde: String,

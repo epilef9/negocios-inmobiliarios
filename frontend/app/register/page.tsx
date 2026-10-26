@@ -69,6 +69,9 @@ function FormularioRegistro() {
         password: datos.password,
         confirmPassword: datos.confirmPassword,
       });
+      if (volver?.startsWith('/solicitudes/nueva?') && typeof window !== 'undefined') {
+        localStorage.setItem('continuarSolicitudTrasVerificacion', volver);
+      }
       setPendiente({ email: datos.email.trim(), correoEnviado: resultado.correoEnviado, enlaceDev: resultado.enlaceDev });
       setEnviando(false);
     } catch (err) {

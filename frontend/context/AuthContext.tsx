@@ -29,9 +29,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function initAuth() {
       try {
         const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
-        const hasToken = typeof window !== 'undefined' ? Boolean(localStorage.getItem('token')) : false;
 
-        if (storedUser && hasToken) {
+        if (storedUser) {
           try {
             setUser(JSON.parse(storedUser));
           } catch {
@@ -41,22 +40,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const currentUser = await getCurrentUser();
         if (isMounted) {
-          // Mantener usuario local si la API no pudo responder (red/temporal).
-          // Solo limpiar sesion cuando getCurrentUser devolvio null (sin token o 401).
-          if (currentUser) {
-            setUser(currentUser);
-          } else if (!hasToken) {
-            setUser(null);
-          } else {
-            const stillHasToken = Boolean(localStorage.getItem('token'));
-            if (!stillHasToken) {
-              setUser(null);
-            }
-          }
+          // Mantener usuario local si la API no pudo responder (red/temporal): getCurrentUser devuelve el guardado.
+          // Solo limpiar sesion cuando devolvio null (sin sesion o 401).
+          setUser(currentUser);
         }
       } catch {
-        // Ante fallos inesperados no forzar logout si todavia hay token local
-        if (isMounted && typeof window !== 'undefined' && !localStorage.getItem('token')) {
+        // Ante fallos inesperados no forzar logout si todavia hay perfil guardado
+        if (isMounted && typeof window !== 'undefined' && !localStorage.getItem('user')) {
           setUser(null);
         }
       } finally {

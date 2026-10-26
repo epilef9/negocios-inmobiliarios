@@ -2,6 +2,7 @@
 // Sin dependencias externas para no sumar paquetes al deploy.
 
 const { enProduccion } = require('../config/env');
+const Freno = require('../models/freno.model');
 
 // Encabezados que le indican al navegador que no adivine tipos de archivo, no muestre la API dentro de
 // otra página y no mande la dirección completa a otros sitios
@@ -42,44 +43,48 @@ const limpiarEntrada = (req, res, next) => {
     next();
 };
 
-// Freno de intentos por IP (y opcionalmente por otra clave, como el email). Vive en la memoria del servidor:
-// en Vercel cada instancia lleva su cuenta, alcanza para frenar a quien prueba contraseñas a mano o con un script simple.
+// Freno de intentos por IP (y opcionalmente por otra clave, como el email). El conteo vive en MongoDB (colección "frenos",
+// con índice TTL que borra cada registro al terminar su ventana): en Vercel cada pedido puede caer en un servidor distinto
+// y así el límite es uno solo para todos.
 // En la compu de cada uno (desarrollo) no frena, para poder probar crear cuentas o ingresar todas las veces que haga falta.
 // Para probar los frenos en local: FRENOS_EN_DESARROLLO=1 en backend/.env
 const frenosActivos = () => enProduccion() || process.env.FRENOS_EN_DESARROLLO === '1';
 
 const limitar = ({ nombre, ventanaMinutos, maximo, mensaje, clave }) => {
     const ventanaMs = ventanaMinutos * 60 * 1000;
-    const registros = new Map();
 
-    return (req, res, next) => {
+    return async (req, res, next) => {
         if (!frenosActivos()) return next();
-        const ahora = Date.now();
-        const extra = clave ? clave(req) : '';
-        const id = `${req.ip}|${extra}`;
-        const recientes = (registros.get(id) || []).filter((t) => ahora - t < ventanaMs);
+        try {
+            const ahora = new Date();
+            const extra = clave ? clave(req) : '';
+            const id = `${nombre}|${req.ip}|${extra}`;
+            // Una sola operación atómica: si la ventana anterior venció arranca en 1, si no suma 1
+            const registro = await Freno.findOneAndUpdate(
+                { _id: id },
+                [
+                    {
+                        $set: {
+                            cuenta: { $cond: [{ $lte: ['$vence', ahora] }, 1, { $add: ['$cuenta', 1] }] },
+                            vence: { $cond: [{ $lte: ['$vence', ahora] }, new Date(ahora.getTime() + ventanaMs), '$vence'] },
+                        },
+                    },
+                ],
+                { upsert: true, returnDocument: 'after', updatePipeline: true }
+            );
 
-        if (recientes.length >= maximo) {
-            const espera = Math.ceil((ventanaMs - (ahora - recientes[0])) / 1000);
-            res.setHeader('Retry-After', String(espera));
-            return res.status(429).json({
-                message: mensaje || 'Hiciste demasiados intentos seguidos. Probá de nuevo en unos minutos.',
-                code: 'DEMASIADOS_INTENTOS',
-                segundos: espera,
-            });
-        }
-
-        recientes.push(ahora);
-        registros.set(id, recientes);
-
-        // Limpieza para que la memoria no crezca sin límite
-        if (registros.size > 5000) {
-            for (const [k, tiempos] of registros) {
-                if (!tiempos.some((t) => ahora - t < ventanaMs)) registros.delete(k);
+            if (registro.cuenta > maximo) {
+                const espera = Math.max(1, Math.ceil((registro.vence.getTime() - ahora.getTime()) / 1000));
+                res.setHeader('Retry-After', String(espera));
+                return res.status(429).json({
+                    message: mensaje || 'Hiciste demasiados intentos seguidos. Probá de nuevo en unos minutos.',
+                    code: 'DEMASIADOS_INTENTOS',
+                    segundos: espera,
+                });
             }
-        }
-        if (registros.size > 5000) {
-            console.warn(`[seguridad] El freno "${nombre}" tiene muchas IPs registradas`);
+        } catch (error) {
+            // Si la base falla, mejor dejar pasar el pedido que dejar a todos sin poder ingresar
+            console.error(`[seguridad] No se pudo contar el intento en el freno "${nombre}":`, error.message);
         }
         next();
     };
@@ -94,7 +99,10 @@ const frenos = {
     enlaces: limitar({ nombre: 'enlaces', ventanaMinutos: 15, maximo: 5, mensaje: 'Pediste muchos enlaces seguidos. Esperá unos minutos y revisá tu correo (también el spam).' }),
     tokens: limitar({ nombre: 'tokens', ventanaMinutos: 15, maximo: 20 }),
     visitas: limitar({ nombre: 'visitas', ventanaMinutos: 10, maximo: 5, mensaje: 'Pediste muchas visitas seguidas. Si necesitás más, escribinos por WhatsApp.' }),
+    solicitudes: limitar({ nombre: 'solicitudes', ventanaMinutos: 60, maximo: 5, mensaje: 'Enviaste varias solicitudes en poco tiempo. Probá de nuevo más tarde.' }),
     perfil: limitar({ nombre: 'perfil', ventanaMinutos: 15, maximo: 10 }),
+    contacto: limitar({ nombre: 'contacto', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas consultas seguidas. Probá de nuevo en unos minutos.' }),
+    reservas: limitar({ nombre: 'reservas', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas reservas seguidas. Esperá unos minutos o escribinos por WhatsApp.' }),
 };
 
 module.exports = { encabezados, limpiarEntrada, limitar, frenos };
