@@ -1,18 +1,18 @@
+import { conSesion } from "./sesion";
+
 export const API_URL =
 	process.env.NEXT_PUBLIC_API_URL ??
 	(process.env.NODE_ENV === "production" ? "/api" : "http://localhost:4000/api");
 
 // Función base para comunicarse con la API
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
 	const response = await fetch(`${API_URL}${path}`, {
 		...options,
-		headers: {
+		...conSesion(options, {
 			...(isFormData ? {} : { "Content-Type": "application/json" }),
-			...(token ? { Authorization: `Bearer ${token}` } : {}),
-			...options.headers,
-		},
+			...(options.headers as Record<string, string> | undefined),
+		}),
 	});
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
