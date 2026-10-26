@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const Property = require('../src/models/property.model');
 const User = require('../src/models/user.model');
 const bcrypt = require('bcrypt');
+const { uriDePrueba } = require('./base-de-prueba');
 
 describe('Properties API', () => {
     let adminToken;
@@ -23,8 +24,8 @@ describe('Properties API', () => {
     };
 
     beforeAll(async () => {
-        const url = process.env.MONGODB_URI || process.env.DB_URI || 'mongodb://localhost:27017/test';
-        await mongoose.connect(url);
+        // Nunca la base real: este archivo borra todas las propiedades antes de cada prueba
+        await mongoose.connect(uriDePrueba());
 
         const passwordHash = await bcrypt.hash('TestAdmin123', 10);
         await User.deleteMany({ email: { $in: ['admin.test@example.com', 'cliente.test@example.com'] } });

@@ -18,6 +18,7 @@ const datosPublicos = (user, emailPendiente) => ({
     id: user._id,
     nombre: user.nombre || '',
     apellido: user.apellido || '',
+    dni: user.dni || '',
     telefono: user.telefono || '',
     email: user.email,
     emailPendiente: emailPendiente || undefined,
@@ -43,6 +44,7 @@ exports.actualizar = async (req, res) => {
     try {
         const nombre = texto(req.body.nombre);
         const apellido = texto(req.body.apellido);
+        const dni = texto(req.body.dni);
         const email = texto(req.body.email).toLowerCase();
         const telefono = texto(req.body.telefono);
         const passwordActual = typeof req.body.passwordActual === 'string' ? req.body.passwordActual : '';
@@ -52,10 +54,10 @@ exports.actualizar = async (req, res) => {
         else if (nombre.length > 80) errores.nombre = 'Es demasiado largo.';
         if (!apellido) errores.apellido = 'Escribí tu apellido.';
         else if (apellido.length > 80) errores.apellido = 'Es demasiado largo.';
+        if (dni && !/^\d{7,8}$/.test(dni)) errores.dni = 'El DNI debe tener 7 u 8 dígitos numéricos.';
         if (!email) errores.email = 'El email es obligatorio.';
         else if (!EMAIL.test(email) || email.length > 150) errores.email = 'Ese email no parece válido.';
-        if (!telefono) errores.telefono = 'El teléfono es obligatorio.';
-        else if (telefono.length > 30 || digitosDe(telefono).length < 8 || digitosDe(telefono).length > 15) {
+        if (telefono && (telefono.length > 30 || digitosDe(telefono).length < 8 || digitosDe(telefono).length > 15)) {
             errores.telefono = 'Revisá el teléfono: con característica, entre 8 y 15 números.';
         }
         if (Object.keys(errores).length) {
@@ -67,6 +69,7 @@ exports.actualizar = async (req, res) => {
 
         user.nombre = nombre;
         user.apellido = apellido;
+        user.dni = dni;
         user.telefono = telefono;
 
         let emailPendiente;

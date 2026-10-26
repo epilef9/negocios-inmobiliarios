@@ -11,6 +11,7 @@ export interface User {
   id: string;
   nombre: string;
   apellido: string;
+  dni?: string;
   telefono?: string;
   email: string;
   role: string;
@@ -33,6 +34,7 @@ export interface AuthResponse {
 export interface RegisterPayload {
   nombre: string;
   apellido: string;
+  dni?: string;
   telefono?: string;
   email: string;
   password: string;
