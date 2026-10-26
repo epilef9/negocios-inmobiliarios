@@ -165,7 +165,12 @@ const infoPublica = (solicitud) => {
     archivada: solicitud.archivada === true,
     archivadaAt: solicitud.archivadaAt || null,
     historialEstados: Array.isArray(solicitud.historialEstados)
-        ? solicitud.historialEstados.map(({ estado, comentario, fecha }) => ({ estado, comentario, fecha }))
+        ? solicitud.historialEstados.map(({ estado, comentario, comentarioReferenciaIndice, fecha }) => ({
+            estado,
+            comentario,
+            ...(Number.isInteger(comentarioReferenciaIndice) ? { comentarioReferenciaIndice } : {}),
+            fecha,
+        }))
         : [],
     createdAt: solicitud.createdAt,
     updatedAt: solicitud.updatedAt,
@@ -271,7 +276,7 @@ const obtenerPorId = async (id, usuario, esAdmin) => {
     };
 };
 
-const actualizarEstado = async ({ id, estado, comentario, administradoPor }) => {
+const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario = false, administradoPor }) => {
     const solicitud = await Solicitud.findById(id).select('+datosCifrados').lean();
     if (!solicitud) {
         const error = new Error('No encontramos esa solicitud.');
@@ -287,16 +292,92 @@ const actualizarEstado = async ({ id, estado, comentario, administradoPor }) => 
         throw error;
     }
 
-    const actualizada = await Solicitud.findOneAndUpdate(
-        { _id: id, estado: solicitud.estado, datosCifrados: solicitud.datosCifrados },
-        {
+    const historial = Array.isArray(solicitud.historialEstados) ? solicitud.historialEstados : [];
+    let filtro = { _id: id, estado: solicitud.estado, datosCifrados: solicitud.datosCifrados };
+    let cambios;
+    if (reutilizarComentario) {
+        let comentarioReferenciaIndice = -1;
+        for (let indice = historial.length - 1; indice >= 0; indice--) {
+            if (historial[indice].comentario?.trim()) {
+                comentarioReferenciaIndice = indice;
+                break;
+            }
+        }
+        if (comentarioReferenciaIndice < 0 || !['pendiente', 'rechazada'].includes(estado)) {
+            const error = new Error('No hay un comentario guardado disponible para asociar al cambio de estado.');
+            error.statusCode = 400;
+            throw error;
+        }
+        const comentarioReferencia = historial[comentarioReferenciaIndice].comentario.trim();
+        filtro = {
+            ...filtro,
+            [`historialEstados.${comentarioReferenciaIndice}.comentario`]: comentarioReferencia,
+        };
+        cambios = {
+            $set: { estado, comentarioEstado: comentarioReferencia },
+            $push: {
+                historialEstados: {
+                    estado,
+                    comentario: '',
+                    comentarioReferenciaIndice,
+                    administradoPor,
+                    fecha: new Date(),
+                },
+            },
+        };
+    } else {
+        cambios = {
             $set: { estado, comentarioEstado: comentario },
             $push: { historialEstados: { estado, comentario, administradoPor, fecha: new Date() } },
-        },
+        };
+    }
+
+    const actualizada = await Solicitud.findOneAndUpdate(
+        filtro,
+        cambios,
         { new: true, runValidators: true }
     ).select('+datosCifrados').lean();
     if (!actualizada) {
         const error = new Error('La solicitud cambió mientras se actualizaba. Recargá e intentá nuevamente.');
+        error.statusCode = 409;
+        throw error;
+    }
+
+    const propiedad = mongoose.isValidObjectId(actualizada.propiedad)
+        ? await Property.findById(actualizada.propiedad).select(camposPropiedadAdmin).lean()
+        : null;
+    return serializarSolicitudAdmin({
+        ...actualizada,
+        propiedad: propiedad || actualizada.propiedad,
+    });
+};
+
+const agregarComentario = async ({ id, comentario, administradoPor }) => {
+    const solicitud = await Solicitud.findById(id).select('+datosCifrados').lean();
+    if (!solicitud) {
+        const error = new Error('No encontramos esa solicitud.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    try {
+        leerDatos(solicitud);
+    } catch {
+        const error = new Error('No se puede agregar un comentario hasta resolver el problema técnico de descifrado.');
+        error.statusCode = 409;
+        throw error;
+    }
+
+    const actualizada = await Solicitud.findOneAndUpdate(
+        { _id: id, estado: solicitud.estado, datosCifrados: solicitud.datosCifrados },
+        {
+            $set: { comentarioEstado: comentario },
+            $push: { historialEstados: { estado: solicitud.estado, comentario, administradoPor, fecha: new Date() } },
+        },
+        { new: true, runValidators: true }
+    ).select('+datosCifrados').lean();
+    if (!actualizada) {
+        const error = new Error('La solicitud cambió mientras se guardaba el comentario. Recargá e intentá nuevamente.');
         error.statusCode = 409;
         throw error;
     }
@@ -442,6 +523,7 @@ module.exports = {
     listarAdmin,
     obtenerPorId,
     actualizarEstado,
+    agregarComentario,
     actualizarArchivado,
     eliminarDefinitivamente,
     listarNotificacionesAdmin,

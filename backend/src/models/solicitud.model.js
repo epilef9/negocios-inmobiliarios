@@ -14,6 +14,7 @@ const cambioEstadoSchema = new mongoose.Schema(
     {
         estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], required: true },
         comentario: { type: String, trim: true, maxlength: 1000, default: '' },
+        comentarioReferenciaIndice: { type: Number, min: 0 },
         administradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
         fecha: { type: Date, default: Date.now, required: true },
     },

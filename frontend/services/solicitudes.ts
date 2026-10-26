@@ -25,7 +25,7 @@ export type SolicitudResumen = {
 	estado: string;
 	createdAt: string;
 	comentarioEstado?: string;
-	historialEstados?: { estado: string; comentario: string; fecha: string }[];
+	historialEstados?: { estado: string; comentario: string; comentarioReferenciaIndice?: number; fecha: string }[];
 	archivada?: boolean;
 	archivadaAt?: string | null;
 	propiedad: { id: string; disponible?: boolean; titulo: string | null; ciudad: string | null; imagen?: string | null; direccion?: string | null; tipoInmueble?: string | null; estadoPropiedad?: string | null; tipoOperacion?: string | null; precio?: number | null; moneda?: string | null } | null;
@@ -66,10 +66,16 @@ export const getSolicitudesAdmin = () => request<SolicitudAdmin[]>("/solicitudes
 
 export const getSolicitudAdmin = (id: string) => request<SolicitudAdmin>(`/solicitudes/${id}`);
 
-export const actualizarEstadoSolicitud = (id: string, estado: EstadoSolicitud, comentario: string) =>
+export const actualizarEstadoSolicitud = (id: string, estado: EstadoSolicitud, comentario: string, reutilizarComentario = false) =>
 	request<SolicitudAdmin>(`/solicitudes/${id}/estado`, {
 		method: "PATCH",
-		body: JSON.stringify({ estado, comentario }),
+		body: JSON.stringify({ estado, comentario, reutilizarComentario }),
+	});
+
+export const agregarComentarioSolicitud = (id: string, comentario: string) =>
+	request<SolicitudAdmin>(`/solicitudes/${id}/comentarios`, {
+		method: "POST",
+		body: JSON.stringify({ comentario }),
 	});
 
 export const actualizarArchivadoSolicitud = (id: string, archivada: boolean) =>

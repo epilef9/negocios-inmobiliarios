@@ -131,18 +131,24 @@ exports.obtener = async (req, res) => {
 
 exports.actualizarEstado = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
-    const { estado, comentario } = req.body || {};
+    const { estado, comentario, reutilizarComentario } = req.body || {};
     if (!['pendiente', 'aprobada', 'rechazada'].includes(estado)) {
         return res.status(400).json({ message: 'Elegí un estado válido para la solicitud.' });
     }
     if (comentario !== undefined && typeof comentario !== 'string') {
         return res.status(400).json({ message: 'El comentario debe ser texto.' });
     }
+    if (reutilizarComentario !== undefined && typeof reutilizarComentario !== 'boolean') {
+        return res.status(400).json({ message: 'La opción para reutilizar el comentario no es válida.' });
+    }
     const comentarioLimpio = typeof comentario === 'string' ? comentario.trim() : '';
     if (comentarioLimpio.length > 1000) {
         return res.status(400).json({ message: 'El comentario no puede superar los 1000 caracteres.' });
     }
-    if (['pendiente', 'rechazada'].includes(estado) && !comentarioLimpio) {
+    if (reutilizarComentario && (!['pendiente', 'rechazada'].includes(estado) || comentarioLimpio)) {
+        return res.status(400).json({ message: 'El comentario guardado solo puede reutilizarse en un cambio pendiente o rechazado.' });
+    }
+    if (['pendiente', 'rechazada'].includes(estado) && !comentarioLimpio && !reutilizarComentario) {
         return res.status(400).json({ message: 'Ingresá un comentario para mantener pendiente o rechazar la solicitud.' });
     }
 
@@ -151,6 +157,7 @@ exports.actualizarEstado = async (req, res) => {
             id: req.params.id,
             estado,
             comentario: comentarioLimpio,
+            reutilizarComentario: reutilizarComentario === true,
             administradoPor: req.user._id,
         });
         return res.status(200).json({ data: solicitud, message: 'Estado de la solicitud actualizado.' });
@@ -158,6 +165,34 @@ exports.actualizarEstado = async (req, res) => {
         if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
         console.error('[solicitudes] No se pudo actualizar el estado de una solicitud administrativa:', error.name || 'Error');
         return res.status(500).json({ message: 'No se pudo actualizar el estado de la solicitud.' });
+    }
+};
+
+exports.agregarComentario = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
+    const { comentario } = req.body || {};
+    if (typeof comentario !== 'string') {
+        return res.status(400).json({ message: 'El comentario debe ser texto.' });
+    }
+    const comentarioLimpio = comentario.trim();
+    if (!comentarioLimpio) {
+        return res.status(400).json({ message: 'Ingresá un comentario antes de guardarlo.' });
+    }
+    if (comentarioLimpio.length > 1000) {
+        return res.status(400).json({ message: 'El comentario no puede superar los 1000 caracteres.' });
+    }
+
+    try {
+        const solicitud = await solicitudesService.agregarComentario({
+            id: req.params.id,
+            comentario: comentarioLimpio,
+            administradoPor: req.user._id,
+        });
+        return res.status(200).json({ data: solicitud, message: 'Comentario agregado al historial.' });
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+        console.error('[solicitudes] No se pudo agregar un comentario administrativo:', error.name || 'Error');
+        return res.status(500).json({ message: 'No se pudo agregar el comentario a la solicitud.' });
     }
 };
 

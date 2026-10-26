@@ -51,6 +51,7 @@ router.get('/mias', authMiddleware.requireClient, controller.listarMias);
 router.get('/admin/notificaciones', authMiddleware.requireAdmin, controller.notificacionesAdmin);
 router.get('/admin', authMiddleware.requireAdmin, controller.listarAdmin);
 router.patch('/:id/estado', authMiddleware.requireAdmin, controller.actualizarEstado);
+router.post('/:id/comentarios', authMiddleware.requireAdmin, controller.agregarComentario);
 router.patch('/:id/archivo', authMiddleware.requireAdmin, controller.actualizarArchivado);
 router.delete('/:id', authMiddleware.requireAdmin, controller.eliminarDefinitivamente);
 router.post('/', authMiddleware.requireClient, frenos.solicitudes, procesarArchivos, controller.crear);

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '@/services/api';
 import { conSesion } from '@/services/sesion';
-import { actualizarArchivadoSolicitud, actualizarEstadoSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
+import { actualizarArchivadoSolicitud, actualizarEstadoSolicitud, agregarComentarioSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, Dialogo, Encabezado, EstadoVacio, Insignia, Tarjeta, useAviso } from '@/components/panel/ui';
 
@@ -171,9 +171,12 @@ export default function SolicitudesAdminPage() {
   const [eliminando, setEliminando] = useState(false);
   const [preview, setPreview] = useState<{ url: string; nombre: string; mime: string } | null>(null);
   const [comentarioEstado, setComentarioEstado] = useState('');
+  const [estadoEsperandoComentario, setEstadoEsperandoComentario] = useState<EstadoSolicitud | null>(null);
+  const [reutilizarComentarioEstado, setReutilizarComentarioEstado] = useState(false);
   const [confirmandoAprobacion, setConfirmandoAprobacion] = useState(false);
   const [confirmandoRechazo, setConfirmandoRechazo] = useState(false);
   const [actualizandoEstado, setActualizandoEstado] = useState(false);
+  const [guardandoComentario, setGuardandoComentario] = useState(false);
   const [mensajeAccion, setMensajeAccion] = useState<string | null>(null);
   const [solicitudAprobada, setSolicitudAprobada] = useState<SolicitudAdmin | null>(null);
   const [telefonoCopiado, setTelefonoCopiado] = useState(false);
@@ -263,7 +266,9 @@ export default function SolicitudesAdminPage() {
 
   const abrirDetalle = (solicitud: SolicitudAdmin) => {
     setSeleccionada(solicitud);
-    setComentarioEstado(solicitud.comentarioEstado || '');
+    setComentarioEstado('');
+    setEstadoEsperandoComentario(null);
+    setReutilizarComentarioEstado(false);
     setConfirmandoAprobacion(false);
     setConfirmandoRechazo(false);
     setMensajeAccion(null);
@@ -271,16 +276,45 @@ export default function SolicitudesAdminPage() {
     setTelefonoCopiado(false);
   };
 
-  const guardarEstado = async (nuevoEstado: EstadoSolicitud) => {
-    if (!seleccionada || seleccionada.problemaDescifrado) return;
-    if (['pendiente', 'rechazada'].includes(nuevoEstado) && !comentarioEstado.trim()) {
+  const ultimoComentarioGuardado = seleccionada?.historialEstados
+    ?.map((cambio, indice) => ({ ...cambio, indice }))
+    .reverse()
+    .find((cambio) => cambio.comentario.trim());
+
+  const iniciarCambioEstado = (nuevoEstado: EstadoSolicitud) => {
+    if (!comentarioEstado.trim()) {
+      if (ultimoComentarioGuardado) {
+        setEstadoEsperandoComentario(nuevoEstado);
+      } else {
+        mostrar('Escribí un comentario nuevo antes de mantener pendiente o rechazar la solicitud.', 'peligro');
+      }
+      return;
+    }
+
+    if (nuevoEstado === 'rechazada') {
+      setReutilizarComentarioEstado(false);
+      setConfirmandoRechazo(true);
+      return;
+    }
+
+    void guardarEstado(nuevoEstado);
+  };
+
+  const guardarEstado = async (nuevoEstado: EstadoSolicitud, reutilizarComentario = false) => {
+    if (!seleccionada || seleccionada.problemaDescifrado || actualizandoEstado || guardandoComentario) return;
+    if (['pendiente', 'rechazada'].includes(nuevoEstado) && !comentarioEstado.trim() && !reutilizarComentario) {
       mostrar('Ingresá un comentario para mantener pendiente o rechazar la solicitud.', 'peligro');
+      return;
+    }
+    const comentarioNuevo = comentarioEstado.trim();
+    if (!reutilizarComentario && ['pendiente', 'rechazada'].includes(nuevoEstado) && comentarioNuevo && seleccionada.historialEstados?.some((cambio) => cambio.comentario.trim() === comentarioNuevo)) {
+      mostrar('Ese comentario ya figura en el historial.', 'info');
       return;
     }
     setActualizandoEstado(true);
     try {
-      const comentario = nuevoEstado === 'aprobada' ? '' : comentarioEstado.trim();
-      const actualizada = await actualizarEstadoSolicitud(seleccionada.id, nuevoEstado, comentario);
+      const comentario = nuevoEstado === 'aprobada' || reutilizarComentario ? '' : comentarioEstado.trim();
+      const actualizada = await actualizarEstadoSolicitud(seleccionada.id, nuevoEstado, comentario, reutilizarComentario);
       const solicitudActualizada: SolicitudAdmin = {
         ...seleccionada,
         ...actualizada,
@@ -290,7 +324,9 @@ export default function SolicitudesAdminPage() {
       };
       setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
       setSeleccionada(solicitudActualizada);
-      setComentarioEstado(solicitudActualizada.comentarioEstado || '');
+      setComentarioEstado('');
+      setEstadoEsperandoComentario(null);
+      setReutilizarComentarioEstado(false);
       setConfirmandoAprobacion(false);
       setConfirmandoRechazo(false);
       if (nuevoEstado === 'aprobada') {
@@ -308,6 +344,41 @@ export default function SolicitudesAdminPage() {
       mostrar(e instanceof Error ? e.message : 'No se pudo actualizar el estado de la solicitud.', 'peligro');
     } finally {
       setActualizandoEstado(false);
+    }
+  };
+
+  const guardarComentario = async () => {
+    if (!seleccionada || seleccionada.problemaDescifrado || guardandoComentario || actualizandoEstado) return;
+    const comentario = comentarioEstado.trim();
+    if (!comentario) {
+      mostrar('Ingresá un comentario antes de guardarlo.', 'peligro');
+      return;
+    }
+    if (seleccionada.historialEstados?.some((cambio) => cambio.comentario.trim() === comentario)) {
+      mostrar('Ese comentario ya figura en el historial.', 'info');
+      return;
+    }
+
+    setGuardandoComentario(true);
+    try {
+      const actualizada = await agregarComentarioSolicitud(seleccionada.id, comentario);
+      const solicitudActualizada: SolicitudAdmin = {
+        ...seleccionada,
+        ...actualizada,
+        datosPersonales: seleccionada.datosPersonales,
+        documentos: seleccionada.documentos,
+        problemaDescifrado: seleccionada.problemaDescifrado,
+      };
+      setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
+      setSeleccionada(solicitudActualizada);
+      setComentarioEstado('');
+      setEstadoEsperandoComentario(null);
+      setMensajeAccion(null);
+      mostrar('Comentario agregado al historial.');
+    } catch (e) {
+      mostrar(e instanceof Error ? e.message : 'No se pudo agregar el comentario a la solicitud.', 'peligro');
+    } finally {
+      setGuardandoComentario(false);
     }
   };
 
@@ -363,6 +434,7 @@ export default function SolicitudesAdminPage() {
 
   const datosPersonales = seleccionada?.datosPersonales as Record<string, unknown> | undefined;
   const camposPersonales = datosPersonales ? aplanarDatos(datosPersonales) : [];
+  const camposPersonalesVisibles = camposPersonales.filter(({ clave }) => clave !== 'ingresosTipo');
 
   return (
     <>
@@ -600,8 +672,8 @@ export default function SolicitudesAdminPage() {
 
                 <Tarjeta titulo="Información personal del solicitante" descripcion="Datos completados por el cliente al enviar la solicitud." relleno={false}>
                   <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
-                    {camposPersonales.length ? (
-                      camposPersonales.map(({ clave, valor }) => (
+                    {camposPersonalesVisibles.length ? (
+                      camposPersonalesVisibles.map(({ clave, valor }) => (
                         <div key={`${seleccionada.id}-${clave}`} className="rounded-lg border border-panel-borde bg-panel-hundido/20 p-3">
                           <p className="m-0 text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">{tituloCampo(clave)}</p>
                           <p className="m-0 mt-1 break-words text-[14px] text-panel-texto">{presentarValor(clave, valor)}</p>
@@ -610,86 +682,6 @@ export default function SolicitudesAdminPage() {
                     ) : (
                       <p className="m-0 text-[14px] text-panel-suave">No se registraron datos personales detallados para esta solicitud.</p>
                     )}
-                  </div>
-                </Tarjeta>
-
-                <Tarjeta titulo="Gestión del estado" descripcion="Los cambios quedan guardados junto con el comentario y el historial de revisión." relleno={false}>
-                  <div className="flex flex-col gap-4 p-5">
-                    {mensajeAccion && <Alerta tono="exito" titulo="Cambios guardados">{mensajeAccion}</Alerta>}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] text-panel-suave">Estado actual:</span>
-                      <Insignia tono={estadoTono[seleccionada.estado] ?? 'neutro'}>{etiquetaEstado(seleccionada.estado)}</Insignia>
-                    </div>
-                    <label className="flex flex-col gap-1.5">
-                      <span className="text-[13px] font-medium text-panel-texto">Comentario para pendiente o rechazo</span>
-                      <textarea
-                        value={comentarioEstado}
-                        onChange={(event) => setComentarioEstado(event.target.value)}
-                        maxLength={1000}
-                        rows={3}
-                        placeholder="Escribí el motivo o la información que debe quedar registrada."
-                        className="w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
-                      />
-                    </label>
-                    <p className="m-0 text-[12px] text-panel-tenue">El comentario es obligatorio para mantener pendiente o rechazar. La aprobación requiere confirmación.</p>
-                    {confirmandoAprobacion ? (
-                      <Alerta tono="aviso" titulo="¿Confirmás la aprobación de esta solicitud?">
-                        Se guardará como aprobada y seguirá visible en esta sección.
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Boton onClick={() => guardarEstado('aprobada')} variante="principal" cargando={actualizandoEstado}>Confirmar aprobación</Boton>
-                          <Boton onClick={() => setConfirmandoAprobacion(false)} disabled={actualizandoEstado}>Cancelar</Boton>
-                        </div>
-                      </Alerta>
-                    ) : confirmandoRechazo ? (
-                      <Alerta tono="peligro" titulo="¿Confirmás el rechazo de esta solicitud?">
-                        Se guardará el motivo y la solicitud seguirá disponible en el listado.
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Boton onClick={() => guardarEstado('rechazada')} variante="peligro" cargando={actualizandoEstado}>Confirmar rechazo</Boton>
-                          <Boton onClick={() => setConfirmandoRechazo(false)} disabled={actualizandoEstado}>Cancelar</Boton>
-                        </div>
-                      </Alerta>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Boton
-                          onClick={() => guardarEstado('pendiente')}
-                          disabled={!comentarioEstado.trim() || actualizandoEstado}
-                          cargando={actualizandoEstado}
-                        >
-                          Mantener pendiente
-                        </Boton>
-                        <Boton onClick={() => setConfirmandoAprobacion(true)} variante="principal" disabled={actualizandoEstado || seleccionada.estado === 'aprobada'}>
-                          {seleccionada.estado === 'aprobada' ? 'Ya aprobada' : 'Aprobar'}
-                        </Boton>
-                        <Boton
-                          onClick={() => setConfirmandoRechazo(true)}
-                          variante="peligro"
-                          disabled={!comentarioEstado.trim() || actualizandoEstado}
-                        >
-                          Rechazar
-                        </Boton>
-                      </div>
-                    )}
-                    {seleccionada.comentarioEstado && (
-                      <div className="rounded-lg border border-panel-borde bg-panel-hundido/20 p-3">
-                        <p className="m-0 text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Comentario del estado actual</p>
-                        <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[14px] text-panel-texto">{seleccionada.comentarioEstado}</p>
-                      </div>
-                    )}
-                    {seleccionada.historialEstados?.length ? (
-                      <div className="border-t border-panel-borde pt-3">
-                        <h4 className="m-0 text-[13px] font-semibold text-panel-texto">Historial</h4>
-                        <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
-                          {seleccionada.historialEstados.map((cambio, index) => (
-                            <li key={`${seleccionada.id}-${index}`} className="rounded-lg bg-panel-hundido/20 px-3 py-2">
-                              <p className="m-0 text-[13px] font-medium text-panel-texto">
-                                {etiquetaEstado(cambio.estado)} · {formatoFecha(cambio.fecha)}
-                              </p>
-                              {cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[13px] text-panel-suave">{cambio.comentario}</p>}
-                            </li>
-                          ))}
-                        </ol>
-                      </div>
-                    ) : null}
                   </div>
                 </Tarjeta>
 
@@ -740,6 +732,150 @@ export default function SolicitudesAdminPage() {
                     ) : (
                       <p className="m-0 text-[14px] text-panel-suave">Esta solicitud no adjuntó documentos.</p>
                     )}
+                  </div>
+                </Tarjeta>
+
+                <Tarjeta titulo="Gestión del estado" descripcion="Los cambios quedan guardados junto con el comentario y el historial de revisión." relleno={false}>
+                  <div className="flex flex-col gap-4 p-5">
+                    {mensajeAccion && <Alerta tono="exito" titulo="Cambios guardados">{mensajeAccion}</Alerta>}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[13px] text-panel-suave">Estado actual:</span>
+                      <Insignia tono={estadoTono[seleccionada.estado] ?? 'neutro'}>{etiquetaEstado(seleccionada.estado)}</Insignia>
+                    </div>
+                    <div className="flex flex-col gap-3 rounded-lg border border-panel-borde bg-panel-hundido/20 p-4">
+                      <label className="flex flex-col gap-1.5">
+                        <span className="text-[13px] font-medium text-panel-texto">Nuevo comentario</span>
+                        <textarea
+                          value={comentarioEstado}
+                          onChange={(event) => setComentarioEstado(event.target.value)}
+                          maxLength={1000}
+                          rows={3}
+                          placeholder="Escribí el comentario que querés guardar"
+                          className="w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
+                        />
+                      </label>
+                      <p className="m-0 text-[12px] text-panel-tenue">
+                        Guardar comentario lo agrega al historial sin cambiar el estado actual. El comentario es obligatorio para mantener pendiente o rechazar.
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        <Boton
+                          onClick={() => void guardarComentario()}
+                          variante="principal"
+                          disabled={!comentarioEstado.trim() || guardandoComentario || actualizandoEstado}
+                          cargando={guardandoComentario}
+                        >
+                          Guardar comentario
+                        </Boton>
+                        <Boton
+                          onClick={() => {
+                            setComentarioEstado('');
+                            setConfirmandoRechazo(false);
+                          }}
+                          disabled={guardandoComentario || actualizandoEstado}
+                        >
+                          Cancelar
+                        </Boton>
+                      </div>
+                    </div>
+                    {estadoEsperandoComentario && ultimoComentarioGuardado && (
+                      <Alerta tono="aviso" titulo="No escribiste un comentario nuevo">
+                        ¿Querés asociar el último comentario guardado a este cambio de estado?
+                        <p className="my-2 whitespace-pre-wrap break-words text-[13px] text-panel-texto">
+                          “{ultimoComentarioGuardado.comentario}”
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Boton
+                            onClick={() => {
+                              setEstadoEsperandoComentario(null);
+                              if (estadoEsperandoComentario === 'rechazada') {
+                                setReutilizarComentarioEstado(true);
+                                setConfirmandoRechazo(true);
+                              } else {
+                                void guardarEstado(estadoEsperandoComentario, true);
+                              }
+                            }}
+                            variante="principal"
+                            disabled={actualizandoEstado || guardandoComentario}
+                          >
+                            Usar último comentario
+                          </Boton>
+                          <Boton
+                            onClick={() => {
+                              setEstadoEsperandoComentario(null);
+                              mostrar('Escribí un comentario nuevo y volvé a seleccionar la acción.', 'info');
+                            }}
+                            disabled={actualizandoEstado || guardandoComentario}
+                          >
+                            Escribir uno nuevo
+                          </Boton>
+                        </div>
+                      </Alerta>
+                    )}
+                    {confirmandoAprobacion ? (
+                      <Alerta tono="aviso" titulo="¿Confirmás la aprobación de esta solicitud?">
+                        Se guardará como aprobada y seguirá visible en esta sección.
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Boton onClick={() => guardarEstado('aprobada')} variante="principal" cargando={actualizandoEstado}>Confirmar aprobación</Boton>
+                          <Boton onClick={() => setConfirmandoAprobacion(false)} disabled={actualizandoEstado}>Cancelar</Boton>
+                        </div>
+                      </Alerta>
+                    ) : confirmandoRechazo ? (
+                      <Alerta tono="peligro" titulo="¿Confirmás el rechazo de esta solicitud?">
+                        Se guardará el motivo y la solicitud seguirá disponible en el listado.
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Boton onClick={() => guardarEstado('rechazada', reutilizarComentarioEstado)} variante="peligro" cargando={actualizandoEstado}>Confirmar rechazo</Boton>
+                          <Boton
+                            onClick={() => {
+                              setConfirmandoRechazo(false);
+                              setReutilizarComentarioEstado(false);
+                            }}
+                            disabled={actualizandoEstado}
+                          >
+                            Cancelar
+                          </Boton>
+                        </div>
+                      </Alerta>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        <Boton
+                          onClick={() => iniciarCambioEstado('pendiente')}
+                          disabled={actualizandoEstado || guardandoComentario}
+                          cargando={actualizandoEstado}
+                        >
+                          Mantener pendiente
+                        </Boton>
+                        <Boton onClick={() => setConfirmandoAprobacion(true)} variante="principal" disabled={actualizandoEstado || guardandoComentario || seleccionada.estado === 'aprobada'}>
+                          {seleccionada.estado === 'aprobada' ? 'Ya aprobada' : 'Aprobar'}
+                        </Boton>
+                        <Boton
+                          onClick={() => iniciarCambioEstado('rechazada')}
+                          variante="peligro"
+                          disabled={actualizandoEstado || guardandoComentario}
+                        >
+                          Rechazar
+                        </Boton>
+                      </div>
+                    )}
+                    {seleccionada.historialEstados?.length ? (
+                      <div className="border-t border-panel-borde pt-3">
+                        <h4 className="m-0 text-[13px] font-semibold text-panel-texto">Historial</h4>
+                        <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+                          {seleccionada.historialEstados.map((cambio, index) => (
+                            <li key={`${seleccionada.id}-${index}`} className="rounded-lg bg-panel-hundido/20 px-3 py-2">
+                              <p className="m-0 text-[13px] font-medium text-panel-texto">
+                                {etiquetaEstado(cambio.estado)} · {formatoFecha(cambio.fecha)}
+                              </p>
+                              {cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words text-[13px] text-panel-suave">{cambio.comentario}</p>}
+                              {cambio.comentarioReferenciaIndice !== undefined && (
+                                <p className="m-0 mt-1 text-[13px] text-panel-suave">
+                                  Se reutilizó el comentario guardado el {formatoFecha(seleccionada.historialEstados?.[cambio.comentarioReferenciaIndice]?.fecha)}.
+                                </p>
+                              )}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+                    ) : null}
                   </div>
                 </Tarjeta>
               </>

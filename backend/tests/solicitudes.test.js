@@ -255,6 +255,200 @@ test('actualiza el estado y conserva el comentario e historial sin tocar la prop
     }
 });
 
+test('reutiliza el último comentario al cambiar estado sin duplicarlo en el historial', async () => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const cifrado = cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' } }), 'utf8')).toString('base64');
+    const historialAnterior = [
+        { estado: 'pendiente', comentario: 'Falta un documento.', administradoPor: 'admin-1', fecha: new Date('2026-10-01T12:00:00Z') },
+        { estado: 'rechazada', comentario: 'Documento ilegible.', administradoPor: 'admin-2', fecha: new Date('2026-10-02T12:00:00Z') },
+    ];
+    const solicitud = {
+        _id: 'solicitud-valida',
+        propiedad: 'propiedad-no-encontrada',
+        estado: 'rechazada',
+        comentarioEstado: 'Documento ilegible.',
+        historialEstados: historialAnterior,
+        datosCifrados: cifrado,
+        documentos: [],
+    };
+    const solicitudActualizada = {
+        ...solicitud,
+        estado: 'pendiente',
+        historialEstados: [
+            ...historialAnterior,
+            {
+                estado: 'pendiente',
+                comentario: '',
+                comentarioReferenciaIndice: 1,
+                administradoPor: 'admin-3',
+                fecha: new Date('2026-10-03T12:00:00Z'),
+            },
+        ],
+    };
+    const originales = {
+        findById: Solicitud.findById,
+        findOneAndUpdate: Solicitud.findOneAndUpdate,
+        findByIdProperty: Property.findById,
+    };
+    let filtroActualizacion;
+    let cambiosAplicados;
+
+    Solicitud.findById = () => ({
+        select: () => ({ lean: async () => solicitud }),
+    });
+    Solicitud.findOneAndUpdate = (filtro, cambios) => {
+        filtroActualizacion = filtro;
+        cambiosAplicados = cambios;
+        return {
+            select: () => ({ lean: async () => ({ ...solicitudActualizada, datosCifrados: cifrado }) }),
+        };
+    };
+    Property.findById = () => ({
+        select() { return this; },
+        lean: async () => null,
+    });
+
+    try {
+        const resultado = await solicitudesService.actualizarEstado({
+            id: solicitud._id,
+            estado: 'pendiente',
+            comentario: '',
+            reutilizarComentario: true,
+            administradoPor: 'admin-3',
+        });
+        assert.equal(resultado.estado, 'pendiente');
+        assert.equal(resultado.comentarioEstado, 'Documento ilegible.');
+        assert.equal(resultado.historialEstados.length, 3);
+        assert.equal(resultado.historialEstados[2].comentario, '');
+        assert.equal(resultado.historialEstados[2].comentarioReferenciaIndice, 1);
+        assert.equal(filtroActualizacion['historialEstados.1.comentario'], 'Documento ilegible.');
+        assert.deepEqual(cambiosAplicados.$set, { estado: 'pendiente', comentarioEstado: 'Documento ilegible.' });
+        assert.equal(cambiosAplicados.$push.historialEstados.comentario, '');
+        assert.equal(cambiosAplicados.$push.historialEstados.comentarioReferenciaIndice, 1);
+    } finally {
+        Solicitud.findById = originales.findById;
+        Solicitud.findOneAndUpdate = originales.findOneAndUpdate;
+        Property.findById = originales.findByIdProperty;
+    }
+});
+
+test('agrega un comentario al historial sin cambiar estado ni sobrescribir comentarios previos', async () => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const cifrado = cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' } }), 'utf8')).toString('base64');
+    const historialAnterior = [
+        { estado: 'pendiente', comentario: 'Falta un documento.', administradoPor: 'admin-1', fecha: new Date('2026-10-01T12:00:00Z') },
+        { estado: 'rechazada', comentario: 'Documento ilegible.', administradoPor: 'admin-2', fecha: new Date('2026-10-02T12:00:00Z') },
+    ];
+    const solicitud = {
+        _id: 'solicitud-valida',
+        propiedad: 'propiedad-no-encontrada',
+        estado: 'rechazada',
+        comentarioEstado: 'Documento ilegible.',
+        historialEstados: historialAnterior,
+        datosCifrados: cifrado,
+        documentos: [],
+    };
+    const nuevaFecha = new Date('2026-10-03T12:00:00Z');
+    const solicitudActualizada = {
+        ...solicitud,
+        comentarioEstado: 'Se recibió una nueva observación.',
+        historialEstados: [
+            ...historialAnterior,
+            { estado: 'rechazada', comentario: 'Se recibió una nueva observación.', administradoPor: 'admin-3', fecha: nuevaFecha },
+        ],
+    };
+    const originales = {
+        findById: Solicitud.findById,
+        findOneAndUpdate: Solicitud.findOneAndUpdate,
+        findByIdProperty: Property.findById,
+    };
+    let cambiosAplicados;
+    let filtroActualizacion;
+
+    Solicitud.findById = () => ({
+        select: () => ({
+            lean: async () => solicitud,
+        }),
+    });
+    Solicitud.findOneAndUpdate = (filtro, cambios) => {
+        filtroActualizacion = filtro;
+        cambiosAplicados = cambios;
+        return {
+            select: () => ({
+                lean: async () => ({ ...solicitudActualizada, datosCifrados: cifrado }),
+            }),
+        };
+    };
+    Property.findById = () => ({
+        select() { return this; },
+        lean: async () => null,
+    });
+    try {
+        const resultado = await solicitudesService.agregarComentario({
+            id: solicitud._id,
+            comentario: 'Se recibió una nueva observación.',
+            administradoPor: 'admin-3',
+        });
+        assert.equal(resultado.estado, 'rechazada');
+        assert.equal(resultado.comentarioEstado, 'Se recibió una nueva observación.');
+        assert.equal(resultado.historialEstados.length, 3);
+        assert.deepEqual(
+            resultado.historialEstados.slice(0, 2).map(({ estado, comentario, fecha }) => ({ estado, comentario, fecha })),
+            historialAnterior.map(({ estado, comentario, fecha }) => ({ estado, comentario, fecha }))
+        );
+        assert.equal(resultado.historialEstados[2].comentario, 'Se recibió una nueva observación.');
+        assert.equal(resultado.historialEstados[2].estado, 'rechazada');
+        assert.deepEqual(cambiosAplicados.$set, { comentarioEstado: 'Se recibió una nueva observación.' });
+        assert.equal(cambiosAplicados.$push.historialEstados.estado, 'rechazada');
+        assert.equal(cambiosAplicados.$push.historialEstados.administradoPor, 'admin-3');
+        assert.equal(String(filtroActualizacion.datosCifrados), cifrado);
+        assert.equal('estado' in cambiosAplicados.$set, false);
+    } finally {
+        Solicitud.findById = originales.findById;
+        Solicitud.findOneAndUpdate = originales.findOneAndUpdate;
+        Property.findById = originales.findByIdProperty;
+    }
+});
+
+test('bloquea comentarios nuevos cuando los datos cifrados no se pueden validar', async () => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const datos = cifrar(Buffer.from('datos de prueba')).toString('base64');
+    const danados = Buffer.from(datos, 'base64');
+    danados[danados.length - 1] ^= 1;
+    const originalFindById = Solicitud.findById;
+    const originalFindOneAndUpdate = Solicitud.findOneAndUpdate;
+    let intentoActualizar = false;
+
+    Solicitud.findById = () => ({
+        select: () => ({
+            lean: async () => ({
+                _id: 'solicitud-con-error',
+                estado: 'pendiente',
+                datosCifrados: danados.toString('base64'),
+            }),
+        }),
+    });
+    Solicitud.findOneAndUpdate = () => {
+        intentoActualizar = true;
+        throw new Error('No debe guardar el comentario en una solicitud que no autentica.');
+    };
+
+    try {
+        await assert.rejects(
+            solicitudesService.agregarComentario({
+                id: 'solicitud-con-error',
+                comentario: 'Observación',
+                administradoPor: 'admin-1',
+            }),
+            { statusCode: 409 }
+        );
+        assert.equal(intentoActualizar, false);
+    } finally {
+        Solicitud.findById = originalFindById;
+        Solicitud.findOneAndUpdate = originalFindOneAndUpdate;
+    }
+});
+
 test('bloquea cambios de estado si los datos personales no autentican', async () => {
     process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
     const corrupted = cifrar(Buffer.from('datos de prueba')).toString('base64');
@@ -321,10 +515,50 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
 
 test('protege el archivado y la eliminación con autenticación y rol administrador', () => {
     assert.ok(solicitudesRouter.stack.some((layer) => layer.handle === authMiddleware));
-    for (const [path, method] of [['/:id/archivo', 'patch'], ['/:id', 'delete']]) {
+    for (const [path, method] of [['/:id/archivo', 'patch'], ['/:id', 'delete'], ['/:id/comentarios', 'post']]) {
         const ruta = solicitudesRouter.stack.find((layer) => layer.route?.path === path && layer.route.methods[method]);
         assert.ok(ruta, `Debe existir ${method.toUpperCase()} ${path}`);
         assert.ok(ruta.route.stack.some((layer) => layer.handle === authMiddleware.requireAdmin));
+    }
+});
+
+test('el endpoint de comentario valida texto obligatorio y solo invoca el servicio con datos válidos', async () => {
+    const originalAgregarComentario = solicitudesService.agregarComentario;
+    let llamadasServicio = 0;
+    let argumentosServicio;
+    solicitudesService.agregarComentario = async (argumentos) => {
+        llamadasServicio++;
+        argumentosServicio = argumentos;
+        return { id: argumentos.id, estado: 'pendiente', historialEstados: [] };
+    };
+
+    const ejecutar = async (comentario) => {
+        const respuesta = {
+            codigo: null,
+            cuerpo: null,
+            status(codigo) { this.codigo = codigo; return this; },
+            json(cuerpo) { this.cuerpo = cuerpo; return this; },
+        };
+        await solicitudesController.agregarComentario({
+            params: { id: '507f1f77bcf86cd799439011' },
+            body: { comentario },
+            user: { _id: '507f1f77bcf86cd799439012' },
+        }, respuesta);
+        return respuesta;
+    };
+
+    try {
+        assert.equal((await ejecutar('  ')).codigo, 400);
+        assert.equal(llamadasServicio, 0);
+        assert.equal((await ejecutar('x'.repeat(1001))).codigo, 400);
+        assert.equal(llamadasServicio, 0);
+        const correcta = await ejecutar('  Observación adicional  ');
+        assert.equal(correcta.codigo, 200);
+        assert.equal(argumentosServicio.comentario, 'Observación adicional');
+        assert.equal(argumentosServicio.administradoPor, '507f1f77bcf86cd799439012');
+        assert.equal(llamadasServicio, 1);
+    } finally {
+        solicitudesService.agregarComentario = originalAgregarComentario;
     }
 });
 
@@ -515,12 +749,14 @@ test('no elimina archivos compartidos por más de una solicitud', async () => {
     }
 });
 
-test('requiere comentario para dejar pendiente o rechazar mediante el endpoint', async () => {
+test('requiere comentario nuevo o reutilizar uno guardado para pendiente o rechazo', async () => {
     const estados = ['pendiente', 'rechazada'];
     const originalActualizarEstado = solicitudesService.actualizarEstado;
     let invocaciones = 0;
-    solicitudesService.actualizarEstado = async () => {
+    let argumentosServicio;
+    solicitudesService.actualizarEstado = async (argumentos) => {
         invocaciones++;
+        argumentosServicio = argumentos;
         return {};
     };
     try {
@@ -540,6 +776,22 @@ test('requiere comentario para dejar pendiente o rechazar mediante el endpoint',
             assert.match(respuesta.cuerpo.message, /comentario/i);
         }
         assert.equal(invocaciones, 0);
+
+        const respuestaReutilizada = {
+            codigo: null,
+            cuerpo: null,
+            status(codigo) { this.codigo = codigo; return this; },
+            json(cuerpo) { this.cuerpo = cuerpo; return this; },
+        };
+        await solicitudesController.actualizarEstado({
+            params: { id: '507f1f77bcf86cd799439011' },
+            body: { estado: 'rechazada', comentario: '', reutilizarComentario: true },
+            user: { _id: '507f1f77bcf86cd799439012' },
+        }, respuestaReutilizada);
+        assert.equal(respuestaReutilizada.codigo, 200);
+        assert.equal(argumentosServicio.reutilizarComentario, true);
+        assert.equal(argumentosServicio.comentario, '');
+        assert.equal(invocaciones, 1);
     } finally {
         solicitudesService.actualizarEstado = originalActualizarEstado;
     }
