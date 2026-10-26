@@ -13,7 +13,7 @@ const origenApi = (() => {
 })();
 
 // Política de contenido: el navegador solo carga lo que el sitio usa de verdad.
-// - Fotos: Cloudinary (propiedades), Unsplash (foto de relleno), los mosaicos de OpenStreetMap (mapas Leaflet) y la propia API
+// - Fotos: Cloudinary (propiedades), Unsplash (foto de relleno), los mosaicos de OpenStreetMap y ArcGIS (mapas Leaflet, el satelital de la portada) y la propia API
 //   (sin Cloudinary las fotos se guardan en backend/uploads, como en desarrollo)
 // - Conexiones: la API, los buscadores de direcciones del mapa del panel (ArcGIS, Nominatim, Photon) y dolarapi
 // - Iframe: solo el mapa de Google de la página Contacto
@@ -23,7 +23,7 @@ const politicaContenido = [
   "default-src 'self'",
   `script-src 'self' 'unsafe-inline'${enDesarrollo ? " 'unsafe-eval'" : ""}`,
   "style-src 'self' 'unsafe-inline'",
-  `img-src 'self' data: blob: ${origenApi} https://res.cloudinary.com https://images.unsplash.com https://*.tile.openstreetmap.org`.replace(/\s+/g, " "),
+  `img-src 'self' data: blob: ${origenApi} https://res.cloudinary.com https://images.unsplash.com https://*.tile.openstreetmap.org https://server.arcgisonline.com`.replace(/\s+/g, " "),
   "font-src 'self' data:",
   `connect-src 'self' ${origenApi} https://geocode.arcgis.com https://nominatim.openstreetmap.org https://photon.komoot.io https://dolarapi.com${enDesarrollo ? " ws://localhost:* http://localhost:*" : ""}`.replace(/\s+/g, " "),
   "frame-src https://maps.google.com https://www.google.com",
