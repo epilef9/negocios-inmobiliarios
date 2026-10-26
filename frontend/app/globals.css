@@ -455,3 +455,13 @@ html.dark .panel {
   #documento-contrato { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
   #documento-contrato mark { background: none !important; color: inherit !important; }
 }
+
+/* ===== Filtros del catálogo: chips de filtros aplicados y botón Limpiar ===== */
+.filtro-chip, .filtro-limpiar { animation: filtro-entra 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes filtro-entra {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .filtro-chip, .filtro-limpiar { animation: none; }
+}
