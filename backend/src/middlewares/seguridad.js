@@ -94,6 +94,7 @@ const frenos = {
     enlaces: limitar({ nombre: 'enlaces', ventanaMinutos: 15, maximo: 5, mensaje: 'Pediste muchos enlaces seguidos. Esperá unos minutos y revisá tu correo (también el spam).' }),
     tokens: limitar({ nombre: 'tokens', ventanaMinutos: 15, maximo: 20 }),
     visitas: limitar({ nombre: 'visitas', ventanaMinutos: 10, maximo: 5, mensaje: 'Pediste muchas visitas seguidas. Si necesitás más, escribinos por WhatsApp.' }),
+    solicitudes: limitar({ nombre: 'solicitudes', ventanaMinutos: 60, maximo: 5, mensaje: 'Enviaste varias solicitudes en poco tiempo. Probá de nuevo más tarde.' }),
     perfil: limitar({ nombre: 'perfil', ventanaMinutos: 15, maximo: 10 }),
 };
 

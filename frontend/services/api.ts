@@ -16,7 +16,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 	});
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
-		const details = Array.isArray(body.errors) ? `: ${body.errors.join("; ")}` : "";
+		const errores = Array.isArray(body.errores) ? body.errores : body.errors;
+		const details = Array.isArray(errores) ? `: ${errores.join("; ")}` : "";
 		throw new Error(`${body.message ?? "No se pudo completar la operación"}${details}`);
 	}
 	return body.data as T;
@@ -43,6 +44,8 @@ export type ApiProperty = {
 	pisoUnidad?: string;
 	images?: string[];
 	categoria_operacion?: "venta" | "alquiler" | "temporario";
+	operacionesSolicitud?: ("venta" | "alquiler")[];
+	permitirSolicitudes?: boolean;
 	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
 	cantidad_ambientes?: number;
 	comodidades?: string[];
