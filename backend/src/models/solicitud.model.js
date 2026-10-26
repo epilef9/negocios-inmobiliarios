@@ -10,12 +10,28 @@ const documentoSchema = new mongoose.Schema(
     { _id: false }
 );
 
+const cambioEstadoSchema = new mongoose.Schema(
+    {
+        estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], required: true },
+        comentario: { type: String, trim: true, maxlength: 1000, default: '' },
+        comentarioReferenciaIndice: { type: Number, min: 0 },
+        administradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        fecha: { type: Date, default: Date.now, required: true },
+    },
+    { _id: false }
+);
+
 const solicitudSchema = new mongoose.Schema(
     {
         usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
         propiedad: { type: mongoose.Schema.Types.ObjectId, ref: 'Property', required: true, index: true },
         operacion: { type: String, enum: ['alquiler', 'compra'], required: true },
         estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], default: 'pendiente', index: true },
+        comentarioEstado: { type: String, trim: true, maxlength: 1000, default: '' },
+        historialEstados: { type: [cambioEstadoSchema], default: [] },
+        archivada: { type: Boolean, default: false, index: true },
+        archivadaAt: { type: Date, default: null },
+        archivadaPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         datosCifrados: { type: String, required: true, select: false },
         documentos: { type: [documentoSchema], default: [] },
         claveIdempotencia: { type: String, required: true },
