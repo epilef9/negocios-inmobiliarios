@@ -211,7 +211,7 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
               <span className="text-[#efe9df]">{fechaHoraArgentina(enviada.venceEn)}</span>. Si no llega a confirmarla, las noches se liberan. Seguila desde Mi cuenta.
             </p>
             <div className="flex flex-wrap items-center gap-5 pt-1">
-              <Link href="/perfil#reservas" className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white">
+              <Link href="/reservas" className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white">
                 <span className="calma-dot" aria-hidden="true" />
                 Ver en Mi cuenta
               </Link>
