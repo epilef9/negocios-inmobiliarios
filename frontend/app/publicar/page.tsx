@@ -297,8 +297,8 @@ export default function PublicarPropiedadPage() {
                 Recibimos el pedido de publicación con las fotos de tu propiedad en <strong className="text-white">{direccion}</strong>. Araceli y nuestro equipo la revisarán en breve.
               </p>
               <div className="mt-8 flex flex-wrap justify-center gap-4">
-                <Link href="/perfil" className={botonPrincipal}>
-                  Ver mis publicaciones en Mi Cuenta
+                <Link href="/mis-publicaciones" className={botonPrincipal}>
+                  Ver tus publicaciones
                 </Link>
                 <button
                   type="button"

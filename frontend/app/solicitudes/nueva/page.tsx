@@ -418,7 +418,10 @@ function SolicitudForm() {
 					<p className={estilosEtiqueta}>SOLICITUD REGISTRADA</p>
 					<h1 className="font-display m-0 text-[clamp(42px,6vw,72px)] leading-none">¡Solicitud enviada correctamente!</h1>
 					<p className="max-w-2xl text-[16px] leading-relaxed text-[#efe9df]/75">Recibimos tu documentación. La inmobiliaria revisará la información y podrás consultar el estado de tu solicitud.</p>
-					<Link href={`/propiedades/${encodeURIComponent(propiedadId)}`} className="calma-micro self-start rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733]">Volver a la propiedad</Link>
+					<div className="flex flex-wrap items-center gap-6">
+						<Link href="/solicitudes" className="calma-micro self-start rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733]">Ver tus solicitudes</Link>
+						<Link href={`/propiedades/${encodeURIComponent(propiedadId)}`} className="calma-micro calma-link">Volver a la propiedad</Link>
+					</div>
 				</main>
 			</SitioBase>
 		);
