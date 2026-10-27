@@ -223,7 +223,7 @@ export default function VisitasAdminPage() {
   const cuenta = {
     pendientes: lista.filter((v) => v.estado === 'pendiente').length,
     confirmadas: lista.filter((v) => v.estado === 'confirmada' || v.estado === 'reprogramada').length,
-    rechazadas: lista.filter((v) => v.estado === 'rechazada').length,
+    rechazadas: lista.filter((v) => v.estado === 'rechazada' || v.estado === 'cancelada').length,
     todas: lista.length,
   };
 
@@ -236,7 +236,7 @@ export default function VisitasAdminPage() {
   const visibles = lista
     .filter((v) => {
       const enPestana =
-        pestana === 'pendientes' ? v.estado === 'pendiente' : pestana === 'confirmadas' ? v.estado === 'confirmada' || v.estado === 'reprogramada' : pestana === 'rechazadas' ? v.estado === 'rechazada' : true;
+        pestana === 'pendientes' ? v.estado === 'pendiente' : pestana === 'confirmadas' ? v.estado === 'confirmada' || v.estado === 'reprogramada' : pestana === 'rechazadas' ? v.estado === 'rechazada' || v.estado === 'cancelada' : true;
       const enTexto = !texto || [v.cliente.nombre, v.cliente.telefono, v.propiedad.titulo].some((c) => c?.toLowerCase().includes(texto));
       return enPestana && enTexto && (!fecha || v.fecha === fecha);
     })
@@ -246,7 +246,7 @@ export default function VisitasAdminPage() {
   const PESTANAS: { id: Pestana; texto: string }[] = [
     { id: 'pendientes', texto: 'Por confirmar' },
     { id: 'confirmadas', texto: 'Confirmadas' },
-    { id: 'rechazadas', texto: 'Rechazadas' },
+    { id: 'rechazadas', texto: 'Rechazadas y canceladas' },
     { id: 'todas', texto: 'Todas' },
   ];
 
@@ -258,8 +258,8 @@ export default function VisitasAdminPage() {
   const acciones = (v: Visita) => (
     <>
       {v.estado === 'pendiente' && <Accion icono="check" texto={`Confirmar la visita de ${v.cliente.nombre}`} onClick={() => confirmarVisita(v)} tono="exito" />}
-      {v.estado !== 'rechazada' && <Accion icono="reloj" texto={`Reprogramar la visita de ${v.cliente.nombre}`} onClick={() => abrirReprogramar(v)} />}
-      {v.estado !== 'rechazada' && <Accion icono="cerrar" texto={`Rechazar la visita de ${v.cliente.nombre}`} onClick={() => { setMotivo(MOTIVOS_RECHAZO[0]); setARechazar(v); }} tono="peligro" />}
+      {v.estado !== 'rechazada' && v.estado !== 'cancelada' && <Accion icono="reloj" texto={`Reprogramar la visita de ${v.cliente.nombre}`} onClick={() => abrirReprogramar(v)} />}
+      {v.estado !== 'rechazada' && v.estado !== 'cancelada' && <Accion icono="cerrar" texto={`Rechazar la visita de ${v.cliente.nombre}`} onClick={() => { setMotivo(MOTIVOS_RECHAZO[0]); setARechazar(v); }} tono="peligro" />}
       <Accion icono="telefono" texto={`Escribirle a ${v.cliente.nombre} por WhatsApp`} href={enlaceWhatsApp(v)} />
       <Accion icono="ojo" texto={`Ver el detalle de la visita de ${v.cliente.nombre}`} onClick={() => setDetalle(v)} />
     </>
@@ -384,7 +384,7 @@ export default function VisitasAdminPage() {
               <Boton variante="fantasma" icono="borrar" onClick={() => borrar(detalle)} className="mr-auto text-red-700 dark:text-red-400">
                 Borrar
               </Boton>
-              {detalle.estado !== 'rechazada' && (
+              {detalle.estado !== 'rechazada' && detalle.estado !== 'cancelada' && (
                 <Boton icono="reloj" onClick={() => abrirReprogramar(detalle)}>
                   Reprogramar
                 </Boton>

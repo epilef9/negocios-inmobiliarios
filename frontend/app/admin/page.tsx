@@ -6,9 +6,13 @@ import { useAuth } from '@/context/AuthContext';
 import { getProperties, type ApiProperty } from '@/services/api';
 import { getVisitas, type Visita } from '@/services/visitas';
 import { getContratos, type Contrato } from '@/services/contratos';
-import Icono, { type NombreIcono } from '@/components/panel/Icono';
+import Icono from '@/components/panel/Icono';
 import { BotonLink, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, Alerta } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import Recordatorios from '@/components/panel/Recordatorios';
+import AccesosRapidos from '@/components/panel/AccesosRapidos';
+import { usePendientes } from '@/components/panel/PanelMarco';
+import { getResumenPanel, type ItemPendiente } from '@/services/panel';
 
 type Datos = { propiedades: ApiProperty[]; visitas: Visita[]; contratos: Contrato[]; fallas: string[] };
 
@@ -27,22 +31,75 @@ function Resumen({ etiqueta, valor, detalle, href, cargando }: { etiqueta: strin
   );
 }
 
-function Acceso({ href, icono, titulo, texto }: { href: string; icono: NombreIcono; titulo: string; texto: string }) {
+const URGENCIA: Record<ItemPendiente['urgencia'], { texto: string; punto: string }> = {
+  1: { texto: 'Para hoy', punto: 'bg-red-500 ring-4 ring-red-500/15' },
+  2: { texto: 'Esta semana', punto: 'bg-amber-500' },
+  3: { texto: 'Cuando puedas', punto: 'bg-panel-tenue' },
+};
+
+// Todo lo pendiente del panel, lo más urgente arriba (lo mismo que resume la bienvenida)
+function ParaAtender() {
+  const [items, setItems] = useState<ItemPendiente[] | null>(null);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    let activo = true;
+    getResumenPanel()
+      .then((r) => activo && setItems(r ?? []))
+      .catch(() => activo && setError(true));
+    return () => {
+      activo = false;
+    };
+  }, []);
+
+  if (error) return null;
+  const urgentes = items?.filter((i) => i.urgencia === 1 && i.clave !== 'visitas-hoy').length ?? 0;
+
   return (
-    <Link href={href} className="group flex items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-panel-hundido">
-      <span className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-lg bg-panel-hundido text-panel-suave group-hover:bg-panel-superficie">
-        <Icono nombre={icono} className="h-[18px] w-[18px]" />
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="block text-[14px] font-medium">{titulo}</span>
-        <span className="block text-[13px] text-panel-suave">{texto}</span>
-      </span>
-    </Link>
+    <Tarjeta
+      titulo="Para atender"
+      descripcion={
+        !items ? 'Revisando…' : items.length === 0 ? 'Nada pendiente.' : urgentes ? `${items.length} temas; ${urgentes} para hoy.` : `${items.length} temas, ninguno urgente.`
+      }
+      relleno={false}
+    >
+      {!items ? (
+        <div className="flex flex-col gap-3 p-5">
+          {[0, 1, 2].map((i) => (
+            <Esqueleto key={i} className="h-9 w-full" />
+          ))}
+        </div>
+      ) : items.length === 0 ? (
+        <EstadoVacio icono="check" titulo="Estás al día" texto="Cuando entre una visita, una reserva o una solicitud, aparece acá." />
+      ) : (
+        <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+          {items.map((item) => {
+            const u = URGENCIA[item.urgencia];
+            return (
+              <li key={item.clave}>
+                <Link href={item.href} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-3.5 px-5 py-3 transition-colors hover:bg-panel-hundido">
+                  <span aria-hidden="true" className={`mt-[7px] h-2 w-2 rounded-full ${u.punto}`} />
+                  <span className="min-w-0">
+                    <span className="block text-[14px] font-medium">{item.titulo}</span>
+                    {item.detalle && <span className="block text-[13px] text-panel-suave">{item.detalle}</span>}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-[12px] text-panel-tenue">
+                    {u.texto}
+                    <Icono nombre="flecha" className="h-3.5 w-3.5 opacity-0 transition-opacity group-hover:opacity-100" />
+                  </span>
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Tarjeta>
   );
 }
 
 export default function AdminInicioPage() {
   const { user } = useAuth();
+  const pendientesPanel = usePendientes('/admin');
   const [datos, setDatos] = useState<Datos | null>(null);
 
   useEffect(() => {
@@ -55,9 +112,9 @@ export default function AdminInicioPage() {
       if (v.status === 'rejected') fallas.push('visitas');
       if (c.status === 'rejected') fallas.push('contratos');
       setDatos({
-        propiedades: p.status === 'fulfilled' ? p.value ?? [] : [],
-        visitas: v.status === 'fulfilled' ? v.value ?? [] : [],
-        contratos: c.status === 'fulfilled' ? c.value ?? [] : [],
+        propiedades: p.status === 'fulfilled' ? (p.value ?? []) : [],
+        visitas: v.status === 'fulfilled' ? (v.value ?? []) : [],
+        contratos: c.status === 'fulfilled' ? (c.value ?? []) : [],
         fallas,
       });
     });
@@ -70,7 +127,8 @@ export default function AdminInicioPage() {
   const propiedades = datos?.propiedades ?? [];
   const visitas = datos?.visitas ?? [];
   const contratos = datos?.contratos ?? [];
-  const pendientes = visitas.filter((v) => v.estado === 'pendiente');
+  // Igual que el número del menú: pendientes que todavía no pasaron
+  const porConfirmar = pendientesPanel.visitas ?? visitas.filter((v) => v.estado === 'pendiente').length;
   const ahora = new Date();
   ahora.setHours(0, 0, 0, 0);
   // Próximas: pendientes o confirmadas desde hoy, la más cercana primero
@@ -81,7 +139,6 @@ export default function AdminInicioPage() {
     .slice(0, 6);
 
   const disponibles = propiedades.filter((p) => !p.estado || p.estado === 'disponible').length;
-  const sinFoto = propiedades.filter((p) => !p.images?.length);
   const activos = contratos.filter((c) => c.estado === 'activo').length;
   const porVencer = contratos.filter((c) => c.estado === 'por_vencer').length;
 
@@ -94,14 +151,9 @@ export default function AdminInicioPage() {
         titulo={nombre ? `Hola, ${nombre}.` : 'Hola.'}
         descripcion={<span className="first-letter:uppercase">{fecha}</span>}
         acciones={
-          <>
-            <BotonLink href="/admin/contratos/generar" icono="contratos">
-              Generar contrato
-            </BotonLink>
-            <BotonLink href="/admin/propiedades/nueva" variante="principal" icono="mas">
-              Nueva propiedad
-            </BotonLink>
-          </>
+          <BotonLink href="/admin/propiedades/nueva" variante="principal" icono="mas">
+            Nueva propiedad
+          </BotonLink>
         }
       />
 
@@ -112,12 +164,24 @@ export default function AdminInicioPage() {
           </Alerta>
         ) : null}
 
-        <section aria-label="Resumen" className="grid divide-y divide-panel-borde overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+        <AccesosRapidos pendientes={pendientesPanel} />
+
+        <section
+          aria-label="Resumen"
+          className="grid grid-cols-2 overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie lg:grid-cols-4 [&>*]:border-panel-borde max-lg:[&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r lg:[&>*:not(:last-child)]:border-r"
+        >
           <Resumen
             etiqueta="Visitas por confirmar"
-            valor={pendientes.length}
-            detalle={pendientes.length ? 'Esperan tu respuesta' : 'Todo respondido'}
+            valor={porConfirmar}
+            detalle={porConfirmar ? 'Esperan tu respuesta' : 'Todo respondido'}
             href="/admin/visitas"
+            cargando={cargando}
+          />
+          <Resumen
+            etiqueta="Reservas por confirmar"
+            valor={pendientesPanel.reservas ?? 0}
+            detalle={pendientesPanel.senas ? `${pendientesPanel.senas} con seña por vencer` : 'Reservas y pagos'}
+            href="/admin/reservas"
             cargando={cargando}
           />
           <Resumen etiqueta="Propiedades" valor={propiedades.length} detalle={`${disponibles} disponibles`} href="/admin/propiedades" cargando={cargando} />
@@ -130,71 +194,51 @@ export default function AdminInicioPage() {
           />
         </section>
 
-        <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
-          <Tarjeta
-            titulo="Próximas visitas"
-            descripcion="Pendientes y confirmadas, de la más cercana a la más lejana."
-            acciones={
-              <Link href="/admin/visitas" className="text-[13px] font-medium text-panel-suave hover:text-panel-texto">
-                Ver todas
-              </Link>
-            }
-            relleno={false}
-          >
-            {cargando ? (
-              <div className="flex flex-col gap-3 p-5">
-                {[0, 1, 2].map((i) => (
-                  <Esqueleto key={i} className="h-10 w-full" />
-                ))}
-              </div>
-            ) : proximas.length === 0 ? (
-              <EstadoVacio icono="visitas" titulo="No hay visitas próximas" texto="Cuando alguien pida una visita desde el sitio, aparece acá." />
-            ) : (
-              <ul className="m-0 list-none divide-y divide-panel-borde p-0">
-                {proximas.map(({ v, cuando }) => {
-                  const estado = estadoDe(ESTADO_VISITA, v.estado);
-                  return (
-                    <li key={v.id || v._id}>
-                      <Link href="/admin/visitas" className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-panel-hundido">
-                        <span className="tabular w-36 shrink-0 whitespace-nowrap text-[13px] font-medium">{cuandoEs(cuando, v.horario)}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-[14px] font-medium">{v.cliente?.nombre || 'Sin nombre'}</span>
-                          <span className="block truncate text-[13px] text-panel-suave">{v.propiedad?.titulo || 'Propiedad sin título'}</span>
-                        </span>
-                        <Insignia tono={estado.tono}>{estado.texto}</Insignia>
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </Tarjeta>
+        <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+          <div className="flex min-w-0 flex-col gap-6">
+            <ParaAtender />
+            <Tarjeta
+              titulo="Próximas visitas"
+              descripcion="Pendientes y confirmadas, de la más cercana a la más lejana."
+              acciones={
+                <Link href="/admin/visitas" className="text-[13px] font-medium text-panel-suave hover:text-panel-texto">
+                  Ver todas
+                </Link>
+              }
+              relleno={false}
+            >
+              {cargando ? (
+                <div className="flex flex-col gap-3 p-5">
+                  {[0, 1, 2].map((i) => (
+                    <Esqueleto key={i} className="h-10 w-full" />
+                  ))}
+                </div>
+              ) : proximas.length === 0 ? (
+                <EstadoVacio icono="visitas" titulo="No hay visitas próximas" texto="Cuando alguien pida una visita desde el sitio, aparece acá." />
+              ) : (
+                <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+                  {proximas.map(({ v, cuando }) => {
+                    const estado = estadoDe(ESTADO_VISITA, v.estado);
+                    return (
+                      <li key={v.id || v._id}>
+                        <Link href="/admin/visitas" className="flex items-center gap-4 px-5 py-3.5 transition-colors hover:bg-panel-hundido">
+                          <span className="tabular w-36 shrink-0 whitespace-nowrap text-[13px] font-medium">{cuandoEs(cuando, v.horario)}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-[14px] font-medium">{v.cliente?.nombre || 'Sin nombre'}</span>
+                            <span className="block truncate text-[13px] text-panel-suave">{v.propiedad?.titulo || 'Propiedad sin título'}</span>
+                          </span>
+                          <Insignia tono={estado.tono}>{estado.texto}</Insignia>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Tarjeta>
+          </div>
 
           <div className="flex flex-col gap-6">
-            {!cargando && sinFoto.length > 0 && (
-              <Tarjeta titulo="Para revisar" relleno={false}>
-                <ul className="m-0 list-none divide-y divide-panel-borde p-0">
-                  {sinFoto.slice(0, 4).map((p) => (
-                    <li key={p._id}>
-                      <Link href={`/admin/propiedades/nueva?editar=${p._id}`} className="flex items-center gap-3 px-5 py-3 text-[14px] hover:bg-panel-hundido">
-                        <Icono nombre="imagen" className="h-[18px] w-[18px] text-panel-tenue" />
-                        <span className="min-w-0 flex-1 truncate">{p.title}</span>
-                        <span className="text-[12.5px] text-panel-tenue">Sin fotos</span>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-                {sinFoto.length > 4 && <p className="m-0 border-t border-panel-borde px-5 py-2.5 text-[13px] text-panel-suave">Y {sinFoto.length - 4} más sin fotos.</p>}
-              </Tarjeta>
-            )}
-
-            <Tarjeta titulo="Accesos rápidos" relleno={false}>
-              <div className="flex flex-col p-2">
-                <Acceso href="/admin/catalogo" icono="catalogo" titulo="Ordenar el catálogo" texto="Qué propiedad se ve primero en el sitio." />
-                <Acceso href="/propiedades" icono="sitio" titulo="Ver el catálogo público" texto="Como lo ven los clientes." />
-                <Acceso href="/admin/requisitos" icono="contratos" titulo="Requisitos" texto="Listas que ven los clientes en la página pública." />
-              </div>
-            </Tarjeta>
+            <Recordatorios />
           </div>
         </div>
       </div>

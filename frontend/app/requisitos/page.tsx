@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import SitioBase from '@/components/sitio/SitioBase';
 import Revelar from '@/components/sitio/Revelar';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
+import { useContacto } from '@/components/sitio/useAjustes';
 import { GUIAS, esOperacion, type Operacion } from '@/components/requisitos/datos';
 import { useChecklist, type EstadoGuardado } from '@/components/requisitos/useChecklist';
 import { getRequisitos, type Requisito } from '@/services/requisitos';
@@ -43,6 +43,7 @@ function TextoGuardado({ estado, nombre }: { estado: EstadoGuardado; nombre: str
 }
 
 function Requisitos({ inicial }: { inicial: Operacion }) {
+  const { whatsappUrl } = useContacto();
   const [activa, setActiva] = useState<Operacion>(inicial);
   const [guias, setGuias] = useState(GUIAS);
   const { marcas, alternar, desmarcar, estado, nombre } = useChecklist();
@@ -75,7 +76,7 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
   const ids = idsDe(guia.id);
   const listos = ids.filter((id) => marcas[id]).length;
   const completo = listos === ids.length;
-  const consulta = `${WHATSAPP_URL}?text=${encodeURIComponent(guia.consulta)}`;
+  const consulta = `${whatsappUrl}?text=${encodeURIComponent(guia.consulta)}`;
 
   const elegir = (id: Operacion) => {
     setActiva(id);

@@ -39,6 +39,8 @@ export interface RegisterPayload {
   email: string;
   password: string;
   confirmPassword?: string;
+  // 304: token de la verificación «no soy un robot» (si está activada)
+  captchaToken?: string;
 }
 
 export interface LoginPayload {

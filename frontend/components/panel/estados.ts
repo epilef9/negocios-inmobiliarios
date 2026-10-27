@@ -7,6 +7,7 @@ export const ESTADO_VISITA: Record<string, { texto: string; tono: Tono }> = {
   confirmada: { texto: 'Confirmada', tono: 'exito' },
   reprogramada: { texto: 'Reprogramada', tono: 'info' },
   rechazada: { texto: 'Rechazada', tono: 'neutro' },
+  cancelada: { texto: 'Cancelada por el cliente', tono: 'neutro' },
 };
 
 export const ESTADO_RESERVA: Record<string, { texto: string; tono: Tono }> = {

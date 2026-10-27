@@ -1,4 +1,6 @@
 import { API_URL, request } from './api';
+import { conSesion } from './sesion';
+import { avisarPendientes } from './panel';
 
 export type EstadoSolicitudPublicacion = 'pendiente' | 'aprobada' | 'rechazada';
 export type DocumentosPublicacion = {
@@ -114,20 +116,15 @@ export async function getSolicitudesPublicacionAdmin(estado?: string): Promise<S
   return request<SolicitudPublicacion[]>(`/solicitudes-publicacion${query}`);
 }
 
+// Con la cookie de sesión y el token CSRF (antes usaba un token de localStorage que ya no existe y el servidor
+// rechazaba el pedido). La respuesta trae además el id de la propiedad creada, por eso no usa request().
 export async function aprobarSolicitudPublicacion(id: string): Promise<{ data: SolicitudPublicacion; propiedadId: string }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-  const API_URL = process.env.NEXT_PUBLIC_API_URL ?? (process.env.NODE_ENV === 'production' ? '/api' : 'http://localhost:4000/api');
-  const res = await fetch(`${API_URL}/solicitudes-publicacion/${id}/aprobar`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  });
+  const res = await fetch(`${API_URL}/solicitudes-publicacion/${id}/aprobar`, conSesion({ method: 'PUT' }, { 'Content-Type': 'application/json' }));
   const body = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(body.message || 'No se pudo aprobar la solicitud');
   }
+  avisarPendientes();
   return { data: body.data, propiedadId: body.propiedadId };
 }
 
@@ -135,6 +132,9 @@ export async function rechazarSolicitudPublicacion(id: string, motivo: string): 
   return request<SolicitudPublicacion>(`/solicitudes-publicacion/${id}/rechazar`, {
     method: 'PUT',
     body: JSON.stringify({ motivo }),
+  }).then((s) => {
+    avisarPendientes();
+    return s;
   });
 }
 

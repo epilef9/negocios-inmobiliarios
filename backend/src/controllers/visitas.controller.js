@@ -74,23 +74,32 @@ exports.createVisita = async (req, res) => {
             return res.status(400).json({ message: 'El teléfono no es válido' });
         }
 
-        // Que el horario esté libre (y, para el público, dentro del horario de atención)
-        const esAdmin = req.user && req.user.role === 'admin';
-        const motivo = await agenda.motivoNoDisponible(datos.fecha, datos.horario, { controlarHorario: !esAdmin });
-        if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
-
         if (typeof propiedad.id === 'string' && mongoose.isValidObjectId(propiedad.id)) {
             const real = await Property.findById(propiedad.id).select('title location direccionCompleta estado permitirVisita').lean();
             if (!real) return res.status(404).json({ message: 'La propiedad ya no está publicada' });
             if (real.estado === 'vendido' || real.estado === 'alquilado') {
                 return res.status(409).json({ message: 'Esta propiedad ya no está disponible para visitas' });
             }
+            // Solo se frena si el administrador la desactivó a propósito (vacía cuenta como sí)
+            if (real.permitirVisita === false && !(req.user && req.user.role === 'admin')) {
+                return res.status(409).json({ message: 'Esta propiedad no recibe pedidos de visita. Escribinos por WhatsApp.' });
+            }
             datos.propiedad.id = String(real._id);
             datos.propiedad.titulo = real.title;
             datos.propiedad.direccion = real.direccionCompleta || real.location || '';
         }
 
-        const newVisita = await visitasService.createVisita(datos);
+        // Que el horario esté libre (y, para el público, dentro del horario de atención). Se controla y se guarda
+        // dentro del candado de la agenda: dos pedidos al mismo tiempo no pueden quedarse con el mismo turno.
+        const esAdmin = req.user && req.user.role === 'admin';
+        // Si la pide un cliente con la sesión iniciada, queda en su cuenta (HU-34: Mis visitas)
+        if (req.user && !esAdmin) datos.usuario = req.user._id;
+        const { motivo, visita: newVisita } = await agenda.reservar(datos, { controlarHorario: !esAdmin }, (conDuracion, session) =>
+            visitasService.createVisita(conDuracion, { session })
+        );
+        if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
+        if (datos.propiedad.id) await require('../services/estadisticas.service').sumar(datos.propiedad.id, 'visitas');
+
         return res.status(201).json({ data: newVisita, message: 'Visita agendada correctamente' });
     } catch (error) {
         console.error('Error al crear visita:', error);
@@ -114,11 +123,14 @@ exports.updateVisita = async (req, res) => {
 exports.updateEstadoVisita = async (req, res) => {
     try {
         const { estado, nuevaFecha, nuevoHorario, motivo } = req.body;
-        const updated = await visitasService.updateEstadoVisita(
-            req.params.id,
-            estado,
-            { nuevaFecha, nuevoHorario, motivo }
-        );
+        const { visita: updated, motivo: noDisponible } = await visitasService.updateEstadoVisita(req.params.id, estado, {
+            nuevaFecha: corto(nuevaFecha, 20) || undefined,
+            nuevoHorario: corto(nuevoHorario, 20) || undefined,
+            motivo: motivo === undefined ? undefined : String(motivo).trim().slice(0, 500),
+        });
+        if (noDisponible) {
+            return res.status(409).json({ message: noDisponible, code: 'HORARIO_NO_DISPONIBLE' });
+        }
         if (!updated) {
             return res.status(404).json({ message: 'Visita no encontrada' });
         }
@@ -126,6 +138,27 @@ exports.updateEstadoVisita = async (req, res) => {
     } catch (error) {
         console.error('Error al actualizar estado de la visita:', error);
         return res.status(400).json({ message: 'Error al actualizar estado' });
+    }
+};
+
+// HU-34: visitas del cliente que inició sesión
+exports.misVisitas = async (req, res) => {
+    try {
+        return res.status(200).json({ data: await visitasService.getMisVisitas(req.user) });
+    } catch (error) {
+        console.error('Error al obtener las visitas del cliente:', error);
+        return res.status(500).json({ message: 'No pudimos cargar tus visitas' });
+    }
+};
+
+exports.cancelarMiVisita = async (req, res) => {
+    try {
+        const { visita, error, status } = await visitasService.cancelarMiVisita(req.params.id, req.user, corto(req.body?.motivo, 300));
+        if (error) return res.status(status).json({ message: error });
+        return res.status(200).json({ data: visita, message: 'Cancelaste la visita. El horario quedó libre.' });
+    } catch (error) {
+        console.error('Error al cancelar la visita:', error);
+        return res.status(500).json({ message: 'No pudimos cancelar la visita' });
     }
 };
 

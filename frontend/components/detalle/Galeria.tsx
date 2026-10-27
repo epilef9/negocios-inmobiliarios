@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
 type Props = { imagenes: string[]; titulo: string };
 
@@ -9,6 +9,18 @@ export default function Galeria({ imagenes, titulo }: Props) {
   const [actual, setActual] = useState(0);
   const total = imagenes.length;
   const mover = (paso: number) => setActual((i) => (i + paso + total) % total);
+  // Deslizar con el dedo en el celular: más de 40 px de costado (y más de costado que de arriba a abajo)
+  const toque = useRef<{ x: number; y: number } | null>(null);
+  const alEmpezarToque = (e: React.TouchEvent) => {
+    toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const alTerminarToque = (e: React.TouchEvent) => {
+    if (!toque.current || total < 2) return;
+    const dx = e.changedTouches[0].clientX - toque.current.x;
+    const dy = e.changedTouches[0].clientY - toque.current.y;
+    toque.current = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) mover(dx < 0 ? 1 : -1);
+  };
 
   if (total === 0) {
     return (
@@ -21,7 +33,9 @@ export default function Galeria({ imagenes, titulo }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative aspect-[16/9] max-h-[78vh] w-full overflow-hidden bg-[#0e2652]"
+        className="relative aspect-[4/3] max-h-[78vh] w-full touch-pan-y overflow-hidden bg-[#0e2652] sm:aspect-[16/9]"
+        onTouchStart={alEmpezarToque}
+        onTouchEnd={alTerminarToque}
         role="group"
         aria-roledescription="galería"
         aria-label={`Fotos de ${titulo}`}

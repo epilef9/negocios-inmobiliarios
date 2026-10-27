@@ -1,4 +1,21 @@
 const visitasRepository = require('../repositories/visitas.repository');
+const agenda = require('./agenda.service');
+const emailService = require('./email.service');
+const config = require('../config/env');
+
+// Estados en los que el cliente todavía puede cancelar su visita
+const CANCELABLES = ['pendiente', 'confirmada', 'reprogramada'];
+
+// Se puede cancelar si no se canceló/rechazó y todavía no llegó el día y la hora de la visita
+const puedeCancelar = (visita, ahora = agenda.ahoraEnArgentina()) => {
+    if (!visita || !CANCELABLES.includes(visita.estado)) return false;
+    const fecha = agenda.fechaIso(visita.fecha);
+    const hora = agenda.horaCorta(visita.horario);
+    if (!fecha || !hora) return false;
+    if (fecha !== ahora.fecha) return fecha > ahora.fecha;
+    const [h, m] = hora.split(':').map(Number);
+    return h * 60 + m > ahora.minutos;
+};
 
 const INITIAL_SEED_VISITAS = [
     {
@@ -314,7 +331,7 @@ class VisitasService {
         return visitasRepository.getVisitaById(id);
     }
 
-    async createVisita(data) {
+    async createVisita(data, opciones = {}) {
         const normalized = { ...data };
         if (normalized.cliente && !normalized.cliente.iniciales && normalized.cliente.nombre) {
             normalized.cliente.iniciales = normalized.cliente.nombre
@@ -324,31 +341,74 @@ class VisitasService {
                 .map((word) => word[0]?.toUpperCase() || '')
                 .join('') || 'CL';
         }
-        return visitasRepository.createVisita(normalized);
+        return visitasRepository.createVisita(normalized, opciones);
     }
 
     async updateVisita(id, data) {
         return visitasRepository.updateVisita(id, data);
     }
 
+    // Cambia el estado. Si trae fecha u horario nuevos (reprogramar), el turno se controla en la agenda:
+    // devuelve { visita } o { motivo } cuando el horario nuevo está ocupado o la oficina cierra ese día.
     async updateEstadoVisita(id, estado, extra = {}) {
-        const updateData = {
-            estado,
-        };
-
-        if (extra.nuevaFecha) {
-            updateData.fecha = extra.nuevaFecha;
-        }
-
-        if (extra.nuevoHorario) {
-            updateData.horario = extra.nuevoHorario;
-        }
-
+        const updateData = { estado };
         if (extra.motivo !== undefined) {
             updateData.motivoRechazo = extra.motivo;
         }
 
-        return visitasRepository.updateVisita(id, updateData);
+        if (!extra.nuevaFecha && !extra.nuevoHorario) {
+            return { visita: await visitasRepository.updateVisita(id, updateData) };
+        }
+
+        const actual = await visitasRepository.getVisitaById(id);
+        if (!actual) return { visita: null };
+        updateData.fecha = extra.nuevaFecha || actual.fecha;
+        updateData.horario = extra.nuevoHorario || actual.horario;
+        return agenda.reprogramar(id, updateData.fecha, updateData.horario, (session) =>
+            visitasRepository.updateVisita(id, updateData, { session })
+        );
+    }
+
+    // HU-34: las visitas del cliente, cada una con si todavía la puede cancelar
+    async getMisVisitas(user) {
+        const visitas = await visitasRepository.getVisitasDeUsuario(user._id, user.email);
+        const ahora = agenda.ahoraEnArgentina();
+        return visitas.map((v) => ({ ...v, cancelable: puedeCancelar(v, ahora) }));
+    }
+
+    // HU-34: el cliente cancela una visita suya que todavía no pasó. Al quedar "cancelada" el turno se libera.
+    // Devuelve { visita } o { error, status }.
+    async cancelarMiVisita(id, user, motivo = '') {
+        const visita = await visitasRepository.getVisitaById(id);
+        const email = String(user.email || '').toLowerCase().trim();
+        const esSuya =
+            visita &&
+            ((visita.usuario && String(visita.usuario) === String(user._id)) ||
+                (!visita.usuario && email && String(visita.cliente?.email || '').toLowerCase() === email));
+        if (!esSuya) return { status: 404, error: 'No encontramos esa visita en tu cuenta.' };
+        if (!puedeCancelar(visita)) return { status: 409, error: 'Esta visita ya no se puede cancelar.' };
+        const actualizada = await visitasRepository.updateVisita(id, {
+            estado: 'cancelada',
+            canceladaAt: new Date(),
+            motivoCancelacion: motivo,
+        });
+        // Se avisa a la inmobiliaria; si el mail falla, la cancelación igual queda hecha
+        emailService
+            .avisarInmobiliaria({
+                asunto: `Visita cancelada · ${visita.propiedad?.titulo || 'Propiedad'}`,
+                intro: 'Un cliente canceló su visita desde Mi cuenta. El horario quedó libre en la agenda.',
+                filas: [
+                    ['Cliente', visita.cliente?.nombre || ''],
+                    ['Teléfono', visita.cliente?.telefono || ''],
+                    ['Propiedad', visita.propiedad?.titulo || ''],
+                    ['Día y hora', `${visita.fecha} · ${visita.horario}`],
+                    ...(motivo ? [['Motivo', motivo]] : []),
+                ],
+                enlace: `${config.urlFrontend()}/admin/visitas`,
+                boton: 'Ver las visitas',
+            })
+            .catch((error) => console.error('No se pudo avisar la cancelación de la visita:', error.message));
+        return { visita: actualizada };
     }
 
     async deleteVisita(id) {
@@ -364,3 +424,4 @@ class VisitasService {
 }
 
 module.exports = new VisitasService();
+module.exports.puedeCancelar = puedeCancelar;

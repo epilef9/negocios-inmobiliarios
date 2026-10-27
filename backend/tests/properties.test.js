@@ -15,6 +15,8 @@ describe('Properties API', () => {
         description: 'A beautiful house in the city center',
         price: 300000,
         location: 'City Center',
+        latitud: '-32.0712',
+        longitud: '-60.4591',
         bedrooms: 3,
         bathrooms: 2,
         area: 100,

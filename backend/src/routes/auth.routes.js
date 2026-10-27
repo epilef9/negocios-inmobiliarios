@@ -7,7 +7,7 @@ const { requireAdmin } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 
 // Endpoint para registro de nuevo usuario (HU-05)
-router.post('/register', frenos.registro, validateRegister, authController.register);
+router.post('/register', frenos.registro, require('../middlewares/captcha').verificarCaptcha, validateRegister, authController.register);
 
 // Confirmación del email con el enlace del mail, y reenvío del enlace
 router.post('/verify-email', frenos.tokens, authController.verifyEmail);

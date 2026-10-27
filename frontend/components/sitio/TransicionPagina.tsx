@@ -14,10 +14,13 @@ declare global {
 // y tapan la página; en la nueva se abren desde abajo y la descubren. La barra de arriba queda siempre a la vista.
 
 const TABLILLAS = 12;
-const CIERRE_MS = 800;
-const APERTURA_MS = 1100;
-const ESCALON_MS = 55;
-const PAUSA_MS = 120;
+// En el celular la persiana completa tardaba casi 2 segundos: ahí dura bastante menos
+const rapido = () => typeof window !== 'undefined' && window.matchMedia('(max-width: 640px), (pointer: coarse)').matches;
+const ms = (normal: number) => (rapido() ? Math.round(normal * 0.5) : normal);
+const CIERRE_MS = () => ms(800);
+const APERTURA_MS = () => ms(1100);
+const ESCALON_MS = () => ms(55);
+const PAUSA_MS = () => ms(120);
 const CURVA = 'cubic-bezier(0.87, 0, 0.13, 1)'; // como el expo.inOut de la portada
 
 // Lo que pasa de una página a la otra: que se llegó con la persiana cerrada
@@ -69,8 +72,8 @@ export default function TransicionPagina({ children }: { children: React.ReactNo
     const tablillas = tablillasDe(capa);
     const animaciones = tablillas.map((tablilla, i) =>
       tablilla.animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(0)' }], {
-        duration: APERTURA_MS,
-        delay: 150 + (tablillas.length - 1 - i) * ESCALON_MS,
+        duration: APERTURA_MS(),
+        delay: ms(150) + (tablillas.length - 1 - i) * ESCALON_MS(),
         easing: CURVA,
         fill: 'both',
       }),
@@ -78,7 +81,7 @@ export default function TransicionPagina({ children }: { children: React.ReactNo
     // El contenido acompaña subiendo apenas mientras se abre
     animaciones.push(
       el.animate([{ transform: 'translateY(36px)' }, { transform: 'none' }], {
-        duration: APERTURA_MS + 700, delay: 150, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards',
+        duration: APERTURA_MS() + ms(700), delay: ms(150), easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'backwards',
       }),
     );
 
@@ -149,8 +152,8 @@ export default function TransicionPagina({ children }: { children: React.ReactNo
       const tablillas = tablillasDe(capa);
       tablillas.forEach((tablilla, i) =>
         tablilla.animate([{ transform: 'scaleY(0)' }, { transform: 'scaleY(1)' }], {
-          duration: CIERRE_MS,
-          delay: i * ESCALON_MS,
+          duration: CIERRE_MS(),
+          delay: i * ESCALON_MS(),
           easing: CURVA,
           fill: 'both',
         }),
@@ -163,7 +166,7 @@ export default function TransicionPagina({ children }: { children: React.ReactNo
         enCurso = { hora: Date.now() };
         bloquearScroll(false);
         router.push(ruta, { scroll: false });
-      }, CIERRE_MS + (tablillas.length - 1) * ESCALON_MS + PAUSA_MS);
+      }, CIERRE_MS() + (tablillas.length - 1) * ESCALON_MS() + PAUSA_MS());
     };
 
     window.addEventListener('click', alHacerClic, true);

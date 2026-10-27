@@ -75,6 +75,9 @@ exports.login = async (req, res) => {
     try {
         const { token, ...result } = await authService.login(email, password);
         establecerSesion(res, token);
+        // 224: aviso por mail si es un navegador nuevo (pone su cookie antes de responder; el mail no frena el ingreso)
+        const avisoIngreso = require('../services/avisoIngreso.service').revisarIngreso(req, res, result.user?.id || result.user?._id);
+        await Promise.race([avisoIngreso, new Promise((listo) => setTimeout(listo, 1500))]);
         res.status(200).json({
             message: 'Inicio de sesion exitoso',
             data: result,
@@ -216,9 +219,13 @@ exports.agregarFavorito = async (req, res) => {
         if (!existe) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
-        const ids = await guardarFavoritos(req.user._id, (actuales) =>
-            actuales.includes(propertyId) ? actuales : [...actuales, propertyId]
-        );
+        let nuevo = false;
+        const ids = await guardarFavoritos(req.user._id, (actuales) => {
+            nuevo = !actuales.includes(propertyId);
+            return nuevo ? [...actuales, propertyId] : actuales;
+        });
+        // Se espera antes de responder: en Vercel la función puede congelarse apenas sale la respuesta
+        if (nuevo) await require('../services/estadisticas.service').sumar(propertyId, 'favoritos');
         res.status(200).json({ data: ids });
     } catch (error) {
         console.error('[favoritos] Error al guardar:', error);

@@ -458,11 +458,26 @@ html.dark .panel {
 }
 
 /* Al imprimir el generador de contratos sale solo el documento */
+/* En pantallas táctiles, los enlaces sueltos con estilo de botón (Ver requisitos, Comparar…) tienen 44 px para tocar */
+@media (pointer: coarse) {
+  a.calma-link.calma-micro,
+  button.calma-link.calma-micro {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+  }
+}
+
 @media print {
   body * { visibility: hidden !important; }
   #documento-contrato, #documento-contrato * { visibility: visible !important; }
   #documento-contrato { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
   #documento-contrato mark { background: none !important; color: inherit !important; }
+  /* Ficha de propiedad para imprimir (vidriera o para darle a un cliente) */
+  #ficha-imprimible, #ficha-imprimible * { visibility: visible !important; }
+  #ficha-imprimible { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; padding: 0; }
+  #ficha-imprimible .no-imprimir { display: none !important; }
+  @page { margin: 12mm; }
 }
 
 /* ===== Filtros del catálogo: chips de filtros aplicados y botón Limpiar ===== */

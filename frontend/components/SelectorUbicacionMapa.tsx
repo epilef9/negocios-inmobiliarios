@@ -306,7 +306,8 @@ export default function SelectorUbicacionMapa({
   };
 
   // Motor de Geocodificación Catastral y Búsqueda de Alturas
-  const buscarDireccionesInteligente = async (textoConsulta: string) => {
+  // `autoElegir`: marca sola el mejor resultado de Entre Ríos (búsqueda automática con la dirección del formulario)
+  const buscarDireccionesInteligente = async (textoConsulta: string, autoElegir = false) => {
     const raw = textoConsulta.trim();
     if (!raw || raw.length < 2) {
       setResultados([]);
@@ -489,6 +490,12 @@ export default function SelectorUbicacionMapa({
       setResultados(combinados);
       setMostrarResultados(true);
 
+      const mejor = combinados.find((item) => item.esEntreRios);
+      if (autoElegir && mejor) {
+        seleccionarResultado(mejor);
+        mostrarMensaje(`📍 La marcamos según la dirección: ${mejor.titulo}. Si no es exacta, tocá el punto correcto en el mapa.`, "exito");
+      }
+
       if (combinados.length === 0) {
         mostrarMensaje(
           `No se encontró "${raw}". Probá con el nombre de la calle y ciudad (ej. Urquiza, ${ciudad || "Gualeguaychú"}) o marcá el punto en el mapa.`,
@@ -534,12 +541,21 @@ export default function SelectorUbicacionMapa({
   };
 
   // Búsqueda con la dirección cargada en el formulario
-  const buscarDireccionDelFormulario = () => {
+  const buscarDireccionDelFormulario = (autoElegir = false) => {
     const partes = [direccionSugerida, ciudadSugerida, nombreProvincia, "Argentina"].filter(Boolean);
     const query = partes.join(", ");
     setBusquedaTexto(query);
-    void buscarDireccionesInteligente(query);
+    void buscarDireccionesInteligente(query, autoElegir);
   };
+
+  // Si la propiedad todavía no tiene punto y ya se escribió dirección y ciudad, se busca sola una vez al abrir el mapa
+  const busquedaAutomatica = useRef(false);
+  useEffect(() => {
+    if (busquedaAutomatica.current || latitud || longitud || !direccionSugerida.trim() || !ciudadSugerida.trim()) return;
+    busquedaAutomatica.current = true;
+    buscarDireccionDelFormulario(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- solo al abrir el mapa con la dirección ya escrita
+  }, [direccionSugerida, ciudadSugerida]);
 
   return (
     <div className="flex flex-col gap-2.5">
@@ -723,7 +739,7 @@ export default function SelectorUbicacionMapa({
           </div>
           <button
             type="button"
-            onClick={buscarDireccionDelFormulario}
+            onClick={() => buscarDireccionDelFormulario()}
             className="text-panel-acento hover:underline font-bold shrink-0 flex items-center gap-1"
           >
             <span>Buscar en mapa</span>

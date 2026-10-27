@@ -4,22 +4,27 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmarSalida } from './ConfirmarSalida';
+import AvisoSalida from './AvisoSalida';
 import LogoEmpresa from './LogoEmpresa';
 
-const WHATSAPP = 'https://wa.me/543434469522';
 
+// Inicio va primero: no todos saben que el logo lleva a la portada. Contacto va a la derecha, con el punto rojo.
 const enlaces = [
+  { href: '/', texto: 'Inicio' },
   { href: '/propiedades', texto: 'Propiedades' },
   { href: '/publicar', texto: 'Publicar' },
   { href: '/requisitos', texto: 'Requisitos' },
-  { href: '/contacto', texto: 'Contacto' },
 ];
+
+const esActual = (ruta: string | null, href: string) => (href === '/' ? ruta === '/' : Boolean(ruta && (ruta === href || ruta.startsWith(`${href}/`))));
 
 // Barra del sitio de vidrio esmerilado: transparente y desenfocada, deja ver la foto de atrás; el logo
 // lleva un halo fino para leerse con sus colores. Al bajar se desliza hacia arriba y se desvanece; al subir
 // vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
 export default function SiteHeader() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { pedirSalida, dialogoSalida } = useConfirmarSalida();
   const ruta = usePathname();
   const ingresar = ruta && ruta !== '/' ? `/login?volver=${encodeURIComponent(ruta)}` : '/login';
   const [oculta, setOculta] = useState(false);
@@ -52,7 +57,7 @@ export default function SiteHeader() {
           Panel
         </Link>
       )}
-      <button type="button" onClick={logout} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
+      <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
         Salir
       </button>
     </>
@@ -68,10 +73,12 @@ export default function SiteHeader() {
         conFondo || menuAbierto ? 'con-fondo' : ''
       }`}
     >
+      {dialogoSalida}
+      <AvisoSalida />
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-2.5 sm:px-10">
         <nav aria-label="Principal" className="hidden gap-7 lg:flex">
           {enlaces.map((enlace) => (
-            <Link key={enlace.href} href={enlace.href} className="calma-link calma-link-sutil">
+            <Link key={enlace.href} href={enlace.href} aria-current={esActual(ruta, enlace.href) ? 'page' : undefined} className="calma-link calma-link-sutil">
               {enlace.texto}
             </Link>
           ))}
@@ -93,10 +100,10 @@ export default function SiteHeader() {
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">
-          <a href={WHATSAPP} target="_blank" rel="noreferrer" className="flex items-center gap-2">
+          <Link href="/contacto" aria-current={esActual(ruta, '/contacto') ? 'page' : undefined} className="flex min-h-11 items-center gap-2">
             <span className="calma-dot" aria-hidden="true" />
-            <span className="calma-link calma-link-sutil">Escribinos</span>
-          </a>
+            <span className="calma-link calma-link-sutil">Contacto</span>
+          </Link>
           <div className="hidden items-center gap-7 lg:flex">{sesion}</div>
         </div>
       </div>
@@ -104,7 +111,13 @@ export default function SiteHeader() {
       {menuAbierto && (
         <nav id="menu-movil" aria-label="Menú" className="flex flex-col gap-6 border-t border-white/15 px-5 pb-8 pt-6 lg:hidden">
           {enlaces.map((enlace) => (
-            <Link key={enlace.href} href={enlace.href} onClick={() => setMenuAbierto(false)} className="font-display text-3xl normal-case tracking-normal">
+            <Link
+              key={enlace.href}
+              href={enlace.href}
+              onClick={() => setMenuAbierto(false)}
+              aria-current={esActual(ruta, enlace.href) ? 'page' : undefined}
+              className="font-display text-3xl normal-case tracking-normal"
+            >
               {enlace.texto}
             </Link>
           ))}

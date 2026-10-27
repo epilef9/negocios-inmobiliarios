@@ -1,9 +1,11 @@
 'use client';
 
-import { Suspense, useId, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { borrarBorrador, guardarBorrador, leerBorrador } from '@/components/sitio/borrador';
+import Captcha, { CLAVE_CAPTCHA } from '@/components/sitio/Captcha';
 import PantallaCuenta, { BotonVerPassword, RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -13,6 +15,10 @@ type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confir
 type Datos = Record<Campo, string>;
 
 const VACIOS: Datos = { nombre: '', apellido: '', telefono: '', email: '', password: '', confirmPassword: '' };
+
+// Lo que se recuerda si se recarga la página. Las contraseñas NUNCA se guardan.
+const BORRADOR = 'borradorRegistro';
+const RECORDADOS = ['nombre', 'apellido', 'telefono', 'email'] as const;
 
 // Revisa los datos antes de mandarlos; devuelve el primer problema con el campo a corregir
 function revisar(datos: Datos): { texto: string; campo: Campo } | null {
@@ -36,10 +42,26 @@ function FormularioRegistro() {
   const { user, isLoading, register, logout } = useAuth();
 
   const [datos, setDatos] = useState<Datos>(VACIOS);
+  const [borradorLeido, setBorradorLeido] = useState(false);
+  const [captcha, setCaptcha] = useState('');
+  const [reinicioCaptcha, setReinicioCaptcha] = useState(0);
   const [verPassword, setVerPassword] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: Campo } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [pendiente, setPendiente] = useState<{ email: string; correoEnviado: boolean; enlaceDev?: string } | null>(null);
+
+  // Al abrir, se recupera lo que se había escrito antes de recargar (se lee después de montar para que el
+  // HTML del servidor y el del navegador coincidan). Desde ahí, cada cambio se guarda.
+  useEffect(() => {
+    const borrador = leerBorrador<Datos>(BORRADOR, RECORDADOS);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage solo existe en el navegador
+    if (Object.keys(borrador).length) setDatos((d) => ({ ...d, ...borrador }));
+    setBorradorLeido(true);
+  }, []);
+
+  useEffect(() => {
+    if (borradorLeido && !pendiente) guardarBorrador(BORRADOR, datos, RECORDADOS);
+  }, [datos, pendiente, borradorLeido]);
 
   const cambiar = (campo: Campo, valor: string) => {
     setDatos((anteriores) => ({ ...anteriores, [campo]: valor }));
@@ -54,6 +76,10 @@ function FormularioRegistro() {
       document.getElementById(`${id}-${problema.campo}`)?.focus();
       return;
     }
+    if (CLAVE_CAPTCHA && !captcha) {
+      setError({ texto: 'Completá la verificación «no soy un robot».' });
+      return;
+    }
     setError(null);
     setEnviando(true);
     try {
@@ -65,14 +91,18 @@ function FormularioRegistro() {
         email: datos.email.trim(),
         password: datos.password,
         confirmPassword: datos.confirmPassword,
+        captchaToken: captcha || undefined,
       });
       if (volver?.startsWith('/solicitudes/nueva?') && typeof window !== 'undefined') {
         localStorage.setItem('continuarSolicitudTrasVerificacion', volver);
       }
+      borrarBorrador(BORRADOR);
       setPendiente({ email: datos.email.trim(), correoEnviado: resultado.correoEnviado, enlaceDev: resultado.enlaceDev });
       setEnviando(false);
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
+      // El token ya se usó: hace falta uno nuevo para reintentar
+      setReinicioCaptcha((n) => n + 1);
       if (/registrado|existe/i.test(mensaje)) {
         setError({ texto: 'Ya hay una cuenta con ese email. Probá ingresar con él.', campo: 'email' });
       } else if (/fetch|network|conectar/i.test(mensaje)) {
@@ -164,6 +194,8 @@ function FormularioRegistro() {
           {error.texto}
         </p>
       )}
+
+      <Captcha alResolver={setCaptcha} reinicio={reinicioCaptcha} />
 
       <div className="flex flex-col gap-6">
         <button type="submit" disabled={enviando} className={botonPrincipal}>
