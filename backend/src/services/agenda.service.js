@@ -1,14 +1,28 @@
 // Agenda de visitas: en qué días y horarios atiende la oficina y cuáles ya están tomados.
 // Es la única fuente de verdad: el calendario del sitio la consulta y el servidor la usa para no
 // aceptar dos visitas en el mismo horario ni pedidos fuera del horario de atención.
+// El horario lo edita el administrador desde el panel (HU-19); si nunca lo guardó, rige HORARIO_INICIAL.
+// Las reglas (turnos, validación, texto) son funciones puras y se prueban sin base de datos.
 
+const mongoose = require('mongoose');
 const Visita = require('../models/visita.model');
+const Horario = require('../models/horario.model');
 
-// Horario de la oficina (0 = domingo … 6 = sábado). Turnos cada media hora.
-const MANANA = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '12:00', '12:30'];
-const TARDE = ['17:00', '17:30', '18:00', '18:30'];
-const HORARIO = { 1: [...MANANA, ...TARDE], 2: [...MANANA, ...TARDE], 3: [...MANANA, ...TARDE], 4: [...MANANA, ...TARDE], 5: MANANA };
-const HORARIO_TEXTO = 'Lunes a jueves de 9 a 13 y de 17 a 19 h · viernes de 9 a 13 h';
+// El horario de siempre (0 = domingo … 6 = sábado): lunes a jueves 9–13 y 17–19, viernes 9–13, turnos de 30 min
+const MANANA = { desde: '09:00', hasta: '13:00' };
+const TARDE = { desde: '17:00', hasta: '19:00' };
+const HORARIO_INICIAL = {
+    semana: [[], [MANANA, TARDE], [MANANA, TARDE], [MANANA, TARDE], [MANANA, TARDE], [MANANA], []].map((tramos) => ({ tramos })),
+    duracionMinutos: 30,
+    cerrados: [],
+};
+
+const DURACIONES = [15, 30, 45, 60];
+const TRAMOS_POR_DIA = 4;
+const CERRADOS_MAXIMOS = 100;
+// Las visitas anteriores a HU-19 no guardan su duración: duraban media hora
+const DURACION_ANTERIOR = 30;
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 // Las visitas de hoy se piden con al menos una hora de anticipación
 const ANTICIPACION_MINUTOS = 60;
@@ -31,6 +45,7 @@ const ahoraEnArgentina = () => {
 
 const ISO = /^(\d{4})-(\d{2})-(\d{2})$/;
 const LATINA = /^(\d{1,2})\/(\d{1,2})\/(\d{4})/;
+const HORA = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 // "12/11/2026" o "2026-11-12" → "2026-11-12"
 const fechaIso = (fecha) => {
@@ -48,6 +63,7 @@ const minutosDe = (hora) => {
     const [h, m] = hora.split(':').map(Number);
     return h * 60 + m;
 };
+const horaDe = (minutos) => `${String(Math.floor(minutos / 60)).padStart(2, '0')}:${String(minutos % 60).padStart(2, '0')}`;
 const diaDeSemana = (iso) => {
     const [a, m, d] = iso.split('-').map(Number);
     return new Date(Date.UTC(a, m - 1, d)).getUTCDay();
@@ -56,27 +72,134 @@ const sumarDias = (iso, dias) => {
     const [a, m, d] = iso.split('-').map(Number);
     return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
 };
+// "2026-02-30" tiene el formato pero no existe
+const esFecha = (texto) => typeof texto === 'string' && ISO.test(texto) && sumarDias(texto, 0) === texto;
 
-// Horarios ya tomados, como "2026-11-12|10:30"
-const ocupados = async () => {
-    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('fecha horario').lean();
-    const tomados = new Set();
+// Inicio de cada turno dentro de los tramos: con 30 min, 09:00–13:00 da 09:00 … 12:30
+const turnosDe = (tramos, duracion) =>
+    tramos.flatMap(({ desde, hasta }) => {
+        const turnos = [];
+        for (let t = minutosDe(desde); t + duracion <= minutosDe(hasta); t += duracion) turnos.push(horaDe(t));
+        return turnos;
+    });
+
+const cierreDe = (fecha, cerrados) => cerrados.find((c) => c.desde <= fecha && fecha <= c.hasta) || null;
+
+// Devuelve el motivo por el que el horario no sirve, o null si está bien
+const validarHorario = ({ semana, duracionMinutos, cerrados } = {}) => {
+    if (!DURACIONES.includes(duracionMinutos)) return 'La duración de cada visita debe ser de 15, 30, 45 o 60 minutos.';
+    if (!Array.isArray(semana) || semana.length !== 7) return 'Faltan días de la semana.';
+    for (let dia = 0; dia < 7; dia += 1) {
+        const tramos = semana[dia]?.tramos;
+        if (!Array.isArray(tramos) || tramos.length > TRAMOS_POR_DIA) return `El ${DIAS[dia]} puede tener hasta ${TRAMOS_POR_DIA} franjas.`;
+        if (tramos.some((t) => !HORA.test(t?.desde) || !HORA.test(t?.hasta))) return `Revisá las horas del ${DIAS[dia]}: van como 09:30.`;
+        const ordenados = [...tramos].sort((a, b) => a.desde.localeCompare(b.desde));
+        for (let i = 0; i < ordenados.length; i += 1) {
+            const { desde, hasta } = ordenados[i];
+            const largo = minutosDe(hasta) - minutosDe(desde);
+            if (largo < duracionMinutos) return `La franja del ${DIAS[dia]} de ${desde} a ${hasta} no alcanza para una visita de ${duracionMinutos} minutos.`;
+            // Cada tramo termina justo cuando termina un turno: si no, el final quedaría como un pedazo sin usar
+            if (largo % duracionMinutos) {
+                const antes = horaDe(minutosDe(desde) + Math.floor(largo / duracionMinutos) * duracionMinutos);
+                return `Con turnos de ${duracionMinutos} minutos, la franja del ${DIAS[dia]} que empieza a las ${desde} tiene que terminar a las ${antes} o ${horaDe(minutosDe(antes) + duracionMinutos)}.`;
+            }
+            if (i > 0 && desde < ordenados[i - 1].hasta) return `Las franjas del ${DIAS[dia]} se pisan (${ordenados[i - 1].desde}–${ordenados[i - 1].hasta} y ${desde}–${hasta}).`;
+        }
+    }
+    if (semana.every((d) => d.tramos.length === 0)) return 'Dejá al menos un día con horario de visitas.';
+    if (!Array.isArray(cerrados)) return 'Los días cerrados no tienen el formato esperado.';
+    if (cerrados.length > CERRADOS_MAXIMOS) return `Se pueden cargar hasta ${CERRADOS_MAXIMOS} días cerrados.`;
+    for (const c of cerrados) {
+        if (!esFecha(c?.desde) || !esFecha(c?.hasta)) return 'Las fechas de los días cerrados deben existir (AAAA-MM-DD).';
+        if (c.hasta < c.desde) return `El cierre del ${c.desde} termina antes de empezar.`;
+        if (c.motivo !== undefined && (typeof c.motivo !== 'string' || c.motivo.length > 100)) return 'El motivo de un día cerrado tiene hasta 100 caracteres.';
+    }
+    return null;
+};
+
+// Solo los campos conocidos, con los tramos en orden (lo que se guarda). Los cierres que ya pasaron se descartan,
+// así la lista no crece para siempre (como los "date overrides" vencidos de Cal.com)
+const limpiarHorario = ({ semana, duracionMinutos, cerrados }, hoy) => ({
+    semana: semana.map((d) => ({ tramos: d.tramos.map(({ desde, hasta }) => ({ desde, hasta })).sort((a, b) => a.desde.localeCompare(b.desde)) })),
+    duracionMinutos,
+    cerrados: cerrados
+        .filter((c) => c.hasta >= hoy)
+        .map(({ desde, hasta, motivo }) => ({ desde, hasta, motivo: (motivo || '').replace(/[\r\n\t]+/g, ' ').trim() }))
+        .sort((a, b) => a.desde.localeCompare(b.desde)),
+});
+
+// "Lunes a jueves de 9 a 13 y de 17 a 19 h · viernes de 9 a 13 h": agrupa días seguidos con el mismo horario
+const textoHorario = ({ semana }) => {
+    const hora = (h) => (h.endsWith(':00') ? String(Number(h.slice(0, 2))) : `${Number(h.slice(0, 2))}:${h.slice(3)}`);
+    const tramos = (d) => semana[d].tramos.map((t) => `de ${hora(t.desde)} a ${hora(t.hasta)}`).join(' y ');
+    const grupos = [];
+    [1, 2, 3, 4, 5, 6, 0].forEach((d) => {
+        if (!semana[d].tramos.length) return;
+        const ultimo = grupos[grupos.length - 1];
+        if (ultimo && ultimo.texto === tramos(d) && ultimo.hasta === (d + 6) % 7) ultimo.hasta = d;
+        else grupos.push({ desde: d, hasta: d, texto: tramos(d) });
+    });
+    const dias = ({ desde, hasta }) =>
+        desde === hasta ? DIAS[desde] : (hasta - desde + 7) % 7 === 1 ? `${DIAS[desde]} y ${DIAS[hasta]}` : `${DIAS[desde]} a ${DIAS[hasta]}`;
+    const texto = grupos.map((g) => `${dias(g)} ${g.texto} h`).join(' · ');
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+};
+
+// Reservar un turno y guardar el horario pasan de a uno (mismo patrón que el candado de HU-20): cada transacción
+// incrementa `version` de un documento fijo, así dos pedidos simultáneos no ven libre el mismo turno.
+// El candado es un documento aparte (sin semana), así no depende de que el horario ya se haya guardado.
+const CANDADO = new mongoose.Types.ObjectId('000000000000000000000019');
+const SIN_CANDADO = { _id: { $ne: CANDADO } };
+const conCandado = (trabajo) =>
+    mongoose.connection.transaction(async (session) => {
+        await Horario.updateOne({ _id: CANDADO }, { $inc: { version: 1 } }, { upsert: true, setDefaultsOnInsert: false, session });
+        return trabajo(session);
+    });
+
+// El horario guardado o, si nunca se guardó, el de siempre
+const horarioActual = async (session = null) => (await Horario.findOne(SIN_CANDADO).session(session).lean()) || HORARIO_INICIAL;
+
+const guardarHorario = (datos) =>
+    conCandado(async (session) => {
+        const limpio = limpiarHorario(datos, ahoraEnArgentina().fecha);
+        await Horario.findOneAndUpdate(SIN_CANDADO, limpio, { upsert: true, runValidators: true, setDefaultsOnInsert: true, session });
+        return limpio;
+    });
+
+// Lo que ocupa cada visita, en minutos: "2026-11-12" → [{ inicio: 630, fin: 660 }]. Cada una dura lo que duraba
+// un turno cuando se pidió, aunque después cambie la duración.
+const ocupados = async (session = null) => {
+    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('fecha horario duracionMinutos').session(session).lean();
+    const porDia = new Map();
     visitas.forEach((v) => {
         const fecha = fechaIso(v.fecha);
         const hora = horaCorta(v.horario);
-        if (fecha && hora) tomados.add(`${fecha}|${hora}`);
+        if (!fecha || !hora) return;
+        const inicio = minutosDe(hora);
+        porDia.set(fecha, [...(porDia.get(fecha) || []), { inicio, fin: inicio + (v.duracionMinutos || DURACION_ANTERIOR) }]);
     });
-    return tomados;
+    return porDia;
 };
 
-// Turnos libres de un día ya teniendo la lista de ocupados
-const libresDelDia = (fecha, tomados, ahora) => {
-    const turnos = HORARIO[diaDeSemana(fecha)] || [];
+// Un turno está tomado si se superpone con alguna visita de ese día
+const estaTomado = (fecha, hora, tomados, duracion) => {
+    const t = minutosDe(hora);
+    return (tomados.get(fecha) || []).some((v) => v.inicio < t + duracion && t < v.fin);
+};
+
+// Una visita queda fuera del horario si ese día cierra o si no entra completa en ninguna franja
+const quedaFuera = (fecha, inicio, fin, horario) =>
+    Boolean(cierreDe(fecha, horario.cerrados)) ||
+    !horario.semana[diaDeSemana(fecha)].tramos.some((t) => minutosDe(t.desde) <= inicio && fin <= minutosDe(t.hasta));
+
+// Turnos de un día (vacío si está cerrado) y cuáles quedan libres
+const libresDelDia = (fecha, tomados, ahora, horario) => {
+    const turnos = cierreDe(fecha, horario.cerrados) ? [] : turnosDe(horario.semana[diaDeSemana(fecha)].tramos, horario.duracionMinutos);
     if (fecha < ahora.fecha) return { turnos, libres: [] };
     return {
         turnos,
         libres: turnos.filter(
-            (hora) => !tomados.has(`${fecha}|${hora}`) && (fecha > ahora.fecha || minutosDe(hora) >= ahora.minutos + ANTICIPACION_MINUTOS)
+            (hora) => !estaTomado(fecha, hora, tomados, horario.duracionMinutos) && (fecha > ahora.fecha || minutosDe(hora) >= ahora.minutos + ANTICIPACION_MINUTOS)
         ),
     };
 };
@@ -90,32 +213,74 @@ const disponibilidad = async (desde, hasta) => {
     if (sumarDias(inicio, 62) < fin) fin = sumarDias(inicio, 62);
     const limite = sumarDias(ahora.fecha, DIAS_MAXIMOS);
 
-    const tomados = await ocupados();
+    const [horario, tomados] = await Promise.all([horarioActual(), ocupados()]);
     const dias = [];
     for (let fecha = inicio; fecha <= fin; fecha = sumarDias(fecha, 1)) {
-        const { turnos, libres } = libresDelDia(fecha, tomados, ahora);
+        const { turnos, libres } = libresDelDia(fecha, tomados, ahora, horario);
         let estado = 'disponible';
         if (fecha < ahora.fecha || fecha > limite || turnos.length === 0) estado = 'cerrado';
         else if (libres.length === 0) estado = 'completo';
-        dias.push({ fecha, estado, turnos: estado === 'disponible' ? libres : [] });
+        // Un feriado o vacaciones lleva su motivo, para que el cliente sepa por qué no hay turnos
+        const cierre = fecha >= ahora.fecha && fecha <= limite ? cierreDe(fecha, horario.cerrados) : null;
+        dias.push({ fecha, estado, turnos: estado === 'disponible' ? libres : [], ...(cierre ? { cierre: cierre.motivo || '' } : {}) });
     }
-    return { dias, horario: HORARIO_TEXTO, hoy: ahora.fecha, hasta: limite };
+    return { dias, horario: textoHorario(horario), hoy: ahora.fecha, hasta: limite };
 };
 
 // Revisa que un pedido caiga en un horario libre de atención. Devuelve el motivo si no se puede, o null.
-const motivoNoDisponible = async (fecha, horario, { controlarHorario = true } = {}) => {
+const motivoNoDisponible = async (fecha, horario, { controlarHorario = true, session = null } = {}) => {
     const iso = fechaIso(fecha);
     const hora = horaCorta(horario);
     if (!iso || !hora) return 'La fecha o el horario no son válidos.';
     const ahora = ahoraEnArgentina();
-    const tomados = await ocupados();
-    if (tomados.has(`${iso}|${hora}`)) return 'Ese horario ya se ocupó. Elegí otro, por favor.';
+    const [agenda, tomados] = await Promise.all([horarioActual(session), ocupados(session)]);
+    if (estaTomado(iso, hora, tomados, agenda.duracionMinutos)) return 'Ese horario ya se ocupó. Elegí otro, por favor.';
     if (!controlarHorario) return null;
     if (iso > sumarDias(ahora.fecha, DIAS_MAXIMOS)) return 'Por ahora se pueden pedir visitas hasta tres meses adelante.';
-    const { turnos, libres } = libresDelDia(iso, tomados, ahora);
+    const cierre = cierreDe(iso, agenda.cerrados);
+    if (cierre) return `Ese día la oficina está cerrada${cierre.motivo ? ` (${cierre.motivo})` : ''}. Elegí otro, por favor.`;
+    const { turnos, libres } = libresDelDia(iso, tomados, ahora, agenda);
     if (!turnos.includes(hora)) return 'Ese día u horario la oficina no atiende.';
     if (!libres.includes(hora)) return 'Ese horario ya pasó o está muy cerca. Elegí otro, por favor.';
     return null;
 };
 
-module.exports = { disponibilidad, motivoNoDisponible, HORARIO_TEXTO, ahoraEnArgentina, sumarDias };
+// Controla el turno y crea la visita dentro del candado: devuelve { visita } o { motivo } si no se pudo.
+// `crear(datos, session)` guarda la visita, que ya trae la duración del turno.
+const reservar = (datos, { controlarHorario = true } = {}, crear) =>
+    conCandado(async (session) => {
+        const motivo = await motivoNoDisponible(datos.fecha, datos.horario, { controlarHorario, session });
+        if (motivo) return { motivo };
+        const { duracionMinutos } = await horarioActual(session);
+        return { visita: await crear({ ...datos, duracionMinutos }, session) };
+    });
+
+// Visitas por venir que quedan fuera de un horario (para avisar al administrador después de cambiarlo)
+const visitasFueraDeHorario = async (horario) => {
+    const hoy = ahoraEnArgentina().fecha;
+    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('cliente.nombre propiedad.titulo fecha horario duracionMinutos estado').lean();
+    return visitas
+        .map((v) => ({ v, fecha: fechaIso(v.fecha), hora: horaCorta(v.horario) }))
+        .filter(({ fecha, hora }) => fecha && hora && fecha >= hoy)
+        .filter(({ v, fecha, hora }) => quedaFuera(fecha, minutosDe(hora), minutosDe(hora) + (v.duracionMinutos || DURACION_ANTERIOR), horario))
+        .sort((a, b) => `${a.fecha}${a.hora}`.localeCompare(`${b.fecha}${b.hora}`))
+        .map(({ v, fecha, hora }) => ({ id: String(v._id), cliente: v.cliente?.nombre || '', propiedad: v.propiedad?.titulo || '', fecha, hora, estado: v.estado }));
+};
+
+module.exports = {
+    HORARIO_INICIAL,
+    disponibilidad,
+    motivoNoDisponible,
+    reservar,
+    ahoraEnArgentina,
+    sumarDias,
+    turnosDe,
+    validarHorario,
+    textoHorario,
+    libresDelDia,
+    limpiarHorario,
+    quedaFuera,
+    horarioActual,
+    guardarHorario,
+    visitasFueraDeHorario,
+};

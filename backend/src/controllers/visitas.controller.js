@@ -74,11 +74,6 @@ exports.createVisita = async (req, res) => {
             return res.status(400).json({ message: 'El teléfono no es válido' });
         }
 
-        // Que el horario esté libre (y, para el público, dentro del horario de atención)
-        const esAdmin = req.user && req.user.role === 'admin';
-        const motivo = await agenda.motivoNoDisponible(datos.fecha, datos.horario, { controlarHorario: !esAdmin });
-        if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
-
         if (typeof propiedad.id === 'string' && mongoose.isValidObjectId(propiedad.id)) {
             const real = await Property.findById(propiedad.id).select('title location direccionCompleta estado permitirVisita').lean();
             if (!real) return res.status(404).json({ message: 'La propiedad ya no está publicada' });
@@ -90,7 +85,14 @@ exports.createVisita = async (req, res) => {
             datos.propiedad.direccion = real.direccionCompleta || real.location || '';
         }
 
-        const newVisita = await visitasService.createVisita(datos);
+        // Que el horario esté libre (y, para el público, dentro del horario de atención). Se controla y se guarda
+        // dentro del candado de la agenda: dos pedidos al mismo tiempo no pueden quedarse con el mismo turno.
+        const esAdmin = req.user && req.user.role === 'admin';
+        const { motivo, visita: newVisita } = await agenda.reservar(datos, { controlarHorario: !esAdmin }, (conDuracion, session) =>
+            visitasService.createVisita(conDuracion, { session })
+        );
+        if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
+
         return res.status(201).json({ data: newVisita, message: 'Visita agendada correctamente' });
     } catch (error) {
         console.error('Error al crear visita:', error);

@@ -23,6 +23,8 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
   const [form, setForm] = useState({ nombre: '', telefono: '', email: '', fecha: '', horario: '', nota: '' });
   const [estado, setEstado] = useState<'editando' | 'enviando' | 'enviada'>('editando');
   const [error, setError] = useState('');
+  // Cambia para que el calendario vuelva a consultar la agenda
+  const [vueltaAgenda, setVueltaAgenda] = useState(0);
 
   useImperativeHandle(ref, () => ({
     abrir: () => {
@@ -76,6 +78,12 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
       setEstado('enviada');
     } catch (e) {
       setEstado('editando');
+      // Alguien se quedó con ese turno mientras se completaba el formulario: se vuelve a pedir la agenda
+      // (sin ese turno) y hay que elegir otro
+      if ((e as { code?: string }).code === 'HORARIO_NO_DISPONIBLE') {
+        setForm((f) => ({ ...f, horario: '' }));
+        setVueltaAgenda((n) => n + 1);
+      }
       setError(e instanceof Error && e.message ? `No pudimos enviar el pedido: ${e.message}` : 'No pudimos enviar el pedido. Probá de nuevo.');
     }
   };
@@ -143,7 +151,7 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
           </div>
           <fieldset className="m-0 flex flex-col gap-3 border-0 p-0">
             <legend className={`${etiqueta} mb-3`}>Día y horario</legend>
-            <CalendarioVisita fecha={form.fecha} horario={form.horario} onCambiar={(valor) => setForm((f) => ({ ...f, ...valor }))} />
+            <CalendarioVisita key={vueltaAgenda} fecha={form.fecha} horario={form.horario} onCambiar={(valor) => setForm((f) => ({ ...f, ...valor }))} />
           </fieldset>
           <label className={campo}>
             <span className={etiqueta}>Algo que quieras contarnos (opcional)</span>

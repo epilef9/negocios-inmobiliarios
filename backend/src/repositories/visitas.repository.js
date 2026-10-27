@@ -28,7 +28,9 @@ class VisitasRepository {
         return Visita.findById(id);
     }
 
-    async createVisita(data) {
+    // Con `session`, dentro de la transacción de la agenda (create con sesión pide un array)
+    async createVisita(data, { session } = {}) {
+        if (session) return (await Visita.create([data], { session }))[0];
         return Visita.create(data);
     }
 
