@@ -163,7 +163,7 @@ export default function SelectorUbicacionMapa({
   }, []);
 
   // Función para colocar o mover marcador
-  const colocarMarcador = (lat: number, lng: number, centrarMapa: boolean = true) => {
+  function colocarMarcador(lat: number, lng: number, centrarMapa: boolean = true) {
     const map = mapInstanceRef.current;
     if (!map || !coordenadasValidas(lat, lng)) return;
 
@@ -236,7 +236,7 @@ export default function SelectorUbicacionMapa({
   };
 
   // Función cuando el usuario selecciona una posición (clic, gps, búsqueda o drag)
-  const actualizarPosicion = (lat: number, lng: number, centrarMapa: boolean = true) => {
+  function actualizarPosicion(lat: number, lng: number, centrarMapa: boolean = true) {
     if (!coordenadasValidas(lat, lng)) {
       mostrarMensaje("La ubicación recibida no tiene coordenadas válidas.", "error");
       return;
@@ -354,8 +354,8 @@ export default function SelectorUbicacionMapa({
         if (!res.ok) return [];
         const data = await res.json();
         return (data.candidates || [])
-          .filter((c: any) => c.score >= 70)
-          .map((c: any) => {
+          .filter((c: { score: number; address: string; attributes?: Record<string, string>; location: { x: number; y: number } }) => c.score >= 70)
+          .map((c: { score: number; address: string; attributes?: Record<string, string>; location: { x: number; y: number } }) => {
             const attrs = c.attributes || {};
             const isStreetAddress =
               attrs.Addr_type === "StreetAddress" ||
@@ -412,7 +412,7 @@ export default function SelectorUbicacionMapa({
         const res = await fetch(url);
         if (!res.ok) return [];
         const json = await res.json();
-        return (json.features || []).map((f: any) => {
+        return (json.features || []).map((f: { geometry: { coordinates: [number, number] }; properties?: Record<string, string> }) => {
           const [lon, lat] = f.geometry.coordinates;
           const p = f.properties || {};
           const calle = p.street || p.name || "";

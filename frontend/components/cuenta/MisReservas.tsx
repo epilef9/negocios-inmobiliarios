@@ -54,7 +54,7 @@ const comparar = (hoy: string) => (a: Reserva, b: Reserva) => {
   return Date.parse(b.createdAt) - Date.parse(a.createdAt);
 };
 
-export default function MisReservas({ id }: { id: string }) {
+export default function MisReservas({ id, titulo = true }: { id: string; titulo?: boolean }) {
   const [reservas, setReservas] = useState<Reserva[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [ahora, setAhora] = useState(0);
@@ -99,10 +99,17 @@ export default function MisReservas({ id }: { id: string }) {
     .sort(comparar(hoy));
 
   return (
-    <section id="reservas" aria-labelledby={`${id}-reservas-titulo`} className="scroll-mt-28 border-t border-[#efe9df]/15 pt-10">
-      <h2 id={`${id}-reservas-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
-        Tus reservas
-      </h2>
+    <section
+      id="reservas"
+      aria-labelledby={titulo ? `${id}-reservas-titulo` : undefined}
+      aria-label={titulo ? undefined : 'Tus reservas'}
+      className={`scroll-mt-28 ${titulo ? 'border-t border-[#efe9df]/15 pt-10' : ''}`}
+    >
+      {titulo && (
+        <h2 id={`${id}-reservas-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
+          Tus reservas
+        </h2>
+      )}
 
       {error ? (
         <p role="alert" className="m-0 mt-8 text-[15px] text-[#ff8b80]">

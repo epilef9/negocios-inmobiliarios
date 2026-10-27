@@ -12,10 +12,11 @@ const documentoSchema = new mongoose.Schema(
 
 const cambioEstadoSchema = new mongoose.Schema(
     {
-        estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], required: true },
-        comentario: { type: String, trim: true, maxlength: 1000, default: '' },
+        estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada', 'vencida', 'cerrada'], required: true },
+        comentario: { type: String, trim: true, maxlength: 500, default: '' },
         comentarioReferenciaIndice: { type: Number, min: 0 },
-        administradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+        administradoPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        automatico: { type: Boolean, default: false },
         fecha: { type: Date, default: Date.now, required: true },
     },
     { _id: false }
@@ -26,8 +27,9 @@ const solicitudSchema = new mongoose.Schema(
         usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
         propiedad: { type: mongoose.Schema.Types.ObjectId, ref: 'Property', required: true, index: true },
         operacion: { type: String, enum: ['alquiler', 'compra'], required: true },
-        estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada'], default: 'pendiente', index: true },
-        comentarioEstado: { type: String, trim: true, maxlength: 1000, default: '' },
+        estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada', 'vencida', 'cerrada'], default: 'pendiente', index: true },
+        reactivadaAt: { type: Date, default: null },
+        comentarioEstado: { type: String, trim: true, maxlength: 500, default: '' },
         historialEstados: { type: [cambioEstadoSchema], default: [] },
         archivada: { type: Boolean, default: false, index: true },
         archivadaAt: { type: Date, default: null },

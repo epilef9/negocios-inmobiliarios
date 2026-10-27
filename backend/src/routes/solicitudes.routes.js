@@ -46,9 +46,21 @@ const procesarArchivos = (req, res, next) => {
     });
 };
 
+const documentoIndividual = multer({ storage: multer.memoryStorage(),
+    limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 0, parts: 1 },
+}).single('archivo');
+const procesarDocumento = (req, res, next) => documentoIndividual(req, res, (error) => {
+    if (!error) return next();
+    return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({
+        message: error.code === 'LIMIT_FILE_SIZE' ? 'Cada documento puede pesar hasta 4 MB.' : 'Enviá un solo documento por vez.',
+    });
+});
+
 router.use(authMiddleware);
+router.post('/documentos/:tipo', authMiddleware.requireClient, frenos.documentosSolicitudes, procesarDocumento, controller.subirDocumento);
 router.get('/mias', authMiddleware.requireClient, controller.listarMias);
 router.get('/admin/notificaciones', authMiddleware.requireAdmin, controller.notificacionesAdmin);
+router.get('/admin/pendientes', authMiddleware.requireAdmin, controller.contarPendientes);
 router.get('/admin', authMiddleware.requireAdmin, controller.listarAdmin);
 router.patch('/:id/estado', authMiddleware.requireAdmin, controller.actualizarEstado);
 router.post('/:id/comentarios', authMiddleware.requireAdmin, controller.agregarComentario);

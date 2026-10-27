@@ -4,10 +4,9 @@ import Link from "next/link";
 import { useEffect, useId, useState, type FormEvent } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
-import MisReservas from "@/components/cuenta/MisReservas";
+import ApartadosCuenta from "@/components/cuenta/ApartadosCuenta";
 import { useAuth } from "@/context/AuthContext";
 import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
-import { getMisSolicitudesPublicacion, type SolicitudPublicacion } from "@/services/solicitudesPublicacion";
 
 // Estilos del formulario, iguales a los de ingreso y registro
 const etiqueta = "calma-micro text-[#efe9df]/70";
@@ -69,9 +68,6 @@ export default function PerfilPage() {
 	const [avisoClave, setAvisoClave] = useState<Aviso>(null);
 	const [enlaceDevClave, setEnlaceDevClave] = useState<string | null>(null);
 
-	const [solicitudes, setSolicitudes] = useState<SolicitudPublicacion[]>([]);
-	const [cargandoSolicitudes, setCargandoSolicitudes] = useState(true);
-
 	useEffect(() => {
 		if (isLoading || !user) return;
 		let activo = true;
@@ -85,13 +81,6 @@ export default function PerfilPage() {
 			})
 			.catch((e: Error) => activo && setErrorCarga(e.message))
 			.finally(() => activo && setCargando(false));
-
-		getMisSolicitudesPublicacion()
-			.then((res) => {
-				if (activo) setSolicitudes(res);
-			})
-			.catch(() => {})
-			.finally(() => activo && setCargandoSolicitudes(false));
 
 		return () => {
 			activo = false;
@@ -193,7 +182,7 @@ export default function PerfilPage() {
 			) : (
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
 					<div className="flex flex-col gap-16">
-						{user && user.role !== "admin" && <MisReservas id={id} />}
+						{user && user.role !== "admin" && <ApartadosCuenta />}
 
 						<section aria-labelledby={`${id}-datos-titulo`} className="border-t border-[#efe9df]/15 pt-10">
 							<h2 id={`${id}-datos-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
@@ -264,106 +253,6 @@ export default function PerfilPage() {
 							</div>
 							{enlaceDevClave && <EnlaceDeDesarrollo enlace={enlaceDevClave} para="elegir la contraseña nueva" accion="Elegir contraseña nueva" />}
 						</section>
-
-						{/* Sección de publicaciones solicitadas (HU-08) */}
-						<section id="mis-publicaciones" aria-labelledby={`${id}-publicaciones-titulo`} className="border-t border-[#efe9df]/15 pt-10">
-							<div className="flex flex-wrap items-center justify-between gap-4">
-								<div>
-									<h2 id={`${id}-publicaciones-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
-										Mis publicaciones
-									</h2>
-									<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">
-										Estado de las propiedades que solicitaste publicar con nosotros.
-									</p>
-								</div>
-								<Link
-									href="/publicar"
-									className="calma-micro inline-flex items-center gap-2 rounded-full border border-[#efe9df]/40 px-5 py-3 text-[12px] text-[#efe9df] transition-colors hover:border-[#efe9df] hover:bg-[#efe9df]/10"
-								>
-									+ Publicar propiedad
-								</Link>
-							</div>
-
-							<div className="mt-8 flex flex-col gap-4">
-								{cargandoSolicitudes ? (
-									<p className="m-0 text-[15px] text-[#efe9df]/50">Cargando publicaciones…</p>
-								) : solicitudes.length === 0 ? (
-									<div className="rounded-xl border border-[#efe9df]/15 bg-[#efe9df]/5 p-6 text-center sm:p-10">
-										<p className="m-0 text-[16px] text-[#efe9df]/80">Todavía no enviaste ninguna propiedad para publicar.</p>
-										<p className="m-0 mt-2 text-[14px] text-[#efe9df]/50">
-											Si sos dueño o querés alquilar tu inmueble, podés solicitar la publicación en minutos.
-										</p>
-										<Link
-											href="/publicar"
-											className="calma-micro mt-6 inline-flex items-center gap-2 rounded-full bg-[#efe9df] px-6 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white"
-										>
-											Solicitar publicación
-										</Link>
-									</div>
-								) : (
-									<div className="grid gap-4 sm:grid-cols-2">
-										{solicitudes.map((sol) => {
-											const estadoColor =
-												sol.estado === "aprobada"
-													? "bg-[#9fd8b4]/20 text-[#9fd8b4] border-[#9fd8b4]/30"
-													: sol.estado === "rechazada"
-													? "bg-[#d9382b]/20 text-[#ff8b80] border-[#d9382b]/30"
-													: "bg-amber-500/20 text-amber-300 border-amber-500/30";
-
-											const estadoTexto =
-												sol.estado === "aprobada"
-													? "Aprobada"
-													: sol.estado === "rechazada"
-													? "No aprobada"
-													: "En revisión";
-
-											return (
-												<div key={sol._id} className="flex flex-col justify-between rounded-xl border border-[#efe9df]/15 bg-[#efe9df]/5 p-5">
-													<div>
-														<div className="flex items-center justify-between gap-2">
-															<span className="calma-micro uppercase text-[11px] tracking-wider text-[#efe9df]/50">
-																{sol.tipoPropiedad} en {sol.operacion}
-															</span>
-															<span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${estadoColor}`}>
-																{estadoTexto}
-															</span>
-														</div>
-														<h3 className="m-0 mt-2 text-[17px] font-semibold text-[#efe9df]">
-															{sol.direccion}
-														</h3>
-														<p className="m-0 mt-1 text-[14px] text-[#efe9df]/60">
-															{sol.ciudad || "Libertador San Martín"}
-														</p>
-														<p className="m-0 mt-2 text-[15px] font-medium text-[#efe9df]">
-															{sol.precioPretendido?.moneda === "ARS" ? "$" : "USD "}{" "}
-															{sol.precioPretendido?.monto?.toLocaleString("es-AR")}
-														</p>
-														{sol.estado === "rechazada" && sol.motivoRechazo && (
-															<div className="mt-3 rounded-lg border border-[#d9382b]/30 bg-[#d9382b]/10 p-3 text-[13px] text-[#ff8b80]">
-																<strong className="font-semibold">Motivo:</strong> {sol.motivoRechazo}
-															</div>
-														)}
-													</div>
-													<div className="mt-4 flex items-center justify-between border-t border-[#efe9df]/10 pt-3 text-[12px] text-[#efe9df]/40">
-														<span>
-															Enviado {new Date(sol.createdAt).toLocaleDateString("es-AR")}
-														</span>
-														{sol.estado === "aprobada" && sol.propiedadCreada && typeof sol.propiedadCreada === "object" && (
-															<Link
-																href={`/propiedades/${sol.propiedadCreada._id}`}
-																className="calma-link text-[#9fd8b4]"
-															>
-																Ver en catálogo →
-															</Link>
-														)}
-													</div>
-												</div>
-											);
-										})}
-									</div>
-								)}
-							</div>
-						</section>
 					</div>
 
 					<aside aria-label="Accesos de tu cuenta" className="flex flex-col gap-8 border-t border-[#efe9df]/15 pt-10 lg:self-start">
@@ -375,12 +264,20 @@ export default function PerfilPage() {
 								</Link>
 							)}
 							{user?.role !== "admin" && (
-								<a href="#reservas" className={enlaceCuenta}>
-									Mis reservas
-								</a>
+								<>
+									<Link href="/reservas" className={enlaceCuenta}>
+										Tus reservas
+									</Link>
+									<Link href="/solicitudes" className={enlaceCuenta}>
+										Tus solicitudes
+									</Link>
+									<Link href="/mis-publicaciones" className={enlaceCuenta}>
+										Tus publicaciones
+									</Link>
+								</>
 							)}
 							<Link href="/favoritos" className={enlaceCuenta}>
-								Mis favoritos
+								Tus favoritos
 							</Link>
 							<Link href="/publicar" className={enlaceCuenta}>
 								Publicar mi propiedad
