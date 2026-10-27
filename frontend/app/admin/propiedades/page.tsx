@@ -249,6 +249,9 @@ export default function PropiedadesAdminPage() {
                           <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.title} en el sitio`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                           </Link>
+                          <Link href={`/propiedades/${p._id}/imprimir`} target="_blank" title="Imprimir ficha" aria-label={`Imprimir la ficha de ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                            <Icono nombre="imprimir" className="h-[18px] w-[18px]" />
+                          </Link>
                           <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="editar" className="h-[18px] w-[18px]" />
                           </Link>
@@ -281,6 +284,7 @@ export default function PropiedadesAdminPage() {
                     <div className="flex items-center justify-between gap-2">
                       <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
                       <div className="flex gap-1">
+                        <BotonLink href={`/propiedades/${p._id}/imprimir`} target="_blank" tamano="sm" variante="fantasma" icono="imprimir" aria-label={`Imprimir la ficha de ${p.title}`}>{null}</BotonLink>
                         <BotonLink href={`/admin/propiedades/nueva?editar=${p._id}`} tamano="sm" icono="editar">
                           Editar
                         </BotonLink>

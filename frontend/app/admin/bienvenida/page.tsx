@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmarSalida } from '@/components/sitio/ConfirmarSalida';
 import { getProperties, type ApiProperty } from '@/services/api';
 import { getVisitas, type Visita } from '@/services/visitas';
 import { getContratos, type Contrato } from '@/services/contratos';
@@ -68,7 +69,8 @@ function leerVolver() {
 
 export default function BienvenidaPage() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { pedirSalida, dialogoSalida } = useConfirmarSalida();
   const [ahora, setAhora] = useState(() => new Date());
   const [resumen, setResumen] = useState<Resumen>(null);
   const [volver] = useState(leerVolver);
@@ -232,9 +234,10 @@ export default function BienvenidaPage() {
           ) : (
             <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
           )}
-          <button type="button" onClick={logout} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
+          <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
             Cerrar sesión
           </button>
+          {dialogoSalida}
         </footer>
       </div>
     </main>

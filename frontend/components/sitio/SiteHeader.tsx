@@ -4,9 +4,10 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmarSalida } from './ConfirmarSalida';
+import { useContacto } from './useAjustes';
 import LogoEmpresa from './LogoEmpresa';
 
-const WHATSAPP = 'https://wa.me/543434469522';
 
 const enlaces = [
   { href: '/propiedades', texto: 'Propiedades' },
@@ -19,7 +20,9 @@ const enlaces = [
 // lleva un halo fino para leerse con sus colores. Al bajar se desliza hacia arriba y se desvanece; al subir
 // vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
 export default function SiteHeader() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { pedirSalida, dialogoSalida } = useConfirmarSalida();
+  const { whatsappUrl } = useContacto();
   const ruta = usePathname();
   const ingresar = ruta && ruta !== '/' ? `/login?volver=${encodeURIComponent(ruta)}` : '/login';
   const [oculta, setOculta] = useState(false);
@@ -52,7 +55,7 @@ export default function SiteHeader() {
           Panel
         </Link>
       )}
-      <button type="button" onClick={logout} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
+      <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
         Salir
       </button>
     </>
@@ -68,6 +71,7 @@ export default function SiteHeader() {
         conFondo || menuAbierto ? 'con-fondo' : ''
       }`}
     >
+      {dialogoSalida}
       <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-2.5 sm:px-10">
         <nav aria-label="Principal" className="hidden gap-7 lg:flex">
           {enlaces.map((enlace) => (
@@ -93,7 +97,7 @@ export default function SiteHeader() {
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">
-          <a href={WHATSAPP} target="_blank" rel="noreferrer" className="flex items-center gap-2">
+          <a href={whatsappUrl} target="_blank" rel="noreferrer" className="flex min-h-11 items-center gap-2">
             <span className="calma-dot" aria-hidden="true" />
             <span className="calma-link calma-link-sutil">Escribinos</span>
           </a>

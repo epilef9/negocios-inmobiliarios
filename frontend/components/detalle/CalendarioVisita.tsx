@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { getDisponibilidad, type Agenda, type DiaAgenda } from '@/services/visitas';
 import { separarTurnos } from '@/services/agenda';
 import { sumarDias } from '@/components/calendario/fechas';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
+import { useContacto } from '@/components/sitio/useAjustes';
 
 // Calendario para elegir día y horario de una visita: muestra qué días hay lugar, cuáles están completos
 // y en cuáles no se atiende; al tocar un día aparecen abajo sus horarios libres.
@@ -29,6 +29,7 @@ type Props = {
 };
 
 export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
+  const { whatsappUrl } = useContacto();
   const ahora = new Date();
   // Hasta que responde el servidor se usa la fecha del navegador; después, la de Argentina (la de la oficina)
   const [hoy, setHoy] = useState(() => isoDe(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
@@ -147,7 +148,7 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
             <button type="button" onClick={() => setAgendas((a) => Object.fromEntries(Object.entries(a).filter(([k]) => k !== clave)))} className="calma-micro cursor-pointer rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
               Reintentar
             </button>
-            <a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
+            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
               Coordinar por WhatsApp
             </a>
           </div>

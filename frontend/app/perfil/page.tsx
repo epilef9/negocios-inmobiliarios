@@ -6,6 +6,7 @@ import SitioBase from "@/components/sitio/SitioBase";
 import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
 import ApartadosCuenta from "@/components/cuenta/ApartadosCuenta";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirmarSalida } from "@/components/sitio/ConfirmarSalida";
 import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
 
 // Estilos del formulario, iguales a los de ingreso y registro
@@ -51,7 +52,8 @@ function Campo({ id, texto, error, ayuda, children }: { id: string; texto: strin
 // Mi cuenta: datos de contacto (email obligatorio) y contraseña. Sirve para clientes y para la administración.
 export default function PerfilPage() {
 	const id = useId();
-	const { user, isLoading, logout, actualizarUsuario } = useAuth();
+	const { user, isLoading, actualizarUsuario } = useAuth();
+	const { pedirSalida, dialogoSalida } = useConfirmarSalida();
 	const [datos, setDatos] = useState<DatosPerfil>(VACIO);
 	const [emailGuardado, setEmailGuardado] = useState("");
 	const [miembroDesde, setMiembroDesde] = useState<string | null>(null);
@@ -268,11 +270,17 @@ export default function PerfilPage() {
 									<Link href="/reservas" className={enlaceCuenta}>
 										Tus reservas
 									</Link>
+									<Link href="/visitas" className={enlaceCuenta}>
+										Tus visitas
+									</Link>
 									<Link href="/solicitudes" className={enlaceCuenta}>
 										Tus solicitudes
 									</Link>
 									<Link href="/mis-publicaciones" className={enlaceCuenta}>
 										Tus publicaciones
+									</Link>
+									<Link href="/avisos" className={enlaceCuenta}>
+										Tus avisos
 									</Link>
 								</>
 							)}
@@ -289,9 +297,10 @@ export default function PerfilPage() {
 								Ver propiedades
 							</Link>
 						</nav>
-						<button type="button" onClick={logout} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
+						<button type="button" onClick={pedirSalida} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
 							Cerrar sesión
 						</button>
+						{dialogoSalida}
 					</aside>
 				</div>
 			)}

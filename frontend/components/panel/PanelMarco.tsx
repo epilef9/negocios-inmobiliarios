@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmarSalida } from '@/components/sitio/ConfirmarSalida';
 import { useTheme } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from './Icono';
 import LogoEmpresa from '@/components/sitio/LogoEmpresa';
@@ -14,15 +15,18 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin', texto: 'Inicio', icono: 'inicio', exacta: true },
   { href: '/admin/propiedades', texto: 'Propiedades', icono: 'propiedades' },
   { href: '/admin/catalogo', texto: 'Orden del catálogo', icono: 'catalogo' },
+  { href: '/admin/estadisticas', texto: 'Estadísticas', icono: 'estrella' },
   { href: '/admin/visitas', texto: 'Visitas', icono: 'visitas' },
   { href: '/admin/horario', texto: 'Horario de visitas', icono: 'reloj' },
   { href: '/admin/reservas', texto: 'Reservas', icono: 'maleta' },
   { href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
+  { href: '/admin/senas', texto: 'Reservas con seña', icono: 'candado' },
   { href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes' },
   { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
   { href: '/admin/contratos', texto: 'Contratos', icono: 'documento' },
   { href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir' },
   { href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
+  { href: '/admin/sitio', texto: 'Datos del sitio', icono: 'sitio' },
   { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion' },
 ];
 
@@ -63,7 +67,8 @@ function usePendientes(ruta: string, solicitudes = false) {
 
 function Menu({ alElegir, pendientes, solicitudes }: { alElegir?: () => void; pendientes: number; solicitudes: number }) {
   const ruta = usePathname() ?? '';
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
+  const { pedirSalida, dialogoSalida } = useConfirmarSalida();
   const { theme, toggleTheme } = useTheme();
   const nombre = user ? `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email : '';
 
@@ -125,9 +130,10 @@ function Menu({ alElegir, pendientes, solicitudes }: { alElegir?: () => void; pe
             <span className="block text-[12px] text-white/55">Mi perfil</span>
           </span>
           </Link>
-          <button type="button" onClick={logout} aria-label="Salir de la cuenta" title="Salir" className="rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={pedirSalida} aria-label="Salir de la cuenta" title="Salir" className="rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
             <Icono nombre="salir" className="h-[18px] w-[18px]" />
           </button>
+          {dialogoSalida}
         </div>
       </div>
     </div>

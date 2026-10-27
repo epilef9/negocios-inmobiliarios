@@ -71,6 +71,11 @@ export type ApiProperty = {
 	checkOutHasta?: string;
 	checkInFlexible?: string;
 	estado?: "disponible" | "reservado" | "alquilado" | "vendido";
+	// HU-13: hasta cuándo dura la reserva con seña
+	reservadaHasta?: string | null;
+	// HU-12
+	descuento?: { porcentaje: number; hasta?: string | null; motivo?: string } | null;
+	financiacion?: { disponible: boolean; anticipoPorcentaje?: number; cuotas?: number; tasa?: string; detalle?: string } | null;
 	orden?: number;
 	operation?: string;
 	category?: string;

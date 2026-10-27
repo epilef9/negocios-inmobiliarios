@@ -23,7 +23,22 @@ export function useDolarBlue() {
 export type PrecioMostrado = {
   principal: string;
   referencia?: string;
+  // Con descuento vigente (HU-12): el precio de antes, para mostrarlo tachado, y el porcentaje
+  anterior?: string;
+  descuento?: number;
 };
+
+// Porcentaje de descuento que corre hoy (0 si no hay o ya venció). La fecha "hasta" incluye ese día entero.
+export function descuentoVigente(p: Pick<ApiProperty, 'descuento'>, ahora = new Date()): number {
+  const d = p.descuento;
+  if (!d || !(d.porcentaje > 0)) return 0;
+  if (d.hasta) {
+    const fin = new Date(d.hasta);
+    fin.setUTCHours(23, 59, 59, 999);
+    if (fin.getTime() < ahora.getTime()) return 0;
+  }
+  return Math.min(90, d.porcentaje);
+}
 
 // Precio principal en la moneda publicada y su equivalente con el blue del día (RF-18 / HU-17).
 // Si la cotización no está disponible, se usa el valor guardado al publicar.
@@ -39,15 +54,20 @@ export function precioDePropiedad(p: ApiProperty, blue: number | null): PrecioMo
     };
   }
 
+  const descuento = descuentoVigente(p);
+  const factor = 1 - descuento / 100;
+  const conDescuento = (texto: string) => (descuento ? { anterior: texto, descuento } : {});
+
   if (p.moneda === 'ARS') {
     const pesos = p.priceARS ?? p.price;
-    return { principal: `ARS ${formato(pesos)}${sufijo}` };
+    return { principal: `ARS ${formato(pesos * factor)}${sufijo}`, ...conDescuento(`ARS ${formato(pesos)}`) };
   }
 
-  const ars = blue ? p.price * blue : p.priceARS;
+  const ars = blue ? p.price * factor * blue : p.priceARS ? p.priceARS * factor : undefined;
   return {
-    principal: `USD ${formato(p.price)}${sufijo}`,
+    principal: `USD ${formato(p.price * factor)}${sufijo}`,
     referencia: ars ? `ARS ${formato(ars)}${blue ? ' con el blue de hoy' : ' aprox.'}` : undefined,
+    ...conDescuento(`USD ${formato(p.price)}`),
   };
 }
 

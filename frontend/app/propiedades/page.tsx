@@ -8,7 +8,10 @@ import Revelar from "@/components/sitio/Revelar";
 import TarjetaPropiedad from "@/components/sitio/TarjetaPropiedad";
 import { useDolarBlue } from "@/components/sitio/precio";
 import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades } from "@/components/sitio/datos";
-import { WHATSAPP_URL } from "@/components/sitio/SiteFooter";
+import { useContacto } from "@/components/sitio/useAjustes";
+import VistasRecientes from "@/components/sitio/VistasRecientes";
+import GuardarBusqueda from "@/components/catalogo/GuardarBusqueda";
+import BarraComparar from "@/components/sitio/BarraComparar";
 import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
@@ -36,6 +39,11 @@ const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
 		operation: OPERACIONES.some((o) => o.value === operation) ? operation : "",
 		propertyType: TIPOS.some((t) => t.value === propertyType) ? propertyType : "",
 		location: (params.get("ubicacion") || "").slice(0, 100),
+		// Desde una búsqueda guardada (Mi cuenta → Tus avisos) llegan también precio, ambientes y comodidad
+		minPrice: /^\d+$/.test(params.get("minimo") || "") ? (params.get("minimo") as string) : "",
+		maxPrice: /^\d+$/.test(params.get("maximo") || "") ? (params.get("maximo") as string) : "",
+		rooms: /^\d+$/.test(params.get("ambientes") || "") ? (params.get("ambientes") as string) : "",
+		amenities: /^[a-z_]{2,30}$/.test(params.get("comodidad") || "") ? (params.get("comodidad") as string) : "",
 	};
 };
 
@@ -78,6 +86,7 @@ function PropiedadesConFiltros() {
 }
 
 function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }) {
+	const { whatsappUrl } = useContacto();
 	const { user } = useAuth();
 	const esAdmin = user?.role === "admin";
 	const blue = useDolarBlue();
@@ -175,7 +184,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 		}
 	};
 
-	const consultaWhatsApp = `${WHATSAPP_URL}?text=${encodeURIComponent("Hola, estoy buscando una propiedad y no encontré lo que necesito en la web. ¿Me pueden ayudar?")}`;
+	const consultaWhatsApp = `${whatsappUrl}?text=${encodeURIComponent("Hola, estoy buscando una propiedad y no encontré lo que necesito en la web. ¿Me pueden ayudar?")}`;
 
 	return (
 		<SitioBase>
@@ -240,15 +249,18 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 			<section aria-label="Resultados" className="px-5 pb-20 sm:px-10">
 				{estado === "listo" && propiedades.length > 0 && !reordenando && (
 					<div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-						<p aria-live="polite" className="m-0 text-[15px] text-[#efe9df]/80">
-							{resultado.length === 1 ? "1 propiedad" : `${resultado.length} propiedades`}
-						</p>
+						<div className="flex flex-col gap-2">
+							<p aria-live="polite" className="m-0 text-[15px] text-[#efe9df]/80">
+								{resultado.length === 1 ? "1 propiedad" : `${resultado.length} propiedades`}
+							</p>
+							<GuardarBusqueda filtros={filtros} />
+						</div>
 						<label className="flex items-center gap-3 text-[14px] text-[#efe9df]/70">
 							Ordenar por
 							<select
 								value={orden}
 								onChange={(e) => setOrden(e.target.value as Orden)}
-								className="font-display cursor-pointer border-0 border-b border-[#efe9df]/30 bg-transparent pb-1 text-[20px] text-[#efe9df] [&>option]:text-[#071733]"
+								className="font-display min-h-11 cursor-pointer border-0 border-b border-[#efe9df]/30 bg-transparent pb-1 text-[20px] text-[#efe9df] [&>option]:text-[#071733]"
 							>
 								{ORDENES.map((o) => (
 									<option key={o.value} value={o.value}>
@@ -357,6 +369,9 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 					</div>
 				)}
 			</section>
+
+			{estado === "listo" && !reordenando && <VistasRecientes propiedades={propiedades} blue={blue} />}
+			{!reordenando && <BarraComparar />}
 
 			{aviso && (
 				<div

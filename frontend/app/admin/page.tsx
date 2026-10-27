@@ -9,6 +9,7 @@ import { getContratos, type Contrato } from '@/services/contratos';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { BotonLink, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, Alerta } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import Recordatorios from '@/components/panel/Recordatorios';
 
 type Datos = { propiedades: ApiProperty[]; visitas: Visita[]; contratos: Contrato[]; fallas: string[] };
 
@@ -171,6 +172,7 @@ export default function AdminInicioPage() {
           </Tarjeta>
 
           <div className="flex flex-col gap-6">
+            <Recordatorios />
             {!cargando && sinFoto.length > 0 && (
               <Tarjeta titulo="Para revisar" relleno={false}>
                 <ul className="m-0 list-none divide-y divide-panel-borde p-0">
