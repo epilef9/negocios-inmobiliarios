@@ -83,6 +83,13 @@ const userSchema = new mongoose.Schema({
         type: [String],
         default: []
     },
+    // 224: navegadores desde los que ya ingresó (huella de una cookie, nunca el valor). Un ingreso desde uno
+    // nuevo manda un mail de aviso.
+    dispositivosConocidos: {
+        type: [{ huella: String, visto: Date, _id: false }],
+        default: undefined,
+        select: false
+    },
     // Propiedades que el usuario guardó como favoritas
     favoritos: {
         type: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Property' }],

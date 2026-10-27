@@ -24,7 +24,7 @@ const allowedFields = new Set([
     'permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'permitirSolicitudes', 'operacionesSolicitud', 'horarioAtencion', 'telefonoWhatsApp',
     'precioPorNocheUSD', 'minimoNoches', 'huespedesMaximos', 'costoLimpiezaUSD',
     'duracionAlquilerMeses', 'unidadDuracionAlquiler', 'checkInDesde', 'checkOutHasta',
-    'checkInFlexible', 'estado', 'images',
+    'checkInFlexible', 'estado', 'images', 'descuento', 'financiacion',
     'bedrooms', 'bathrooms', 'area',
 ]);
 const stringLimits = {
@@ -32,6 +32,35 @@ const stringLimits = {
     direccionCompleta: 240, referenciasUbicacion: 500, otrasComodidades: 500,
     linkGoogleMaps: 1000, latitud: 40, longitud: 40, horarioAtencion: 100,
     telefonoWhatsApp: 40, checkInDesde: 20, checkOutHasta: 20,
+};
+
+// Límites aproximados de Entre Ríos, con margen (la inmobiliaria solo opera ahí)
+const dentroDeEntreRios = (lat, lng) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -34.3 && lat <= -29.9 && lng >= -61 && lng <= -57.4;
+
+const esObjetoPlano = (v) => v && typeof v === 'object' && !Array.isArray(v);
+const soloCampos = (obj, campos) => Object.keys(obj).every((k) => campos.includes(k));
+const numeroEntre = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+
+// Devuelve el problema de descuento/financiación, o null si están bien (o no vinieron)
+const revisarOferta = ({ descuento, financiacion }) => {
+    if (descuento !== undefined && descuento !== null) {
+        if (!esObjetoPlano(descuento) || !soloCampos(descuento, ['porcentaje', 'hasta', 'motivo'])) return 'descuento tiene un formato inválido';
+        if (!numeroEntre(descuento.porcentaje, 0, 90)) return 'El descuento tiene que ser un porcentaje entre 0 y 90';
+        if (descuento.hasta !== undefined && descuento.hasta !== null && descuento.hasta !== '' && (typeof descuento.hasta !== 'string' || Number.isNaN(Date.parse(descuento.hasta)))) {
+            return 'La fecha hasta la que vale el descuento no es válida';
+        }
+        if (descuento.motivo !== undefined && (typeof descuento.motivo !== 'string' || descuento.motivo.length > 120)) return 'El motivo del descuento puede tener hasta 120 caracteres';
+    }
+    if (financiacion !== undefined && financiacion !== null) {
+        if (!esObjetoPlano(financiacion) || !soloCampos(financiacion, ['disponible', 'anticipoPorcentaje', 'cuotas', 'tasa', 'detalle'])) return 'financiacion tiene un formato inválido';
+        if (typeof financiacion.disponible !== 'boolean') return 'financiacion.disponible debe ser booleano';
+        if (financiacion.anticipoPorcentaje !== undefined && !numeroEntre(financiacion.anticipoPorcentaje, 0, 100)) return 'El anticipo tiene que estar entre 0 y 100 %';
+        if (financiacion.cuotas !== undefined && (!Number.isInteger(financiacion.cuotas) || !numeroEntre(financiacion.cuotas, 0, 360))) return 'Las cuotas tienen que ser un número entero entre 0 y 360';
+        if (financiacion.disponible && !(financiacion.cuotas >= 1)) return 'Indicá en cuántas cuotas se financia';
+        if (financiacion.tasa !== undefined && (typeof financiacion.tasa !== 'string' || financiacion.tasa.length > 60)) return 'La tasa puede tener hasta 60 caracteres';
+        if (financiacion.detalle !== undefined && (typeof financiacion.detalle !== 'string' || financiacion.detalle.length > 500)) return 'El detalle de la financiación puede tener hasta 500 caracteres';
+    }
+    return null;
 };
 
 const validateProperty = (req, res, next) => {
@@ -108,6 +137,24 @@ const validateProperty = (req, res, next) => {
         errors.push('comodidades contiene valores inválidos');
     }
 
+    // HU-12: descuento y financiación, con forma fija (nada de campos extra)
+    const errorOferta = revisarOferta(req.body);
+    if (errorOferta) errors.push(errorOferta);
+
+    // Ubicación obligatoria (sin punto la propiedad no aparece en el mapa) y dentro de Entre Ríos
+    const latitud = req.body.latitud;
+    const longitud = req.body.longitud;
+    const tocaUbicacion = latitud !== undefined || longitud !== undefined;
+    if (!isUpdate || tocaUbicacion) {
+        const lat = Number(String(latitud ?? '').trim() || NaN);
+        const lng = Number(String(longitud ?? '').trim() || NaN);
+        if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+            errors.push('La ubicación es obligatoria: marcá el punto en el mapa (latitud y longitud)');
+        } else if (!dentroDeEntreRios(lat, lng)) {
+            errors.push('La ubicación tiene que estar dentro de Entre Ríos');
+        }
+    }
+
     if (req.body.provincia !== undefined && req.body.provincia !== 'entre_rios') {
         errors.push('La inmobiliaria solo opera en Entre Ríos');
     }
@@ -135,4 +182,4 @@ const validatePropertyId = (req, res, next) => {
     next();
 };
 
-module.exports = { validateProperty, validatePropertyId };
+module.exports = { validateProperty, validatePropertyId, dentroDeEntreRios };

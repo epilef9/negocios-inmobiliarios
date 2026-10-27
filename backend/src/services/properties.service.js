@@ -39,6 +39,8 @@ const normalizePropertyPrices = (propertyData) => {
 };
 
 const getAllProperties = async (filters = {}) => {
+    // Las reservas con seña vencidas devuelven su propiedad a «Disponible» antes de mostrar el catálogo
+    await require('./reservasPropiedad.service').vencerReservas().catch((e) => console.error('No se pudieron vencer las reservas:', e.message));
     const query = {};
     if (typeof filters.comodidad === 'string' && filters.comodidad.trim()) {
         const amenity = filters.comodidad.trim();
@@ -53,7 +55,10 @@ const getPropertyById = async (id) => {
 };
 
 const createProperty = async (propertyData) => {
-    return propertiesRepository.createProperty(normalizePropertyPrices(propertyData));
+    const propiedad = await propertiesRepository.createProperty(normalizePropertyPrices(propertyData));
+    // 221: búsquedas guardadas que coinciden con la propiedad nueva (no frena la respuesta)
+    require('./avisos.service').coincidenciasDeBusqueda(propiedad?.toObject ? propiedad.toObject() : propiedad);
+    return propiedad;
 };
 
 // Los precios se recalculan solo si el cambio trae precio o moneda. Un cambio parcial (por ejemplo, solo el
@@ -61,8 +66,19 @@ const createProperty = async (propertyData) => {
 const CAMPOS_DE_PRECIO = ['price', 'priceARS', 'moneda', 'cotizacionDolar'];
 const updateProperty = async (id, propertyData) => {
     const cambiaPrecio = CAMPOS_DE_PRECIO.some((campo) => propertyData[campo] !== undefined);
+    // Los avisos y las reservas con seña se revisan solo con un id real (las pruebas usan ids de mentira)
+    const idReal = require('mongoose').isValidObjectId(String(id));
+    const antes = propertyData.estado && idReal ? await Property.findById(id).select('estado').lean() : null;
     const propiedad = await propertiesRepository.updateProperty(id, cambiaPrecio ? normalizePropertyPrices(propertyData) : propertyData);
     await require('./solicitudes-ciclo.service').cerrarPorPropiedad(propiedad);
+    // Si el administrador cambia a mano el estado de una propiedad reservada con seña, la reserva se cierra igual
+    if (idReal && propiedad && propertyData.estado && propertyData.estado !== 'reservado') {
+        await require('./reservasPropiedad.service').cerrarPorCambioDeEstado(propiedad._id, propertyData.estado);
+    }
+    // 113/219: pasó de alquilada/reservada/vendida a disponible → avisos de disponibilidad y búsquedas
+    if (propiedad && antes && antes.estado && antes.estado !== 'disponible' && propertyData.estado === 'disponible') {
+        require('./avisos.service').propiedadDisponible(propiedad._id);
+    }
     return propiedad;
 };
 

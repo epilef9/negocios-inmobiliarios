@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin, sesionOpcional } = authMiddleware;
+const { requireAdmin, requireClient, sesionOpcional } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 
 // Pedir una visita es público (botón "Agendar una visita"); verlas y gestionarlas, solo el administrador
@@ -22,6 +22,10 @@ router.get('/', soloAdmin, visitasController.getAllVisitas);
 // Días y horarios libres para el calendario de "Agendar una visita" (público, sin datos de nadie).
 // Va antes de '/:id' para que "disponibilidad" no se tome como un id.
 router.get('/disponibilidad', visitasController.getDisponibilidad);
+
+// HU-34: las visitas del cliente que inició sesión, y cancelar una suya (antes de '/:id')
+router.get('/mias', authMiddleware, requireClient, visitasController.misVisitas);
+router.patch('/:id/cancelar', authMiddleware, requireClient, validateVisitaId, visitasController.cancelarMiVisita);
 
 // Obtener una visita por ID
 router.get('/:id', soloAdmin, validateVisitaId, visitasController.getVisitaById);

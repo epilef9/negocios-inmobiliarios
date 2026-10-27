@@ -168,8 +168,10 @@ const guardarHorario = (datos) =>
 
 // Lo que ocupa cada visita, en minutos: "2026-11-12" → [{ inicio: 630, fin: 660 }]. Cada una dura lo que duraba
 // un turno cuando se pidió, aunque después cambie la duración.
-const ocupados = async (session = null) => {
-    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('fecha horario duracionMinutos').session(session).lean();
+// `ignorar` deja afuera una visita (la que se está reprogramando, para que no choque consigo misma).
+const ocupados = async (session = null, ignorar = null) => {
+    const filtro = { estado: { $in: OCUPAN }, ...(ignorar ? { _id: { $ne: ignorar } } : {}) };
+    const visitas = await Visita.find(filtro).select('fecha horario duracionMinutos').session(session).lean();
     const porDia = new Map();
     visitas.forEach((v) => {
         const fecha = fechaIso(v.fecha);
@@ -228,14 +230,18 @@ const disponibilidad = async (desde, hasta) => {
 };
 
 // Revisa que un pedido caiga en un horario libre de atención. Devuelve el motivo si no se puede, o null.
-const motivoNoDisponible = async (fecha, horario, { controlarHorario = true, session = null } = {}) => {
+const motivoNoDisponible = async (fecha, horario, { controlarHorario = true, session = null, ignorar = null } = {}) => {
     const iso = fechaIso(fecha);
     const hora = horaCorta(horario);
     if (!iso || !hora) return 'La fecha o el horario no son válidos.';
     const ahora = ahoraEnArgentina();
-    const [agenda, tomados] = await Promise.all([horarioActual(session), ocupados(session)]);
+    const [agenda, tomados] = await Promise.all([horarioActual(session), ocupados(session, ignorar)]);
     if (estaTomado(iso, hora, tomados, agenda.duracionMinutos)) return 'Ese horario ya se ocupó. Elegí otro, por favor.';
-    if (!controlarHorario) return null;
+    if (iso < ahora.fecha) return 'Esa fecha ya pasó.';
+    if (!controlarHorario) {
+        const cierreAdmin = cierreDe(iso, agenda.cerrados);
+        return cierreAdmin ? `Ese día la oficina está cerrada${cierreAdmin.motivo ? ` (${cierreAdmin.motivo})` : ''}.` : null;
+    }
     if (iso > sumarDias(ahora.fecha, DIAS_MAXIMOS)) return 'Por ahora se pueden pedir visitas hasta tres meses adelante.';
     const cierre = cierreDe(iso, agenda.cerrados);
     if (cierre) return `Ese día la oficina está cerrada${cierre.motivo ? ` (${cierre.motivo})` : ''}. Elegí otro, por favor.`;
@@ -255,6 +261,16 @@ const reservar = (datos, { controlarHorario = true } = {}, crear) =>
         return { visita: await crear({ ...datos, duracionMinutos }, session) };
     });
 
+// Reprograma una visita a otro día y hora: controla dentro del candado que el turno nuevo esté libre (sin contar
+// la misma visita) y que la oficina no cierre ese día. `cambiar(session)` guarda el cambio. Devuelve
+// { visita } o { motivo }. El administrador puede ofrecer un horario fuera de la agenda, pero nunca uno ocupado.
+const reprogramar = (id, fecha, horario, cambiar) =>
+    conCandado(async (session) => {
+        const motivo = await motivoNoDisponible(fecha, horario, { controlarHorario: false, session, ignorar: id });
+        if (motivo) return { motivo };
+        return { visita: await cambiar(session) };
+    });
+
 // Visitas por venir que quedan fuera de un horario (para avisar al administrador después de cambiarlo)
 const visitasFueraDeHorario = async (horario) => {
     const hoy = ahoraEnArgentina().fecha;
@@ -272,7 +288,10 @@ module.exports = {
     disponibilidad,
     motivoNoDisponible,
     reservar,
+    reprogramar,
     ahoraEnArgentina,
+    fechaIso,
+    horaCorta,
     sumarDias,
     turnosDe,
     validarHorario,

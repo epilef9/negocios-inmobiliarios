@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const VALID_ESTADOS = ['pendiente', 'confirmada', 'reprogramada', 'rechazada'];
+const VALID_ESTADOS = ['pendiente', 'confirmada', 'reprogramada', 'rechazada', 'cancelada'];
 
 const validateVisita = (req, res, next) => {
     const errors = [];
