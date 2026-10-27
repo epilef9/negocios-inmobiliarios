@@ -1,5 +1,6 @@
 import { API_URL, request } from './api';
 import type { Banco } from './ajustes';
+import { avisarPendientes } from './panel';
 
 // HU-41: pago de reservas con Mercado Pago o transferencia. El monto lo calcula el servidor.
 
@@ -19,8 +20,10 @@ export function subirComprobante(reservaId: string, archivo: File) {
 
 export const getPagosAdmin = () => request<PagoAdmin[]>('/pagos');
 export const urlComprobante = (pagoId: string) => `${API_URL}/pagos/${pagoId}/comprobante`;
-export const aprobarPago = (id: string, nota = '') => request<Pago>(`/pagos/${id}/aprobar`, { method: 'PATCH', body: JSON.stringify({ nota }) });
-export const rechazarPago = (id: string, nota = '') => request<Pago>(`/pagos/${id}/rechazar`, { method: 'PATCH', body: JSON.stringify({ nota }) });
+export const aprobarPago = (id: string, nota = '') =>
+  request<Pago>(`/pagos/${id}/aprobar`, { method: 'PATCH', body: JSON.stringify({ nota }) }).then((p) => (avisarPendientes(), p));
+export const rechazarPago = (id: string, nota = '') =>
+  request<Pago>(`/pagos/${id}/rechazar`, { method: 'PATCH', body: JSON.stringify({ nota }) }).then((p) => (avisarPendientes(), p));
 
 export const ESTADO_PAGO: Record<EstadoPago, string> = {
   pendiente: 'Pago iniciado',

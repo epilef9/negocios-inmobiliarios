@@ -5,10 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirmarSalida } from '@/components/sitio/ConfirmarSalida';
-import { getProperties, type ApiProperty } from '@/services/api';
-import { getVisitas, type Visita } from '@/services/visitas';
-import { getContratos, type Contrato } from '@/services/contratos';
-import { fechaDeVisita } from '@/components/panel/estados';
+import { getResumenPanel, type ItemPendiente } from '@/services/panel';
 import { marcarBienvenidaVista } from '@/components/panel/bienvenida';
 import LogoEmpresa from '@/components/sitio/LogoEmpresa';
 
@@ -23,41 +20,24 @@ const nombrePropio = (nombre?: string) => {
   return limpio && !NOMBRES_GENERICOS.includes(limpio.toLowerCase()) ? limpio : '';
 };
 
-type Resumen = { frases: string[] } | { error: true } | null;
+type Resumen = { items: ItemPendiente[] } | { error: true } | null;
 
-// Arma el resumen del día en frases cortas, con lo que conviene saber al entrar
-function armarResumen(visitas: Visita[], contratos: Contrato[], propiedades: ApiProperty[]): string[] {
-  const hoy = new Date();
-  const esHoy = (d: Date | null) => !!d && d.toDateString() === hoy.toDateString();
-  const deHoy = visitas
-    .filter((v) => (v.estado === 'pendiente' || v.estado === 'confirmada' || v.estado === 'reprogramada') && esHoy(fechaDeVisita(v.fecha, v.horario)))
-    .sort((a, b) => (fechaDeVisita(a.fecha, a.horario)?.getTime() ?? 0) - (fechaDeVisita(b.fecha, b.horario)?.getTime() ?? 0));
-  const hora = (v: Visita) => v.horario?.match(/\d{1,2}:\d{2}/)?.[0];
+// Cómo se muestra cada nivel de urgencia (el color siempre va con su texto, nunca solo)
+const URGENCIA: Record<ItemPendiente['urgencia'], { texto: string; punto: string }> = {
+  1: { texto: 'Para hoy', punto: 'bg-[#ff5a4b] shadow-[0_0_0_4px_rgba(255,90,75,0.18)]' },
+  2: { texto: 'Esta semana', punto: 'bg-[#f2b84b]' },
+  3: { texto: 'Cuando puedas', punto: 'bg-[#efe9df]/50' },
+};
+const MAXIMO_VISIBLE = 7;
 
-  const frases: string[] = [];
-  if (deHoy.length === 1) {
-    frases.push(`Hoy tenés una visita${hora(deHoy[0]) ? ` a las ${hora(deHoy[0])}` : ''} con ${deHoy[0].cliente?.nombre || 'un cliente'}.`);
-  } else if (deHoy.length > 1) {
-    frases.push(`Hoy tenés ${deHoy.length} visitas; la primera${hora(deHoy[0]) ? ` a las ${hora(deHoy[0])}` : ''}.`);
-  } else {
-    frases.push('Hoy no tenés visitas agendadas.');
-  }
-
-  const pendientes = visitas.filter((v) => v.estado === 'pendiente').length;
-  frases.push(
-    pendientes === 0
-      ? 'Todas las visitas están respondidas.'
-      : pendientes === 1
-        ? 'Una visita espera tu confirmación.'
-        : `${pendientes} visitas esperan tu confirmación.`
-  );
-
-  const porVencer = contratos.filter((c) => c.estado === 'por_vencer').length;
-  if (porVencer) frases.push(porVencer === 1 ? 'Un contrato está por vencer.' : `${porVencer} contratos están por vencer.`);
-
-  const disponibles = propiedades.filter((p) => !p.estado || p.estado === 'disponible').length;
-  frases.push(disponibles === 1 ? 'Hay una propiedad disponible en el catálogo.' : `Hay ${disponibles} propiedades disponibles en el catálogo.`);
-  return frases;
+// Frase de arriba de la lista: cuántas cosas hay y cuántas no pueden esperar
+function fraseResumen(items: ItemPendiente[]) {
+  const pendientes = items.filter((i) => i.clave !== 'visitas-hoy');
+  const urgentes = pendientes.filter((i) => i.urgencia === 1).length;
+  if (!items.length) return 'Todo al día: no hay nada pendiente.';
+  if (!pendientes.length) return 'No hay nada pendiente de revisar.';
+  const total = `${pendientes.length} ${pendientes.length === 1 ? 'tema pendiente' : 'temas pendientes'}`;
+  return urgentes ? `Tenés ${total}; ${urgentes === 1 ? 'uno es para hoy' : `${urgentes} son para hoy`}.` : `Tenés ${total}, ninguno urgente.`;
 }
 
 // A dónde quería ir el administrador antes de la bienvenida (solo rutas internas)
@@ -97,20 +77,9 @@ export default function BienvenidaPage() {
 
   useEffect(() => {
     let vigente = true;
-    Promise.allSettled([getVisitas(), getContratos(), getProperties()]).then(([v, c, p]) => {
-      if (!vigente) return;
-      if (v.status === 'rejected' && c.status === 'rejected' && p.status === 'rejected') {
-        setResumen({ error: true });
-        return;
-      }
-      setResumen({
-        frases: armarResumen(
-          v.status === 'fulfilled' ? v.value ?? [] : [],
-          c.status === 'fulfilled' ? c.value ?? [] : [],
-          p.status === 'fulfilled' ? p.value ?? [] : []
-        ),
-      });
-    });
+    getResumenPanel()
+      .then((items) => vigente && setResumen({ items }))
+      .catch(() => vigente && setResumen({ error: true }));
     return () => {
       vigente = false;
     };
@@ -161,69 +130,97 @@ export default function BienvenidaPage() {
           </span>
         </header>
 
-        <div className="flex flex-1 flex-col justify-center gap-10 py-14 lg:max-w-4xl">
-          <div className="flex flex-col gap-6">
-            <p className="calma-micro bienvenida-aparecer m-0 text-[#efe9df]/65 first-letter:uppercase" style={{ animationDelay: '1s' }}>
-              {FECHA.format(ahora)} · Acceso de administración
-            </p>
-            <h1 className="font-display m-0 text-[clamp(56px,10vw,150px)] font-normal leading-[0.92] tracking-[-0.02em]">
-              <span className="bienvenida-renglon">
-                <span style={{ animationDelay: '0.75s' }}>{nombre ? `${saludo},` : `${saludo}.`}</span>
-              </span>
-              {nombre && (
+        {/* En pantallas anchas: saludo y accesos a la izquierda, lista de pendientes a la derecha */}
+        <div className="grid flex-1 items-center gap-12 py-12 xl:grid-cols-[minmax(0,1fr)_minmax(0,36rem)] xl:gap-16">
+          <div className="flex flex-col gap-10">
+            <div className="flex flex-col gap-6">
+              <p className="calma-micro bienvenida-aparecer m-0 text-[#efe9df]/65 first-letter:uppercase" style={{ animationDelay: '1s' }}>
+                {FECHA.format(ahora)} · Acceso de administración
+              </p>
+              <h1 className="font-display m-0 text-[clamp(56px,10vw,150px)] font-normal xl:text-[clamp(64px,6.6vw,150px)] leading-[0.92] tracking-[-0.02em]">
                 <span className="bienvenida-renglon">
-                  <span style={{ animationDelay: '0.9s' }}>{nombre}.</span>
+                  <span style={{ animationDelay: '0.75s' }}>{nombre ? `${saludo},` : `${saludo}.`}</span>
                 </span>
-              )}
-            </h1>
-            <span aria-hidden="true" className="bienvenida-linea block h-px w-40 bg-[#d9382b]" style={{ animationDelay: '1.3s' }} />
+                {nombre && (
+                  <span className="bienvenida-renglon">
+                    <span style={{ animationDelay: '0.9s' }}>{nombre}.</span>
+                  </span>
+                )}
+              </h1>
+              <span aria-hidden="true" className="bienvenida-linea block h-px w-40 bg-[#d9382b]" style={{ animationDelay: '1.3s' }} />
+            </div>
+
+            <nav aria-label="¿Qué querés hacer?" className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+              {opciones.map((opcion, i) => (
+                <Link
+                  key={opcion.href}
+                  href={opcion.href}
+                  className={`bienvenida-aparecer group flex items-start justify-between gap-4 rounded-2xl border px-5 py-5 transition-colors duration-500 ${
+                    i === 0
+                      ? 'border-[#efe9df] bg-[#efe9df] text-[#071733] hover:bg-white'
+                      : 'border-[#efe9df]/25 bg-[#071733]/40 backdrop-blur-sm hover:border-[#efe9df]/60 hover:bg-[#071733]/60'
+                  }`}
+                  style={{ animationDelay: `${2.4 + i * 0.12}s` }}
+                >
+                  <span className="flex flex-col gap-1">
+                    <span className="font-display text-[26px] leading-none">{opcion.titulo}</span>
+                    <span className={`text-[14px] ${i === 0 ? 'text-[#071733]/70' : 'text-[#efe9df]/65'}`}>{opcion.texto}</span>
+                  </span>
+                  <kbd
+                    className={`hidden rounded-md border px-2 py-0.5 font-sans text-[12px] sm:inline-block ${
+                      i === 0 ? 'border-[#071733]/25 text-[#071733]/70' : 'border-[#efe9df]/30 text-[#efe9df]/70'
+                    }`}
+                    title={`Tecla ${opcion.tecla}`}
+                  >
+                    {opcion.tecla}
+                  </kbd>
+                </Link>
+              ))}
+            </nav>
           </div>
 
-          <div aria-live="polite" className="flex min-h-28 max-w-xl flex-col gap-2 text-[clamp(17px,1.6vw,20px)] leading-snug">
+          <section aria-live="polite" aria-label="Pendientes" className="flex min-h-28 flex-col gap-4 rounded-3xl border border-[#efe9df]/12 bg-[#071733]/55 p-6 backdrop-blur-md sm:p-8">
             {resumen === null && (
-              <p className="bienvenida-aparecer m-0 text-[#efe9df]/60" style={{ animationDelay: '1.5s' }}>
+              <p className="bienvenida-aparecer m-0 text-[clamp(17px,1.6vw,20px)] text-[#efe9df]/60" style={{ animationDelay: '1.5s' }}>
                 Preparando tu resumen del día…
               </p>
             )}
             {resumen && 'error' in resumen && (
-              <p className="bienvenida-aparecer m-0 text-[#efe9df]/70">No pude traer el resumen del día, pero el panel está listo.</p>
+              <p className="bienvenida-aparecer m-0 text-[clamp(17px,1.6vw,20px)] text-[#efe9df]/70">No pude traer el resumen del día, pero el panel está listo.</p>
             )}
-            {resumen &&
-              'frases' in resumen &&
-              resumen.frases.map((frase, i) => (
-                <p key={frase} className="bienvenida-aparecer m-0 text-[#efe9df]/85" style={{ animationDelay: `${1.5 + i * 0.35}s` }}>
-                  {frase}
+            {resumen && 'items' in resumen && (
+              <>
+                <p className="bienvenida-aparecer m-0 text-[clamp(18px,1.7vw,22px)] leading-snug text-[#efe9df]/90" style={{ animationDelay: '1.5s' }}>
+                  {fraseResumen(resumen.items)}
                 </p>
-              ))}
-          </div>
+                {resumen.items.length > 0 && (
+                  <ol className="m-0 flex list-none flex-col p-0">
+                    {resumen.items.slice(0, MAXIMO_VISIBLE).map((item, i) => {
+                      const nivel = URGENCIA[item.urgencia];
+                      return (
+                        <li key={item.clave} className="bienvenida-aparecer border-t border-[#efe9df]/12 first:border-t-0" style={{ animationDelay: `${1.65 + i * 0.1}s` }}>
+                          <Link href={item.href} className="group grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4 py-3">
+                            <span aria-hidden="true" className={`mt-[7px] h-2.5 w-2.5 rounded-full ${nivel.punto}`} />
+                            <span className="flex min-w-0 flex-col gap-0.5">
+                              <span className="text-[16.5px] leading-snug text-[#efe9df] group-hover:underline group-hover:decoration-[#d9382b] group-hover:underline-offset-4">{item.titulo}</span>
+                              {item.detalle && <span className="text-[14px] leading-snug text-[#efe9df]/60">{item.detalle}</span>}
+                            </span>
+                            <span className="calma-micro mt-1 whitespace-nowrap text-[10.5px] text-[#efe9df]/55">{nivel.texto}</span>
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                )}
+                {resumen.items.length > MAXIMO_VISIBLE && (
+                  <Link href="/admin" className="calma-micro calma-link self-start text-[11px]">
+                    Y {resumen.items.length - MAXIMO_VISIBLE} más en el panel
+                  </Link>
+                )}
+              </>
+            )}
+          </section>
 
-          <nav aria-label="¿Qué querés hacer?" className="grid gap-3 sm:grid-cols-3">
-            {opciones.map((opcion, i) => (
-              <Link
-                key={opcion.href}
-                href={opcion.href}
-                className={`bienvenida-aparecer group flex items-start justify-between gap-4 rounded-2xl border px-5 py-5 transition-colors duration-500 ${
-                  i === 0
-                    ? 'border-[#efe9df] bg-[#efe9df] text-[#071733] hover:bg-white'
-                    : 'border-[#efe9df]/25 bg-[#071733]/40 backdrop-blur-sm hover:border-[#efe9df]/60 hover:bg-[#071733]/60'
-                }`}
-                style={{ animationDelay: `${2.4 + i * 0.12}s` }}
-              >
-                <span className="flex flex-col gap-1">
-                  <span className="font-display text-[26px] leading-none">{opcion.titulo}</span>
-                  <span className={`text-[14px] ${i === 0 ? 'text-[#071733]/70' : 'text-[#efe9df]/65'}`}>{opcion.texto}</span>
-                </span>
-                <kbd
-                  className={`hidden rounded-md border px-2 py-0.5 font-sans text-[12px] sm:inline-block ${
-                    i === 0 ? 'border-[#071733]/25 text-[#071733]/70' : 'border-[#efe9df]/30 text-[#efe9df]/70'
-                  }`}
-                  title={`Tecla ${opcion.tecla}`}
-                >
-                  {opcion.tecla}
-                </kbd>
-              </Link>
-            ))}
-          </nav>
         </div>
 
         <footer className="bienvenida-aparecer flex items-center justify-between gap-4 text-[13px] text-[#efe9df]/55" style={{ animationDelay: '2.9s' }}>

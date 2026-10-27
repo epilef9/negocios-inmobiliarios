@@ -1,13 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+
+// Páginas que solo tienen sentido con la sesión iniciada: al salir desde una de ellas se vuelve al inicio
+const PRIVADAS = ['/perfil', '/reservas', '/visitas', '/solicitudes', '/mis-publicaciones', '/avisos', '/favoritos', '/admin', '/publicar'];
+export const AVISO_SALIDA = 'sesion_cerrada';
 
 // HU-32: antes de cerrar la sesión se pregunta, para que un toque sin querer no saque al usuario de su cuenta.
 // Uso: const { pedirSalida, dialogoSalida } = useConfirmarSalida();  →  onClick={pedirSalida} y {dialogoSalida}
 // Es un <dialog> nativo: atrapa el foco, se cierra con Esc y devuelve el foco al botón que lo abrió.
 export function useConfirmarSalida() {
   const { logout } = useAuth();
+  const router = useRouter();
+  const ruta = usePathname() ?? '';
   const [abierto, setAbierto] = useState(false);
   const dialogo = useRef<HTMLDialogElement>(null);
 
@@ -21,6 +28,13 @@ export function useConfirmarSalida() {
   const pedirSalida = useCallback(() => setAbierto(true), []);
   const confirmar = () => {
     setAbierto(false);
+    // El inicio muestra «Cerraste sesión» un momento (ver AvisoSalida)
+    try {
+      sessionStorage.setItem(AVISO_SALIDA, '1');
+    } catch {
+      // sin almacenamiento: no se muestra el aviso
+    }
+    if (PRIVADAS.some((p) => ruta === p || ruta.startsWith(`${p}/`))) router.replace('/');
     logout();
   };
 

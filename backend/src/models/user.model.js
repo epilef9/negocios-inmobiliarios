@@ -104,6 +104,11 @@ const userSchema = new mongoose.Schema({
         paleta: {
             type: String,
             default: 'corporativo'
+        },
+        // Accesos rápidos del inicio del panel, en el orden elegido. Sin valor = los de siempre.
+        accesos: {
+            type: [String],
+            default: undefined
         }
     },
     createdAt: {

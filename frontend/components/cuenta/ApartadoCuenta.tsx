@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
+import InvitacionIngresar from "@/components/cuenta/InvitacionIngresar";
 import { useAuth } from "@/context/AuthContext";
 import type { User } from "@/services/auth";
 
@@ -38,16 +39,7 @@ export default function ApartadoCuenta({
             <span className="calma-brillo h-24 w-full" />
           </div>
         ) : !user ? (
-          <div className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
-            <p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">Ingresá para ver este apartado.</p>
-            <Link
-              href={`/login?volver=${encodeURIComponent(ruta)}`}
-              className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white"
-            >
-              <span className="calma-dot" aria-hidden="true" />
-              Ingresar
-            </Link>
-          </div>
+          <InvitacionIngresar ruta={ruta} titulo={`Ingresá para ver ${titulo.toLowerCase()}`} />
         ) : user.role === "admin" ? (
           <p className="m-0 text-[15px] text-[#efe9df]/70">
             Este apartado es para cuentas de cliente. Lo que cargan los clientes se gestiona desde el{" "}

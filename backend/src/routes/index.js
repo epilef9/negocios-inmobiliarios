@@ -30,5 +30,6 @@ router.use('/estadisticas', require('./estadisticas.routes'));
 router.use('/cron', require('./cron.routes'));
 router.use('/avisos', require('./avisos.routes'));
 router.use('/pagos', require('./pagos.routes'));
+router.use('/panel', require('./panel.routes'));
 
 module.exports = router;

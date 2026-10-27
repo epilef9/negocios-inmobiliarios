@@ -98,7 +98,7 @@ exports.createVisita = async (req, res) => {
             visitasService.createVisita(conDuracion, { session })
         );
         if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
-        if (datos.propiedad.id) require('../services/estadisticas.service').sumar(datos.propiedad.id, 'visitas');
+        if (datos.propiedad.id) await require('../services/estadisticas.service').sumar(datos.propiedad.id, 'visitas');
 
         return res.status(201).json({ data: newVisita, message: 'Visita agendada correctamente' });
     } catch (error) {

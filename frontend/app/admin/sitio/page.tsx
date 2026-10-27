@@ -108,7 +108,7 @@ export default function SitioPage() {
 
   return (
     <>
-      <Encabezado titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
+      <Encabezado volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
       <div className="flex max-w-4xl flex-col gap-6">
         <form onSubmit={(e) => guardar('contacto', { contacto }, e)}>
           <Tarjeta

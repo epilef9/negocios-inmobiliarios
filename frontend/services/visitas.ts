@@ -1,4 +1,5 @@
 import { request } from './api';
+import { avisarPendientes } from './panel';
 
 export type EstadoVisita = 'pendiente' | 'confirmada' | 'reprogramada' | 'rechazada' | 'cancelada';
 
@@ -148,6 +149,7 @@ export async function updateVisitaEstado(
       ...(extra?.motivo !== undefined ? { motivo: extra.motivo } : {}),
     }),
   });
+  avisarPendientes();
   return normalizeVisita(data);
 }
 
@@ -158,6 +160,7 @@ export async function deleteVisita(id: string): Promise<void> {
   await request<void>(`/visitas/${id}`, {
     method: 'DELETE',
   });
+  avisarPendientes();
 }
 
 /**

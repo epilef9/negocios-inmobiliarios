@@ -224,7 +224,8 @@ exports.agregarFavorito = async (req, res) => {
             nuevo = !actuales.includes(propertyId);
             return nuevo ? [...actuales, propertyId] : actuales;
         });
-        if (nuevo) require('../services/estadisticas.service').sumar(propertyId, 'favoritos');
+        // Se espera antes de responder: en Vercel la función puede congelarse apenas sale la respuesta
+        if (nuevo) await require('../services/estadisticas.service').sumar(propertyId, 'favoritos');
         res.status(200).json({ data: ids });
     } catch (error) {
         console.error('[favoritos] Error al guardar:', error);

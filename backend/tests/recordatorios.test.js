@@ -26,3 +26,28 @@ describe('Recordatorios de contratos', () => {
         assert.equal(venceProntoDias({ fechaFin: '2026-10-31' }, '2026-11-01'), null);
     });
 });
+
+describe('Resumen de la bienvenida', () => {
+    const { ordenarPendientes } = require('../src/routes/panel.routes');
+    it('deja afuera lo que está en cero y ordena por urgencia', () => {
+        const lista = ordenarPendientes([
+            { clave: 'fotos', urgencia: 3, orden: 20, cantidad: 2 },
+            { clave: 'nada', urgencia: 1, orden: 1, cantidad: 0 },
+            { clave: 'solicitudes', urgencia: 2, orden: 13, cantidad: 5 },
+            { clave: 'pagos', urgencia: 1, orden: 3, cantidad: 1 },
+            { clave: 'hoy', urgencia: 1, orden: 0, cantidad: 2 },
+        ]);
+        assert.deepEqual(lista.map((i) => i.clave), ['hoy', 'pagos', 'solicitudes', 'fotos']);
+    });
+});
+
+describe('Accesos rápidos del inicio', () => {
+    const { limpiarAccesos } = require('../src/routes/panel.routes');
+
+    it('saca repetidos, claves raras y corta en 12', () => {
+        assert.deepEqual(limpiarAccesos(['visitas', 'visitas', 'Mal Clave', 5, 'ver-sitio']), ['visitas', 'ver-sitio']);
+        assert.equal(limpiarAccesos(Array.from({ length: 20 }, (_, i) => `a${i}`)).length, 12);
+        assert.deepEqual(limpiarAccesos([]), []);
+        assert.equal(limpiarAccesos('visitas'), null);
+    });
+});

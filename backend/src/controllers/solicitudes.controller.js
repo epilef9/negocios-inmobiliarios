@@ -98,7 +98,7 @@ exports.crear = async (req, res) => {
             porReferencias,
             claveIdempotencia,
         });
-        if (!repetida) require('../services/estadisticas.service').sumar(propiedadId, 'solicitudes');
+        if (!repetida) await require('../services/estadisticas.service').sumar(propiedadId, 'solicitudes');
         return res.status(repetida ? 200 : 201).json({
             data: { id: String(solicitud._id), estado: solicitud.estado, createdAt: solicitud.createdAt },
             message: 'Solicitud registrada correctamente.',
