@@ -26,6 +26,12 @@ export function guardarHorario(horario: Omit<HorarioVisitas, 'texto'>): Promise<
   return request('/agenda/horario', { method: 'PUT', body: JSON.stringify(horario) });
 }
 
+// Desde las 13:00 ya es la tarde (lo usan la ficha y la vista previa del panel)
+export const TARDE_DESDE = '13:00';
+export function separarTurnos(turnos: string[]) {
+  return { manana: turnos.filter((t) => t < TARDE_DESDE), tarde: turnos.filter((t) => t >= TARDE_DESDE) };
+}
+
 // Inicio de cada turno de un día, con la misma regla que el servidor (el último termina dentro del tramo)
 export function turnosDelDia(tramos: Tramo[], duracion: number) {
   const min = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));

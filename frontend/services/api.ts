@@ -17,7 +17,8 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
 		const details = Array.isArray(body.errors) ? `: ${body.errors.join("; ")}` : "";
-		throw new Error(`${body.message ?? "No se pudo completar la operación"}${details}`);
+		// `code` (si el servidor lo manda) permite reaccionar a un error puntual, por ejemplo HORARIO_NO_DISPONIBLE
+		throw Object.assign(new Error(`${body.message ?? "No se pudo completar la operación"}${details}`), { code: body.code as string | undefined });
 	}
 	return body.data as T;
 }
