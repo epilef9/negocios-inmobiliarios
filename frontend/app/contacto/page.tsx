@@ -6,18 +6,12 @@ import SitioBase from '@/components/sitio/SitioBase';
 import Revelar from '@/components/sitio/Revelar';
 import { useAuth } from '@/context/AuthContext';
 import { enviarConsulta } from '@/services/contacto';
-import { DIRECCION, EMAIL, HORARIOS, MAPS_URL, WHATSAPP_URL } from '@/components/sitio/SiteFooter';
+import { useContacto } from '@/components/sitio/useAjustes';
+import Captcha, { CLAVE_CAPTCHA } from '@/components/sitio/Captcha';
 
 // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
 const TITULO = 'Hablemos.';
 
-const TELEFONO = '+54 343 446 9522';
-const TELEFONO_URL = 'tel:+543434469522';
-const INSTAGRAM_URL = 'https://www.instagram.com/aracelibalbuenainmobiliaria';
-const INSTAGRAM_USUARIO = '@aracelibalbuenainmobiliaria';
-const MAPA_EMBED = `https://maps.google.com/maps?q=${encodeURIComponent(
-  '25 de Mayo 726, E3103 Libertador San Martín, Entre Ríos',
-)}&z=16&output=embed`;
 
 const MOTIVOS = [
   { value: 'comprar', label: 'Comprar', frase: 'comprar una propiedad' },
@@ -39,12 +33,14 @@ const botonClaro =
 const botonLinea =
   'calma-micro flex items-center justify-center rounded-full border border-[#efe9df]/40 px-7 py-4 text-[12px] transition-colors duration-500 hover:border-[#efe9df] hover:bg-[#efe9df]/5 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df]';
 
-const canales = [
-  { nombre: 'WhatsApp', valor: TELEFONO, href: WHATSAPP_URL, externo: true },
-  { nombre: 'Teléfono', valor: TELEFONO, href: TELEFONO_URL, externo: false },
-  { nombre: 'Email', valor: EMAIL, href: `mailto:${EMAIL}`, externo: false },
-  { nombre: 'Instagram', valor: INSTAGRAM_USUARIO, href: INSTAGRAM_URL, externo: true },
-];
+// Canales de contacto, con los datos que carga el administrador (HU-38)
+const canalesDe = (c: ReturnType<typeof useContacto>) =>
+  [
+    { nombre: 'WhatsApp', valor: c.telefono, href: c.whatsappUrl, externo: true },
+    { nombre: 'Teléfono', valor: c.telefono, href: c.telefonoUrl, externo: false },
+    { nombre: 'Email', valor: c.email, href: `mailto:${c.email}`, externo: false },
+    { nombre: 'Instagram', valor: c.instagram ? `@${c.instagram}` : '', href: c.instagramUrl, externo: true },
+  ].filter((canal) => canal.valor && canal.href);
 
 // Arma el texto de la consulta tal como le llega a la inmobiliaria
 function armarTexto(nombre: string, motivo: string, mensaje: string) {
@@ -53,16 +49,18 @@ function armarTexto(nombre: string, motivo: string, mensaje: string) {
   return `${saludo}\n\n${mensaje}`;
 }
 
-function enlaceDe(canal: Canal, nombre: string, motivo: string, mensaje: string) {
+function enlaceDe(contacto: { whatsappUrl: string; email: string }, canal: Canal, nombre: string, motivo: string, mensaje: string) {
   const texto = armarTexto(nombre, motivo, mensaje);
-  if (canal === 'whatsapp') return `${WHATSAPP_URL}?text=${encodeURIComponent(texto)}`;
+  if (canal === 'whatsapp') return `${contacto.whatsappUrl}?text=${encodeURIComponent(texto)}`;
   const asunto = `Consulta web de ${nombre}`;
-  return `mailto:${EMAIL}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}`;
+  return `mailto:${contacto.email}?subject=${encodeURIComponent(asunto)}&body=${encodeURIComponent(texto)}`;
 }
 
 export default function ContactoPage() {
   const id = useId();
   const { user } = useAuth();
+  const contacto = useContacto();
+  const canales = canalesDe(contacto);
   const nombreCuenta = user ? `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() : '';
 
   // El nombre queda en null hasta que la persona lo toca, así se completa solo con el de la cuenta
@@ -74,6 +72,8 @@ export default function ContactoPage() {
   const [enviado, setEnviado] = useState<{ canal: Canal; enlace: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [errorEnvio, setErrorEnvio] = useState('');
+  const [captcha, setCaptcha] = useState('');
+  const [reinicioCaptcha, setReinicioCaptcha] = useState(0);
 
   const nombreActual = nombre ?? nombreCuenta;
   // El email se completa solo con el de la cuenta; es la dirección a la que respondemos
@@ -96,6 +96,10 @@ export default function ContactoPage() {
     setErrorEnvio('');
 
     if (canal === 'email') {
+      if (CLAVE_CAPTCHA && !captcha) {
+        setErrorEnvio('Completá la verificación «no soy un robot» para enviar por email.');
+        return;
+      }
       setEnviando(true);
       try {
         await enviarConsulta({
@@ -103,17 +107,19 @@ export default function ContactoPage() {
           email: emailActual.trim(),
           motivo: MOTIVOS.find((m) => m.value === motivo)?.label,
           mensaje: mensaje.trim(),
+          captchaToken: captcha || undefined,
         });
         setEnviado({ canal, enlace: '' });
       } catch (err) {
         setErrorEnvio(err instanceof Error ? err.message : 'No pudimos enviar tu consulta. Probá de nuevo.');
+        setReinicioCaptcha((n) => n + 1);
       } finally {
         setEnviando(false);
       }
       return;
     }
 
-    const enlace = enlaceDe(canal, nombreActual.trim(), motivo, mensaje.trim());
+    const enlace = enlaceDe(contacto, canal, nombreActual.trim(), motivo, mensaje.trim());
     window.open(enlace, '_blank', 'noopener,noreferrer');
     setEnviado({ canal, enlace });
   };
@@ -310,6 +316,8 @@ export default function ContactoPage() {
                   </p>
                 )}
 
+                <Captcha alResolver={setCaptcha} reinicio={reinicioCaptcha} />
+
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button type="submit" data-canal="whatsapp" disabled={enviando} className={botonClaro}>
                     <span className="calma-dot" aria-hidden="true" />
@@ -327,8 +335,8 @@ export default function ContactoPage() {
         <section aria-labelledby={`${id}-oficina`} className="grid gap-10 px-5 pb-20 sm:px-10 lg:grid-cols-12 lg:gap-6">
           <div data-reveal="imagen" className="tarjeta-color overflow-hidden rounded-3xl lg:col-span-7">
             <iframe
-              title="Mapa de la oficina en 25 de Mayo 726, Villa Libertador San Martín"
-              src={MAPA_EMBED}
+              title={`Mapa de la oficina en ${contacto.direccionCompleta}`}
+              src={contacto.mapaEmbed}
               loading="lazy"
               referrerPolicy="no-referrer-when-downgrade"
               className="block h-[340px] w-full border-0 [filter:saturate(0.75)] sm:h-[440px]"
@@ -339,17 +347,17 @@ export default function ContactoPage() {
               <h2 id={`${id}-oficina`} className="font-display m-0 text-[clamp(40px,4.4vw,64px)] font-normal leading-none">
                 La oficina
               </h2>
-              <p className="m-0 text-[17px] leading-relaxed text-[#efe9df]/80">{DIRECCION}, Entre Ríos.</p>
+              <p className="m-0 text-[17px] leading-relaxed text-[#efe9df]/80">{contacto.direccionCompleta}, Entre Ríos.</p>
             </div>
             <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-[15px]">
-              {HORARIOS.map((horario) => (
+              {contacto.horarios.map((horario) => (
                 <div key={horario.dias} className="contents">
                   <dt className="text-[#efe9df]/70">{horario.dias}</dt>
                   <dd className="m-0">{horario.horas}</dd>
                 </div>
               ))}
             </dl>
-            <a href={MAPS_URL} target="_blank" rel="noreferrer" className={`${botonLinea} self-start`}>
+            <a href={contacto.mapsUrl} target="_blank" rel="noreferrer" className={`${botonLinea} self-start`}>
               Cómo llegar
             </a>
           </div>

@@ -23,6 +23,9 @@ type OperacionSolicitud = "venta" | "alquiler";
 const operacionSolicitable = (categoria: string): OperacionSolicitud | null =>
   categoria === "venta" || categoria === "alquiler" ? categoria : null;
 
+// Límites aproximados de Entre Ríos (con margen): el backend controla lo mismo
+const dentroDeEntreRios = (lat: number, lng: number) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -34.3 && lat <= -29.9 && lng >= -61 && lng <= -57.4;
+
 export default function NuevaPropiedadPage() {
   const router = useRouter();
   const [mensaje, setMensaje] = useState("");
@@ -78,6 +81,16 @@ export default function NuevaPropiedadPage() {
     checkInDesde: "",
     checkOutHasta: "",
     checkInFlexible: "",
+
+    // HU-12: descuento y financiación
+    descuentoPorcentaje: "",
+    descuentoHasta: "",
+    descuentoMotivo: "",
+    financiacionDisponible: false,
+    anticipoPorcentaje: "",
+    cuotas: "",
+    tasa: "",
+    financiacionDetalle: "",
   });
 
   const [comodidadesSeleccionadas, setComodidadesSeleccionadas] = useState<string[]>([]);
@@ -206,6 +219,14 @@ export default function NuevaPropiedadPage() {
           checkInDesde: property.checkInDesde ?? "",
           checkOutHasta: property.checkOutHasta ?? "",
           checkInFlexible: property.checkInFlexible ?? "si",
+          descuentoPorcentaje: property.descuento?.porcentaje ? String(property.descuento.porcentaje) : "",
+          descuentoHasta: property.descuento?.hasta ? String(property.descuento.hasta).slice(0, 10) : "",
+          descuentoMotivo: property.descuento?.motivo ?? "",
+          financiacionDisponible: Boolean(property.financiacion?.disponible),
+          anticipoPorcentaje: property.financiacion?.anticipoPorcentaje ? String(property.financiacion.anticipoPorcentaje) : "",
+          cuotas: property.financiacion?.cuotas ? String(property.financiacion.cuotas) : "",
+          tasa: property.financiacion?.tasa ?? "",
+          financiacionDetalle: property.financiacion?.detalle ?? "",
         }));
         setComodidadesSeleccionadas(property.comodidades ?? []);
         setImagenes(property.images ?? []);
@@ -360,6 +381,18 @@ export default function NuevaPropiedadPage() {
       if (formData.montoExpensas && (Number(formData.montoExpensas) < 0 || !Number.isFinite(Number(formData.montoExpensas)))) {
         return { valid: false, error: "El monto de expensas no puede ser negativo", field: "montoExpensas" };
       }
+      if (formData.descuentoPorcentaje && !(Number(formData.descuentoPorcentaje) > 0 && Number(formData.descuentoPorcentaje) <= 90)) {
+        return { valid: false, error: "El descuento tiene que ser un porcentaje entre 1 y 90", field: "descuentoPorcentaje" };
+      }
+      if (formData.financiacionDisponible) {
+        const cuotas = Number(formData.cuotas);
+        if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 360) {
+          return { valid: false, error: "Indicá en cuántas cuotas se financia (de 1 a 360)", field: "cuotas" };
+        }
+        if (formData.anticipoPorcentaje && Number(formData.anticipoPorcentaje) > 100) {
+          return { valid: false, error: "El anticipo no puede superar el 100 %", field: "anticipoPorcentaje" };
+        }
+      }
       return { valid: true };
     }
 
@@ -401,6 +434,13 @@ export default function NuevaPropiedadPage() {
     if (paso === 5) {
       if (formData.descripcion && formData.descripcion.length > 3000) {
         return { valid: false, error: "La descripción no puede superar los 3.000 caracteres", field: "descripcion" };
+      }
+      // Sin punto la propiedad no aparece en el mapa de la portada: la ubicación es obligatoria
+      if (!formData.latitud.trim() || !formData.longitud.trim()) {
+        return { valid: false, error: "Marcá la ubicación: pegá el link de Google Maps, buscá la dirección o tocá el punto en el mapa", field: "latitud" };
+      }
+      if (!dentroDeEntreRios(Number(formData.latitud), Number(formData.longitud))) {
+        return { valid: false, error: "El punto quedó fuera de Entre Ríos. Revisá la ubicación en el mapa", field: "latitud" };
       }
       if (formData.latitud && (isNaN(Number(formData.latitud)) || Number(formData.latitud) < -90 || Number(formData.latitud) > 90)) {
         return { valid: false, error: "La latitud debe ser un valor válido entre -90 y 90", field: "latitud" };
@@ -655,6 +695,20 @@ export default function NuevaPropiedadPage() {
         checkOutHasta: formData.checkOutHasta,
         checkInFlexible: formData.checkInFlexible,
         images: imagenes,
+        descuento: {
+          porcentaje: Number(formData.descuentoPorcentaje) || 0,
+          hasta: formData.descuentoPorcentaje && formData.descuentoHasta ? formData.descuentoHasta : null,
+          motivo: formData.descuentoPorcentaje ? formData.descuentoMotivo.trim().slice(0, 120) : "",
+        },
+        financiacion: formData.financiacionDisponible
+          ? {
+              disponible: true,
+              anticipoPorcentaje: Number(formData.anticipoPorcentaje) || 0,
+              cuotas: Number(formData.cuotas),
+              tasa: formData.tasa.trim().slice(0, 60),
+              detalle: formData.financiacionDetalle.trim().slice(0, 500),
+            }
+          : { disponible: false },
       };
 
       if (propertyId) {
@@ -950,6 +1004,48 @@ export default function NuevaPropiedadPage() {
                   </Campo>
                 </div>
               </Tarjeta>
+              {formData.categoriaOperacion !== "temporario" && (
+                <div className="mt-6">
+                  <Tarjeta titulo="Descuento y financiación" descripcion="Opcional. El descuento se muestra con el precio anterior tachado; la financiación, debajo del precio.">
+                    <div className="grid gap-5 sm:grid-cols-3">
+                      <Campo etiqueta="Descuento (%)" htmlFor="campo-descuento" error={error("descuentoPorcentaje")} ayuda="Vacío: sin descuento.">
+                        <input id="campo-descuento" type="number" min="0" max="90" inputMode="decimal" value={formData.descuentoPorcentaje} aria-invalid={conError("descuentoPorcentaje")} onChange={(e) => { limpiarErrorCampo("descuentoPorcentaje"); handleNonNegativeNumberChange("descuentoPorcentaje", e.target.value); }} placeholder="Ej.: 10" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Vale hasta" htmlFor="campo-descuento-hasta" ayuda="Vacío: hasta que lo saques.">
+                        <input id="campo-descuento-hasta" type="date" value={formData.descuentoHasta} disabled={!formData.descuentoPorcentaje} onChange={(e) => setFormData({ ...formData, descuentoHasta: e.target.value })} className={control} />
+                      </Campo>
+                      <Campo etiqueta="Motivo (se muestra)" htmlFor="campo-descuento-motivo">
+                        <input id="campo-descuento-motivo" type="text" maxLength={120} value={formData.descuentoMotivo} disabled={!formData.descuentoPorcentaje} onChange={(e) => setFormData({ ...formData, descuentoMotivo: e.target.value })} placeholder="Ej.: Precio especial pago contado" className={control} />
+                      </Campo>
+                    </div>
+                    <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-lg border border-panel-borde p-3 transition-colors hover:bg-panel-hundido">
+                      <input type="checkbox" checked={formData.financiacionDisponible} onChange={(e) => { limpiarErrorCampo("cuotas"); setFormData({ ...formData, financiacionDisponible: e.target.checked }); }} className="mt-0.5 h-4 w-4 accent-[var(--p-acento)]" />
+                      <span>
+                        <span className="block text-sm font-medium">Ofrece financiación</span>
+                        <span className="block text-[13px] text-panel-suave">Por ejemplo, anticipo y cuotas directas con el dueño.</span>
+                      </span>
+                    </label>
+                    {formData.financiacionDisponible && (
+                      <div className="mt-5 grid gap-5 sm:grid-cols-3">
+                        <Campo etiqueta="Anticipo (%)" htmlFor="campo-anticipo" error={error("anticipoPorcentaje")}>
+                          <input id="campo-anticipo" type="number" min="0" max="100" value={formData.anticipoPorcentaje} onChange={(e) => handleNonNegativeNumberChange("anticipoPorcentaje", e.target.value)} placeholder="Ej.: 40" className={`${control} tabular`} />
+                        </Campo>
+                        <Campo etiqueta="Cuotas *" htmlFor="campo-cuotas" error={error("cuotas")}>
+                          <input id="campo-cuotas" type="number" min="1" max="360" step="1" value={formData.cuotas} aria-invalid={conError("cuotas")} onChange={(e) => { limpiarErrorCampo("cuotas"); handleNonNegativeNumberChange("cuotas", e.target.value); }} placeholder="Ej.: 24" className={`${control} tabular`} />
+                        </Campo>
+                        <Campo etiqueta="Interés" htmlFor="campo-tasa">
+                          <input id="campo-tasa" type="text" maxLength={60} value={formData.tasa} onChange={(e) => setFormData({ ...formData, tasa: e.target.value })} placeholder="Ej.: Sin interés, en dólares" className={control} />
+                        </Campo>
+                        <div className="sm:col-span-3">
+                          <Campo etiqueta="Detalle" htmlFor="campo-financiacion-detalle" ayuda={`${formData.financiacionDetalle.length} de 500 caracteres`}>
+                            <textarea id="campo-financiacion-detalle" rows={3} maxLength={500} value={formData.financiacionDetalle} onChange={(e) => setFormData({ ...formData, financiacionDetalle: e.target.value })} placeholder="Ej.: Cuotas fijas en dólares; se firma boleto con el anticipo." className={areaTexto} />
+                          </Campo>
+                        </div>
+                      </div>
+                    )}
+                  </Tarjeta>
+                </div>
+              )}
             </div>
           )}
 

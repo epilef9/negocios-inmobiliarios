@@ -6,6 +6,7 @@ import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion } from './datos';
 import { datosCortos, etiquetaEstado, precioDePropiedad } from './precio';
 import BotonFavorito from './BotonFavorito';
+import ConmutadorComparar from './ConmutadorComparar';
 
 type Props = {
   propiedad: ApiProperty;
@@ -24,7 +25,7 @@ const COLOR_OPERACION: Record<string, string> = {
 
 const ALTO = {
   grande: 'h-[min(600px,70vw)]',
-  normal: 'h-[min(260px,60vw)]',
+  normal: 'h-[min(260px,48vw)]',
   compacta: 'aspect-[4/3]',
 };
 
@@ -86,12 +87,19 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
           )}
         </span>
         <span className={`flex flex-col items-start gap-0.5 ${grande ? 'sm:items-end' : ''}`}>
+          {precio.anterior && (
+            <span className="flex items-center gap-2 text-[13px] text-[#efe9df]/55">
+              <s>{precio.anterior}</s>
+              <span className="calma-micro rounded-full bg-[#d9382b] px-2 py-0.5 text-[10px] text-white">−{precio.descuento}%</span>
+            </span>
+          )}
           <span className="text-[15px]">{precio.principal}</span>
           {precio.referencia && <span className="text-[13px] text-[#efe9df]/60">{precio.referencia}</span>}
         </span>
       </div>
     </Link>
     <BotonFavorito propiedadId={propiedad._id} titulo={propiedad.title} className="absolute right-4 top-4 z-10" />
+    <ConmutadorComparar propiedadId={propiedad._id} titulo={propiedad.title} className="absolute right-4 top-[68px] z-10" />
     </div>
   );
 }

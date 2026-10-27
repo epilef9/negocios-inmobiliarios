@@ -13,6 +13,16 @@ export type FiltrosPropiedades = {
   status: string;
 };
 
+// Dirección del catálogo con estos filtros (los mismos nombres que lee la página de propiedades)
+export const direccionDeFiltros = (f: Partial<FiltrosPropiedades>) => {
+  const params = new URLSearchParams(
+    Object.entries({ operacion: f.operation, tipo: f.propertyType, ubicacion: f.location, minimo: f.minPrice, maximo: f.maxPrice, ambientes: f.rooms, comodidad: f.amenities }).filter(
+      (par): par is [string, string] => Boolean(par[1])
+    )
+  );
+  return `/propiedades${params.size ? `?${params}` : ''}`;
+};
+
 export const FILTROS_VACIOS: FiltrosPropiedades = {
   operation: '',
   location: '',

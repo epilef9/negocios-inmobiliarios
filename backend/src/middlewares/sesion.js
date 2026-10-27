@@ -62,4 +62,4 @@ const csrfValido = (req, { porCookie, csrf }) => {
     return crypto.timingSafeEqual(Buffer.from(enviado), Buffer.from(csrf));
 };
 
-module.exports = { establecerSesion, borrarSesion, extraerToken, csrfValido };
+module.exports = { establecerSesion, borrarSesion, extraerToken, csrfValido, leerCookies };

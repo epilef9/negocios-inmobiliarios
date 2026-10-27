@@ -104,6 +104,8 @@ const frenos = {
     contacto: limitar({ nombre: 'contacto', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas consultas seguidas. Probá de nuevo en unos minutos.' }),
     reservas: limitar({ nombre: 'reservas', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas reservas seguidas. Esperá unos minutos o escribinos por WhatsApp.' }),
     documentosSolicitudes: limitar({ nombre: 'documentos-solicitudes', ventanaMinutos: 60, maximo: 72, clave: (req) => String(req.user?._id || ''), mensaje: 'Subiste muchos documentos. Esperá unos minutos antes de volver a intentar.' }),
+    // Contadores de vistas y clics: generoso para una persona, corta a quien los infla a mano
+    estadisticas: limitar({ nombre: 'estadisticas', ventanaMinutos: 10, maximo: 120 }),
     uploads: limitar({ nombre: 'uploads', ventanaMinutos: 10, maximo: 10, mensaje: 'Subiste muchos archivos seguidos. Probá de nuevo en unos minutos.' }),
 };
 

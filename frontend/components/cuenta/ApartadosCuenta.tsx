@@ -6,6 +6,8 @@ import { useFavoritos } from "@/components/sitio/favoritos";
 import { getMisReservas } from "@/services/reservas";
 import { getMisSolicitudes } from "@/services/solicitudes";
 import { getMisSolicitudesPublicacion } from "@/services/solicitudesPublicacion";
+import { getMisVisitas } from "@/services/visitas";
+import { getMisAvisos } from "@/services/avisos";
 
 // Mi cuenta: accesos a cada apartado, con un resumen de lo que hay adentro (cuántas cosas y qué espera respuesta).
 
@@ -43,6 +45,8 @@ export default function ApartadosCuenta() {
   const [reservas, setReservas] = useState<Resumen>(null);
   const [solicitudes, setSolicitudes] = useState<Resumen>(null);
   const [publicaciones, setPublicaciones] = useState<Resumen>(null);
+  const [visitas, setVisitas] = useState<Resumen>(null);
+  const [avisos, setAvisos] = useState<number | null>(null);
 
   useEffect(() => {
     let activo = true;
@@ -52,6 +56,13 @@ export default function ApartadosCuenta() {
       .catch(() => {});
     getMisSolicitudes()
       .then((l) => activo && setSolicitudes({ total: l.length, pendientes: l.filter((s) => s.estado === "pendiente").length }))
+      .catch(() => {});
+    // En visitas, "pendientes" son las que siguen en pie (todavía no pasaron ni se cancelaron)
+    getMisVisitas()
+      .then((l) => activo && setVisitas({ total: l.length, pendientes: l.filter((v) => v.cancelable).length }))
+      .catch(() => {});
+    getMisAvisos()
+      .then((l) => activo && setAvisos(l.length))
       .catch(() => {});
     getMisSolicitudesPublicacion()
       .then((l) => activo && setPublicaciones({ total: l.length, pendientes: l.filter((p) => p.estado === "pendiente").length }))
@@ -77,6 +88,12 @@ export default function ApartadosCuenta() {
           resumen={texto(reservas, "reserva", "reservas", "por confirmar")}
         />
         <Apartado
+          href="/visitas"
+          titulo="Tus visitas"
+          descripcion="Las visitas que pediste para conocer una propiedad. Podés cancelarlas si no vas a poder ir."
+          resumen={texto(visitas, "visita", "visitas", "por venir")}
+        />
+        <Apartado
           href="/solicitudes"
           titulo="Tus solicitudes"
           descripcion="Tus pedidos para alquilar o comprar y los mensajes de la inmobiliaria."
@@ -87,6 +104,12 @@ export default function ApartadosCuenta() {
           titulo="Tus publicaciones"
           descripcion="Las propiedades que nos pediste publicar y en qué estado están."
           resumen={texto(publicaciones, "propiedad", "propiedades", "en revisión")}
+        />
+        <Apartado
+          href="/avisos"
+          titulo="Tus avisos"
+          descripcion="Propiedades que esperás y búsquedas guardadas: te escribimos cuando haya algo."
+          resumen={avisos === null ? null : avisos ? plural(avisos, "aviso activo", "avisos activos") : "Ninguno activo"}
         />
         <Apartado
           href="/favoritos"

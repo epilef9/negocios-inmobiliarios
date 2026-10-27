@@ -5,7 +5,9 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
 import ApartadosCuenta from "@/components/cuenta/ApartadosCuenta";
+import InvitacionIngresar from "@/components/cuenta/InvitacionIngresar";
 import { useAuth } from "@/context/AuthContext";
+import { useConfirmarSalida } from "@/components/sitio/ConfirmarSalida";
 import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
 
 // Estilos del formulario, iguales a los de ingreso y registro
@@ -51,7 +53,8 @@ function Campo({ id, texto, error, ayuda, children }: { id: string; texto: strin
 // Mi cuenta: datos de contacto (email obligatorio) y contraseña. Sirve para clientes y para la administración.
 export default function PerfilPage() {
 	const id = useId();
-	const { user, isLoading, logout, actualizarUsuario } = useAuth();
+	const { user, isLoading, actualizarUsuario } = useAuth();
+	const { pedirSalida, dialogoSalida } = useConfirmarSalida();
 	const [datos, setDatos] = useState<DatosPerfil>(VACIO);
 	const [emailGuardado, setEmailGuardado] = useState("");
 	const [miembroDesde, setMiembroDesde] = useState<string | null>(null);
@@ -155,8 +158,6 @@ export default function PerfilPage() {
 		}
 	};
 
-	const enlaceBoton = "calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white";
-
 	return (
 		<SitioBase pieSimple>
 			<header className="encabezado-color encabezado-azul px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
@@ -171,13 +172,7 @@ export default function PerfilPage() {
 
 			{!isLoading && !user ? (
 				<section className="px-5 pb-24 sm:px-10">
-					<div className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
-						<p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">Ingresá para ver y editar tus datos.</p>
-						<Link href="/login?volver=/perfil" className={enlaceBoton}>
-							<span className="calma-dot" aria-hidden="true" />
-							Ingresar
-						</Link>
-					</div>
+					<InvitacionIngresar ruta="/perfil" />
 				</section>
 			) : (
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
@@ -268,11 +263,17 @@ export default function PerfilPage() {
 									<Link href="/reservas" className={enlaceCuenta}>
 										Tus reservas
 									</Link>
+									<Link href="/visitas" className={enlaceCuenta}>
+										Tus visitas
+									</Link>
 									<Link href="/solicitudes" className={enlaceCuenta}>
 										Tus solicitudes
 									</Link>
 									<Link href="/mis-publicaciones" className={enlaceCuenta}>
 										Tus publicaciones
+									</Link>
+									<Link href="/avisos" className={enlaceCuenta}>
+										Tus avisos
 									</Link>
 								</>
 							)}
@@ -289,9 +290,10 @@ export default function PerfilPage() {
 								Ver propiedades
 							</Link>
 						</nav>
-						<button type="button" onClick={logout} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
+						<button type="button" onClick={pedirSalida} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
 							Cerrar sesión
 						</button>
+						{dialogoSalida}
 					</aside>
 				</div>
 			)}

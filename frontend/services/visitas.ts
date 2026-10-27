@@ -1,6 +1,7 @@
 import { request } from './api';
+import { avisarPendientes } from './panel';
 
-export type EstadoVisita = 'pendiente' | 'confirmada' | 'reprogramada' | 'rechazada';
+export type EstadoVisita = 'pendiente' | 'confirmada' | 'reprogramada' | 'rechazada' | 'cancelada';
 
 export interface Visita {
   id: string;
@@ -22,6 +23,8 @@ export interface Visita {
   estado: EstadoVisita;
   notaAdicional?: string;
   motivoRechazo?: string;
+  // Solo en "Mis visitas": si el cliente todavía la puede cancelar
+  cancelable?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -66,6 +69,7 @@ function normalizeVisita(raw: VisitaCruda): Visita {
     estado: (raw.estado as EstadoVisita) || 'pendiente',
     notaAdicional: raw.notaAdicional || '',
     motivoRechazo: raw.motivoRechazo || '',
+    cancelable: Boolean(raw.cancelable),
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -145,6 +149,7 @@ export async function updateVisitaEstado(
       ...(extra?.motivo !== undefined ? { motivo: extra.motivo } : {}),
     }),
   });
+  avisarPendientes();
   return normalizeVisita(data);
 }
 
@@ -155,6 +160,7 @@ export async function deleteVisita(id: string): Promise<void> {
   await request<void>(`/visitas/${id}`, {
     method: 'DELETE',
   });
+  avisarPendientes();
 }
 
 /**
@@ -167,12 +173,23 @@ export async function resetVisitasToDefault(): Promise<Visita[]> {
   return Array.isArray(data) ? data.map(normalizeVisita) : [];
 }
 
+// HU-34: las visitas que pidió el cliente con su cuenta, y cancelar una que todavía no pasó
+export async function getMisVisitas(): Promise<Visita[]> {
+  const data = await request<VisitaCruda[]>('/visitas/mias');
+  return Array.isArray(data) ? data.map(normalizeVisita) : [];
+}
+
+export async function cancelarVisita(id: string): Promise<Visita> {
+  return normalizeVisita(await request<VisitaCruda>(`/visitas/${id}/cancelar`, { method: 'PATCH', body: JSON.stringify({}) }));
+}
+
 // Aliases para compatibilidad
 export const addVisita = createVisita;
 export const getStoredVisitas = getVisitas;
 
 // Agenda pública para el calendario de "Agendar una visita": estado de cada día y horarios libres
-export type DiaAgenda = { fecha: string; estado: 'disponible' | 'completo' | 'cerrado'; turnos: string[] };
+// `cierre`: el día cae en un feriado o vacaciones cargados en el panel (el texto es el motivo, puede ser vacío)
+export type DiaAgenda = { fecha: string; estado: 'disponible' | 'completo' | 'cerrado'; turnos: string[]; cierre?: string };
 export type Agenda = { dias: DiaAgenda[]; horario: string; hoy: string; hasta: string };
 
 export const getDisponibilidad = (desde: string, hasta: string) =>

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fechaLarga } from '@/components/calendario/fechas';
+import PagoReserva from './PagoReserva';
+import { ESTADO_PAGO, getMisPagos, type Pago } from '@/services/pagos';
 import { cancelarReserva, fechaHoraArgentina, getMisReservas, idPropiedad, usd, type EstadoReserva, type Reserva } from '@/services/reservas';
 
 // Mi cuenta: las reservas de estadías del cliente (HU-20), con el estado en color y qué sigue en cada caso.
@@ -61,6 +63,10 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
   const [aCancelar, setACancelar] = useState<string | null>(null);
   const [cancelando, setCancelando] = useState(false);
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
+  const [pagos, setPagos] = useState<Pago[]>([]);
+  const [pagando, setPagando] = useState<string | null>(null);
+  // Al volver de Mercado Pago llega ?pago=aprobado|pendiente|rechazado (este componente se arma solo en el navegador)
+  const [vueltaPago] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pago') : null));
 
   useEffect(() => {
     let activo = true;
@@ -71,6 +77,9 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
         setAhora(Date.now());
       })
       .catch((e: Error) => activo && setError(e.message || 'No pudimos cargar tus reservas.'));
+    getMisPagos()
+      .then((lista) => activo && setPagos(lista))
+      .catch(() => {});
     return () => {
       activo = false;
     };
@@ -97,6 +106,8 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
   const lista = (reservas ?? [])
     .map((r) => ({ ...r, estado: estadoReal(r) }))
     .sort(comparar(hoy));
+  // El último pago de cada reserva (el más nuevo primero en la lista que manda el servidor)
+  const pagoDe = (id: string) => pagos.find((p) => p.reserva === id && p.estado === 'aprobado') ?? pagos.find((p) => p.reserva === id);
 
   return (
     <section
@@ -111,6 +122,15 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
         </h2>
       )}
 
+      {vueltaPago && (
+        <p role="status" className={`m-0 mb-8 rounded-2xl border px-5 py-4 text-[15px] ${vueltaPago === 'rechazado' ? 'border-[#d9382b]/50 text-[#ffc2bc]' : 'border-[#efe9df]/20 text-[#efe9df]'}`}>
+          {vueltaPago === 'aprobado'
+            ? '¡Listo! Recibimos tu pago. En unos segundos la reserva aparece como pagada y confirmada.'
+            : vueltaPago === 'pendiente'
+              ? 'Tu pago quedó pendiente en Mercado Pago. Te avisamos apenas se acredite.'
+              : 'El pago no se completó. Podés intentarlo de nuevo o pagar por transferencia.'}
+        </p>
+      )}
       {error ? (
         <p role="alert" className="m-0 mt-8 text-[15px] text-[#ff8b80]">
           {error}
@@ -200,6 +220,39 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
                       {r.salida <= hoy ? 'Estadía terminada.' : <>Está confirmada. Te esperamos el {fechaLarga(r.entrada)}.</>}
                     </p>
                   )}
+
+                  {(r.estado === 'pendiente' || r.estado === 'confirmada') && r.salida > hoy && (() => {
+                    const pago = pagoDe(r.id);
+                    if (pago?.estado === 'aprobado') {
+                      return <p className="m-0 text-[15px] text-[#efe9df]">✓ Pagada ({ESTADO_PAGO.aprobado.toLowerCase()} con {pago.metodo === 'mercadopago' ? 'Mercado Pago' : 'transferencia'}).</p>;
+                    }
+                    if (pago?.estado === 'en_revision') {
+                      return <p className="m-0 text-[15px] text-[#efe9df]/80">Recibimos tu comprobante y lo estamos revisando. Mientras tanto las noches siguen guardadas para vos.</p>;
+                    }
+                    return (
+                      <div className="flex flex-col gap-3">
+                        {pago?.estado === 'rechazado' && (
+                          <p className="m-0 text-[14px] text-[#ffc2bc]">
+                            {ESTADO_PAGO.rechazado}
+                            {pago.nota ? `: ${pago.nota}` : ''}. Podés intentarlo de nuevo.
+                          </p>
+                        )}
+                        {pagando === r.id ? (
+                          <PagoReserva
+                            reservaId={r.id}
+                            alSubirComprobante={(nuevo) => {
+                              setPagos((lista) => [nuevo, ...lista]);
+                              setPagando(null);
+                            }}
+                          />
+                        ) : (
+                          <button type="button" onClick={() => setPagando(r.id)} className="calma-micro calma-link cursor-pointer self-start text-[12px] text-[#efe9df]">
+                            Pagar la reserva online
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   {r.estado === 'rechazada' && (
                     <p className="m-0 text-[15px] leading-relaxed text-[#efe9df]/80">

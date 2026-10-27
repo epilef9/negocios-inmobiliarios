@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getDisponibilidad, type Agenda, type DiaAgenda } from '@/services/visitas';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
+import { separarTurnos } from '@/services/agenda';
+import { sumarDias } from '@/components/calendario/fechas';
+import { useContacto } from '@/components/sitio/useAjustes';
 
 // Calendario para elegir día y horario de una visita: muestra qué días hay lugar, cuáles están completos
 // y en cuáles no se atiende; al tocar un día aparecen abajo sus horarios libres.
@@ -18,6 +20,7 @@ const diasDelMes = (anio: number, mes: number) => new Date(anio, mes + 1, 0).get
 const primerDia = (anio: number, mes: number) => (new Date(anio, mes, 1).getDay() + 6) % 7;
 const fechaLarga = (iso: string) =>
   new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+const diaMes = (iso: string) => new Date(`${iso}T12:00:00`).toLocaleDateString('es-AR', { day: 'numeric', month: 'long' });
 
 type Props = {
   fecha: string;
@@ -26,8 +29,11 @@ type Props = {
 };
 
 export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
-  const hoy = new Date();
-  const [vista, setVista] = useState({ anio: hoy.getFullYear(), mes: hoy.getMonth() });
+  const { whatsappUrl } = useContacto();
+  const ahora = new Date();
+  // Hasta que responde el servidor se usa la fecha del navegador; después, la de Argentina (la de la oficina)
+  const [hoy, setHoy] = useState(() => isoDe(ahora.getFullYear(), ahora.getMonth(), ahora.getDate()));
+  const [vista, setVista] = useState({ anio: ahora.getFullYear(), mes: ahora.getMonth() });
   const [agendas, setAgendas] = useState<Record<string, Agenda | 'error'>>({});
   const clave = `${vista.anio}-${vista.mes}`;
   const agenda: Agenda | 'error' | undefined = agendas[clave];
@@ -41,9 +47,16 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
       .then((datos) => {
         if (!activo) return;
         setAgendas((a) => ({ ...a, [clave]: datos }));
-        // Si en lo que queda del primer mes no hay ningún día libre, se pasa solo al siguiente (una vez)
         if (!avanzoSolo.current) {
           avanzoSolo.current = true;
+          setHoy(datos.hoy);
+          // En otro huso el navegador puede estar en otro mes que la oficina: se muestra el de la oficina
+          const mesOficina = { anio: Number(datos.hoy.slice(0, 4)), mes: Number(datos.hoy.slice(5, 7)) - 1 };
+          if (mesOficina.anio !== vista.anio || mesOficina.mes !== vista.mes) {
+            setVista(mesOficina);
+            return;
+          }
+          // Si en lo que queda del primer mes no hay ningún día libre, se pasa solo al siguiente (una vez)
           if (!datos.dias.some((d) => d.estado === 'disponible')) {
             setVista((v) => (v.mes === 11 ? { anio: v.anio + 1, mes: 0 } : { anio: v.anio, mes: v.mes + 1 }));
           }
@@ -61,7 +74,20 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
     return mapa;
   }, [agenda]);
 
-  const esMesActual = vista.anio === hoy.getFullYear() && vista.mes === hoy.getMonth();
+  // Feriados y vacaciones del mes, con los días seguidos del mismo motivo juntos: "24 al 31 de diciembre · Vacaciones"
+  const cierres = useMemo(() => {
+    const grupos: { desde: string; hasta: string; motivo: string }[] = [];
+    if (agenda && agenda !== 'error')
+      agenda.dias.forEach((d) => {
+        if (d.cierre === undefined) return;
+        const ultimo = grupos[grupos.length - 1];
+        if (ultimo && ultimo.motivo === d.cierre && sumarDias(ultimo.hasta, 1) === d.fecha) ultimo.hasta = d.fecha;
+        else grupos.push({ desde: d.fecha, hasta: d.fecha, motivo: d.cierre });
+      });
+    return grupos;
+  }, [agenda]);
+
+  const esMesActual = vista.anio === Number(hoy.slice(0, 4)) && vista.mes === Number(hoy.slice(5, 7)) - 1;
   const limite = agenda && agenda !== 'error' ? agenda.hasta : null;
   const hayMasAdelante = !limite || isoDe(vista.anio, vista.mes, diasDelMes(vista.anio, vista.mes)) < limite;
   const mover = (paso: number) =>
@@ -72,8 +98,8 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
 
   const diaElegido = fecha ? porFecha.get(fecha) : undefined;
   const turnos = diaElegido?.turnos ?? [];
-  const manana = turnos.filter((t) => t < '14:00');
-  const tarde = turnos.filter((t) => t >= '14:00');
+  const { manana, tarde } = separarTurnos(turnos);
+  const turnoElegido = Boolean(horario) && turnos.includes(horario);
 
   const huecos = primerDia(vista.anio, vista.mes);
   const total = diasDelMes(vista.anio, vista.mes);
@@ -122,7 +148,7 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
             <button type="button" onClick={() => setAgendas((a) => Object.fromEntries(Object.entries(a).filter(([k]) => k !== clave)))} className="calma-micro cursor-pointer rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
               Reintentar
             </button>
-            <a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
+            <a href={whatsappUrl} target="_blank" rel="noreferrer" className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] hover:border-[#efe9df]">
               Coordinar por WhatsApp
             </a>
           </div>
@@ -150,7 +176,9 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
                 return <span key={iso} aria-hidden="true" className="aspect-square animate-pulse rounded-xl bg-[#efe9df]/[0.04]" />;
               }
               const esHoy = agenda.hoy === iso;
-              const etiqueta = `${fechaLarga(iso)}: ${estado === 'disponible' ? `${info?.turnos.length} horarios libres` : estado === 'completo' ? 'sin horarios libres' : 'no se atiende'}`;
+              const feriado = info?.cierre !== undefined;
+              const cerradoPor = feriado ? `oficina cerrada${info?.cierre ? ` (${info.cierre})` : ''}` : 'no se atiende';
+              const etiqueta = `${fechaLarga(iso)}: ${estado === 'disponible' ? `${info?.turnos.length} horarios libres` : estado === 'completo' ? 'sin horarios libres' : cerradoPor}`;
               return (
                 <button
                   key={iso}
@@ -158,7 +186,7 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
                   disabled={estado !== 'disponible'}
                   aria-pressed={elegido}
                   aria-label={etiqueta}
-                  title={estado === 'completo' ? 'Sin horarios libres' : estado === 'cerrado' ? 'No se atiende' : undefined}
+                  title={estado === 'completo' ? 'Sin horarios libres' : estado === 'cerrado' ? cerradoPor.charAt(0).toUpperCase() + cerradoPor.slice(1) : undefined}
                   onClick={() => onCambiar({ fecha: iso, horario: '' })}
                   className={`tabular relative flex aspect-square items-center justify-center rounded-xl text-[15px] transition-colors duration-300 ${
                     elegido
@@ -171,7 +199,12 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
                   }`}
                 >
                   {dia}
-                  {esHoy && !elegido && <span aria-hidden="true" className="absolute bottom-1.5 h-1 w-1 rounded-full bg-[#d9382b]" />}
+                  {/* Feriado o vacaciones: una rayita roja; hoy: un punto */}
+                  {feriado ? (
+                    <span aria-hidden="true" className="absolute bottom-1.5 h-[2px] w-3 rounded-full bg-[#d9382b]/80" />
+                  ) : (
+                    esHoy && !elegido && <span aria-hidden="true" className="absolute bottom-1.5 h-1 w-1 rounded-full bg-[#d9382b]" />
+                  )}
                 </button>
               );
             })}
@@ -189,7 +222,23 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
               <span aria-hidden="true" className="text-[#efe9df]/25">12</span>
               No se atiende
             </li>
+            {cierres.length > 0 && (
+              <li className="flex items-center gap-2">
+                <span aria-hidden="true" className="h-[2px] w-3 rounded-full bg-[#d9382b]/80" />
+                Oficina cerrada
+              </li>
+            )}
           </ul>
+          {cierres.length > 0 && (
+            <ul className="m-0 mt-2 flex list-none flex-col gap-1 p-0 text-[12.5px] text-[#efe9df]/60">
+              {cierres.map((c) => (
+                <li key={c.desde}>
+                  Cerrado {c.desde === c.hasta ? `el ${diaMes(c.desde)}` : `del ${Number(c.desde.slice(8))} al ${diaMes(c.hasta)}`}
+                  {c.motivo && <span className="text-[#efe9df]/40"> · {c.motivo}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -201,21 +250,27 @@ export default function CalendarioVisita({ fecha, horario, onCambiar }: Props) {
         ) : (
           <>
             <p className="calma-micro m-0 text-[#efe9df]/70 first-letter:uppercase">Horarios del {fechaLarga(fecha)}</p>
-            {manana.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <span className="text-[13px] text-[#efe9df]/50">Mañana</span>
-                <div className="flex flex-wrap gap-2">{manana.map(turno)}</div>
-              </div>
-            )}
-            {tarde.length > 0 && (
-              <div className="flex flex-col gap-2">
-                <span className="text-[13px] text-[#efe9df]/50">Tarde</span>
-                <div className="flex flex-wrap gap-2">{tarde.map(turno)}</div>
-              </div>
+            {[
+              { nombre: 'Mañana', lista: manana },
+              { nombre: 'Tarde', lista: tarde },
+            ]
+              .filter((g) => g.lista.length > 0)
+              .map((g) => (
+                <div key={g.nombre} className="flex flex-col gap-2">
+                  <span className="text-[13px] text-[#efe9df]/50">
+                    {g.nombre} <span className="text-[#efe9df]/35">· {g.lista.length === 1 ? '1 libre' : `${g.lista.length} libres`}</span>
+                  </span>
+                  <div className="flex flex-wrap gap-2">{g.lista.map(turno)}</div>
+                </div>
+              ))}
+            {turnoElegido && (
+              <p className="font-display m-0 mt-1 flex items-center gap-2.5 text-[20px] leading-snug text-[#efe9df]">
+                <span className="calma-dot" aria-hidden="true" />
+                Te esperamos el {fechaLarga(fecha)} a las {horario} h.
+              </p>
             )}
           </>
         )}
-        {agenda && agenda !== 'error' && <p className="m-0 text-[12.5px] text-[#efe9df]/45">Atención: {agenda.horario}.</p>}
       </div>
     </div>
   );

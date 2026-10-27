@@ -10,6 +10,7 @@ export interface ConsultaPayload {
   telefono?: string;
   motivo?: string;
   mensaje: string;
+  captchaToken?: string;
 }
 
 export async function enviarConsulta(payload: ConsultaPayload): Promise<void> {

@@ -157,7 +157,8 @@ const crearReserva = async ({ usuario, propiedad: propiedadId, entrada, salida, 
 };
 
 // Confirma una pendiente. Si ya venció (o venció y el barrido la marcó), se reactiva solo si las noches siguen libres.
-const confirmar = async (id) => {
+// `por` y `nota`: quién la confirma (el administrador, o el sistema cuando se acredita el pago online)
+const confirmar = async (id, { por = 'admin', nota = '' } = {}) => {
     idValido(id);
     const previa = await Reserva.findById(id).select('propiedad').lean();
     if (!previa) throw ApiError.notFound('Reserva no encontrada');
@@ -190,8 +191,8 @@ const confirmar = async (id) => {
         reserva.historial.push({
             estado: 'confirmada',
             fecha: ahora,
-            por: 'admin',
-            nota: fueraDePlazo ? 'Confirmada fuera de plazo: las noches seguían libres' : '',
+            por,
+            nota: nota || (fueraDePlazo ? 'Confirmada fuera de plazo: las noches seguían libres' : ''),
         });
         await reserva.save({ session });
         return reserva;
@@ -227,6 +228,11 @@ const rechazar = async (id, motivo) => {
 // El cliente cancela una reserva suya que todavía no se confirmó
 const cancelar = async (id, usuarioId) => {
     idValido(id);
+    // Con un pago acreditado o un comprobante en revisión ya no se cancela solo: hay que hablar con la inmobiliaria
+    const Pago = require('../models/pago.model');
+    if (await Pago.exists({ reserva: id, estado: { $in: ['aprobado', 'en_revision'] } })) {
+        throw new ApiError(409, 'Esta reserva tiene un pago registrado. Para cancelarla escribinos y vemos la devolución.');
+    }
     const reserva = await cerrarPendiente({ _id: id, 'cliente.usuario': usuarioId }, 'cancelada', 'cliente', 'Cancelada por el cliente');
     if (reserva) return reserva;
     const actual = await Reserva.findOne({ _id: id, 'cliente.usuario': usuarioId }).select('estado').lean();

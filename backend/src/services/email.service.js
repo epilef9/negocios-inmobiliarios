@@ -170,7 +170,37 @@ const avisarEstadoSolicitud = ({ para, nombre, estado, mensaje, enlace }) => env
     html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Tu solicitud ahora está <b>${escapar(estado)}</b>.</p>${mensaje ? `<p>Último mensaje del administrador:</p><p style="white-space:pre-wrap;overflow-wrap:anywhere">${escapar(mensaje)}</p>` : ''}<p><a href="${escapar(enlace)}">Consultá Mis solicitudes</a></p>`,
 });
 
+// Aviso interno a la inmobiliaria (al mismo correo que recibe las consultas): un título, filas de datos y
+// un enlace opcional al panel
+const avisarInmobiliaria = ({ asunto, intro, filas = [], enlace, boton = 'Abrir el panel' }) => {
+    const para = config.mailConfig().contactoPara;
+    if (!para && config.enProduccion()) throw new Error('Falta CONTACT_TO (el correo de la inmobiliaria)');
+    return enviar({
+        para: para || 'consultas@localhost',
+        asunto,
+        texto: `${intro}\n\n${filas.map(([k, v]) => `${k}: ${v}`).join('\n')}${enlace ? `\n\n${enlace}` : ''}`,
+        html: `<p>${escapar(intro)}</p><table>${filas.map(([k, v]) => `<tr><td><b>${escapar(k)}</b></td><td>${escapar(v)}</td></tr>`).join('')}</table>${
+            enlace ? `<p><a href="${escapar(enlace)}">${escapar(boton)}</a></p>` : ''
+        }`,
+    });
+};
+
+// Mail simple a un cliente: saludo, párrafos y un botón opcional
+const avisarCliente = ({ para, nombre, asunto, parrafos, boton, enlace, pie }) =>
+    enviar({
+        para,
+        asunto,
+        texto: `Hola${nombre ? ` ${nombre}` : ''},\n\n${parrafos.join('\n\n')}${enlace ? `\n\n${boton || 'Abrir'}: ${enlace}` : ''}${pie ? `\n\n${pie}` : ''}`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p>${parrafos.map((p) => `<p style="white-space:pre-wrap">${escapar(p)}</p>`).join('')}${
+            enlace
+                ? `<p><a href="${escapar(enlace)}" style="display:inline-block;padding:12px 22px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px">${escapar(boton || 'Abrir')}</a></p>`
+                : ''
+        }${pie ? `<p style="color:#666;font-size:13px">${escapar(pie)}</p>` : ''}`,
+    });
+
 module.exports = {
+    avisarInmobiliaria,
+    avisarCliente,
     avisarEstadoSolicitud,
     enviar,
     enviarVerificacion,

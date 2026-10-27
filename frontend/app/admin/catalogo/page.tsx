@@ -102,6 +102,7 @@ export default function OrdenCatalogoPage() {
   return (
     <>
       <Encabezado
+        volver={{ href: '/admin/configuracion', texto: 'Configuración' }}
         titulo="Orden del catálogo"
         descripcion="Así se ordenan las propiedades en el sitio. Arrastralas o usá las flechas y después guardá."
         acciones={

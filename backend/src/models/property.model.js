@@ -69,7 +69,8 @@ const propertySchema = new mongoose.Schema({
     linkGoogleMaps: String,
     latitud: String,
     longitud: String,
-    permitirVisita: Boolean,
+    // Sin valor cuenta como sí (las cargadas antes de la casilla también admiten visitas)
+    permitirVisita: { type: Boolean, default: true },
     permitirWhatsApp: Boolean,
     permitirEmail: Boolean,
     horarioAtencion: String,
@@ -91,6 +92,21 @@ const propertySchema = new mongoose.Schema({
         enum: ['disponible', 'reservado', 'alquilado', 'vendido'],
         default: 'disponible',
     },
+    // HU-12: descuento por tiempo limitado y plan de financiación propio de la propiedad
+    descuento: {
+        porcentaje: { type: Number, min: 0, max: 90, default: 0 },
+        hasta: { type: Date, default: null },
+        motivo: { type: String, trim: true, default: '' },
+    },
+    financiacion: {
+        disponible: { type: Boolean, default: false },
+        anticipoPorcentaje: { type: Number, min: 0, max: 100, default: 0 },
+        cuotas: { type: Number, min: 0, max: 360, default: 0 },
+        tasa: { type: String, trim: true, default: '' },
+        detalle: { type: String, trim: true, default: '' },
+    },
+    // HU-13: hasta cuándo dura la reserva con seña (se muestra en la ficha mientras está «Reservada»)
+    reservadaHasta: { type: Date, default: undefined },
     orden: {
         type: Number,
         default: 0,

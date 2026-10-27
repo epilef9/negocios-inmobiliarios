@@ -17,6 +17,7 @@ import {
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso } from '@/components/panel/ui';
 import { ESTADO_RESERVA, estadoDe } from '@/components/panel/estados';
+import { ESTADO_PAGO, aprobarPago, getPagosAdmin, pesos, rechazarPago, urlComprobante, type PagoAdmin } from '@/services/pagos';
 
 // Reservas de estadías hechas desde el sitio (HU-20). Las pendientes retienen las noches hasta que vencen:
 // se confirman (pasan a ocupadas) o se rechazan (se liberan). Una vencida se puede confirmar igual si
@@ -107,8 +108,14 @@ export default function ReservasAdminPage() {
   const [motivo, setMotivo] = useState('');
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const { mostrar, aviso } = useAviso();
+  const [pagos, setPagos] = useState<PagoAdmin[]>([]);
+  const [notaPago, setNotaPago] = useState('');
+  const pagoDe = (reservaId: string) => pagos.find((p) => p.reserva === reservaId && p.estado === 'aprobado') ?? pagos.find((p) => p.reserva === reservaId);
 
   const cargar = useCallback(() => {
+    getPagosAdmin()
+      .then(setPagos)
+      .catch(() => {});
     getReservas()
       .then((lista) => {
         setReservas(lista);
@@ -302,6 +309,9 @@ export default function ReservasAdminPage() {
                     <span className="min-w-0 truncate text-[13.5px] text-panel-suave">{r.tituloPropiedad || 'Propiedad sin título'}</span>
                     <span className="flex flex-wrap items-center gap-2 xl:flex-col xl:items-start xl:gap-1">
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
+                      {pagoDe(r.id) && (pagoDe(r.id)?.estado === 'aprobado' || pagoDe(r.id)?.estado === 'en_revision') && (
+                        <Insignia tono={pagoDe(r.id)?.estado === 'aprobado' ? 'exito' : 'aviso'}>{ESTADO_PAGO[pagoDe(r.id)!.estado]}</Insignia>
+                      )}
                       {situacion(r)}
                     </span>
                     <span className="tabular text-[13.5px] font-medium xl:text-right">{usd(r.totalUSD)}</span>
@@ -438,6 +448,79 @@ export default function ReservasAdminPage() {
                 </>
               )}
             </dl>
+
+            {pagos.some((p) => p.reserva === d.id) && (
+              <div className="flex flex-col gap-3 border-t border-panel-borde pt-4">
+                <h3 className="m-0 text-[13px] font-semibold text-panel-suave">Pagos</h3>
+                <ul className="m-0 flex list-none flex-col gap-3 p-0 text-[13.5px]">
+                  {pagos
+                    .filter((p) => p.reserva === d.id)
+                    .map((p) => (
+                      <li key={p.id} className="flex flex-col gap-2 rounded-lg border border-panel-borde p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Insignia tono={p.estado === 'aprobado' ? 'exito' : p.estado === 'en_revision' ? 'aviso' : p.estado === 'rechazado' ? 'peligro' : 'neutro'}>{ESTADO_PAGO[p.estado]}</Insignia>
+                          <span>{p.metodo === 'mercadopago' ? 'Mercado Pago' : 'Transferencia'}</span>
+                          <span className="tabular text-panel-suave">
+                            {pesos(p.montoARS)} · {fechaHoraArgentina(p.createdAt)}
+                          </span>
+                          {p.tieneComprobante && (
+                            <a href={urlComprobante(p.id)} target="_blank" rel="noreferrer" className="text-panel-acento hover:underline">
+                              Ver comprobante
+                            </a>
+                          )}
+                        </div>
+                        {p.nota && <p className="m-0 text-panel-suave">{p.nota}</p>}
+                        {p.estado === 'en_revision' && (
+                          <div className="flex flex-wrap items-center gap-2">
+                            <input aria-label="Nota para el cliente (opcional)" value={notaPago} onChange={(e) => setNotaPago(e.target.value)} maxLength={300} placeholder="Nota (opcional, la ve el cliente si se rechaza)" className={`${control} min-w-0 flex-1`} />
+                            <Boton
+                              tamano="sm"
+                              variante="principal"
+                              icono="check"
+                              cargando={trabajando === p.id}
+                              onClick={async () => {
+                                setTrabajando(p.id);
+                                try {
+                                  await aprobarPago(p.id, notaPago);
+                                  mostrar('Pago confirmado. La reserva quedó confirmada.');
+                                  setNotaPago('');
+                                  cargar();
+                                } catch (e) {
+                                  mostrar(e instanceof Error ? e.message : 'No se pudo confirmar el pago', 'peligro');
+                                } finally {
+                                  setTrabajando(null);
+                                }
+                              }}
+                            >
+                              Confirmar pago
+                            </Boton>
+                            <Boton
+                              tamano="sm"
+                              variante="peligro"
+                              cargando={trabajando === `${p.id}-r`}
+                              onClick={async () => {
+                                setTrabajando(`${p.id}-r`);
+                                try {
+                                  await rechazarPago(p.id, notaPago);
+                                  mostrar('Comprobante rechazado. Le avisamos al cliente.');
+                                  setNotaPago('');
+                                  cargar();
+                                } catch (e) {
+                                  mostrar(e instanceof Error ? e.message : 'No se pudo rechazar', 'peligro');
+                                } finally {
+                                  setTrabajando(null);
+                                }
+                              }}
+                            >
+                              Rechazar
+                            </Boton>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                </ul>
+              </div>
+            )}
 
             <div className="flex flex-col gap-2 border-t border-panel-borde pt-4">
               <h3 className="m-0 text-[13px] font-semibold text-panel-suave">Historial</h3>

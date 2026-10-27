@@ -20,8 +20,16 @@ router.use('/visitas', visitasRoutes);
 router.use('/solicitudes', solicitudesRoutes);
 router.use('/disponibilidad', require('./disponibilidad.routes'));
 router.use('/reservas', require('./reservas.routes'));
+router.use('/agenda', require('./agenda.routes'));
 router.use('/contacto', require('./contacto.routes'));
 router.use('/solicitudes-publicacion', require('./solicitudPublicacion.routes'));
 router.use('/requisitos', require('./requisitos.routes'));
+router.use('/senas', require('./reservasPropiedad.routes'));
+router.use('/ajustes', require('./ajustes.routes'));
+router.use('/estadisticas', require('./estadisticas.routes'));
+router.use('/cron', require('./cron.routes'));
+router.use('/avisos', require('./avisos.routes'));
+router.use('/pagos', require('./pagos.routes'));
+router.use('/panel', require('./panel.routes'));
 
 module.exports = router;
