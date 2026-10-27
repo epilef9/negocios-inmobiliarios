@@ -31,9 +31,9 @@ const instrumentSerif = Instrument_Serif({
 });
 
 export const metadata: Metadata = {
-  title: "Negocios Inmobiliarios | Villa Libertador San Martín, Entre Ríos",
+  title: "Araceli Balbuena Negocios Inmobiliarios | Villa Libertador San Martín, Entre Ríos",
   description:
-    "Casas, departamentos y terrenos en venta y alquiler en Villa Libertador San Martín, Crespo y Diamante. Asesoramiento personalizado.",
+    "Casas, departamentos, locales y terrenos en venta y alquiler, y alojamientos por días en Villa Libertador San Martín, Crespo y Diamante. Atención en persona.",
 };
 
 import { AuthProvider } from "../context/AuthContext";

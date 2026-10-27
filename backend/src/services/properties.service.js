@@ -61,7 +61,9 @@ const createProperty = async (propertyData) => {
 const CAMPOS_DE_PRECIO = ['price', 'priceARS', 'moneda', 'cotizacionDolar'];
 const updateProperty = async (id, propertyData) => {
     const cambiaPrecio = CAMPOS_DE_PRECIO.some((campo) => propertyData[campo] !== undefined);
-    return propertiesRepository.updateProperty(id, cambiaPrecio ? normalizePropertyPrices(propertyData) : propertyData);
+    const propiedad = await propertiesRepository.updateProperty(id, cambiaPrecio ? normalizePropertyPrices(propertyData) : propertyData);
+    await require('./solicitudes-ciclo.service').cerrarPorPropiedad(propiedad);
+    return propiedad;
 };
 
 const deleteProperty = async (id) => {

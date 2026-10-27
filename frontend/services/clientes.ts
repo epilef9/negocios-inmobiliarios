@@ -1,3 +1,4 @@
+import { conSesion } from './sesion';
 // Panel de clientes del administrador: propietarios e inquilinos vinculados a propiedades
 
 const API_URL =
@@ -16,14 +17,9 @@ export class YaAsignadoError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   const response = await fetch(`${API_URL}${path}`, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
-    },
+    ...conSesion(options, { 'Content-Type': 'application/json', ...(options.headers as Record<string, string> | undefined) }),
   });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
@@ -65,14 +61,19 @@ export interface PropiedadParaAsignar {
   direccion: string;
   estado: string;
   propietario: string | null;
+  propietarioUsuarioId: string | null;
+  propietarioNombre: string | null;
+  propietarioDni: string;
   inquilino: string | null;
 }
 
 export interface UsuarioRegistrado {
   id: string;
   nombre: string;
+  apellido: string;
   email: string;
   telefono: string;
+  dni: string;
   emailVerificado: boolean;
   creadoEn: string | null;
 }

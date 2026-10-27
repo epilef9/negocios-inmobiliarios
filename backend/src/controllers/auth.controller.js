@@ -3,6 +3,7 @@
 
 const mongoose = require('mongoose');
 const authService = require('../services/auth.service');
+const { establecerSesion, borrarSesion } = require('../middlewares/sesion');
 const User = require('../models/user.model');
 const Property = require('../models/property.model');
 
@@ -32,11 +33,11 @@ exports.register = async (req, res) => {
 // Confirma el email con el enlace recibido y deja la sesión iniciada
 exports.verifyEmail = async (req, res) => {
     try {
-        const result = await authService.verifyEmail(req.body && req.body.token);
+        const { token, ...result } = await authService.verifyEmail(req.body && req.body.token);
+        establecerSesion(res, token);
         res.status(200).json({
             message: 'Email confirmado',
             data: result,
-            token: result.token,
             user: result.user
         });
     } catch (error) {
@@ -72,11 +73,11 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const result = await authService.login(email, password);
+        const { token, ...result } = await authService.login(email, password);
+        establecerSesion(res, token);
         res.status(200).json({
             message: 'Inicio de sesion exitoso',
             data: result,
-            token: result.token,
             user: result.user
         });
     } catch (error) {
@@ -97,6 +98,7 @@ exports.me = async (req, res) => {
             id: user._id,
             nombre: user.nombre,
             apellido: user.apellido,
+            dni: user.dni || '',
             telefono: user.telefono,
             email: user.email,
             role: user.role,
@@ -240,6 +242,7 @@ exports.quitarFavorito = async (req, res) => {
 
 // Cierre de sesion
 exports.logout = (req, res) => {
+    borrarSesion(res);
     res.status(200).json({ message: 'Cierre de sesion exitoso' });
 };
 
@@ -305,8 +308,9 @@ exports.restablecerPassword = async (req, res) => {
 // Confirmar el email nuevo con el enlace que llegó a esa casilla
 exports.confirmarCambioEmail = async (req, res) => {
     try {
-        const resultado = await authService.confirmarCambioEmail(req.body && req.body.token);
-        res.status(200).json({ message: 'Email actualizado', data: resultado, token: resultado.token, user: resultado.user });
+        const { token, ...resultado } = await authService.confirmarCambioEmail(req.body && req.body.token);
+        establecerSesion(res, token);
+        res.status(200).json({ message: 'Email actualizado', data: resultado, user: resultado.user });
     } catch (error) {
         const status = error.statusCode || 500;
         if (status === 500) console.error('[email] Error al confirmar el cambio:', error.message);

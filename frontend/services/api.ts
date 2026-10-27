@@ -1,22 +1,23 @@
+import { conSesion } from "./sesion";
+
 export const API_URL =
 	process.env.NEXT_PUBLIC_API_URL ??
 	(process.env.NODE_ENV === "production" ? "/api" : "http://localhost:4000/api");
 
 // Función base para comunicarse con la API
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
 	const response = await fetch(`${API_URL}${path}`, {
 		...options,
-		headers: {
+		...conSesion(options, {
 			...(isFormData ? {} : { "Content-Type": "application/json" }),
-			...(token ? { Authorization: `Bearer ${token}` } : {}),
-			...options.headers,
-		},
+			...(options.headers as Record<string, string> | undefined),
+		}),
 	});
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
-		const details = Array.isArray(body.errors) ? `: ${body.errors.join("; ")}` : "";
+		const errores = Array.isArray(body.errores) ? body.errores : body.errors;
+		const details = Array.isArray(errores) ? `: ${errores.join("; ")}` : "";
 		// `code` (si el servidor lo manda) permite reaccionar a un error puntual, por ejemplo HORARIO_NO_DISPONIBLE
 		throw Object.assign(new Error(`${body.message ?? "No se pudo completar la operación"}${details}`), { code: body.code as string | undefined });
 	}
@@ -44,6 +45,8 @@ export type ApiProperty = {
 	pisoUnidad?: string;
 	images?: string[];
 	categoria_operacion?: "venta" | "alquiler" | "temporario";
+	operacionesSolicitud?: ("venta" | "alquiler")[];
+	permitirSolicitudes?: boolean;
 	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
 	cantidad_ambientes?: number;
 	comodidades?: string[];

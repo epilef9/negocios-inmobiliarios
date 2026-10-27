@@ -6,6 +6,7 @@ const authRoutes = require('./auth.routes');
 const localidadesRoutes = require('./localidades.routes');
 const contratosRoutes = require('./contratos.routes');
 const visitasRoutes = require('./visitas.routes');
+const solicitudesRoutes = require('./solicitudes.routes');
 
 const router = express.Router();
 
@@ -16,9 +17,12 @@ router.use('/auth', authRoutes);
 router.use('/localidades', localidadesRoutes);
 router.use('/contratos', contratosRoutes);
 router.use('/visitas', visitasRoutes);
+router.use('/solicitudes', solicitudesRoutes);
 router.use('/disponibilidad', require('./disponibilidad.routes'));
 router.use('/reservas', require('./reservas.routes'));
 router.use('/agenda', require('./agenda.routes'));
 router.use('/contacto', require('./contacto.routes'));
+router.use('/solicitudes-publicacion', require('./solicitudPublicacion.routes'));
+router.use('/requisitos', require('./requisitos.routes'));
 
 module.exports = router;

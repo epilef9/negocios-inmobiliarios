@@ -5,8 +5,10 @@ const mongoose = require('mongoose');
 const personaSchema = new mongoose.Schema({
     usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
     nombre: { type: String, trim: true },
+    apellido: { type: String, trim: true },
     email: { type: String, trim: true, lowercase: true },
     telefono: { type: String, trim: true },
+    dni: { type: String, trim: true },
 }, { _id: false });
 
 const propertySchema = new mongoose.Schema({
@@ -14,6 +16,8 @@ const propertySchema = new mongoose.Schema({
     // así las consultas públicas del catálogo nunca los devuelven (RNF-05).
     propietario: { type: personaSchema, select: false },
     inquilino: { type: personaSchema, select: false },
+    // Solicitud de publicación que dio origen a esta propiedad: de ahí sale el dueño para los contratos.
+    publicacion: { type: mongoose.Schema.Types.ObjectId, ref: 'SolicitudPublicacion' },
     title: {
         type: String,
         required: true,
@@ -46,6 +50,11 @@ const propertySchema = new mongoose.Schema({
         type: String,
         enum: ['venta', 'alquiler', 'temporario'],
     },
+    operacionesSolicitud: {
+        type: [{ type: String, enum: ['venta', 'alquiler'] }],
+        default: [],
+    },
+    permitirSolicitudes: { type: Boolean, default: true },
     tipo_inmueble: {
         type: String,
         enum: ['departamento', 'local', 'casa', 'monoambiente', 'terreno'],
@@ -99,6 +108,10 @@ const propertySchema = new mongoose.Schema({
     area: {
         type: Number,
         required: true,
+        min: 0,
+    },
+    superficieCubierta: {
+        type: Number,
         min: 0,
     },
     images: [{

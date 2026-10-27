@@ -400,10 +400,130 @@ html.dark .panel {
   background: linear-gradient(160deg, #143a9e 0%, #0d2a6e 45%, #0b2048 100%);
 }
 
+/* ===== Mapa de las localidades (home) ===== */
+/* Foto satelital un poco apagada para que los "+" y los textos resalten sobre el azul del sitio */
+.mapa-zonas .leaflet-container { background: #071733; font-family: inherit; outline: none; }
+.mapa-zonas .leaflet-tile-pane { filter: saturate(0.9) brightness(0.8) contrast(1.06); }
+.mapa-zonas .leaflet-control-attribution {
+  margin: 0 10px 6px 0; padding: 0;
+  background: transparent; color: rgba(239, 233, 223, 0.38); font-size: 9px; letter-spacing: 0.02em;
+  transition: color 0.3s;
+}
+.mapa-zonas .leaflet-control-attribution:hover { color: rgba(239, 233, 223, 0.8); }
+.mapa-zonas .leaflet-control-attribution a { color: inherit; }
+.mapa-pin { display: grid; place-items: center; cursor: pointer; }
+.mapa-pin:focus-visible { outline: none; }
+.mapa-pin-boton {
+  position: relative; display: grid; place-items: center; width: 30px; height: 30px; border-radius: 999px;
+  background: #efe9df; color: #071733; font-size: 20px; line-height: 1; font-weight: 300;
+  box-shadow: 0 6px 18px -4px rgba(0, 0, 0, 0.55);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.3s, color 0.3s;
+}
+.mapa-pin-anillo {
+  position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid rgba(239, 233, 223, 0.85);
+  animation: mapa-latido 2.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+.mapa-pin:hover .mapa-pin-boton,
+.mapa-pin:focus-visible .mapa-pin-boton,
+.mapa-pin.es-activo .mapa-pin-boton { background: #e3141b; color: #fff; transform: scale(1.15); }
+.mapa-pin:focus-visible .mapa-pin-boton { box-shadow: 0 0 0 3px #071733, 0 0 0 5px #efe9df; }
+.mapa-pin.es-activo .mapa-pin-anillo { border-color: #e3141b; }
+/* Rayitas del "+": con la tarjeta fijada, la vertical gira hasta acostarse y queda un "−" */
+.mapa-pin-raya {
+  position: absolute; left: 50%; top: 50%; width: 12px; height: 1.6px; margin: -0.8px 0 0 -6px;
+  border-radius: 2px; background: currentColor;
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mapa-pin-raya-v { transform: rotate(90deg); }
+.mapa-pin.es-fijo .mapa-pin-raya-v { transform: rotate(180deg); }
+@keyframes mapa-latido {
+  from { transform: scale(0.75); opacity: 0.9; }
+  to { transform: scale(1.45); opacity: 0; }
+}
+/* Nombre de la localidad: aparece mientras el mapa termina de llegar */
+.mapa-zona-nombre { animation: mapa-nombre 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.6s both; text-shadow: 0 4px 30px rgba(7, 23, 51, 0.8); }
+@keyframes mapa-nombre {
+  from { opacity: 0; transform: translateY(24px); filter: blur(8px); }
+  to { opacity: 1; transform: none; filter: none; }
+}
+.mapa-tarjeta { animation: mapa-tarjeta 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes mapa-tarjeta {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mapa-pin-anillo, .mapa-zona-nombre, .mapa-tarjeta { animation: none; }
+  .mapa-pin-raya { transition: none; }
+  .mapa-pin-anillo { opacity: 0.6; }
+}
+
 /* Al imprimir el generador de contratos sale solo el documento */
 @media print {
   body * { visibility: hidden !important; }
   #documento-contrato, #documento-contrato * { visibility: visible !important; }
   #documento-contrato { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; box-shadow: none; padding: 0; }
   #documento-contrato mark { background: none !important; color: inherit !important; }
+}
+
+/* ===== Filtros del catálogo: chips de filtros aplicados y botón Limpiar ===== */
+.filtro-chip, .filtro-limpiar { animation: filtro-entra 0.35s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes filtro-entra {
+  from { opacity: 0; transform: translateY(4px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .filtro-chip, .filtro-limpiar { animation: none; }
+}
+
+/* ===== Barra superior de vidrio esmerilado ===== */
+/* El vidrio va en un ::before que se desvanece hacia abajo (mask), así no se nota el borde del recuadro:
+   la foto se ve desenfocada arriba y nítida otra vez a medida que baja. El logo se despega del fondo
+   con un halo fino (.barra-logo). */
+.barra-vidrio {
+  text-shadow: 0 1px 12px rgba(7, 23, 51, 0.5);
+  translate: 0 0;
+  /* Al volver: entra deslizándose en 0,7 s, frenando al final.
+     Ojo: la barra en sí nunca cambia de opacidad. Si lo hiciera, Chrome apaga el desenfoque del vidrio
+     mientras dura la animación y aparece de golpe al final. Lo que se desvanece es el contenido (> *). */
+  transition: translate 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.barra-vidrio > * {
+  opacity: 1;
+  transition: opacity 0.55s ease-out;
+}
+.barra-vidrio::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 -28px 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(7, 23, 51, 0.1), rgba(7, 23, 51, 0));
+  -webkit-backdrop-filter: blur(10px) saturate(1.3);
+  backdrop-filter: blur(10px) saturate(1.3);
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  transition: background-color 0.6s ease;
+}
+/* Al bajar por la página el vidrio se oscurece apenas para que el texto se lea sobre partes claras */
+/* Halo claro y fino alrededor del logo: devuelve el contraste al azul sin agrandar la mancha blanca */
+.barra-logo { filter: drop-shadow(0 0 1px rgba(255, 255, 255, 0.7)) drop-shadow(0 0 8px rgba(250, 247, 242, 0.35)); }
+.barra-vidrio.con-fondo::before { background-color: rgba(7, 23, 51, 0.18); }
+/* Al irse: sube y se desvanece un poco más rápido, acelerando de a poco. Sube un poco más que su alto
+   para que tampoco quede a la vista el borde desvanecido del vidrio ni el logo que sobresale. */
+.barra-vidrio.es-oculta {
+  translate: 0 calc(-100% - 60px);
+  pointer-events: none;
+  transition: translate 0.6s cubic-bezier(0.55, 0, 0.75, 0.3);
+}
+.barra-vidrio.es-oculta > * {
+  opacity: 0;
+  transition: opacity 0.4s ease-in;
+}
+/* Si el navegador no desenfoca, el vidrio va más oscuro para que se lean los textos */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .barra-vidrio::before { background-color: rgba(7, 23, 51, 0.8); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-vidrio, .barra-vidrio.es-oculta { transition: none; }
+  .barra-vidrio > *, .barra-vidrio.es-oculta > * { transition: opacity 0.2s linear; }
 }

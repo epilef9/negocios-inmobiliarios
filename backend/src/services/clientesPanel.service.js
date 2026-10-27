@@ -38,8 +38,8 @@ const resumenPropiedad = (p) => ({
 const panel = async () => {
     const [propiedades, usuarios, contratos] = await Promise.all([
         Property.find().select('+propietario +inquilino').sort({ orden: 1, createdAt: -1 }).lean(),
-        User.find({ role: 'cliente' }).select('nombre apellido email telefono emailVerificado createdAt').sort({ nombre: 1 }).lean(),
-        Contrato.find({ estado: { $in: ['activo', 'por_vencer'] } }).lean(),
+        User.find({ role: 'cliente' }).select('nombre apellido email telefono dni emailVerificado createdAt').sort({ nombre: 1 }).lean(),
+        Contrato.find({ estado: { $in: ['activo', 'firmado', 'por_vencer'] } }).lean(),
     ]);
 
     const usuarioPorEmail = new Map(usuarios.map((u) => [normalizar(u.email), u]));
@@ -77,6 +77,9 @@ const panel = async () => {
     const sinPropietario = [];
     const propiedadesParaElegir = propiedades.map((p) => {
         const base = resumenPropiedad(p);
+        const usuarioPropietario = p.propietario?.usuario
+            ? usuarioPorId.get(String(p.propietario.usuario))
+            : null;
 
         // El inquilino sale de la propiedad; si no está cargado, del contrato vigente de esa propiedad
         let inquilino = p.inquilino && (p.inquilino.nombre || p.inquilino.usuario) ? { ...p.inquilino } : null;
@@ -108,6 +111,11 @@ const panel = async () => {
         return {
             ...base,
             propietario: p.propietario && (p.propietario.nombre || p.propietario.usuario) ? entrada(p.propietario).id : null,
+            propietarioUsuarioId: usuarioPropietario ? String(usuarioPropietario._id) : null,
+            propietarioNombre: usuarioPropietario
+                ? `${usuarioPropietario.nombre || ''} ${usuarioPropietario.apellido || ''}`.trim() || usuarioPropietario.email
+                : p.propietario?.nombre || null,
+            propietarioDni: usuarioPropietario?.dni || '',
             inquilino: inquilinoVisible ? entrada(inquilinoVisible).id : null,
         };
     });
@@ -118,9 +126,11 @@ const panel = async () => {
         propiedades: propiedadesParaElegir,
         usuarios: usuarios.map((u) => ({
             id: String(u._id),
-            nombre: `${u.nombre || ''} ${u.apellido || ''}`.trim() || u.email,
+            nombre: u.nombre || '',
+            apellido: u.apellido || '',
             email: u.email,
             telefono: u.telefono || '',
+            dni: u.dni || '',
             emailVerificado: u.emailVerificado !== false,
             creadoEn: u.createdAt || null,
         })),
@@ -209,10 +219,10 @@ const asignar = async (propertyId, rol, persona, reemplazar = false) => {
         }
     }
 
-    // Tener inquilino implica que está alquilada; una propiedad vendida no se puede alquilar
+    // Tener inquilino implica que está alquilada. Una propiedad vendida también se puede alquilar:
+    // el dueño que la compró se la alquila a alguien, y pasa a figurar como alquilada.
     const cambios = { updatedAt: Date.now() };
     if (rol === 'inquilino') {
-        if (valor && propiedad.estado === 'vendido') throw errorHttp('Una propiedad vendida no puede tener inquilino.', 400);
         if (valor && propiedad.estado !== 'alquilado') cambios.estado = 'alquilado';
         if (!valor && propiedad.estado === 'alquilado') cambios.estado = 'disponible';
     }

@@ -70,7 +70,6 @@ export default function AdminInicioPage() {
   const propiedades = datos?.propiedades ?? [];
   const visitas = datos?.visitas ?? [];
   const contratos = datos?.contratos ?? [];
-
   const pendientes = visitas.filter((v) => v.estado === 'pendiente');
   const ahora = new Date();
   ahora.setHours(0, 0, 0, 0);
@@ -193,7 +192,7 @@ export default function AdminInicioPage() {
               <div className="flex flex-col p-2">
                 <Acceso href="/admin/catalogo" icono="catalogo" titulo="Ordenar el catálogo" texto="Qué propiedad se ve primero en el sitio." />
                 <Acceso href="/propiedades" icono="sitio" titulo="Ver el catálogo público" texto="Como lo ven los clientes." />
-                <Acceso href="/admin/configuracion" icono="configuracion" titulo="Configuración" texto="Tema y colores del panel." />
+                <Acceso href="/admin/requisitos" icono="contratos" titulo="Requisitos" texto="Listas que ven los clientes en la página pública." />
               </div>
             </Tarjeta>
           </div>

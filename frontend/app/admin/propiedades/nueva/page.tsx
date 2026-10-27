@@ -19,6 +19,10 @@ const SelectorUbicacionMapa = dynamic(
   }
 );
 
+type OperacionSolicitud = "venta" | "alquiler";
+const operacionSolicitable = (categoria: string): OperacionSolicitud | null =>
+  categoria === "venta" || categoria === "alquiler" ? categoria : null;
+
 export default function NuevaPropiedadPage() {
   const router = useRouter();
   const [mensaje, setMensaje] = useState("");
@@ -59,6 +63,8 @@ export default function NuevaPropiedadPage() {
     permitirVisita: true,
     permitirWhatsApp: true,
     permitirEmail: true,
+    permitirSolicitudes: true,
+    operacionesSolicitud: [] as ("venta" | "alquiler")[],
     horarioAtencion: "",
     telefonoWhatsApp: "",
 
@@ -179,6 +185,12 @@ export default function NuevaPropiedadPage() {
           permitirVisita: property.permitirVisita ?? true,
           permitirWhatsApp: property.permitirWhatsApp ?? true,
           permitirEmail: property.permitirEmail ?? true,
+          permitirSolicitudes: property.permitirSolicitudes ?? true,
+          operacionesSolicitud: property.operacionesSolicitud?.length
+            ? property.operacionesSolicitud
+            : property.categoria_operacion === "venta" || property.categoria_operacion === "alquiler"
+              ? [property.categoria_operacion]
+              : [],
           horarioAtencion: property.horarioAtencion ?? current.horarioAtencion,
           telefonoWhatsApp: property.telefonoWhatsApp ?? "",
           precioPorNocheUSD: String(property.precioPorNocheUSD ?? ""),
@@ -403,8 +415,11 @@ export default function NuevaPropiedadPage() {
       if (imagenes.length > 20) {
         return { valid: false, error: "No podés subir más de 20 imágenes", field: "imagenes" };
       }
-      if (!formData.permitirVisita && !formData.permitirWhatsApp && !formData.permitirEmail) {
-        return { valid: false, error: "Debés habilitar al menos una opción de contacto (visita, WhatsApp o email)", field: "contacto" };
+      const admiteSolicitud = formData.permitirSolicitudes
+        && formData.categoriaOperacion !== "temporario"
+        && (formData.operacionesSolicitud.length > 0 || operacionSolicitable(formData.categoriaOperacion) !== null);
+      if (!formData.permitirVisita && !formData.permitirWhatsApp && !formData.permitirEmail && !admiteSolicitud) {
+        return { valid: false, error: "Debés habilitar al menos una opción de contacto o una solicitud de compra/alquiler", field: "contacto" };
       }
       return { valid: true };
     }
@@ -586,6 +601,12 @@ export default function NuevaPropiedadPage() {
       const precioARS = formData.moneda === "ARS"
         ? precioIngresado
         : precioIngresado * cotizacionDolar;
+      const operacionPrincipal = operacionSolicitable(formData.categoriaOperacion);
+      const operacionesSolicitud: OperacionSolicitud[] = formData.categoriaOperacion === "temporario"
+        ? []
+        : formData.operacionesSolicitud.length
+          ? formData.operacionesSolicitud
+          : operacionPrincipal ? [operacionPrincipal] : [];
 
       // Armar el objeto con el formato que espera la API
       const propertyData = {
@@ -620,6 +641,8 @@ export default function NuevaPropiedadPage() {
         permitirVisita: formData.permitirVisita,
         permitirWhatsApp: formData.permitirWhatsApp,
         permitirEmail: formData.permitirEmail,
+        permitirSolicitudes: formData.permitirSolicitudes,
+        operacionesSolicitud,
         horarioAtencion: formData.horarioAtencion,
         telefonoWhatsApp: formData.telefonoWhatsApp,
         precioPorNocheUSD: Number(formData.precioPorNocheUSD) || 0,
@@ -676,7 +699,7 @@ export default function NuevaPropiedadPage() {
     </label>
   );
 
-  const casilla = (campo: "permitirVisita" | "permitirWhatsApp" | "permitirEmail", titulo: string, texto: string) => (
+  const casilla = (campo: "permitirVisita" | "permitirWhatsApp" | "permitirEmail" | "permitirSolicitudes", titulo: string, texto: string) => (
     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-panel-borde p-3 transition-colors hover:bg-panel-hundido">
       <input
         type="checkbox"
@@ -1080,6 +1103,47 @@ export default function NuevaPropiedadPage() {
                   {casilla("permitirVisita", "Agendar una visita", "El cliente pide día y horario desde la publicación.")}
                   {casilla("permitirWhatsApp", "WhatsApp", "Botón para escribir con el mensaje listo.")}
                   {casilla("permitirEmail", "Email", "Enlace para mandar una consulta por correo.")}
+                  {formData.categoriaOperacion !== "temporario" && (
+                    <>
+                      {casilla("permitirSolicitudes", "Recibir solicitudes", "Habilita solicitudes formales de compra o alquiler.")}
+                      <fieldset className="m-0 flex flex-col gap-2 border-0 p-0 pl-7">
+                        <legend className="text-[13px] font-medium text-panel-suave">Operaciones disponibles para solicitar</legend>
+                        {(["venta", "alquiler"] as const).map((operacion) => {
+                          const principal = operacionSolicitable(formData.categoriaOperacion);
+                          const seleccionadas = formData.operacionesSolicitud.length
+                            ? formData.operacionesSolicitud
+                            : principal
+                              ? [principal]
+                              : [];
+                          const marcada = seleccionadas.includes(operacion);
+                          return (
+                            <label key={operacion} className="flex cursor-pointer items-center gap-2 text-[13px] text-panel-texto">
+                              <input
+                                type="checkbox"
+                                checked={marcada}
+                                onChange={(e) => setFormData((actual) => {
+                                  const categoriaPrincipal = operacionSolicitable(actual.categoriaOperacion);
+                                  const base = actual.operacionesSolicitud.length
+                                    ? actual.operacionesSolicitud
+                                    : categoriaPrincipal
+                                      ? [categoriaPrincipal]
+                                      : [];
+                                  return {
+                                    ...actual,
+                                    operacionesSolicitud: e.target.checked
+                                      ? [...base, operacion]
+                                      : base.filter((item) => item !== operacion),
+                                  };
+                                })}
+                                className="h-4 w-4 accent-[var(--p-acento)]"
+                              />
+                              Solicitar {operacion === "venta" ? "compra" : "alquiler"}
+                            </label>
+                          );
+                        })}
+                      </fieldset>
+                    </>
+                  )}
                   {error("contacto") && <p className="m-0 text-[12.5px] text-red-600 dark:text-red-400">{error("contacto")}</p>}
                 </div>
                 <div className="mt-5 grid gap-5 sm:grid-cols-2">

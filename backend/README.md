@@ -133,3 +133,26 @@ Se recomienda seguir el siguiente orden para desarrollar el backend:
 6. Implementación de validaciones y manejo de errores.
 7. Pruebas unitarias y de integración.
 8. Documentación de la API.
+
+## Solicitudes de alquiler y compra
+
+Las solicitudes se guardan en MongoDB junto con una referencia privada a cada archivo en GridFS:
+
+- `POST /api/solicitudes`: registra una solicitud multipart para un cliente autenticado. Requiere `Idempotency-Key` (UUID), un campo `datos` en JSON y los documentos indicados por el formulario.
+- `GET /api/solicitudes/mias`: lista el estado y la propiedad de las solicitudes propias.
+- `GET /api/solicitudes/:id`: permite al titular o a un administrador autorizado consultar la solicitud.
+- `GET /api/solicitudes/:id/documentos/:tipo`: permite descargar el documento únicamente al titular o a un administrador.
+- `GET /api/solicitudes/admin`: deja disponibles para la revisión administrativa las solicitudes y sus datos descifrados.
+- `GET /api/solicitudes/admin/notificaciones`: devuelve las notificaciones internas de solicitudes nuevas para el panel de administración.
+- `PATCH /api/solicitudes/:id/estado`: solo para administradores; actualiza el estado a `pendiente`, `aprobada` o `rechazada` y conserva el comentario y el historial de revisión. Mantener pendiente o rechazar requiere un comentario nuevo o `reutilizarComentario: true` para asociar el último comentario guardado sin duplicarlo en el historial.
+- `POST /api/solicitudes/:id/comentarios`: solo para administradores; agrega una observación al historial asociada al estado vigente, sin cambiar ese estado.
+- `PATCH /api/solicitudes/:id/archivo`: solo para administradores; archiva o restaura una solicitud sin cambiar su estado, comentarios ni documentos.
+- `DELETE /api/solicitudes/:id`: solo para administradores; elimina una solicitud y sus documentos GridFS exclusivos dentro de una transacción. La operación se cancela si no puede verificar de forma segura la propiedad de los archivos.
+
+Los documentos se cifran con AES-256-GCM antes de guardarse en GridFS y los datos personales se guardan cifrados en el documento de solicitud. Configurá `SOLICITUDES_ENCRYPTION_KEY` con una clave hexadecimal aleatoria de 64 caracteres; se puede generar con:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Usá el mismo valor en todos los entornos que deban leer los documentos existentes. Guardalo en el gestor de secretos del hosting y no lo compartas ni lo cambies sin un plan de recifrado. Los archivos no se sirven desde `/uploads` ni se exponen con URLs públicas. Se admiten PDF, JPG/JPEG y PNG de hasta 5 MB por archivo.
