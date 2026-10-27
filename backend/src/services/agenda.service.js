@@ -4,6 +4,7 @@
 // El horario lo edita el administrador desde el panel (HU-19); si nunca lo guardó, rige HORARIO_INICIAL.
 // Las reglas (turnos, validación, texto) son funciones puras y se prueban sin base de datos.
 
+const mongoose = require('mongoose');
 const Visita = require('../models/visita.model');
 const Horario = require('../models/horario.model');
 
@@ -19,6 +20,8 @@ const HORARIO_INICIAL = {
 const DURACIONES = [15, 30, 45, 60];
 const TRAMOS_POR_DIA = 4;
 const CERRADOS_MAXIMOS = 100;
+// Las visitas anteriores a HU-19 no guardan su duración: duraban media hora
+const DURACION_ANTERIOR = 30;
 const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 
 // Las visitas de hoy se piden con al menos una hora de anticipación
@@ -88,23 +91,24 @@ const validarHorario = ({ semana, duracionMinutos, cerrados } = {}) => {
     if (!Array.isArray(semana) || semana.length !== 7) return 'Faltan días de la semana.';
     for (let dia = 0; dia < 7; dia += 1) {
         const tramos = semana[dia]?.tramos;
-        if (!Array.isArray(tramos) || tramos.length > TRAMOS_POR_DIA) return `El ${DIAS[dia]} puede tener hasta ${TRAMOS_POR_DIA} tramos.`;
+        if (!Array.isArray(tramos) || tramos.length > TRAMOS_POR_DIA) return `El ${DIAS[dia]} puede tener hasta ${TRAMOS_POR_DIA} franjas.`;
         if (tramos.some((t) => !HORA.test(t?.desde) || !HORA.test(t?.hasta))) return `Revisá las horas del ${DIAS[dia]}: van como 09:30.`;
         const ordenados = [...tramos].sort((a, b) => a.desde.localeCompare(b.desde));
         for (let i = 0; i < ordenados.length; i += 1) {
             const { desde, hasta } = ordenados[i];
             const largo = minutosDe(hasta) - minutosDe(desde);
-            if (largo < duracionMinutos) return `El tramo del ${DIAS[dia]} de ${desde} a ${hasta} no alcanza para una visita de ${duracionMinutos} minutos.`;
+            if (largo < duracionMinutos) return `La franja del ${DIAS[dia]} de ${desde} a ${hasta} no alcanza para una visita de ${duracionMinutos} minutos.`;
             // Cada tramo termina justo cuando termina un turno: si no, el final quedaría como un pedazo sin usar
             if (largo % duracionMinutos) {
                 const antes = horaDe(minutosDe(desde) + Math.floor(largo / duracionMinutos) * duracionMinutos);
-                return `Con turnos de ${duracionMinutos} minutos, el tramo del ${DIAS[dia]} que empieza a las ${desde} tiene que terminar a las ${antes} o ${horaDe(minutosDe(antes) + duracionMinutos)}.`;
+                return `Con turnos de ${duracionMinutos} minutos, la franja del ${DIAS[dia]} que empieza a las ${desde} tiene que terminar a las ${antes} o ${horaDe(minutosDe(antes) + duracionMinutos)}.`;
             }
-            if (i > 0 && desde < ordenados[i - 1].hasta) return `Los tramos del ${DIAS[dia]} se pisan (${ordenados[i - 1].desde}–${ordenados[i - 1].hasta} y ${desde}–${hasta}).`;
+            if (i > 0 && desde < ordenados[i - 1].hasta) return `Las franjas del ${DIAS[dia]} se pisan (${ordenados[i - 1].desde}–${ordenados[i - 1].hasta} y ${desde}–${hasta}).`;
         }
     }
     if (semana.every((d) => d.tramos.length === 0)) return 'Dejá al menos un día con horario de visitas.';
-    if (!Array.isArray(cerrados) || cerrados.length > CERRADOS_MAXIMOS) return `Se pueden cargar hasta ${CERRADOS_MAXIMOS} días cerrados.`;
+    if (!Array.isArray(cerrados)) return 'Los días cerrados no tienen el formato esperado.';
+    if (cerrados.length > CERRADOS_MAXIMOS) return `Se pueden cargar hasta ${CERRADOS_MAXIMOS} días cerrados.`;
     for (const c of cerrados) {
         if (!esFecha(c?.desde) || !esFecha(c?.hasta)) return 'Las fechas de los días cerrados deben existir (AAAA-MM-DD).';
         if (c.hasta < c.desde) return `El cierre del ${c.desde} termina antes de empezar.`;
@@ -113,11 +117,13 @@ const validarHorario = ({ semana, duracionMinutos, cerrados } = {}) => {
     return null;
 };
 
-// Solo los campos conocidos, con los tramos en orden (lo que se guarda)
-const limpiarHorario = ({ semana, duracionMinutos, cerrados }) => ({
+// Solo los campos conocidos, con los tramos en orden (lo que se guarda). Los cierres que ya pasaron se descartan,
+// así la lista no crece para siempre (como los "date overrides" vencidos de Cal.com)
+const limpiarHorario = ({ semana, duracionMinutos, cerrados }, hoy) => ({
     semana: semana.map((d) => ({ tramos: d.tramos.map(({ desde, hasta }) => ({ desde, hasta })).sort((a, b) => a.desde.localeCompare(b.desde)) })),
     duracionMinutos,
     cerrados: cerrados
+        .filter((c) => c.hasta >= hoy)
         .map(({ desde, hasta, motivo }) => ({ desde, hasta, motivo: (motivo || '').replace(/[\r\n\t]+/g, ' ').trim() }))
         .sort((a, b) => a.desde.localeCompare(b.desde)),
 });
@@ -139,31 +145,52 @@ const textoHorario = ({ semana }) => {
     return texto.charAt(0).toUpperCase() + texto.slice(1);
 };
 
+// Reservar un turno y guardar el horario pasan de a uno (mismo patrón que el candado de HU-20): cada transacción
+// incrementa `version` de un documento fijo, así dos pedidos simultáneos no ven libre el mismo turno.
+// El candado es un documento aparte (sin semana), así no depende de que el horario ya se haya guardado.
+const CANDADO = new mongoose.Types.ObjectId('000000000000000000000019');
+const SIN_CANDADO = { _id: { $ne: CANDADO } };
+const conCandado = (trabajo) =>
+    mongoose.connection.transaction(async (session) => {
+        await Horario.updateOne({ _id: CANDADO }, { $inc: { version: 1 } }, { upsert: true, setDefaultsOnInsert: false, session });
+        return trabajo(session);
+    });
+
 // El horario guardado o, si nunca se guardó, el de siempre
-const horarioActual = async () => (await Horario.findOne().lean()) || HORARIO_INICIAL;
+const horarioActual = async (session = null) => (await Horario.findOne(SIN_CANDADO).session(session).lean()) || HORARIO_INICIAL;
 
-const guardarHorario = async (datos) => {
-    const limpio = limpiarHorario(datos);
-    await Horario.findOneAndUpdate({}, limpio, { upsert: true, runValidators: true, setDefaultsOnInsert: true });
-    return limpio;
-};
+const guardarHorario = (datos) =>
+    conCandado(async (session) => {
+        const limpio = limpiarHorario(datos, ahoraEnArgentina().fecha);
+        await Horario.findOneAndUpdate(SIN_CANDADO, limpio, { upsert: true, runValidators: true, setDefaultsOnInsert: true, session });
+        return limpio;
+    });
 
-// Inicio (en minutos) de las visitas que ocupan cada día: "2026-11-12" → [630, 1020]
-const ocupados = async () => {
-    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('fecha horario').lean();
+// Lo que ocupa cada visita, en minutos: "2026-11-12" → [{ inicio: 630, fin: 660 }]. Cada una dura lo que duraba
+// un turno cuando se pidió, aunque después cambie la duración.
+const ocupados = async (session = null) => {
+    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('fecha horario duracionMinutos').session(session).lean();
     const porDia = new Map();
     visitas.forEach((v) => {
         const fecha = fechaIso(v.fecha);
         const hora = horaCorta(v.horario);
         if (!fecha || !hora) return;
-        porDia.set(fecha, [...(porDia.get(fecha) || []), minutosDe(hora)]);
+        const inicio = minutosDe(hora);
+        porDia.set(fecha, [...(porDia.get(fecha) || []), { inicio, fin: inicio + (v.duracionMinutos || DURACION_ANTERIOR) }]);
     });
     return porDia;
 };
 
-// Un turno está tomado si alguna visita de ese día empieza a menos de una duración de distancia:
-// así, al pasar de turnos de 30 a 60 min, una visita de las 9:30 también ocupa el turno de las 9:00
-const estaTomado = (fecha, hora, tomados, duracion) => (tomados.get(fecha) || []).some((v) => Math.abs(v - minutosDe(hora)) < duracion);
+// Un turno está tomado si se superpone con alguna visita de ese día
+const estaTomado = (fecha, hora, tomados, duracion) => {
+    const t = minutosDe(hora);
+    return (tomados.get(fecha) || []).some((v) => v.inicio < t + duracion && t < v.fin);
+};
+
+// Una visita queda fuera del horario si ese día cierra o si no entra completa en ninguna franja
+const quedaFuera = (fecha, inicio, fin, horario) =>
+    Boolean(cierreDe(fecha, horario.cerrados)) ||
+    !horario.semana[diaDeSemana(fecha)].tramos.some((t) => minutosDe(t.desde) <= inicio && fin <= minutosDe(t.hasta));
 
 // Turnos de un día (vacío si está cerrado) y cuáles quedan libres
 const libresDelDia = (fecha, tomados, ahora, horario) => {
@@ -193,18 +220,20 @@ const disponibilidad = async (desde, hasta) => {
         let estado = 'disponible';
         if (fecha < ahora.fecha || fecha > limite || turnos.length === 0) estado = 'cerrado';
         else if (libres.length === 0) estado = 'completo';
-        dias.push({ fecha, estado, turnos: estado === 'disponible' ? libres : [] });
+        // Un feriado o vacaciones lleva su motivo, para que el cliente sepa por qué no hay turnos
+        const cierre = fecha >= ahora.fecha && fecha <= limite ? cierreDe(fecha, horario.cerrados) : null;
+        dias.push({ fecha, estado, turnos: estado === 'disponible' ? libres : [], ...(cierre ? { cierre: cierre.motivo || '' } : {}) });
     }
     return { dias, horario: textoHorario(horario), hoy: ahora.fecha, hasta: limite };
 };
 
 // Revisa que un pedido caiga en un horario libre de atención. Devuelve el motivo si no se puede, o null.
-const motivoNoDisponible = async (fecha, horario, { controlarHorario = true } = {}) => {
+const motivoNoDisponible = async (fecha, horario, { controlarHorario = true, session = null } = {}) => {
     const iso = fechaIso(fecha);
     const hora = horaCorta(horario);
     if (!iso || !hora) return 'La fecha o el horario no son válidos.';
     const ahora = ahoraEnArgentina();
-    const [agenda, tomados] = await Promise.all([horarioActual(), ocupados()]);
+    const [agenda, tomados] = await Promise.all([horarioActual(session), ocupados(session)]);
     if (estaTomado(iso, hora, tomados, agenda.duracionMinutos)) return 'Ese horario ya se ocupó. Elegí otro, por favor.';
     if (!controlarHorario) return null;
     if (iso > sumarDias(ahora.fecha, DIAS_MAXIMOS)) return 'Por ahora se pueden pedir visitas hasta tres meses adelante.';
@@ -216,14 +245,24 @@ const motivoNoDisponible = async (fecha, horario, { controlarHorario = true } = 
     return null;
 };
 
+// Controla el turno y crea la visita dentro del candado: devuelve { visita } o { motivo } si no se pudo.
+// `crear(datos, session)` guarda la visita, que ya trae la duración del turno.
+const reservar = (datos, { controlarHorario = true } = {}, crear) =>
+    conCandado(async (session) => {
+        const motivo = await motivoNoDisponible(datos.fecha, datos.horario, { controlarHorario, session });
+        if (motivo) return { motivo };
+        const { duracionMinutos } = await horarioActual(session);
+        return { visita: await crear({ ...datos, duracionMinutos }, session) };
+    });
+
 // Visitas por venir que quedan fuera de un horario (para avisar al administrador después de cambiarlo)
 const visitasFueraDeHorario = async (horario) => {
     const hoy = ahoraEnArgentina().fecha;
-    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('cliente.nombre propiedad.titulo fecha horario estado').lean();
+    const visitas = await Visita.find({ estado: { $in: OCUPAN } }).select('cliente.nombre propiedad.titulo fecha horario duracionMinutos estado').lean();
     return visitas
         .map((v) => ({ v, fecha: fechaIso(v.fecha), hora: horaCorta(v.horario) }))
         .filter(({ fecha, hora }) => fecha && hora && fecha >= hoy)
-        .filter(({ fecha, hora }) => cierreDe(fecha, horario.cerrados) || !turnosDe(horario.semana[diaDeSemana(fecha)].tramos, horario.duracionMinutos).includes(hora))
+        .filter(({ v, fecha, hora }) => quedaFuera(fecha, minutosDe(hora), minutosDe(hora) + (v.duracionMinutos || DURACION_ANTERIOR), horario))
         .sort((a, b) => `${a.fecha}${a.hora}`.localeCompare(`${b.fecha}${b.hora}`))
         .map(({ v, fecha, hora }) => ({ id: String(v._id), cliente: v.cliente?.nombre || '', propiedad: v.propiedad?.titulo || '', fecha, hora, estado: v.estado }));
 };
@@ -232,12 +271,15 @@ module.exports = {
     HORARIO_INICIAL,
     disponibilidad,
     motivoNoDisponible,
+    reservar,
     ahoraEnArgentina,
     sumarDias,
     turnosDe,
     validarHorario,
     textoHorario,
     libresDelDia,
+    limpiarHorario,
+    quedaFuera,
     horarioActual,
     guardarHorario,
     visitasFueraDeHorario,

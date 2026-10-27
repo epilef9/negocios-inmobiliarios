@@ -314,7 +314,7 @@ class VisitasService {
         return visitasRepository.getVisitaById(id);
     }
 
-    async createVisita(data) {
+    async createVisita(data, opciones = {}) {
         const normalized = { ...data };
         if (normalized.cliente && !normalized.cliente.iniciales && normalized.cliente.nombre) {
             normalized.cliente.iniciales = normalized.cliente.nombre
@@ -324,7 +324,7 @@ class VisitasService {
                 .map((word) => word[0]?.toUpperCase() || '')
                 .join('') || 'CL';
         }
-        return visitasRepository.createVisita(normalized);
+        return visitasRepository.createVisita(normalized, opciones);
     }
 
     async updateVisita(id, data) {

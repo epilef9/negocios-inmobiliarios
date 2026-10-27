@@ -56,6 +56,12 @@ const visitaSchema = new mongoose.Schema(
             required: true,
             trim: true,
         },
+        // Lo que duraba un turno cuando se pidió (HU-19). Las visitas anteriores no lo tienen: cuentan como 30 min
+        duracionMinutos: {
+            type: Number,
+            min: 5,
+            max: 240,
+        },
         estado: {
             type: String,
             enum: ['pendiente', 'confirmada', 'reprogramada', 'rechazada'],

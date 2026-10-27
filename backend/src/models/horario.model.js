@@ -33,6 +33,8 @@ const horarioSchema = new mongoose.Schema(
             ],
             default: [],
         },
+        // Solo en el documento que hace de candado de la agenda (ver conCandado en agenda.service)
+        version: { type: Number },
     },
     { timestamps: true }
 );

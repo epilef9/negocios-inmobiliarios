@@ -2,7 +2,7 @@
 // Correr solo este archivo:  node --test tests/agenda.test.js
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { HORARIO_INICIAL, turnosDe, validarHorario, textoHorario, libresDelDia } = require('../src/services/agenda.service');
+const { HORARIO_INICIAL, turnosDe, validarHorario, textoHorario, libresDelDia, limpiarHorario, quedaFuera } = require('../src/services/agenda.service');
 
 const copia = () => JSON.parse(JSON.stringify(HORARIO_INICIAL));
 
@@ -78,11 +78,46 @@ describe('Agenda: días libres', () => {
         assert.equal(libresDelDia('2026-11-03', new Map(), ahora, h).turnos.length, 12);
     });
 
-    it('con turnos de 60 min, una visita de las 9:30 ocupa también el turno de las 9', () => {
+    it('al pasar de 30 a 60 min, una visita de 9:30 a 10 ocupa el turno de las 9 pero no el de las 10', () => {
         const h = { ...copia(), duracionMinutos: 60 };
-        const tomados = new Map([['2026-11-02', [570]]]);
+        const tomados = new Map([['2026-11-02', [{ inicio: 570, fin: 600 }]]]);
         const { libres } = libresDelDia('2026-11-02', tomados, ahora, h);
         assert.ok(!libres.includes('09:00'));
-        assert.ok(libres.includes('11:00'));
+        assert.ok(libres.includes('10:00'));
+    });
+
+    it('al pasar de 60 a 30 min, una visita de 9 a 10 sigue ocupando las 9:30', () => {
+        const tomados = new Map([['2026-11-02', [{ inicio: 540, fin: 600 }]]]);
+        const { libres } = libresDelDia('2026-11-02', tomados, ahora, copia());
+        assert.ok(!libres.includes('09:00'));
+        assert.ok(!libres.includes('09:30'));
+        assert.ok(libres.includes('10:00'));
+    });
+});
+
+describe('Agenda: visitas fuera del horario', () => {
+    // 2026-11-02 es lunes: 9–13 y 17–19
+    it('una visita que entra completa en una franja no queda fuera, aunque no caiga en un turno exacto', () => {
+        assert.equal(quedaFuera('2026-11-02', 570, 600, { ...copia(), duracionMinutos: 60 }), false);
+    });
+
+    it('queda fuera si se pasa del cierre de la franja, si ese día no se atiende o si está cerrado', () => {
+        assert.equal(quedaFuera('2026-11-02', 750, 810, copia()), true);
+        assert.equal(quedaFuera('2026-11-01', 600, 630, copia()), true);
+        assert.equal(quedaFuera('2026-11-02', 600, 630, { ...copia(), cerrados: [{ desde: '2026-11-02', hasta: '2026-11-02', motivo: '' }] }), true);
+    });
+});
+
+describe('Agenda: guardar', () => {
+    it('descarta los días cerrados que ya pasaron', () => {
+        const h = { ...copia(), cerrados: [{ desde: '2026-10-01', hasta: '2026-10-05' }, { desde: '2026-10-20', hasta: '2026-11-02' }, { desde: '2026-12-25', hasta: '2026-12-25' }] };
+        assert.deepEqual(
+            limpiarHorario(h, '2026-11-01').cerrados.map((c) => c.desde),
+            ['2026-10-20', '2026-12-25']
+        );
+    });
+
+    it('rechaza días cerrados que no son una lista con un mensaje claro', () => {
+        assert.match(validarHorario({ ...copia(), cerrados: null }), /formato/);
     });
 });
