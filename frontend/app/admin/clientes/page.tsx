@@ -53,7 +53,7 @@ const FORMULARIO_VACIO: Formulario = { propiedadId: '', rol: 'propietario', modo
 
 // Botón redondo de acción rápida (WhatsApp, email, asignar)
 function Accion({ icono, texto, href, onClick, externo }: { icono: NombreIcono; texto: string; href?: string | null; onClick?: () => void; externo?: boolean }) {
-  const clase = 'flex h-9 w-9 cursor-pointer items-center justify-center rounded-lg text-panel-tenue transition-colors hover:bg-panel-hundido hover:text-panel-texto';
+  const clase = 'flex h-11 w-11 sm:h-9 sm:w-9 cursor-pointer items-center justify-center rounded-lg text-panel-tenue transition-colors hover:bg-panel-hundido hover:text-panel-texto';
   if (href) {
     return (
       <a href={href} title={texto} aria-label={texto} className={clase} {...(externo ? { target: '_blank', rel: 'noreferrer' } : {})}>
@@ -95,11 +95,9 @@ function PropiedadVinculada({ propiedad, rol, onQuitar }: { propiedad: Propiedad
         )}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="flex flex-wrap items-center gap-1.5">
-          <Link href={`/propiedades/${propiedad.id}`} target="_blank" className="truncate text-[13.5px] font-medium hover:underline">
+        <Link href={`/propiedades/${propiedad.id}`} target="_blank" className="block truncate text-[13.5px] font-medium hover:underline">
             {propiedad.titulo}
           </Link>
-        </span>
         <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] text-panel-suave">
           <span className={`font-medium ${rol === 'propietario' ? 'text-panel-acento' : 'text-sky-700 dark:text-sky-300'}`}>{rol === 'propietario' ? 'Dueño' : 'Alquila'}</span>
           <span aria-hidden="true">·</span>
@@ -119,7 +117,7 @@ function PropiedadVinculada({ propiedad, rol, onQuitar }: { propiedad: Propiedad
           onClick={onQuitar}
           title={rol === 'propietario' ? 'Quitar como dueño' : 'Quitar como inquilino'}
           aria-label={`Quitar de ${propiedad.titulo}`}
-          className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-panel-tenue transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
+          className="flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-md text-panel-tenue sm:h-8 sm:w-8 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400"
         >
           <Icono nombre="cerrar" className="h-4 w-4" />
         </button>
@@ -361,7 +359,7 @@ export default function ClientesPage() {
                     role="tab"
                     aria-selected={activa}
                     onClick={() => setPestana(p.id)}
-                    className={`flex shrink-0 cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
+                    className={`flex shrink-0 cursor-pointer min-h-11 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] sm:min-h-0 transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
                   >
                     {p.texto}
                     <span className="tabular rounded px-1.5 text-[12px] text-panel-tenue">{cuenta[p.id]}</span>
@@ -445,7 +443,7 @@ export default function ClientesPage() {
                     return (
                       <li key={cliente.id} className="flex flex-col gap-3 px-5 py-4">
                         <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                          <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className="flex w-full min-w-0 items-center gap-3 sm:w-auto sm:flex-1">
                             <Avatar nombre={cliente.nombre} grande />
                             <div className="flex min-w-0 flex-col gap-0.5">
                               <p className="m-0 flex flex-wrap items-center gap-2 text-[15px] font-semibold">
@@ -461,14 +459,14 @@ export default function ClientesPage() {
                               </p>
                             </div>
                           </div>
-                          <div className="flex items-center gap-0.5">
+                          <div className="-ml-2.5 flex items-center gap-0.5 pl-14 sm:ml-0 sm:pl-0">
                             <Accion icono="telefono" texto="Escribir por WhatsApp" href={cliente.telefono ? enlaceWhatsApp(cliente.telefono, cliente.nombre) : null} externo />
                             {cliente.email && <Accion icono="email" texto="Mandar un email" href={`mailto:${cliente.email}`} />}
                             <Accion icono="mas" texto="Vincular a otra propiedad" onClick={() => abrirParaCliente(cliente)} />
                           </div>
                         </div>
                         {propiedades.length > 0 && (
-                          <ul className="m-0 grid list-none gap-2 p-0 sm:pl-14 md:grid-cols-2">
+                          <ul className="m-0 grid list-none grid-cols-[minmax(0,1fr)] gap-2 p-0 sm:pl-14 md:grid-cols-2">
                             {propiedades.map(({ p, rol }) => (
                               <PropiedadVinculada key={`${rol}-${p.id}`} propiedad={p} rol={rol} onQuitar={() => quitar(p, rol)} />
                             ))}
