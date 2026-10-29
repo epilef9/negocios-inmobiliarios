@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion, normalizar, obtenerPropiedades } from '@/components/sitio/datos';
 import { datosCortos, precioDePropiedad, useDolarBlue } from '@/components/sitio/precio';
+import { fotoDeAncho } from '@/components/sitio/foto';
 import type { Encuadre, Posicion, PuntoMapa } from './MapaSatelital';
 
 // Leaflet usa `window`: el mapa se carga solo en el navegador
@@ -330,7 +331,7 @@ function TarjetaMapa({
       <div className={`relative shrink-0 bg-[#0e2652] ${angosto ? 'w-28' : 'h-36'}`}>
         {imagen && !fotoRota && (
           // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen del backend con dominio variable
-          <img src={imagen} alt="" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
+          <img src={fotoDeAncho(imagen, 640)} alt="" loading="lazy" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
         )}
         {etiquetaOperacion[operacion] && (
           <span className={`calma-micro absolute rounded-full px-2.5 py-1 ${angosto ? 'left-2 top-2' : 'left-3 top-3'} ${COLOR_OPERACION[operacion] ?? ''}`}>
