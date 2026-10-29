@@ -14,14 +14,19 @@ const botonClaro =
 const botonLinea =
   'calma-micro rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors duration-500 hover:border-[#efe9df] hover:bg-[#efe9df]/5';
 
-const lineaFinal = 'Negocios Inmobiliarios, Villa Libertador San Martín, Entre Ríos';
+// Espacios que no cortan renglón: la calle va entera («25 de Mayo 726») y en la localidad las palabras
+// cortas se pegan a la siguiente («San Martín»), así ningún pedazo queda suelto en un renglón
+const sinCortar = (texto: string) => texto.trim().replace(/\s+/g, ' ');
+const pegarCortas = (texto: string) => texto.trim().replace(/(^|\s)(\S{1,3})\s+/g, '$1$2 ');
+
+const lineaFinal ='Negocios Inmobiliarios, Villa Libertador San Martín, Entre Ríos';
 
 // Pie del sitio con la dirección, el horario y los contactos de la oficina.
 // En las páginas que ya muestran esos datos (contacto) va solo la línea final.
 export default function SiteFooter({ simple = false }: { simple?: boolean }) {
   const contacto = useContacto();
   // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
-  const textoOficina = `Pasá por ${escaparHtml(contacto.direccionCompleta)}.`;
+  const textoOficina = `Pasá por ${escaparHtml(sinCortar(contacto.direccion))}, ${escaparHtml(pegarCortas(contacto.localidad))}.`;
   if (simple) {
     return (
       <footer className="px-5 pb-10 sm:px-10">
@@ -37,7 +42,7 @@ export default function SiteFooter({ simple = false }: { simple?: boolean }) {
         <p
           data-reveal="lineas"
           data-motion-hide
-          className="font-display m-0 text-[clamp(30px,5.6vw,88px)] leading-none lg:col-span-7"
+          className="font-display m-0 text-[clamp(30px,5.6vw,88px)] leading-none [text-wrap:balance] lg:col-span-7"
           dangerouslySetInnerHTML={{ __html: textoOficina }}
         />
         <div className="flex flex-col gap-7 lg:col-span-4 lg:col-start-9">
