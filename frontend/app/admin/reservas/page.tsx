@@ -58,7 +58,7 @@ function enlaceWhatsApp(r: Reserva) {
 }
 
 function Accion({ icono, texto, onClick, href, tono }: { icono: NombreIcono; texto: string; onClick?: () => void; href?: string | null; tono?: 'exito' | 'peligro' }) {
-  const clases = `rounded-md p-2 text-panel-tenue transition-colors hover:bg-panel-hundido ${
+  const clases = `rounded-md p-[13px] text-panel-tenue sm:p-2 transition-colors hover:bg-panel-hundido ${
     tono === 'exito' ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : tono === 'peligro' ? 'hover:text-red-600 dark:hover:text-red-400' : 'hover:text-panel-texto'
   }`;
   if (href !== undefined) {
@@ -243,7 +243,7 @@ export default function ReservasAdminPage() {
                   role="tab"
                   aria-selected={activa}
                   onClick={() => setPestana(p.id)}
-                  className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
+                  className={`flex shrink-0 min-h-11 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] sm:min-h-0 transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
                 >
                   {p.texto}
                   <span className={`tabular rounded px-1.5 text-[12px] ${p.id === 'pendientes' && cuenta.pendientes ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'text-panel-tenue'}`}>{cuenta[p.id]}</span>

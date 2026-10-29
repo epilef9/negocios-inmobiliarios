@@ -231,7 +231,7 @@ export default function BienvenidaPage() {
           ) : (
             <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
           )}
-          <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
+          <button type="button" onClick={pedirSalida} className="-my-[9px] inline-flex min-h-11 items-center calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
             Cerrar sesión
           </button>
           {dialogoSalida}

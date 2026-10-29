@@ -256,15 +256,15 @@ export default function DisponibilidadAdminPage() {
           {plural(nochesEntre(activo.desde, activo.hasta), 'noche', 'noches')}.{activo.motivo ? ` ${activo.motivo}` : ''}
         </p>
         <span className="flex gap-1">
-          <Boton tamano="sm" variante="fantasma" onClick={() => setFijo(null)} className="max-sm:h-10">
+          <Boton tamano="sm" variante="fantasma" onClick={() => setFijo(null)}>
             Cerrar
           </Boton>
           {activo.reserva ? (
-            <BotonLink href="/admin/reservas" tamano="sm" icono="maleta" className="max-sm:h-10">
+            <BotonLink href="/admin/reservas" tamano="sm" icono="maleta">
               Ver en Reservas
             </BotonLink>
           ) : (
-            <Boton tamano="sm" icono="borrar" onClick={() => liberar(activo)} className="max-sm:h-10">
+            <Boton tamano="sm" icono="borrar" onClick={() => liberar(activo)}>
               Liberar noches
             </Boton>
           )}
@@ -277,7 +277,7 @@ export default function DisponibilidadAdminPage() {
           {paso(2, 'Salida', seleccion?.hasta, pendienteSalida)}
         </ol>
         {pendienteSalida && (
-          <Boton tamano="sm" variante="fantasma" onClick={cancelarSeleccion} className="max-sm:h-10">
+          <Boton tamano="sm" variante="fantasma" onClick={cancelarSeleccion}>
             Cancelar
           </Boton>
         )}
@@ -366,7 +366,7 @@ export default function DisponibilidadAdminPage() {
               })}
             </div>
             {/* Meses debajo de la franja, donde empieza cada uno: llevan a ese mes en el calendario */}
-            <div className="relative mt-1 h-10 text-[12px]">
+            <div className="relative mt-1 h-11 text-[12px] sm:h-10">
               {noches.map((n, i) => {
                 // Un mes que empieza a menos de 12 noches de hoy se taparía con "Hoy"; ese mes ya se ve junto al actual
                 if (i !== 0 && !(n.endsWith('-01') && i >= 12)) return null;
@@ -379,11 +379,11 @@ export default function DisponibilidadAdminPage() {
                     onClick={() => setVista(mes)}
                     aria-label={`Ver ${MESES[mes.mes].toLowerCase()} ${mes.anio} en el calendario`}
                     aria-pressed={visible}
-                    className={`absolute top-0 flex h-10 min-w-10 -translate-x-1.5 items-center justify-center rounded-md px-1.5 whitespace-nowrap transition-colors hover:bg-panel-hundido ${
+                    className={`absolute top-0 flex h-11 min-w-11 -translate-x-1.5 sm:h-10 sm:min-w-10 items-center justify-center rounded-md px-1.5 whitespace-nowrap transition-colors hover:bg-panel-hundido ${
                       i === 0 ? 'font-medium text-panel-texto' : visible ? 'font-medium text-panel-texto' : 'text-panel-tenue'
                     }`}
                     // El último mes puede caer contra el borde: no lo dejamos salirse de la tarjeta
-                    style={{ left: i === 0 ? 0 : `min(${((i / noches.length) * 100).toFixed(2)}%, calc(100% - 2.5rem))` }}
+                    style={{ left: i === 0 ? 0 : `min(${((i / noches.length) * 100).toFixed(2)}%, calc(100% - 2.75rem))` }}
                   >
                     {i === 0 ? 'Hoy' : MESES[mes.mes].slice(0, 3)}
                   </button>
@@ -437,13 +437,13 @@ export default function DisponibilidadAdminPage() {
       }
       acciones={
         <div className="flex items-center gap-1">
-          <Boton variante="fantasma" tamano="sm" aria-label="Mes anterior" onClick={() => setVista((v) => mesSiguiente(v, -1))} className="max-sm:h-10 max-sm:w-10">
+          <Boton variante="fantasma" tamano="sm" aria-label="Mes anterior" onClick={() => setVista((v) => mesSiguiente(v, -1))}>
             <Icono nombre="atras" className="h-4 w-4" />
           </Boton>
-          <Boton variante="fantasma" tamano="sm" onClick={() => setVista(mesDe(hoy))} className="max-sm:h-10">
+          <Boton variante="fantasma" tamano="sm" onClick={() => setVista(mesDe(hoy))}>
             Hoy
           </Boton>
-          <Boton variante="fantasma" tamano="sm" aria-label="Mes siguiente" onClick={() => setVista((v) => mesSiguiente(v))} className="max-sm:h-10 max-sm:w-10">
+          <Boton variante="fantasma" tamano="sm" aria-label="Mes siguiente" onClick={() => setVista((v) => mesSiguiente(v))}>
             <Icono nombre="flecha" className="h-4 w-4" />
           </Boton>
         </div>
@@ -553,11 +553,11 @@ export default function DisponibilidadAdminPage() {
                     </div>
                     {/* Las noches de una reserva del sitio se confirman o liberan desde Reservas */}
                     {r.reserva ? (
-                      <BotonLink href="/admin/reservas" variante="fantasma" tamano="sm" icono="maleta" className="max-sm:h-10">
+                      <BotonLink href="/admin/reservas" variante="fantasma" tamano="sm" icono="maleta">
                         Reservas
                       </BotonLink>
                     ) : (
-                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Liberar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Liberar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} />
                     )}
                   </>,
                   { activo: activoId === r.id, alEntrar: () => setApuntado(r.id), alSalir: () => setApuntado(null) }
@@ -590,7 +590,7 @@ export default function DisponibilidadAdminPage() {
                       </span>
                     )}
                   </div>
-                  <Boton variante="fantasma" tamano="sm" icono="candado" onClick={() => marcarDesde(t.desde < hoy ? hoy : t.desde)} className="max-sm:h-10">
+                  <Boton variante="fantasma" tamano="sm" icono="candado" onClick={() => marcarDesde(t.desde < hoy ? hoy : t.desde)}>
                     Marcar
                   </Boton>
                 </>
@@ -612,7 +612,7 @@ export default function DisponibilidadAdminPage() {
                       {fechaCorta(r.desde)} al {fechaCorta(r.hasta)}
                     </span>
                     {!r.reserva && (
-                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Borrar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} className="max-sm:h-10 max-sm:w-10" />
+                      <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Borrar del ${fechaCorta(r.desde)} al ${fechaCorta(r.hasta)}`} onClick={() => liberar(r)} />
                     )}
                   </li>
                 ))}
