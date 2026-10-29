@@ -17,7 +17,14 @@ const REQUISITOS_PUBLICAR = [
     'pub-autorizacion',
     'pub-disponibilidad',
 ];
-const DOCUMENTOS_OBLIGATORIOS = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
+// Planos y reglamento son opcionales: en los requisitos figuran "si los tuviera" y "si aplica".
+const DOCUMENTOS = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
+const DOCUMENTOS_OBLIGATORIOS = ['dni', 'escritura', 'impuestos'];
+// Solo se trabaja con estos tipos, operaciones y localidades (todas en Entre Ríos)
+const TIPOS_PUBLICABLES = ['casa', 'departamento', 'terreno', 'local'];
+const OPERACIONES = ['venta', 'alquiler', 'temporario'];
+const LOCALIDADES = ['Villa Libertador San Martín', 'Crespo', 'Diamante'];
+const PROVINCIA = 'Entre Ríos';
 
 const errorHttp = (mensaje, statusCode) => {
     const error = new Error(mensaje);
@@ -45,12 +52,33 @@ const solicitudPublicacionService = {
         if (faltantes.length) {
             throw errorHttp('Completá todos los requisitos para publicar tu propiedad antes de enviar la solicitud.', 400);
         }
-        const documentos = datos.documentos || {};
-        if (DOCUMENTOS_OBLIGATORIOS.some((nombre) => typeof documentos[nombre] !== 'string' || !documentos[nombre].trim())) {
-            throw errorHttp('Tenés que adjuntar toda la documentación obligatoria para publicar.', 400);
+        const tipoPropiedad = datos.tipoPropiedad || 'casa';
+        if (!TIPOS_PUBLICABLES.includes(tipoPropiedad)) {
+            throw errorHttp('Elegí un tipo de propiedad: casa, departamento, terreno o local comercial.', 400);
         }
+        const operacion = datos.operacion || 'venta';
+        if (!OPERACIONES.includes(operacion)) {
+            throw errorHttp('Elegí si es venta, alquiler o alquiler temporario.', 400);
+        }
+        const ciudad = typeof datos.ciudad === 'string' && datos.ciudad.trim() ? datos.ciudad.trim() : LOCALIDADES[0];
+        if (!LOCALIDADES.includes(ciudad)) {
+            throw errorHttp(`Solo publicamos propiedades en ${LOCALIDADES.join(', ')}.`, 400);
+        }
+        // Expensas: hay que indicar si se pagan; si se carga un monto, se pagan sí o sí
+        const montoExpensas = Number(datos.montoExpensas) > 0 ? Number(datos.montoExpensas) : 0;
+        const expensas = montoExpensas > 0 ? 'si' : datos.expensas;
+        if (expensas !== 'si' && expensas !== 'no') {
+            throw errorHttp('Indicá si la propiedad paga expensas.', 400);
+        }
+
+        const documentos = datos.documentos || {};
+        const esReferencia = (valor) => typeof valor === 'string' && valor.trim().length > 0;
+        if (DOCUMENTOS_OBLIGATORIOS.some((nombre) => !esReferencia(documentos[nombre]))) {
+            throw errorHttp('Tenés que adjuntar el DNI, la escritura y los impuestos al día para publicar.', 400);
+        }
+        const adjuntos = DOCUMENTOS.filter((nombre) => esReferencia(documentos[nombre]));
         // Cada referencia tiene que ser un documento que este mismo usuario subió
-        if (!(await documentosPublicacion.sonDelUsuario(DOCUMENTOS_OBLIGATORIOS.map((nombre) => documentos[nombre].trim()), userId))) {
+        if (!(await documentosPublicacion.sonDelUsuario(adjuntos.map((nombre) => documentos[nombre].trim()), userId))) {
             throw errorHttp('Los documentos adjuntos no son válidos. Volvé a adjuntarlos.', 400);
         }
         if (!Array.isArray(datos.fotos) || datos.fotos.length === 0) {
@@ -65,8 +93,6 @@ const solicitudPublicacionService = {
             dni: datos.contacto?.dni || user.dni || '',
         };
 
-        const tipoPropiedad = datos.tipoPropiedad || 'casa';
-        const operacion = datos.operacion || 'venta';
         const titulo = datos.titulo?.trim() || `${capitalizar(tipoPropiedad)} en ${capitalizar(operacion)} - ${datos.direccion.trim()}`;
 
         const nuevaSolicitud = new SolicitudPublicacion({
@@ -76,16 +102,17 @@ const solicitudPublicacionService = {
             operacion,
             titulo,
             direccion: datos.direccion.trim(),
-            ciudad: datos.ciudad?.trim() || 'Libertador San Martín',
-            provincia: datos.provincia?.trim() || 'Entre Ríos',
+            ciudad,
+            provincia: PROVINCIA,
             referenciasUbicacion: datos.referenciasUbicacion?.trim() || '',
-            ambientes: Number(datos.ambientes) || 1,
+            // Un terreno no tiene ambientes ni baños
+            ambientes: tipoPropiedad === 'terreno' ? 0 : Number(datos.ambientes) || 1,
             dormitorios: Number(datos.dormitorios) || 0,
-            banos: Number(datos.banos) || 1,
+            banos: tipoPropiedad === 'terreno' ? 0 : Number(datos.banos) || 1,
             superficieTotal: Number(datos.superficieTotal) || 0,
             superficieCubierta: Number(datos.superficieCubierta) || 0,
-            expensas: datos.expensas?.trim() || '',
-            montoExpensas: Number(datos.montoExpensas) || 0,
+            expensas,
+            montoExpensas: expensas === 'si' ? montoExpensas : 0,
             cochera: datos.cochera?.trim() || 'no',
             pisoUnidad: datos.pisoUnidad?.trim() || '',
             comodidades: Array.isArray(datos.comodidades) ? datos.comodidades.filter((item) => typeof item === 'string') : [],
@@ -96,7 +123,7 @@ const solicitudPublicacionService = {
             },
             descripcion: datos.descripcion ? datos.descripcion.trim() : '',
             fotos: Array.isArray(datos.fotos) ? datos.fotos.filter((f) => typeof f === 'string' && f.trim().length > 0) : [],
-            documentos: Object.fromEntries(DOCUMENTOS_OBLIGATORIOS.map((nombre) => [nombre, documentos[nombre].trim()])),
+            documentos: Object.fromEntries(adjuntos.map((nombre) => [nombre, documentos[nombre].trim()])),
             estado: 'pendiente',
         });
 
@@ -147,7 +174,7 @@ const solicitudPublicacionService = {
         if (user.role !== 'admin') {
             const referencia = `privado:${String(id).toLowerCase()}`;
             const solicitud = await SolicitudPublicacion.findOne({
-                $or: DOCUMENTOS_OBLIGATORIOS.map((campo) => ({ [`documentos.${campo}`]: referencia })),
+                $or: DOCUMENTOS.map((campo) => ({ [`documentos.${campo}`]: referencia })),
             }).select('cliente');
             const duenio = solicitud ? String(solicitud.cliente) : documento.usuario;
             if (duenio !== String(user._id)) throw errorHttp('No tenés permiso para ver este documento.', 403);
@@ -181,9 +208,9 @@ const solicitudPublicacionService = {
             referenciasUbicacion: solicitud.referenciasUbicacion || '',
             categoria_operacion: solicitud.operacion,
             tipo_inmueble: tipoInmueble,
-            cantidad_ambientes: solicitud.ambientes || 1,
+            cantidad_ambientes: solicitud.ambientes ?? 1,
             bedrooms: solicitud.dormitorios || 0,
-            bathrooms: solicitud.banos || 1,
+            bathrooms: solicitud.banos ?? 1,
             area: solicitud.superficieTotal || 0,
             superficieCubierta: solicitud.superficieCubierta || 0,
             expensas: solicitud.expensas || '',
@@ -266,5 +293,7 @@ const solicitudPublicacionService = {
         return solicitud;
     },
 };
+
+solicitudPublicacionService.OPCIONES = { TIPOS_PUBLICABLES, OPERACIONES, LOCALIDADES, PROVINCIA, DOCUMENTOS, DOCUMENTOS_OBLIGATORIOS };
 
 module.exports = solicitudPublicacionService;

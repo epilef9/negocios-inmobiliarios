@@ -164,13 +164,32 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
             </div>
 
             <div className="flex flex-col gap-3">
-              <a href={consulta} target="_blank" rel="noreferrer" className={`${botonClaro} self-start`}>
-                <span className="calma-dot" aria-hidden="true" />
-                {guia.accion}
-              </a>
-              <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
-                ¿Te falta algún papel o tenés un caso distinto? Escribinos y lo vemos juntos.
-              </p>
+              {guia.id === 'publicar' ? (
+                // Publicar tiene su propio formulario: el botón lleva ahí, no a WhatsApp
+                <>
+                  <Link href="/publicar" className={`${botonClaro} self-start`}>
+                    <span className="calma-dot" aria-hidden="true" />
+                    {guia.accion}
+                  </Link>
+                  <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
+                    Completás los datos, las fotos y la documentación en el formulario. ¿Tenés un caso distinto?{' '}
+                    <a href={consulta} target="_blank" rel="noreferrer" className="calma-link text-[#efe9df]">
+                      Escribinos por WhatsApp
+                    </a>
+                    .
+                  </p>
+                </>
+              ) : (
+                <>
+                  <a href={consulta} target="_blank" rel="noreferrer" className={`${botonClaro} self-start`}>
+                    <span className="calma-dot" aria-hidden="true" />
+                    {guia.accion}
+                  </a>
+                  <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
+                    ¿Te falta algún papel o tenés un caso distinto? Escribinos y lo vemos juntos.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </aside>
