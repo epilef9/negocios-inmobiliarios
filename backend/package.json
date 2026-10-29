@@ -10,6 +10,7 @@
     "migrar:imagenes": "node src/migrar-imagenes.js",
     "migrar:visitas": "node src/migrar-permitir-visita.js",
     "demo:propiedades": "node src/demo-propiedades.js",
+    "demo:publicaciones": "node src/demo-publicaciones.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
