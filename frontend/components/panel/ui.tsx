@@ -514,7 +514,7 @@ export function useAviso() {
 
 // ---------- Confirmación antes de acciones que no se pueden deshacer ----------
 export function useConfirmar() {
-  const [pedido, setPedido] = useState<{ titulo: string; texto?: string; accion: string; resolver: (ok: boolean) => void } | null>(null);
+  const [pedido, setPedido] = useState<{ titulo: string; texto?: string; accion: string; variante: 'peligro' | 'principal'; resolver: (ok: boolean) => void } | null>(null);
   const dialogo = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -522,8 +522,11 @@ export function useConfirmar() {
   }, [pedido]);
 
   const confirmar = useCallback(
-    (titulo: string, opciones: { texto?: string; accion?: string } = {}) =>
-      new Promise<boolean>((resolver) => setPedido({ titulo, texto: opciones.texto, accion: opciones.accion ?? 'Confirmar', resolver })),
+    // variante 'principal' para confirmar acciones que no son peligrosas (por ejemplo, aprobar)
+    (titulo: string, opciones: { texto?: string; accion?: string; variante?: 'peligro' | 'principal' } = {}) =>
+      new Promise<boolean>((resolver) =>
+        setPedido({ titulo, texto: opciones.texto, accion: opciones.accion ?? 'Confirmar', variante: opciones.variante ?? 'peligro', resolver })
+      ),
     []
   );
 
@@ -550,7 +553,7 @@ export function useConfirmar() {
           </div>
           <div className="flex justify-end gap-2">
             <Boton onClick={() => cerrar(false)}>Cancelar</Boton>
-            <Boton variante="peligro" onClick={() => cerrar(true)} autoFocus>
+            <Boton variante={pedido.variante} onClick={() => cerrar(true)} autoFocus>
               {pedido.accion}
             </Boton>
           </div>
@@ -563,7 +566,7 @@ export function useConfirmar() {
 }
 
 // ---------- Diálogo (ventana sobre la página) ----------
-export function Dialogo({ abierto, alCerrar, titulo, descripcion, children, acciones, ancho = 'md' }: { abierto: boolean; alCerrar: () => void; titulo: string; descripcion?: React.ReactNode; children?: React.ReactNode; acciones?: React.ReactNode; ancho?: 'md' | 'lg' }) {
+export function Dialogo({ abierto, alCerrar, titulo, descripcion, children, acciones, ancho = 'md' }: { abierto: boolean; alCerrar: () => void; titulo: string; descripcion?: React.ReactNode; children?: React.ReactNode; acciones?: React.ReactNode; ancho?: 'md' | 'lg' | 'xl' }) {
   const ref = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -584,7 +587,7 @@ export function Dialogo({ abierto, alCerrar, titulo, descripcion, children, acci
         // Clic en el fondo oscuro: cierra
         if (e.target === e.currentTarget) alCerrar();
       }}
-      className={`m-auto max-h-[90dvh] ${ancho === 'lg' ? 'w-[min(94vw,640px)]' : 'w-[min(94vw,460px)]'} overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie p-0 text-panel-texto shadow-2xl backdrop:bg-black/45`}
+      className={`m-auto max-h-[90dvh] ${ancho === 'xl' ? 'w-[min(94vw,880px)]' : ancho === 'lg' ? 'w-[min(94vw,640px)]' : 'w-[min(94vw,460px)]'} overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie p-0 text-panel-texto shadow-2xl backdrop:bg-black/45`}
     >
       {abierto && (
         <div className="flex max-h-[90dvh] flex-col">

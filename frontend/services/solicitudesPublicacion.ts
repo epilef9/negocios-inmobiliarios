@@ -3,12 +3,13 @@ import { conSesion } from './sesion';
 import { avisarPendientes } from './panel';
 
 export type EstadoSolicitudPublicacion = 'pendiente' | 'aprobada' | 'rechazada';
+// Planos y reglamento son opcionales
 export type DocumentosPublicacion = {
   dni: string;
   escritura: string;
   impuestos: string;
-  planos: string;
-  reglamento: string;
+  planos?: string;
+  reglamento?: string;
 };
 
 export interface SolicitudPublicacion {
