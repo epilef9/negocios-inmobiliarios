@@ -21,6 +21,7 @@ export const ACCESOS: Acceso[] = [
   { clave: 'publicaciones', href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: 'publicaciones' },
   { clave: 'clientes', href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
   { clave: 'contratos', href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: 'contratos' },
+  { clave: 'cobros', href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: 'cobros' },
   { clave: 'generar-contrato', href: '/admin/contratos/generar', texto: 'Generar contrato', icono: 'contratos' },
   { clave: 'estadisticas', href: '/admin/estadisticas', texto: 'Estadísticas', icono: 'estrella' },
   { clave: 'catalogo', href: '/admin/catalogo', texto: 'Orden del catálogo', icono: 'catalogo' },

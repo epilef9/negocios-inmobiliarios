@@ -31,5 +31,6 @@ router.use('/cron', require('./cron.routes'));
 router.use('/avisos', require('./avisos.routes'));
 router.use('/pagos', require('./pagos.routes'));
 router.use('/panel', require('./panel.routes'));
+router.use('/cobros', require('./cobros.routes'));
 
 module.exports = router;

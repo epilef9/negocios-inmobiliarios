@@ -39,7 +39,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   // La bienvenida ocupa toda la pantalla, sin el menú del panel
-  if (ruta === '/admin/bienvenida') return <>{children}</>;
+  // El recibo de alquiler es una hoja para imprimir, también sin el menú
+  if (ruta === '/admin/bienvenida' || ruta.startsWith('/admin/cobros/recibo/')) return <>{children}</>;
 
   return <PanelMarco>{children}</PanelMarco>;
 }
