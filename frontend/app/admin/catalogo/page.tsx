@@ -25,7 +25,7 @@ function Miniatura({ src }: { src?: string }) {
 
 function BotonMover({ icono, texto, onClick, disabled }: { icono: 'arriba' | 'abajo' | 'atras' | 'flecha'; texto: string; onClick: () => void; disabled: boolean }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={texto} aria-label={texto} className="rounded-md p-2 text-panel-suave hover:bg-panel-hundido hover:text-panel-texto disabled:pointer-events-none disabled:opacity-30">
+    <button type="button" onClick={onClick} disabled={disabled} title={texto} aria-label={texto} className="rounded-md p-[13px] text-panel-suave hover:bg-panel-hundido sm:p-2 hover:text-panel-texto disabled:pointer-events-none disabled:opacity-30">
       <Icono nombre={icono} className={`h-[18px] w-[18px] ${icono === 'atras' ? 'rotate-90' : icono === 'flecha' ? 'rotate-90' : ''}`} />
     </button>
   );

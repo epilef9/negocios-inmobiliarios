@@ -16,9 +16,10 @@ const VARIANTES: Record<Variante, string> = {
   fantasma: 'text-panel-suave hover:bg-panel-hundido hover:text-panel-texto',
   peligro: 'border border-red-300 bg-panel-superficie text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40',
 };
+// En el celular todo botón mide al menos 44 px (lo justo para el dedo); desde sm vuelve al tamaño de compu
 const TAMANOS: Record<Tamano, string> = {
-  sm: 'h-8 gap-1.5 px-3 text-[13px]',
-  md: 'h-10 gap-2 px-4 text-sm',
+  sm: 'h-11 min-w-11 gap-1.5 px-3 text-[13px] sm:h-8 sm:min-w-0',
+  md: 'h-11 min-w-11 gap-2 px-4 text-sm sm:h-10 sm:min-w-0',
 };
 
 // Clases de botón, para usar también en <Link>
@@ -61,7 +62,7 @@ export function Encabezado({ titulo, descripcion, acciones, volver }: { titulo: 
       {/* flex-1: un texto largo usa el espacio que sobra y no empuja las acciones fuera de la pantalla */}
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         {volver && (
-          <Link href={volver.href} className="inline-flex items-center gap-1 self-start text-[13px] text-panel-suave hover:text-panel-texto">
+          <Link href={volver.href} className="-my-3 inline-flex min-h-11 items-center gap-1 self-start text-[13px] sm:my-0 sm:min-h-0 text-panel-suave hover:text-panel-texto">
             <Icono nombre="atras" className="h-4 w-4" />
             {volver.texto}
           </Link>
@@ -92,9 +93,10 @@ export function Tarjeta({ titulo, descripcion, acciones, children, className = '
 }
 
 // ---------- Formularios ----------
+// Letra de 16 px en el celular: con menos, el iPhone agranda la pantalla al tocar el campo
 export const entrada =
-  'w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 text-sm text-panel-texto placeholder:text-panel-tenue transition-colors focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave disabled:cursor-not-allowed disabled:bg-panel-hundido disabled:text-panel-tenue aria-[invalid=true]:border-red-500';
-export const control = `${entrada} h-10`;
+  'w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 text-base sm:text-sm text-panel-texto placeholder:text-panel-tenue transition-colors focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave disabled:cursor-not-allowed disabled:bg-panel-hundido disabled:text-panel-tenue aria-[invalid=true]:border-red-500';
+export const control = `${entrada} h-11 sm:h-10`;
 export const areaTexto = `${entrada} min-h-24 py-2.5 leading-relaxed`;
 
 export function Campo({ etiqueta, htmlFor, ayuda, error, children, className = '' }: { etiqueta: React.ReactNode; htmlFor?: string; ayuda?: React.ReactNode; error?: string | null; children: React.ReactNode; className?: string }) {
@@ -321,16 +323,16 @@ export function SelectorFecha({
           role="dialog"
           aria-label="Elegir fecha"
           onKeyDown={tecla}
-          className="absolute left-0 top-full z-40 mt-2 w-[18.5rem] rounded-xl bg-panel-superficie p-3 text-panel-texto opacity-100 shadow-[0_18px_44px_-12px_rgba(10,20,40,0.35),0_2px_6px_-2px_rgba(10,20,40,0.12)] ring-1 ring-panel-borde-fuerte transition-[opacity,translate] duration-150 starting:-translate-y-1 starting:opacity-0 motion-reduce:transition-none dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_0_32px_-6px_color-mix(in_srgb,var(--p-acento)_45%,transparent),0_24px_60px_-10px_rgba(0,0,0,0.9)]"
+          className="absolute left-0 top-full z-40 mt-2 w-[min(20.5rem,calc(100vw-2rem))] rounded-xl sm:w-[18.5rem] bg-panel-superficie p-3 text-panel-texto opacity-100 shadow-[0_18px_44px_-12px_rgba(10,20,40,0.35),0_2px_6px_-2px_rgba(10,20,40,0.12)] ring-1 ring-panel-borde-fuerte transition-[opacity,translate] duration-150 starting:-translate-y-1 starting:opacity-0 motion-reduce:transition-none dark:shadow-[0_0_0_1px_rgba(255,255,255,0.06),0_0_32px_-6px_color-mix(in_srgb,var(--p-acento)_45%,transparent),0_24px_60px_-10px_rgba(0,0,0,0.9)]"
         >
           <div className="mb-2 flex items-center justify-between">
-            <button type="button" onClick={() => setFoco(otroMes(-1))} aria-label="Mes anterior" className="flex h-8 w-8 items-center justify-center rounded-lg text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto">
+            <button type="button" onClick={() => setFoco(otroMes(-1))} aria-label="Mes anterior" className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto">
               <Icono nombre="atras" className="h-4 w-4" />
             </button>
             <p className="font-display m-0 text-[18px] leading-none" aria-live="polite">
               {MESES[vista.mes]} <span className="text-panel-tenue">{vista.anio}</span>
             </p>
-            <button type="button" onClick={() => setFoco(otroMes(1))} aria-label="Mes siguiente" className="flex h-8 w-8 items-center justify-center rounded-lg text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto">
+            <button type="button" onClick={() => setFoco(otroMes(1))} aria-label="Mes siguiente" className="flex h-11 w-11 sm:h-8 sm:w-8 items-center justify-center rounded-lg text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto">
               <Icono nombre="flecha" className="h-4 w-4" />
             </button>
           </div>
@@ -362,7 +364,7 @@ export function SelectorFecha({
                     setFoco(iso);
                     setApuntado(iso);
                   }}
-                  className={`tabular relative flex h-9 items-center justify-center rounded-lg text-[13.5px] transition-colors focus-visible:outline-2 focus-visible:outline-panel-acento ${
+                  className={`tabular relative flex h-11 items-center sm:h-9 justify-center rounded-lg text-[13.5px] transition-colors focus-visible:outline-2 focus-visible:outline-panel-acento ${
                     elegido
                       ? 'bg-panel-acento font-semibold text-white'
                       : !libre
@@ -415,7 +417,7 @@ export function Interruptor({ activo, alCambiar, etiqueta, children }: { activo:
       aria-checked={activo}
       aria-label={etiqueta}
       onClick={() => alCambiar(!activo)}
-      className="-ml-0.5 flex min-h-6 items-center gap-1.5 whitespace-nowrap rounded-full py-0.5 pl-0.5 pr-1.5 text-[12px] text-panel-suave transition-colors hover:text-panel-texto focus-visible:outline-2 focus-visible:outline-panel-acento"
+      className="-ml-0.5 flex min-h-11 items-center sm:min-h-6 gap-1.5 whitespace-nowrap rounded-full py-0.5 pl-0.5 pr-1.5 text-[12px] text-panel-suave transition-colors hover:text-panel-texto focus-visible:outline-2 focus-visible:outline-panel-acento"
     >
       <span className={`relative h-4 w-7 shrink-0 rounded-full transition-colors duration-150 ${activo ? 'bg-emerald-600 dark:bg-emerald-500' : 'bg-panel-borde-fuerte'}`}>
         <span
@@ -454,7 +456,7 @@ export function Pestanas({ etiqueta, pestanas, activa, alCambiar, className = ''
           aria-label={p.ariaLabel}
           tabIndex={i === activa ? 0 : -1}
           onClick={() => alCambiar(i)}
-          className={`relative flex flex-col items-center gap-0.5 pb-2.5 pt-1.5 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-panel-acento ${i === activa ? 'text-panel-texto' : 'text-panel-suave hover:bg-panel-hundido hover:text-panel-texto'}`}
+          className={`relative flex min-h-11 flex-col items-center justify-center gap-0.5 pb-2.5 pt-1.5 sm:min-h-0 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-panel-acento ${i === activa ? 'text-panel-texto' : 'text-panel-suave hover:bg-panel-hundido hover:text-panel-texto'}`}
         >
           {p.contenido}
           {i === activa && <span aria-hidden="true" className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-panel-acento" />}
@@ -596,7 +598,7 @@ export function Dialogo({ abierto, alCerrar, titulo, descripcion, children, acci
               <h2 className="m-0 text-[17px] font-semibold">{titulo}</h2>
               {descripcion && <div className="text-sm text-panel-suave">{descripcion}</div>}
             </div>
-            <button type="button" onClick={alCerrar} aria-label="Cerrar" className="-mr-2 rounded-md p-1.5 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+            <button type="button" onClick={alCerrar} aria-label="Cerrar" className="-mr-3 -mt-2 rounded-md p-3 text-panel-tenue sm:-mr-2 sm:mt-0 sm:p-1.5 hover:bg-panel-hundido hover:text-panel-texto">
               <Icono nombre="cerrar" className="h-[18px] w-[18px]" />
             </button>
           </div>

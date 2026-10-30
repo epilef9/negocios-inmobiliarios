@@ -292,7 +292,7 @@ export default function AdminPublicacionesPage() {
                 setFiltro(id);
                 setFiltroElegido(true);
               }}
-              className={`inline-flex h-9 items-center gap-2 rounded-lg px-3 text-[13.5px] font-medium transition-colors ${
+              className={`inline-flex h-11 items-center gap-2 rounded-lg px-3 text-[13.5px] sm:h-9 font-medium transition-colors ${
                 activa ? 'bg-panel-marca text-panel-marca-texto' : 'text-panel-suave hover:bg-panel-hundido hover:text-panel-texto'
               }`}
             >

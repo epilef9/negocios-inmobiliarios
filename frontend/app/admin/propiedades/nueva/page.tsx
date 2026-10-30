@@ -819,7 +819,7 @@ export default function NuevaPropiedadPage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
         {/* Pasos (al crear) o índice de secciones (al editar) */}
         <nav aria-label={modoEdicion ? "Secciones" : "Pasos"} className="xl:sticky xl:top-8 xl:self-start">
           {!modoEdicion && (
@@ -857,7 +857,7 @@ export default function NuevaPropiedadPage() {
                       onClick={() => seleccionarParte(paso.n as typeof pasoActual)}
                       disabled={!habilitado}
                       aria-current={activo ? "step" : undefined}
-                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${activo ? "bg-panel-superficie ring-1 ring-panel-borde" : "hover:bg-panel-hundido"}`}
+                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 xl:py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${activo ? "bg-panel-superficie ring-1 ring-panel-borde" : "hover:bg-panel-hundido"}`}
                     >
                       {contenido}
                     </button>

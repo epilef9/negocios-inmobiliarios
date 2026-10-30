@@ -246,16 +246,16 @@ export default function PropiedadesAdminPage() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
-                          <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.title} en el sitio`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                          <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.title} en el sitio`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                           </Link>
-                          <Link href={`/propiedades/${p._id}/imprimir`} target="_blank" title="Imprimir ficha" aria-label={`Imprimir la ficha de ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                          <Link href={`/propiedades/${p._id}/imprimir`} target="_blank" title="Imprimir ficha" aria-label={`Imprimir la ficha de ${p.title}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="imprimir" className="h-[18px] w-[18px]" />
                           </Link>
-                          <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                          <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.title}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="editar" className="h-[18px] w-[18px]" />
                           </Link>
-                          <button type="button" onClick={() => borrar(p)} title="Borrar" aria-label={`Borrar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                          <button type="button" onClick={() => borrar(p)} title="Borrar" aria-label={`Borrar ${p.title}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
                             <Icono nombre="borrar" className="h-[18px] w-[18px]" />
                           </button>
                         </div>
