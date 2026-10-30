@@ -102,6 +102,7 @@ export default function BienvenidaPage() {
   const saludo = saludoSegunHora(ahora.getHours());
 
   return (
+    // Colores fijos del sitio (no sigue la paleta ni el modo claro/oscuro del panel): decisión de Pablo
     <main className="relative isolate min-h-dvh overflow-hidden bg-[#071733] font-sans text-[#efe9df] selection:bg-[#d9382b] selection:text-white">
       {/* Fondo: foto con acercamiento lento, oscurecida para que el texto se lea */}
       <div aria-hidden="true" className="absolute inset-0 -z-10">
