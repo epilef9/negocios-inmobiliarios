@@ -155,6 +155,22 @@ const contratoSchema = new mongoose.Schema({
     ultimaActualizacion: {
         type: String,
     },
+    // Cobro mensual: día del mes hasta el que se paga sin estar atrasado
+    diaVencimiento: {
+        type: Number,
+        min: 1,
+        max: 28,
+        default: 10,
+    },
+    // Montos nuevos por índice: desde qué mes («2026-11») rige cada uno
+    actualizaciones: [{
+        _id: false,
+        desde: { type: String, required: true },
+        monto: { type: Number, required: true, min: 0 },
+        porcentaje: { type: Number },
+        indice: { type: String, trim: true, maxlength: 40 },
+        cargadaEl: { type: Date, default: Date.now },
+    }],
     createdAt: {
         type: Date,
         default: Date.now,

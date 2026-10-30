@@ -477,6 +477,9 @@ html.dark .panel {
   #ficha-imprimible, #ficha-imprimible * { visibility: visible !important; }
   #ficha-imprimible { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; padding: 0; }
   #ficha-imprimible .no-imprimir { display: none !important; }
+  /* Recibo de alquiler (Cobros) */
+  #recibo-imprimible, #recibo-imprimible * { visibility: visible !important; }
+  #recibo-imprimible { position: absolute; inset: 0 auto auto 0; width: 100%; max-width: none; padding: 0; }
   @page { margin: 12mm; }
 }
 
