@@ -25,6 +25,17 @@ function VistasPorDia({ serie }: { serie: ResumenEstadisticas['serie'] }) {
   const maximo = Math.max(1, ...serie.map((d) => d.vistas));
   const [marcado, setMarcado] = useState<number | null>(null);
   const actual = marcado !== null ? serie[marcado] : null;
+
+  // Sin vistas en todo el período: un aviso en lugar de barras vacías con «Máximo: 1»
+  if (!serie.some((d) => d.vistas > 0)) {
+    return (
+      <figure className="m-0 flex flex-col gap-3">
+        <figcaption className="text-sm font-medium">Vistas de fichas por día</figcaption>
+        <div className="flex h-40 items-center justify-center rounded-lg bg-panel-hundido text-sm text-panel-suave">Sin vistas en este período</div>
+      </figure>
+    );
+  }
+
   return (
     <figure className="m-0 flex flex-col gap-3">
       <figcaption className="flex items-baseline justify-between gap-4 text-sm">
@@ -44,7 +55,7 @@ function VistasPorDia({ serie }: { serie: ResumenEstadisticas['serie'] }) {
               onMouseEnter={() => setMarcado(i)}
               onFocus={() => setMarcado(i)}
               tabIndex={0}
-              aria-label={`${diaCorto(d.dia)}: ${d.vistas} vistas`}
+              aria-label={`${diaCorto(d.dia)}: ${d.vistas} ${d.vistas === 1 ? 'vista' : 'vistas'}`}
             >
               <span
                 className={`block w-full rounded-t-[4px] transition-colors ${marcado === i ? 'bg-panel-texto' : 'bg-[var(--p-acento)]'}`}
