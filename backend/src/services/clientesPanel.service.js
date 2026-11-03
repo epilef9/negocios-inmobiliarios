@@ -6,6 +6,7 @@ const mongoose = require('mongoose');
 const Property = require('../models/property.model');
 const Contrato = require('../models/contrato.model');
 const User = require('../models/user.model');
+const { operacionesDe } = require('../utils/operaciones');
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const texto = (valor, max) => (typeof valor === 'string' ? valor.trim().slice(0, max) : '');
@@ -32,6 +33,7 @@ const resumenPropiedad = (p) => ({
     direccion: p.direccionCompleta || p.location || '',
     estado: p.estado || 'disponible',
     operacion: p.categoria_operacion || null,
+    operaciones: operacionesDe(p),
     imagen: Array.isArray(p.images) && p.images.length ? p.images[0] : null,
 });
 
@@ -173,7 +175,7 @@ const asignar = async (propertyId, rol, persona, reemplazar = false) => {
         }
     }
 
-    const propiedad = await Property.findById(propertyId).select('+propietario +inquilino estado title');
+    const propiedad = await Property.findById(propertyId).select('+propietario +inquilino estado vendida title');
     if (!propiedad) throw errorHttp('Propiedad no encontrada', 404);
 
     const esMisma = (a, b) => {
@@ -222,9 +224,12 @@ const asignar = async (propertyId, rol, persona, reemplazar = false) => {
     // Tener inquilino implica que está alquilada. Una propiedad vendida también se puede alquilar:
     // el dueño que la compró se la alquila a alguien, y pasa a figurar como alquilada.
     const cambios = { updatedAt: Date.now() };
+    // Si ya estaba vendida se recuerda (vendida: true), para que la venta no se reabra con el inquilino adentro (HU-28)
+    // y para que, al quitar al inquilino, vuelva a figurar vendida en vez de disponible.
     if (rol === 'inquilino') {
         if (valor && propiedad.estado !== 'alquilado') cambios.estado = 'alquilado';
-        if (!valor && propiedad.estado === 'alquilado') cambios.estado = 'disponible';
+        if (valor && propiedad.estado === 'vendido') cambios.vendida = true;
+        if (!valor && propiedad.estado === 'alquilado') cambios.estado = propiedad.vendida ? 'vendido' : 'disponible';
     }
 
     await Property.updateOne(

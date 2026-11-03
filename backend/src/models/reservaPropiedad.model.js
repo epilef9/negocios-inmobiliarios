@@ -8,6 +8,9 @@ const reservaPropiedadSchema = new mongoose.Schema(
         // Copia del título, para que el historial se entienda aunque la propiedad cambie o se borre
         tituloPropiedad: { type: String, trim: true, default: '' },
         operacion: { type: String, enum: ['venta', 'alquiler'], required: true },
+        // Estado de la propiedad antes de reservarla: si se cancela o vence, vuelve a ese estado.
+        // Es «alquilado» cuando se reserva la venta de una propiedad con inquilino adentro (HU-28).
+        estadoAnterior: { type: String, enum: ['disponible', 'alquilado'], default: 'disponible' },
         cliente: {
             nombre: { type: String, trim: true, required: true, maxlength: 120 },
             email: { type: String, trim: true, lowercase: true, default: '', maxlength: 150 },

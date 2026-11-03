@@ -5,6 +5,7 @@ import SitioBase from "@/components/sitio/SitioBase";
 import ListadoLocalidad from "./ListadoLocalidad";
 import { LOCALIDADES_SEO, paginaSeo } from "@/components/sitio/localidadesSeo";
 import { propiedadesEnServidor, urlSitio } from "@/services/servidor";
+import { tieneOperacion } from "@/components/sitio/operaciones";
 
 // Página por localidad y operación (SEO): título, descripción y texto propios, y las propiedades de esa zona
 // ya en el HTML, para que Google las lea sin ejecutar JavaScript.
@@ -37,7 +38,8 @@ export default async function PaginaLocalidad({ params }: Props) {
 	const { localidad, operacion } = pagina;
 	const todas = await propiedadesEnServidor();
 	const deLaZona = todas
-		? todas.filter((p) => p.categoria_operacion === operacion.categoria && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(localidad.coincide))
+		// HU-25: incluye las que están en venta y alquiler a la vez
+		? todas.filter((p) => tieneOperacion(p, operacion.categoria) && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(localidad.coincide))
 		: null;
 	const datos = {
 		"@context": "https://schema.org",

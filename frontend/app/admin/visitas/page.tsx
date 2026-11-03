@@ -8,6 +8,7 @@ import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
 import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
+import { operacionesDe, precioDe, tieneOperacion } from '@/components/sitio/operaciones';
 
 // Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
 const hoyIso = () => {
@@ -15,11 +16,17 @@ const hoyIso = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
-// Precio tal como se publica (por noche, por mes o total)
+// Precio tal como se publica (por noche, por mes o total); con venta y alquiler, los dos (HU-25)
 const precioTexto = (p: ApiProperty) => {
-  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
-  const sufijo = p.categoria_operacion === 'alquiler' ? ' por mes' : '';
-  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}${sufijo}` : `USD ${miles(p.price)}${sufijo}`;
+  if (tieneOperacion(p, 'temporario') && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  const operaciones = operacionesDe(p).length ? operacionesDe(p) : (['venta'] as const);
+  return operaciones
+    .map((o) => {
+      const precio = precioDe(p, o) ?? { price: p.price, moneda: p.moneda, priceARS: p.priceARS };
+      const sufijo = o === 'alquiler' ? ' por mes' : '';
+      return precio.moneda === 'ARS' ? `ARS ${miles(precio.priceARS ?? precio.price)}${sufijo}` : `USD ${miles(precio.price)}${sufijo}`;
+    })
+    .join(' · ');
 };
 
 type Pestana = 'pendientes' | 'confirmadas' | 'rechazadas' | 'todas';

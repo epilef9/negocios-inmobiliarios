@@ -5,6 +5,7 @@ const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const { validarContrato } = require('../validators/contrato.validator');
 const { leerDatos } = require('./solicitudes.service');
+const { operacionesDe, operacionDeSolicitud, precioDe, principalDe } = require('../utils/operaciones');
 
 // La solicitud de publicación (PR #96) puede no estar en todas las ramas. Si está, se usa para
 // recuperar los datos del dueño; si no, el contrato se arma solo con lo que tenga la propiedad.
@@ -193,16 +194,19 @@ class ContratoService {
         }
 
         const propiedad = await Property.findById(solicitud.propiedad)
-            .select('title location ciudad direccionCompleta price priceARS moneda categoria_operacion tipo_inmueble publicacion +propietario')
+            .select('title location ciudad direccionCompleta price priceARS moneda categoria_operacion operaciones precios tipo_inmueble publicacion +propietario')
             .lean();
 
         const dueno = propiedad
             ? await propietarioDePropiedad(propiedad)
             : { publicacionId: '', origen: null, propietario: null };
 
-        const moneda = propiedad?.moneda || null;
-        const precio = propiedad
-            ? Number(moneda === 'ARS' ? (propiedad.priceARS ?? propiedad.price) : propiedad.price)
+        // HU-25: el contrato es de la operación de la solicitud (compra → venta), con el precio de esa operación
+        const operacion = operacionDeSolicitud(solicitud.operacion);
+        const precioOperacion = propiedad ? precioDe(propiedad, operacion) ?? precioDe(propiedad, principalDe(propiedad)) : null;
+        const moneda = precioOperacion?.moneda || null;
+        const precio = precioOperacion
+            ? Number(moneda === 'ARS' ? (precioOperacion.priceARS ?? precioOperacion.price) : precioOperacion.price)
             : null;
 
         return {
@@ -227,7 +231,7 @@ class ContratoService {
                 direccion: propiedad.direccionCompleta || propiedad.location || '',
                 ciudad: propiedad.ciudad || '',
                 tipoInmueble: propiedad.tipo_inmueble || '',
-                operacion: propiedad.categoria_operacion || '',
+                operacion: operacionesDe(propiedad).includes(operacion) ? operacion : propiedad.categoria_operacion || '',
                 precio: Number.isFinite(precio) ? precio : null,
                 moneda,
             } : null,

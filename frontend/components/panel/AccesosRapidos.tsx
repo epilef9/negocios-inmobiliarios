@@ -133,7 +133,7 @@ export default function AccesosRapidos({ pendientes }: { pendientes: PendientesP
                     </span>
                     <span className="min-w-0 flex-1 text-[14px] font-medium leading-snug">{a.texto}</span>
                     {cantidad > 0 && (
-                      <span className="tabular absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[11.5px] font-semibold text-white shadow-sm sm:static sm:shadow-none">
+                      <span className="tabular absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-panel-acento px-1.5 text-[11.5px] font-semibold text-white shadow-sm sm:static sm:shadow-none">
                         {cantidad > 99 ? '99+' : cantidad}
                         <span className="sr-only"> para revisar</span>
                       </span>

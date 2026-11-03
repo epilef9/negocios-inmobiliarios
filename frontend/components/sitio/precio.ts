@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getDolarBlueQuote, type ApiProperty } from '@/services/api';
+import { getDolarBlueQuote, type ApiProperty, type Operacion } from '@/services/api';
+import { operacionesDe, precioDe, principalDe, tieneOperacion } from './operaciones';
 
 const formato = (valor: number) => Math.round(valor).toLocaleString('es-AR');
 
@@ -40,10 +41,11 @@ export function descuentoVigente(p: Pick<ApiProperty, 'descuento'>, ahora = new 
   return Math.min(90, d.porcentaje);
 }
 
-// Precio principal en la moneda publicada y su equivalente con el blue del día (RF-18 / HU-17).
-// Si la cotización no está disponible, se usa el valor guardado al publicar.
-export function precioDePropiedad(p: ApiProperty, blue: number | null): PrecioMostrado {
-  const operacion = p.categoria_operacion || p.operation || '';
+// Precio de una operación en la moneda publicada y su equivalente con el blue del día (RF-18 / HU-17).
+// Sin operación (o si la propiedad no la tiene), el de la operación principal. Con venta y alquiler (HU-25)
+// cada una tiene su precio. Si la cotización no está disponible, se usa el valor guardado al publicar.
+export function precioDePropiedad(p: ApiProperty, blue: number | null, operacionPedida?: string): PrecioMostrado {
+  const operacion: Operacion = operacionPedida && tieneOperacion(p, operacionPedida) ? (operacionPedida as Operacion) : principalDe(p);
   const sufijo = operacion === 'alquiler' ? ' por mes' : '';
 
   if (operacion === 'temporario' && p.precioPorNocheUSD) {
@@ -57,18 +59,24 @@ export function precioDePropiedad(p: ApiProperty, blue: number | null): PrecioMo
   const descuento = descuentoVigente(p);
   const factor = 1 - descuento / 100;
   const conDescuento = (texto: string) => (descuento ? { anterior: texto, descuento } : {});
+  const precio = precioDe(p, operacion) ?? { price: p.price, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: p.priceARS };
 
-  if (p.moneda === 'ARS') {
-    const pesos = p.priceARS ?? p.price;
+  if (precio.moneda === 'ARS') {
+    const pesos = precio.priceARS ?? precio.price;
     return { principal: `ARS ${formato(pesos * factor)}${sufijo}`, ...conDescuento(`ARS ${formato(pesos)}`) };
   }
 
-  const ars = blue ? p.price * factor * blue : p.priceARS ? p.priceARS * factor : undefined;
+  const ars = blue ? precio.price * factor * blue : precio.priceARS ? precio.priceARS * factor : undefined;
   return {
-    principal: `USD ${formato(p.price * factor)}${sufijo}`,
+    principal: `USD ${formato(precio.price * factor)}${sufijo}`,
     referencia: ars ? `ARS ${formato(ars)}${blue ? ' con el blue de hoy' : ' aprox.'}` : undefined,
-    ...conDescuento(`USD ${formato(p.price)}`),
+    ...conDescuento(`USD ${formato(precio.price)}`),
   };
+}
+
+// HU-25: el precio de cada operación de la propiedad (una sola, o venta y alquiler)
+export function preciosDePropiedad(p: ApiProperty, blue: number | null): (PrecioMostrado & { operacion: Operacion })[] {
+  return operacionesDe(p).map((operacion) => ({ operacion, ...precioDePropiedad(p, blue, operacion) }));
 }
 
 export const etiquetaTipo: Record<string, string> = {

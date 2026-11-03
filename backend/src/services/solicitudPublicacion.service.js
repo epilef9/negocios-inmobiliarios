@@ -3,6 +3,7 @@ const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
 const documentosPublicacion = require('./documentosPublicacion.service');
+const { normalizarOperaciones } = require('./properties.service');
 
 const REQUISITOS_PUBLICAR = [
     'pub-escritura',
@@ -196,7 +197,8 @@ const solicitudPublicacionService = {
         const tipoInmueble = tiposPermitidos.includes(solicitud.tipoPropiedad) ? solicitud.tipoPropiedad : 'casa';
 
         // 1. Crear la propiedad en el catálogo
-        const nuevaPropiedad = new Property({
+        // Con el formato de operaciones (HU-25): la operación pedida con su precio en dólares y en pesos
+        const nuevaPropiedad = new Property(normalizarOperaciones({
             title: solicitud.titulo || `${capitalizar(tipoInmueble)} en ${solicitud.direccion}`,
             description: solicitud.descripcion || '',
             price: solicitud.precioPretendido.monto,
@@ -231,7 +233,7 @@ const solicitudPublicacionService = {
                 email: solicitud.contacto?.email || '',
                 telefono: solicitud.contacto?.telefono || '',
             },
-        });
+        }));
 
         await nuevaPropiedad.save();
 
