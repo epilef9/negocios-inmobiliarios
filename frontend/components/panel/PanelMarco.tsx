@@ -130,7 +130,7 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
               href={seccion.href}
               onClick={alElegir}
               aria-current={activa ? 'page' : undefined}
-              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] transition-colors ${
+              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-3 lg:py-2.5 text-[14px] transition-colors ${
                 activa ? 'bg-white/12 font-medium text-white' : 'text-white/70 hover:bg-white/6 hover:text-white'
               }`}
             >
@@ -150,7 +150,7 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
       </nav>
 
       <div className="mx-3 flex shrink-0 flex-col gap-1 border-t border-white/10 pt-4">
-        <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-[14px] text-white/70 hover:bg-white/6 hover:text-white">
+        <Link href="/" className="flex items-center gap-3 rounded-lg px-3 py-3 lg:py-2.5 text-[14px] text-white/70 hover:bg-white/6 hover:text-white">
           <Icono nombre="sitio" className="h-[18px] w-[18px] text-white/60" />
           Ver el sitio
         </Link>
@@ -168,7 +168,7 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
               role="radio"
               aria-checked={theme === modo}
               onClick={() => setTheme(modo)}
-              className={`flex items-center justify-center gap-2 rounded-md py-1.5 text-[13px] transition-colors ${
+              className={`flex items-center justify-center gap-2 rounded-md py-3 lg:py-1.5 text-[13px] transition-colors ${
                 theme === modo ? 'bg-white/15 font-medium text-white' : 'text-white/60 hover:text-white'
               }`}
             >
@@ -187,7 +187,7 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
             <span className="block text-[12px] text-white/55">Mi perfil</span>
           </span>
           </Link>
-          <button type="button" onClick={pedirSalida} aria-label="Salir de la cuenta" title="Salir" className="rounded-md p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
+          <button type="button" onClick={pedirSalida} aria-label="Salir de la cuenta" title="Salir" className="rounded-md p-3 lg:p-1.5 text-white/60 hover:bg-white/10 hover:text-white">
             <Icono nombre="salir" className="h-[18px] w-[18px]" />
           </button>
           {dialogoSalida}
@@ -254,10 +254,10 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
           onClick={() => setAbierto(true)}
           aria-label={`Abrir menú${avisoPendientes}`}
           aria-expanded={abierto}
-          className="relative rounded-md p-1.5 hover:bg-white/10"
+          className="relative -m-1.5 rounded-md p-3 hover:bg-white/10"
         >
           <Icono nombre="menu" />
-          {totalPendientes > 0 && <span aria-hidden="true" className="absolute right-1 top-1 h-2 w-2 rounded-full bg-[var(--p-acento)] ring-2 ring-panel-menu" />}
+          {totalPendientes > 0 && <span aria-hidden="true" className="absolute right-2.5 top-2.5 h-2 w-2 rounded-full bg-[var(--p-acento)] ring-2 ring-panel-menu" />}
         </button>
         <span className="text-[15px] font-medium">{seccion}</span>
       </div>
@@ -266,7 +266,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="Menú del panel">
           <button type="button" aria-label="Cerrar menú" onClick={() => setAbierto(false)} className="absolute inset-0 bg-black/45" />
           <div className="absolute inset-y-0 left-0 w-[min(84vw,288px)] shadow-2xl">
-            <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar menú" className="absolute right-3 top-4 z-10 rounded-md p-1.5 text-white/70 hover:bg-white/10 hover:text-white">
+            <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar menú" className="absolute right-1.5 top-2.5 z-10 rounded-md p-3 text-white/70 hover:bg-white/10 hover:text-white">
               <Icono nombre="cerrar" />
             </button>
             <Menu alElegir={() => setAbierto(false)} pendientes={pendientes} />
