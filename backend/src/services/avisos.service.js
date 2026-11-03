@@ -17,6 +17,10 @@ const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Ar
 const normalizar = (t = '') => String(t).toLocaleLowerCase('es').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const tipoGeneral = (t = '') => (t === 'monoambiente' ? 'departamento' : t);
 
+// Comodidades de una búsqueda: una o varias separadas por coma; se descarta lo que no tenga forma de comodidad
+const listaComodidades = (valor) =>
+    typeof valor === 'string' ? valor.split(',').map((c) => c.trim()).filter((c) => /^[a-z_]{2,30}$/.test(c)) : [];
+
 // Mismos criterios que los filtros del catálogo. Con venta y alquiler (HU-25), el precio que cuenta es el de la
 // operación buscada; sin operación, alcanza con que alguna de las dos entre en el rango.
 const cumpleBusqueda = (p, f = {}) => {
@@ -32,7 +36,8 @@ const cumpleBusqueda = (p, f = {}) => {
         (!f.tipo || tipoGeneral(p.tipo_inmueble) === f.tipo) &&
         (f.precioMin == null && f.precioMax == null ? true : enDolares.some(enRango)) &&
         (f.ambientes == null || (ambientes != null && ambientes >= f.ambientes)) &&
-        (!f.comodidad || (p.comodidades || []).includes(f.comodidad))
+        // Una o varias comodidades («pileta,wifi»): tiene que tener todas
+        listaComodidades(f.comodidad).every((c) => (p.comodidades || []).includes(c))
     );
 };
 
@@ -47,7 +52,7 @@ const limpiarFiltros = (f = {}) => {
         precioMin: numero(f.minPrice),
         precioMax: numero(f.maxPrice),
         ambientes: numero(f.rooms),
-        comodidad: /^[a-z_]{2,30}$/.test(f.amenities || '') ? f.amenities : '',
+        comodidad: [...new Set(listaComodidades(f.amenities))].slice(0, 12).join(','),
     };
 };
 
