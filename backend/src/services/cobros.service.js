@@ -4,6 +4,7 @@
 const mongoose = require('mongoose');
 const Contrato = require('../models/contrato.model');
 const Cobro = require('../models/cobro.model');
+const Contador = require('../models/contador.model');
 const agenda = require('./agenda.service');
 const ajustes = require('./ajustes.service');
 const emailService = require('./email.service');
@@ -28,12 +29,36 @@ const esFecha = (texto) => /^\d{4}-\d{2}-\d{2}$/.test(texto) && agenda.sumarDias
 const mesLargo = (periodo) => new Date(`${periodo}-15T12:00:00Z`).toLocaleDateString('es-AR', { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const nombreDe = (persona) => [persona?.nombre, persona?.apellido].filter(Boolean).join(' ');
 
-// «ARS 350.000», «$350.000,50» o «USD 500» → { monto, moneda }. El monto del contrato es texto libre.
-const leerMonto = (texto) => {
+// El monto del contrato es texto libre: «ARS 350.000», «$350.000,50», «USD 1,500», «350000.50» → { monto, moneda }.
+// Toma el número que sigue a la moneda o, si no hay, el primero del texto. Si tiene punto y coma, el último de
+// los dos es el decimal; si tiene uno solo, es de miles cuando se repite o cuando lo siguen justo tres cifras
+// («1,500» y «350.000» son miles; «350000.50» y «1,5» llevan decimales).
+const NUMERO = /\d[\d.,]*/;
+const CON_MONEDA = /(?:u\$s|us\$|\$|usd|ars|pesos?|d[óo]lar(?:es)?)\s*(\d[\d.,]*)/i;
+
+const leerNumero = (texto) => {
     const t = String(texto ?? '');
-    const moneda = /u\$s|us\$|usd|d[óo]lar/i.test(t) ? 'USD' : 'ARS';
-    const numero = Number(t.replace(/[^\d,]/g, '').replace(',', '.'));
-    return { monto: Number.isFinite(numero) && numero > 0 ? numero : null, moneda };
+    const crudo = (t.match(CON_MONEDA)?.[1] || t.match(NUMERO)?.[0] || '').replace(/[.,]+$/, '');
+    if (!crudo) return null;
+    const punto = crudo.lastIndexOf('.');
+    const coma = crudo.lastIndexOf(',');
+    let decimal = -1;
+    if (punto >= 0 && coma >= 0) {
+        decimal = Math.max(punto, coma);
+    } else if (punto >= 0 || coma >= 0) {
+        const partes = crudo.split(punto >= 0 ? '.' : ',');
+        const sonMiles = partes.length > 2 || partes[1].length === 3;
+        if (!sonMiles) decimal = Math.max(punto, coma);
+    }
+    const entero = (decimal >= 0 ? crudo.slice(0, decimal) : crudo).replace(/[.,]/g, '');
+    const numero = Number(decimal >= 0 ? `${entero}.${crudo.slice(decimal + 1)}` : entero);
+    return Number.isFinite(numero) ? numero : null;
+};
+
+const leerMonto = (texto) => {
+    const moneda = /u\$s|us\$|usd|d[óo]lar/i.test(String(texto ?? '')) ? 'USD' : 'ARS';
+    const numero = leerNumero(texto);
+    return { monto: numero !== null && numero > 0 ? numero : null, moneda };
 };
 
 // Monto que corresponde a un mes: el último actualizado que ya rige o, si no hay, el del contrato
@@ -149,6 +174,15 @@ const copiaParaRecibo = (contrato) => ({
     propiedad: { titulo: contrato.propiedad?.titulo || '', direccion: contrato.propiedad?.direccion || '' },
 });
 
+// Próximo número de recibo. El $max hace que el contador arranque desde el último recibo emitido la primera vez
+// (o si alguien lo dejó atrás); el $inc es atómico, así que dos pagos a la vez reciben números distintos.
+const siguienteNumeroRecibo = async () => {
+    const ultimo = await Cobro.findOne({ numeroRecibo: { $type: 'number' } }).sort({ numeroRecibo: -1 }).select('numeroRecibo').lean();
+    await Contador.updateOne({ _id: 'recibo' }, { $max: { valor: ultimo?.numeroRecibo || 0 } }, { upsert: true });
+    const contador = await Contador.findOneAndUpdate({ _id: 'recibo' }, { $inc: { valor: 1 } }, { returnDocument: 'after' }).lean();
+    return contador.valor;
+};
+
 const registrarPago = async (contratoId, periodo, cuerpo = {}) => {
     const contrato = await buscarContrato(contratoId, periodo);
     const pagadoEl = String(cuerpo.pagadoEl || agenda.ahoraEnArgentina().fecha);
@@ -164,14 +198,14 @@ const registrarPago = async (contratoId, periodo, cuerpo = {}) => {
     const existente = await Cobro.findOne({ contrato: contrato._id, periodo }).lean();
     if (existente?.estado === 'pagado') throw errorHttp('Ese mes ya figura como pagado.', 409);
 
-    // El número de recibo es el siguiente al último; si dos pagos se registran a la vez, el índice único
-    // frena al segundo y se reintenta con el número que sigue.
+    // El número sale del contador 'recibo', que solo sube: un recibo anulado no deja su número libre.
+    // Si igual choca con uno existente (por ejemplo, un recibo cargado a mano), se reintenta con el siguiente.
     for (let intento = 0; intento < 5; intento++) {
-        const ultimo = await Cobro.findOne({ numeroRecibo: { $type: 'number' } }).sort({ numeroRecibo: -1 }).select('numeroRecibo').lean();
+        const numeroRecibo = await siguienteNumeroRecibo();
         try {
             const cobro = await Cobro.findOneAndUpdate(
                 { contrato: contrato._id, periodo, estado: { $ne: 'pagado' } },
-                { $set: { estado: 'pagado', monto, moneda: calculado.moneda, pagadoEl, medio, nota, numeroRecibo: (ultimo?.numeroRecibo || 0) + 1, ...copiaParaRecibo(contrato) } },
+                { $set: { estado: 'pagado', monto, moneda: calculado.moneda, pagadoEl, medio, nota, numeroRecibo, ...copiaParaRecibo(contrato) } },
                 { upsert: true, returnDocument: 'after', runValidators: true }
             ).lean();
             return datosCobro(cobro);
@@ -183,15 +217,20 @@ const registrarPago = async (contratoId, periodo, cuerpo = {}) => {
     throw errorHttp('No se pudo numerar el recibo. Probá de nuevo.', 409);
 };
 
-// Por si se marcó por error: vuelve a pendiente (el número de recibo queda libre)
+// Por si se marcó por error: vuelve a pendiente. El recibo deja de valer y queda anotado en `anulaciones`;
+// su número no se reutiliza.
 const anularPago = async (contratoId, periodo) => {
-    await buscarContrato(contratoId, periodo);
+    const contrato = await buscarContrato(contratoId, periodo);
+    const pagado = await Cobro.findOne({ contrato: contrato._id, periodo, estado: 'pagado' }).lean();
+    if (!pagado) throw errorHttp('Ese mes no figura como pagado.', 404);
+    const anulacion = { numeroRecibo: pagado.numeroRecibo, monto: pagado.monto, moneda: pagado.moneda, pagadoEl: pagado.pagadoEl, medio: pagado.medio, anuladoEl: new Date() };
     const cobro = await Cobro.findOneAndUpdate(
-        { contrato: contratoId, periodo, estado: 'pagado' },
-        { $set: { estado: 'pendiente', pagadoEl: null, medio: null, nota: '' }, $unset: { numeroRecibo: 1, monto: 1 } },
+        // Mismo recibo que se leyó recién: si en el medio alguien lo anuló y volvió a pagar, no se toca
+        { _id: pagado._id, estado: 'pagado', numeroRecibo: pagado.numeroRecibo },
+        { $set: { estado: 'pendiente', pagadoEl: null, medio: null, nota: '' }, $unset: { numeroRecibo: 1, monto: 1 }, $push: { anulaciones: anulacion } },
         { returnDocument: 'after' }
     ).lean();
-    if (!cobro) throw errorHttp('Ese mes no figura como pagado.', 404);
+    if (!cobro) throw errorHttp('El pago cambió mientras lo anulabas. Actualizá la página y probá de nuevo.', 409);
     return datosCobro(cobro);
 };
 
@@ -279,4 +318,4 @@ const recibo = async (id) => {
 // Para el número del menú: cuotas del mes que ya pasaron el vencimiento sin pagarse
 const contarAtrasados = async () => (await listar()).filas.filter((f) => f.estado === 'atrasado').length;
 
-module.exports = { listar, registrarPago, anularPago, avisarAtraso, registrarActualizacion, recibo, contarAtrasados, leerMonto, montoDelPeriodo, sumarMeses };
+module.exports = { listar, registrarPago, anularPago, avisarAtraso, registrarActualizacion, recibo, contarAtrasados, leerMonto, montoDelPeriodo, sumarMeses, siguienteNumeroRecibo };

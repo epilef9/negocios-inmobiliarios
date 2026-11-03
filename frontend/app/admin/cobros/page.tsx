@@ -117,7 +117,7 @@ export default function CobrosPage() {
   };
 
   const anular = async (f: FilaCobro) => {
-    const ok = await confirmar('¿Anular el pago?', { texto: `${f.contrato.propiedad}, ${nombreMes(f.periodo)}. Vuelve a figurar sin pagar y el recibo n.º ${f.cobro?.numeroRecibo} deja de valer.`, accion: 'Anular pago' });
+    const ok = await confirmar('¿Anular el pago?', { texto: `${f.contrato.propiedad}, ${nombreMes(f.periodo)}. Vuelve a figurar sin pagar y el recibo n.º ${f.cobro?.numeroRecibo} deja de valer (ese número no se vuelve a usar).`, accion: 'Anular pago' });
     if (!ok) return;
     setTrabajando(`anular-${f.contrato.id}`);
     try {
