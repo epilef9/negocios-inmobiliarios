@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { restablecerPassword } from '@/services/auth';
-import PantallaCuenta, { BotonVerPassword, botonPrincipal, control, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { BotonVerPassword, botonCompacto, botonPrincipal, control, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 // Destino del enlace del mail: elegir la contraseña nueva. Al guardarla se cierran todas las sesiones.
 function FormularioNueva() {
@@ -43,7 +43,7 @@ function FormularioNueva() {
     return (
       <div role="status" className="flex flex-col gap-6 border-t border-[#efe9df]/20 pt-8">
         <p className="m-0 text-[17px] leading-relaxed">Listo, tu contraseña cambió. Por seguridad cerramos las sesiones que tenías abiertas.</p>
-        <Link href="/login" className={`${botonPrincipal} w-auto self-start`}>
+        <Link href="/login" className={`${botonCompacto} self-start`}>
           Ingresar con la nueva
         </Link>
       </div>
@@ -101,7 +101,7 @@ function FormularioNueva() {
       )}
       <div className="flex flex-col gap-6">
         {enlaceRoto ? (
-          <Link href="/olvide-contrasena" className={`${botonPrincipal} w-auto self-start`}>
+          <Link href="/olvide-contrasena" className={`${botonCompacto} self-start`}>
             Pedir un enlace nuevo
           </Link>
         ) : (

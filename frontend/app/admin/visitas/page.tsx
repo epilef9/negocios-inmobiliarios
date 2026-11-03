@@ -6,7 +6,7 @@ import { createVisita, deleteVisita, getVisitas, resetVisitasToDefault, updateVi
 import { getProperties, type ApiProperty } from '@/services/api';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
-import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import { ASISTENCIA_VISITA, ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
 import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
 
 // Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
@@ -67,6 +67,14 @@ function Accion({ icono, texto, onClick, href, tono }: { icono: NombreIcono; tex
       <Icono nombre={icono} className="h-[18px] w-[18px]" />
     </button>
   );
+}
+
+// Lo que respondió el cliente a los botones del recordatorio del día anterior (nada si no respondió)
+function InsigniaAsistencia({ visita }: { visita: Visita }) {
+  const respuesta = visita.asistencia?.respuesta;
+  if (!respuesta) return null;
+  const { texto, tono } = ASISTENCIA_VISITA[respuesta];
+  return <Insignia tono={tono}>{texto}</Insignia>;
 }
 
 export default function VisitasAdminPage() {
@@ -360,8 +368,9 @@ export default function VisitasAdminPage() {
                       <span className="tabular block truncate text-[13px] text-panel-suave">{v.cliente.telefono || 'Sin teléfono'}</span>
                     </button>
                     <span className="min-w-0 truncate text-[13.5px] text-panel-suave">{v.propiedad.titulo || 'Propiedad sin título'}</span>
-                    <span>
+                    <span className="flex flex-wrap gap-1.5">
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
+                      <InsigniaAsistencia visita={v} />
                     </span>
                     <div className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
                   </li>
@@ -377,7 +386,14 @@ export default function VisitasAdminPage() {
         abierto={Boolean(detalle)}
         alCerrar={() => setDetalle(null)}
         titulo={detalle ? `Visita de ${detalle.cliente.nombre}` : ''}
-        descripcion={detalle && <Insignia tono={estadoDe(ESTADO_VISITA, detalle.estado).tono}>{estadoDe(ESTADO_VISITA, detalle.estado).texto}</Insignia>}
+        descripcion={
+          detalle && (
+            <span className="flex flex-wrap gap-1.5">
+              <Insignia tono={estadoDe(ESTADO_VISITA, detalle.estado).tono}>{estadoDe(ESTADO_VISITA, detalle.estado).texto}</Insignia>
+              <InsigniaAsistencia visita={detalle} />
+            </span>
+          )
+        }
         acciones={
           detalle && (
             <>

@@ -419,12 +419,16 @@ class VisitasService {
         } else {
             updateData.fecha = extra.nuevaFecha || actual.fecha;
             updateData.horario = extra.nuevoHorario || actual.horario;
+            // Día nuevo: el recordatorio y la respuesta de asistencia eran del anterior
+            updateData.recordatorioEnviadoAt = null;
+            updateData.asistencia = { respuesta: null, respondidaAt: null };
             resultado = await agenda.reprogramar(id, updateData.fecha, updateData.horario, (session) =>
                 visitasRepository.updateVisita(id, updateData, { session })
             );
         }
 
         const { visita } = resultado;
+        if (visita && cambiaDia) await tokensVisita.anular(id, 'asistencia');
         if (visita && ['confirmada', 'reprogramada'].includes(estado) && (estado !== actual.estado || cambiaDia)) {
             await avisarGestion(visita, estado);
         }
@@ -453,9 +457,11 @@ class VisitasService {
     }
 
     // Cancela (el turno queda libre al dejar de estar pendiente/confirmada/reprogramada), anula los enlaces
-    // de los mails y avisa a la inmobiliaria. `origen` dice desde dónde: "Mi cuenta" o "el enlace del mail".
-    async cancelar(visita, motivo, origen) {
+    // de los mails y avisa a la inmobiliaria. `origen` dice desde dónde: "Mi cuenta", "el enlace del mail"...
+    // `extra`: otros campos a guardar en el mismo cambio.
+    async cancelar(visita, motivo, origen, extra = {}) {
         const actualizada = await visitasRepository.updateVisita(visita._id, {
+            ...extra,
             estado: 'cancelada',
             canceladaAt: new Date(),
             motivoCancelacion: motivo,
@@ -505,7 +511,13 @@ class VisitasService {
         }
         const [a, m, d] = fechaIso.split('-');
         // Mismo formato que guarda "Agendar una visita"
-        const datos = { fecha: `${d}/${m}/${a}`, horario: `${hora} h`, estado: 'pendiente', recordatorioEnviadoAt: null };
+        const datos = {
+            fecha: `${d}/${m}/${a}`,
+            horario: `${hora} h`,
+            estado: 'pendiente',
+            recordatorioEnviadoAt: null,
+            asistencia: { respuesta: null, respondidaAt: null },
+        };
         const { motivo, visita } = await agenda.reprogramar(
             anterior._id,
             datos.fecha,
@@ -515,6 +527,8 @@ class VisitasService {
         );
         if (motivo) return { status: 409, error: motivo, code: 'HORARIO_NO_DISPONIBLE' };
 
+        // Si ya le había llegado el recordatorio, esos botones eran del día anterior
+        await tokensVisita.anular(anterior._id, 'asistencia');
         const nuevo = await avisarGestion(visita, 'cambiada');
         await emailService
             .avisarInmobiliaria({
@@ -532,6 +546,28 @@ class VisitasService {
             })
             .catch((error) => console.error('No se pudo avisar el cambio de horario de la visita:', error.message));
         return { visita: datosGestion(visita), token: nuevo };
+    }
+
+    // Botones del recordatorio del día anterior. El enlace es de un solo uso.
+    async verAsistencia(token) {
+        const valido = await tokensVisita.validar(token, 'asistencia');
+        return valido ? { visita: datosGestion(valido.visita) } : { status: 404, error: ENLACE_INVALIDO };
+    }
+
+    // "confirmo" la deja registrada (el panel lo muestra); "no_voy" la cancela y libera el horario
+    async responderAsistencia(token, respuesta) {
+        if (!['confirmo', 'no_voy'].includes(respuesta)) return { status: 400, error: 'Elegí si vas a poder ir o no.' };
+        const valido = await tokensVisita.validar(token, 'asistencia');
+        if (!valido) return { status: 404, error: ENLACE_INVALIDO };
+        if (!puedeCancelar(valido.visita)) return { status: 409, error: 'Esta visita ya no se puede cambiar.' };
+        // Si llegan dos clics a la vez, solo uno responde
+        if (!(await tokensVisita.consumir(valido.registro))) return { status: 404, error: ENLACE_INVALIDO };
+        const asistencia = { respuesta, respondidaAt: new Date() };
+        if (respuesta === 'confirmo') {
+            return { visita: datosGestion(await visitasRepository.updateVisita(valido.visita._id, { asistencia })) };
+        }
+        const cancelada = await this.cancelar(valido.visita, 'Avisó desde el recordatorio que no va a poder ir', 'el recordatorio del día anterior', { asistencia });
+        return { visita: datosGestion(cancelada) };
     }
 
     async deleteVisita(id) {

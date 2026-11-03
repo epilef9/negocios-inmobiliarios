@@ -114,3 +114,62 @@ describe('Gestionar la visita: enlaces que no sirven', () => {
         assert.ok(!JSON.stringify(vista).includes('1155550000') && !JSON.stringify(vista).includes('ana@example.com'));
     });
 });
+
+describe('Confirmar asistencia desde el recordatorio', () => {
+    const visitasRepository = require('../src/repositories/visitas.repository');
+    const emailService = require('../src/services/email.service');
+    const REGISTRO = { _id: 't1', visita: 'v1', estadoAlEmitir: 'pendiente', unSoloUso: true };
+
+    // Base simulada para responder: el enlace se puede usar `usos` veces y se guarda lo que se actualiza
+    const prepararRespuesta = ({ usos = 1 } = {}) => {
+        simularBase({ registro: REGISTRO });
+        let restantes = usos;
+        mock.method(TokenVisita, 'updateOne', async () => ({ modifiedCount: restantes-- > 0 ? 1 : 0 }));
+        const anular = mock.method(TokenVisita, 'deleteMany', async () => {});
+        const actualizar = mock.method(visitasRepository, 'updateVisita', async (_id, datos) => ({ ...FUTURA, ...datos }));
+        const avisar = mock.method(emailService, 'avisarInmobiliaria', async () => {});
+        return { actualizar, anular, avisar };
+    };
+
+    it('"Confirmo" registra la respuesta sin cambiar el estado de la visita', async () => {
+        const { actualizar, avisar } = prepararRespuesta();
+        const { visita } = await visitasService.responderAsistencia(TOKEN, 'confirmo');
+        const datos = actualizar.mock.calls[0].arguments[1];
+        assert.equal(datos.asistencia.respuesta, 'confirmo');
+        assert.equal(datos.estado, undefined);
+        assert.equal(visita.estado, 'pendiente');
+        assert.equal(avisar.mock.callCount(), 0);
+    });
+
+    it('"No voy a poder" cancela la visita, anula sus enlaces y avisa a la inmobiliaria', async () => {
+        const { actualizar, anular, avisar } = prepararRespuesta();
+        const { visita } = await visitasService.responderAsistencia(TOKEN, 'no_voy');
+        const datos = actualizar.mock.calls[0].arguments[1];
+        assert.equal(datos.estado, 'cancelada');
+        assert.equal(datos.asistencia.respuesta, 'no_voy');
+        assert.equal(visita.estado, 'cancelada');
+        assert.deepEqual(anular.mock.calls[0].arguments[0], { visita: 'v1' });
+        assert.match(avisar.mock.calls[0].arguments[0].intro, /recordatorio/);
+    });
+
+    it('el enlace sirve una sola vez', async () => {
+        prepararRespuesta({ usos: 1 });
+        assert.ok((await visitasService.responderAsistencia(TOKEN, 'confirmo')).visita);
+        const segunda = await visitasService.responderAsistencia(TOKEN, 'confirmo');
+        assert.equal(segunda.status, 404);
+    });
+
+    it('una respuesta que no es "confirmo" ni "no_voy" se rechaza sin tocar nada', async () => {
+        const { actualizar } = prepararRespuesta();
+        const respuesta = await visitasService.responderAsistencia(TOKEN, 'tal vez');
+        assert.equal(respuesta.status, 400);
+        assert.equal(actualizar.mock.callCount(), 0);
+    });
+
+    it('un enlace que no sirve responde el mismo 404 que gestionar la visita', async () => {
+        simularBase({ registro: null });
+        const asistencia = await visitasService.responderAsistencia(TOKEN, 'confirmo');
+        const gestion = await visitasService.verPorToken(TOKEN);
+        assert.deepEqual(asistencia, gestion);
+    });
+});

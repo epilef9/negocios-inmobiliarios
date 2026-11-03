@@ -10,6 +10,12 @@ export const ESTADO_VISITA: Record<string, { texto: string; tono: Tono }> = {
   cancelada: { texto: 'Cancelada por el cliente', tono: 'neutro' },
 };
 
+// Respuesta del cliente a los botones del recordatorio del día anterior
+export const ASISTENCIA_VISITA: Record<string, { texto: string; tono: Tono }> = {
+  confirmo: { texto: 'Confirmó asistencia', tono: 'exito' },
+  no_voy: { texto: 'Avisó que no va', tono: 'peligro' },
+};
+
 export const ESTADO_RESERVA: Record<string, { texto: string; tono: Tono }> = {
   pendiente: { texto: 'Por confirmar', tono: 'aviso' },
   confirmada: { texto: 'Confirmada', tono: 'exito' },

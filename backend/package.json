@@ -11,6 +11,7 @@
     "migrar:visitas": "node src/migrar-permitir-visita.js",
     "demo:propiedades": "node src/demo-propiedades.js",
     "demo:publicaciones": "node src/demo-publicaciones.js",
+    "probar:recordatorio": "node src/probar-recordatorio.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],

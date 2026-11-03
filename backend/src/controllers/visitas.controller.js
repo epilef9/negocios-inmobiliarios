@@ -187,6 +187,12 @@ exports.reprogramarGestion = responderGestion(
     'Listo, pediste el nuevo horario. Te avisamos cuando lo confirmemos.'
 );
 
+// Botones "Confirmo" / "No voy a poder" del recordatorio del día anterior
+exports.verAsistencia = responderGestion(({ token }) => visitasService.verAsistencia(token));
+exports.responderAsistencia = responderGestion(({ token, respuesta }) =>
+    visitasService.responderAsistencia(token, typeof respuesta === 'string' ? respuesta : '')
+);
+
 exports.deleteVisita = async (req, res) => {
     try {
         const deleted = await visitasService.deleteVisita(req.params.id);

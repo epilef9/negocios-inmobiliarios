@@ -25,6 +25,8 @@ export interface Visita {
   motivoRechazo?: string;
   // Solo en "Mis visitas": si el cliente todavía la puede cancelar
   cancelable?: boolean;
+  // Respuesta a los botones del recordatorio del día anterior
+  asistencia?: { respuesta: 'confirmo' | 'no_voy' | null; respondidaAt?: string | null };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -70,6 +72,7 @@ function normalizeVisita(raw: VisitaCruda): Visita {
     notaAdicional: raw.notaAdicional || '',
     motivoRechazo: raw.motivoRechazo || '',
     cancelable: Boolean(raw.cancelable),
+    asistencia: { respuesta: raw.asistencia?.respuesta ?? null, respondidaAt: raw.asistencia?.respondidaAt ?? null },
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -214,3 +217,10 @@ export const verVisitaPorEnlace = (token: string) => gestionar('ver', { token })
 export const cancelarVisitaPorEnlace = (token: string, motivo: string) => gestionar('cancelar', { token, motivo });
 export const reprogramarVisitaPorEnlace = (token: string, fecha: string, horario: string) =>
   gestionar('reprogramar', { token, fecha, horario });
+
+// Botones "Confirmo" / "No voy a poder" del recordatorio del día anterior (enlace de un solo uso)
+export type RespuestaAsistencia = 'confirmo' | 'no_voy';
+export const verAsistenciaPorEnlace = (token: string) =>
+  request<RespuestaGestion>('/visitas/asistencia/ver', { method: 'POST', body: JSON.stringify({ token }) });
+export const responderAsistenciaPorEnlace = (token: string, respuesta: RespuestaAsistencia) =>
+  request<RespuestaGestion>('/visitas/asistencia/responder', { method: 'POST', body: JSON.stringify({ token, respuesta }) });

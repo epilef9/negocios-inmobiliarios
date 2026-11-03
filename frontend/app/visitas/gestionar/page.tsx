@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import CalendarioVisita from "@/components/detalle/CalendarioVisita";
-import { botonPrincipal } from "@/components/cuenta/PantallaCuenta";
+import { botonCompacto } from "@/components/cuenta/PantallaCuenta";
 import { useContacto } from "@/components/sitio/useAjustes";
 import {
 	cancelarVisitaPorEnlace,
@@ -124,7 +124,7 @@ function Gestionar() {
 				<p className="m-0 text-[17px] leading-relaxed text-[#efe9df]/80">
 					{error || "Este enlace no es válido o ya venció. Si necesitás cambiar tu visita, escribinos por WhatsApp."}
 				</p>
-				<a href={whatsappUrl} target="_blank" rel="noreferrer" className={`${botonPrincipal} w-auto`}>
+				<a href={whatsappUrl} target="_blank" rel="noreferrer" className={botonCompacto}>
 					Escribir por WhatsApp
 				</a>
 			</div>
@@ -188,7 +188,7 @@ function Gestionar() {
 					</label>
 					<textarea id="motivo" rows={3} maxLength={300} value={motivo} onChange={(e) => setMotivo(e.target.value)} className={control} />
 					<div className="flex flex-wrap gap-3">
-						<button type="button" onClick={cancelar} disabled={enviando} className={`${botonPrincipal} w-auto`}>
+						<button type="button" onClick={cancelar} disabled={enviando} className={botonCompacto}>
 							{enviando ? "Cancelando…" : "Sí, cancelar la visita"}
 						</button>
 						<button type="button" onClick={() => setModo("ver")} disabled={enviando} className={secundario}>
@@ -203,7 +203,7 @@ function Gestionar() {
 					<CalendarioVisita key={vueltaAgenda} fecha={turno.fecha} horario={turno.horario} onCambiar={setTurno} />
 					<p className="m-0 text-[14px] text-[#efe9df]/60">El nuevo horario queda pendiente hasta que la inmobiliaria lo confirme.</p>
 					<div className="flex flex-wrap gap-3">
-						<button type="button" onClick={reprogramar} disabled={enviando || !turno.horario} className={`${botonPrincipal} w-auto`}>
+						<button type="button" onClick={reprogramar} disabled={enviando || !turno.horario} className={botonCompacto}>
 							{enviando ? "Guardando…" : "Pedir este horario"}
 						</button>
 						<button type="button" onClick={() => setModo("ver")} disabled={enviando} className={secundario}>
