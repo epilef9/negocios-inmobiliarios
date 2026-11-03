@@ -15,13 +15,32 @@ const origenesPermitidos = () =>
         .filter(Boolean);
 
 // Dirección del frontend, para armar los links que van en los mails (verificación, contraseña).
-// Si no está FRONTEND_URL usa el primer origen fijo de CORS_ORIGIN o, en Vercel, el dominio de producción.
+// Primero NEXT_PUBLIC_SITE_URL (la misma que usa el frontend: el día que haya dominio alcanza con cambiarla),
+// después FRONTEND_URL, el primer origen fijo de CORS_ORIGIN o, en Vercel, el dominio de producción.
 const urlFrontend = () => {
     const origenFijo = origenesPermitidos().find((origen) => !origen.includes('*'));
     const vercel = process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : '';
-    return (process.env.FRONTEND_URL || (process.env.FRONTEND_URLS || '').split(',')[0] || origenFijo || vercel || 'http://localhost:3000')
+    return (
+        process.env.NEXT_PUBLIC_SITE_URL ||
+        process.env.FRONTEND_URL ||
+        (process.env.FRONTEND_URLS || '').split(',')[0] ||
+        origenFijo ||
+        vercel ||
+        'http://localhost:3000'
+    )
         .trim()
         .replace(/\/$/, '');
+};
+
+// Como urlFrontend, pero en producción devuelve null si terminaría apuntando a la compu local:
+// un mail con un enlace roto es peor que un mail sin enlace
+const urlPublica = () => {
+    const url = urlFrontend();
+    if (enProduccion() && /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url)) {
+        console.error('[config] Falta NEXT_PUBLIC_SITE_URL (la dirección pública del sitio): los mails salen sin enlace.');
+        return null;
+    }
+    return url;
 };
 
 // Envío de mails. Dos formas, las dos gratis:
@@ -70,6 +89,7 @@ module.exports = {
     jwtSecret,
     origenesPermitidos,
     urlFrontend,
+    urlPublica,
     mailConfig,
     validarConfiguracion,
 };

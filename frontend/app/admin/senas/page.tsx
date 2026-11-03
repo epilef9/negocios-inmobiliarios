@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { getProperties, type ApiProperty } from '@/services/api';
+import { operacionesAbiertas } from '@/components/sitio/operaciones';
 import { cancelarSena, concretarSena, crearSena, extenderSena, finDelDiaArgentina, getSenas, montoSena, type EstadoSena, type Sena } from '@/services/senas';
 import { hoyIso, sumarDias } from '@/components/calendario/fechas';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, Pestanas, SelectorFecha, Tarjeta, areaTexto, control, useAviso, type Tono } from '@/components/panel/ui';
@@ -26,7 +27,7 @@ const fecha = (iso: string) =>
   new Date(iso).toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'America/Argentina/Buenos_Aires' });
 const diasHasta = (iso: string) => Math.ceil((new Date(iso).getTime() - Date.now()) / 86400000);
 
-const VACIO = { propiedad: '', nombre: '', email: '', telefono: '', monto: '', moneda: 'USD' as 'USD' | 'ARS', fechaLimite: '', notas: '' };
+const VACIO = { propiedad: '', operacion: '' as '' | 'venta' | 'alquiler', nombre: '', email: '', telefono: '', monto: '', moneda: 'USD' as 'USD' | 'ARS', fechaLimite: '', notas: '' };
 
 export default function SenasPage() {
   const { mostrar, aviso } = useAviso();
@@ -59,9 +60,15 @@ export default function SenasPage() {
 
   // Solo se pueden reservar las disponibles de venta o alquiler (las temporarias se reservan por noches)
   const reservables = useMemo(
-    () => propiedades.filter((p) => (!p.estado || p.estado === 'disponible') && p.categoria_operacion !== 'temporario').sort((a, b) => a.title.localeCompare(b.title)),
+    // HU-25 / HU-28: las que tienen venta o alquiler abiertos (incluye la venta de una alquilada con inquilino)
+    () => propiedades.filter((p) => operacionesAbiertas(p).some((o) => o !== 'temporario')).sort((a, b) => a.title.localeCompare(b.title)),
     [propiedades]
   );
+  // Operaciones que se pueden reservar en la propiedad elegida (con venta y alquiler hay que elegir una)
+  const opcionesOperacion = useMemo(() => {
+    const elegida = propiedades.find((p) => p._id === form.propiedad);
+    return elegida ? operacionesAbiertas(elegida).filter((o): o is 'venta' | 'alquiler' => o !== 'temporario') : [];
+  }, [propiedades, form.propiedad]);
 
   const visibles = (senas ?? []).filter((s) => (pestana === 0 ? s.estado === 'activa' : s.estado !== 'activa'));
 
@@ -71,11 +78,13 @@ export default function SenasPage() {
     e.preventDefault();
     setErrorForm(null);
     if (!form.propiedad) return setErrorForm('Elegí la propiedad.');
+    if (opcionesOperacion.length > 1 && !form.operacion) return setErrorForm('Elegí si la seña es por la venta o por el alquiler.');
     if (!form.fechaLimite) return setErrorForm('Elegí hasta cuándo dura la reserva.');
     setTrabajando(true);
     try {
       await crearSena({
         propiedad: form.propiedad,
+        ...(form.operacion ? { operacion: form.operacion } : opcionesOperacion.length === 1 ? { operacion: opcionesOperacion[0] } : {}),
         cliente: { nombre: form.nombre.trim(), email: form.email.trim(), telefono: form.telefono.trim() },
         sena: { monto: Number(form.monto), moneda: form.moneda },
         fechaLimite: finDelDiaArgentina(form.fechaLimite),
@@ -98,7 +107,9 @@ export default function SenasPage() {
     try {
       const hecho = cerrando.accion === 'concretar' ? await concretarSena(cerrando.sena._id, cierre) : await cancelarSena(cerrando.sena._id, cierre);
       reemplazar(hecho);
-      mostrar(cerrando.accion === 'concretar' ? `Operación concretada: la propiedad pasó a ${hecho.operacion === 'alquiler' ? 'alquilada' : 'vendida'}.` : 'Reserva cancelada: la propiedad volvió a estar disponible.');
+      mostrar(cerrando.accion === 'concretar'
+        ? `Operación concretada: la propiedad pasó a ${hecho.operacion === 'alquiler' ? 'alquilada' : 'vendida'}.`
+        : hecho.estadoAnterior === 'alquilado' ? 'Reserva cancelada: la propiedad volvió a figurar alquilada (sigue en venta).' : 'Reserva cancelada: la propiedad volvió a estar disponible.');
       setCerrando(null);
       setCierre('');
     } catch (err) {
@@ -245,15 +256,32 @@ export default function SenasPage() {
             </div>
           )}
           <Campo etiqueta="Propiedad *" htmlFor="sena-propiedad" className="sm:col-span-2" ayuda={reservables.length ? undefined : 'No hay propiedades disponibles de venta o alquiler.'}>
-            <select id="sena-propiedad" required value={form.propiedad} onChange={(e) => setForm({ ...form, propiedad: e.target.value })} className={control}>
+            <select id="sena-propiedad" required value={form.propiedad} onChange={(e) => setForm({ ...form, propiedad: e.target.value, operacion: '' })} className={control}>
               <option value="">Elegí una propiedad</option>
               {reservables.map((p) => (
                 <option key={p._id} value={p._id}>
-                  {p.title} · {p.categoria_operacion === 'alquiler' ? 'Alquiler' : 'Venta'}
+                  {p.title} · {operacionesAbiertas(p).length === 2 ? 'Venta y alquiler' : operacionesAbiertas(p)[0] === 'alquiler' ? 'Alquiler' : p.estado === 'alquilado' ? 'Venta (con inquilino)' : 'Venta'}
                 </option>
               ))}
             </select>
           </Campo>
+          {opcionesOperacion.length > 1 && (
+            <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0 sm:col-span-2">
+              <legend className="mb-1.5 p-0 text-[13px] font-medium text-panel-suave">¿La seña es por la venta o por el alquiler? *</legend>
+              <div className="flex gap-2">
+                {opcionesOperacion.map((o) => (
+                  <label
+                    key={o}
+                    className={`flex h-10 flex-1 cursor-pointer items-center justify-center rounded-lg border text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-panel-acento ${form.operacion === o ? 'border-panel-marca bg-panel-marca text-panel-marca-texto' : 'border-panel-borde-fuerte bg-panel-superficie text-panel-suave hover:bg-panel-hundido'}`}
+                  >
+                    <input type="radio" name="sena-operacion" value={o} checked={form.operacion === o} onChange={() => setForm({ ...form, operacion: o })} className="sr-only" />
+                    {o === 'venta' ? 'Venta' : 'Alquiler'}
+                  </label>
+                ))}
+              </div>
+              <p className="m-0 text-[12.5px] text-panel-tenue">Al concretarse se cierra la propiedad entera, con sus dos operaciones.</p>
+            </fieldset>
+          )}
           <Campo etiqueta="Quién reserva *" htmlFor="sena-nombre" className="sm:col-span-2">
             <input id="sena-nombre" required maxLength={120} value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} className={control} />
           </Campo>
@@ -265,7 +293,7 @@ export default function SenasPage() {
           </Campo>
           <Campo etiqueta="Seña *" htmlFor="sena-monto">
             <div className="flex gap-2">
-              <select aria-label="Moneda de la seña" value={form.moneda} onChange={(e) => setForm({ ...form, moneda: e.target.value as 'USD' | 'ARS' })} className={`${control} w-24`}>
+              <select aria-label="Moneda de la seña" value={form.moneda} onChange={(e) => setForm({ ...form, moneda: e.target.value as 'USD' | 'ARS' })} className={`${control} w-24! shrink-0`}>
                 <option value="USD">USD</option>
                 <option value="ARS">ARS</option>
               </select>

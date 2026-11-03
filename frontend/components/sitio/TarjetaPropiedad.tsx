@@ -4,7 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion } from './datos';
-import { datosCortos, etiquetaEstado, precioDePropiedad } from './precio';
+import { datosCortos, etiquetaEstado, precioDePropiedad, preciosDePropiedad } from './precio';
+import { etiquetaOperaciones, operacionesAbiertas, operacionesDe, tieneOperacion } from './operaciones';
 import BotonFavorito from './BotonFavorito';
 import ConmutadorComparar from './ConmutadorComparar';
 import { propsFoto } from './foto';
@@ -15,6 +16,8 @@ type Props = {
   tamano?: 'grande' | 'normal' | 'compacta';
   // Con revelado, la foto entra como una persiana al aparecer (requiere un contenedor <Revelar>)
   revelar?: boolean;
+  // Operación filtrada en el catálogo: si la propiedad está en venta y alquiler, se muestra solo esa (HU-25)
+  operacion?: string;
 };
 
 // Cada operación con un color de la marca: rojo para venta, azul para alquiler, crema para por días
@@ -30,12 +33,20 @@ const ALTO = {
   compacta: 'aspect-[4/3]',
 };
 
-export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', revelar = true }: Props) {
+export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', revelar = true, operacion: filtrada }: Props) {
   const imagen = propiedad.images?.[0];
-  const operacion = etiquetaOperacion[propiedad.categoria_operacion || ''] ?? 'Propiedad';
+  const soloUna = filtrada && tieneOperacion(propiedad, filtrada) ? filtrada : null;
+  const operaciones = soloUna ? [soloUna] : operacionesDe(propiedad);
+  const operacion = soloUna ? etiquetaOperacion[soloUna] : etiquetaOperaciones(propiedad);
   const lugar = propiedad.ciudad || propiedad.location;
-  const precio = precioDePropiedad(propiedad, blue);
-  const estado = propiedad.estado && propiedad.estado !== 'disponible' ? etiquetaEstado[propiedad.estado] : null;
+  // Con venta y alquiler se muestran los dos precios; con el filtro de operación, solo el de esa
+  const precios = soloUna ? [{ operacion: soloUna, ...precioDePropiedad(propiedad, blue, soloUna) }] : preciosDePropiedad(propiedad, blue);
+  const precio = precios[0] ?? { operacion: 'venta', ...precioDePropiedad(propiedad, blue) };
+  const otros = precios.slice(1);
+  // HU-28: alquilada pero todavía en venta (con inquilino adentro)
+  // (si el catálogo está filtrado por alquiler, figura simplemente alquilada)
+  const conInquilino = propiedad.estado === 'alquilado' && operacionesAbiertas(propiedad).includes('venta') && soloUna !== 'alquiler';
+  const estado = conInquilino ? 'Se vende con inquilino' : propiedad.estado && propiedad.estado !== 'disponible' ? etiquetaEstado[propiedad.estado] : null;
   const datos = datosCortos(propiedad);
   // Si la foto no carga (enlace roto), se muestra el mismo aviso que cuando no hay foto
   const [fotoRota, setFotoRota] = useState(false);
@@ -65,9 +76,9 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
           <div className="flex h-full items-center justify-center text-[13px] text-[#efe9df]/70">Sin foto todavía</div>
         )}
         <span className="absolute left-4 top-4 flex flex-wrap gap-2">
-          {COLOR_OPERACION[propiedad.categoria_operacion || ''] && (
-            <span className={`calma-micro rounded-full px-3 py-1.5 ${COLOR_OPERACION[propiedad.categoria_operacion || '']}`}>{operacion}</span>
-          )}
+          {operaciones.filter((o) => COLOR_OPERACION[o]).map((o) => (
+            <span key={o} className={`calma-micro rounded-full px-3 py-1.5 ${COLOR_OPERACION[o]}`}>{etiquetaOperacion[o]}</span>
+          ))}
           {estado && <span className="calma-micro rounded-full bg-[#efe9df] px-3 py-1.5 text-[#071733]">{estado}</span>}
         </span>
       </div>
@@ -94,8 +105,17 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
               <span className="calma-micro rounded-full bg-[#d9382b] px-2 py-0.5 text-[10px] text-white">−{precio.descuento}%</span>
             </span>
           )}
-          <span className="text-[15px]">{precio.principal}</span>
+          <span className="text-[15px]">
+            {otros.length > 0 && <span className="text-[#efe9df]/60">{etiquetaOperacion[precio.operacion]} · </span>}
+            {precio.principal}
+          </span>
           {precio.referencia && <span className="text-[13px] text-[#efe9df]/60">{precio.referencia}</span>}
+          {otros.map((o) => (
+            <span key={o.operacion} className="text-[15px]">
+              <span className="text-[#efe9df]/60">{etiquetaOperacion[o.operacion]} · </span>
+              {o.principal}
+            </span>
+          ))}
         </span>
       </div>
     </Link>

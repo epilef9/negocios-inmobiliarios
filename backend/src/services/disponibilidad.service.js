@@ -6,6 +6,7 @@ const Disponibilidad = require('../models/disponibilidad.model');
 const Property = require('../models/property.model');
 const ApiError = require('../utils/api-error');
 const { ahoraEnArgentina, sumarDias } = require('./agenda.service');
+const { operacionesDe } = require('../utils/operaciones');
 
 const TIPOS = ['bloqueo', 'ocupada', 'reserva'];
 // Un solo rango no puede pasar de un año (evita cargas por error, como 2062 en vez de 2026)
@@ -63,10 +64,10 @@ const conCandado = (propiedadId, trabajo) =>
 const propiedadTemporaria = async (propiedadId) => {
     if (!mongoose.isValidObjectId(propiedadId)) throw ApiError.badRequest('El id de la propiedad no es válido');
     const propiedad = await Property.findById(propiedadId)
-        .select('title categoria_operacion minimoNoches precioPorNocheUSD huespedesMaximos costoLimpiezaUSD')
+        .select('title categoria_operacion operaciones minimoNoches precioPorNocheUSD huespedesMaximos costoLimpiezaUSD')
         .lean();
     if (!propiedad) throw ApiError.notFound('Propiedad no encontrada');
-    if (propiedad.categoria_operacion !== 'temporario') {
+    if (!operacionesDe(propiedad).includes('temporario')) {
         throw ApiError.badRequest('La disponibilidad solo se maneja en propiedades de alquiler temporario');
     }
     return propiedad;

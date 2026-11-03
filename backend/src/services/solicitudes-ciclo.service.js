@@ -2,6 +2,7 @@ const Solicitud = require('../models/solicitud.model');
 const User = require('../models/user.model');
 const email = require('./email.service');
 const { urlFrontend } = require('../config/env');
+const { operacionesAbiertas, operacionDeSolicitud } = require('../utils/operaciones');
 
 const DIAS_VENCIMIENTO_SOLICITUD = 60;
 const DIAS_VISIBILIDAD_COMENTARIOS = 90;
@@ -17,7 +18,8 @@ const mensajesCliente = (solicitud, ahora = new Date()) => (solicitud.historialE
 
 const cambioAutomatico = (solicitud, propiedad, ahora = new Date()) => {
     if (solicitud.estado !== 'pendiente') return null;
-    if (['vendido', 'alquilado'].includes(propiedad?.estado)) {
+    // Vendida o alquilada cierra las pendientes, salvo las de compra si sigue en venta con inquilino (HU-28)
+    if (['vendido', 'alquilado'].includes(propiedad?.estado) && !operacionesAbiertas(propiedad).includes(operacionDeSolicitud(solicitud.operacion))) {
         return { estado: 'cerrada', comentario: MENSAJE_CIERRE, fecha: ahora };
     }
     const inicio = new Date(solicitud.reactivadaAt || solicitud.createdAt).getTime();

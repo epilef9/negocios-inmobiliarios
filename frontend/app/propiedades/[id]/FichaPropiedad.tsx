@@ -10,8 +10,8 @@ import Galeria from "@/components/detalle/Galeria";
 import ConsultaEmail from "@/components/detalle/ConsultaEmail";
 import ReservarEstadia from "@/components/detalle/ReservarEstadia";
 import AgendarVisita, { type AgendarVisitaHandle } from "@/components/detalle/AgendarVisita";
-import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
-import { etiquetaOperacion } from "@/components/sitio/datos";
+import { etiquetaEstado, etiquetaTipo, precioDePropiedad, preciosDePropiedad, useDolarBlue } from "@/components/sitio/precio";
+import { etiquetaOperaciones, operacionesAbiertas, tieneOperacion } from "@/components/sitio/operaciones";
 import { useContacto } from "@/components/sitio/useAjustes";
 import { COMODIDADES } from "@/components/catalogo/FiltrosCatalogo";
 import { getPropertyById, type ApiProperty } from "@/services/api";
@@ -46,10 +46,10 @@ function caracteristicas(p: ApiProperty) {
 		agregar("Cochera", p.cochera === "si" ? "Sí" : p.cochera === "no" ? "No" : p.cochera);
 		agregar("Piso", p.pisoUnidad);
 	}
-	if (p.categoria_operacion === "alquiler" && p.duracionAlquilerMeses) {
+	if (tieneOperacion(p, "alquiler") && p.duracionAlquilerMeses) {
 		agregar("Contrato", `${p.duracionAlquilerMeses} ${p.unidadDuracionAlquiler === "años" ? "años" : "meses"}`);
 	}
-	if (p.categoria_operacion === "temporario") {
+	if (tieneOperacion(p, "temporario")) {
 		agregar("Huéspedes", p.huespedesMaximos ? `Hasta ${p.huespedesMaximos}` : undefined);
 		agregar("Estadía mínima", p.minimoNoches ? `${p.minimoNoches} noches` : undefined);
 		agregar("Ingreso", p.checkInDesde ? `Desde las ${p.checkInDesde}` : undefined);
@@ -124,26 +124,28 @@ export default function DetallePropiedad() {
 	}
 
 	const p = propiedad;
-	const precio = precioDePropiedad(p, blue);
-	const operacionesSolicitud = p.operacionesSolicitud?.length
-		? p.operacionesSolicitud
-		: p.categoria_operacion === "venta" || p.categoria_operacion === "alquiler"
-			? [p.categoria_operacion]
-			: [];
-	const operacion = operacionesSolicitud.includes("venta") && operacionesSolicitud.includes("alquiler")
-		? "Venta y alquiler"
-		: etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad";
+	// HU-25: con venta y alquiler se muestran los dos precios
+	const calculados = preciosDePropiedad(p, blue);
+	const precios = calculados.length ? calculados : [{ operacion: "venta" as const, ...precioDePropiedad(p, blue) }];
+	const precio = precios[0];
+	const textoPrecios = precios.length > 1 ? precios.map((x) => `${x.operacion === "venta" ? "Venta" : "Alquiler"} ${x.principal}`).join(" · ") : precio.principal;
+	const operacion = etiquetaOperaciones(p);
+	const abiertas = operacionesAbiertas(p);
+	// HU-28: alquilada pero todavía en venta (con inquilino adentro)
+	const conInquilino = p.estado === "alquilado" && abiertas.includes("venta");
 	// Sin repetir la ciudad cuando la dirección ya la trae ("…, Villa Libertador San Martín")
 	const ubicacion =
 		(p.direccionCompleta && p.ciudad && p.direccionCompleta.toLocaleLowerCase("es").includes(p.ciudad.toLocaleLowerCase("es"))
 			? p.direccionCompleta
 			: [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ")) || p.location;
-	const estadoNoDisponible = p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
-	// Una propiedad vendida o alquilada ya no se puede visitar
+	const estadoNoDisponible = conInquilino ? "Se vende con inquilino" : p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
+	// Una propiedad vendida o alquilada ya no se puede visitar (salvo la venta con inquilino adentro)
 	// Vacía cuenta como sí: las propiedades cargadas antes de que existiera la casilla también se pueden visitar
-	const sePuedeVisitar = p.permitirVisita !== false && p.estado !== "vendido" && p.estado !== "alquilado";
-	const puedeSolicitar = p.permitirSolicitudes !== false && (!p.estado || p.estado === "disponible") && p.categoria_operacion !== "temporario";
-	const esTemporario = p.categoria_operacion === "temporario";
+	const sePuedeVisitar = p.permitirVisita !== false && p.estado !== "vendido" && (p.estado !== "alquilado" || conInquilino);
+	// Solicitudes de compra o alquiler para las operaciones que siguen abiertas
+	const operacionesSolicitud = p.permitirSolicitudes !== false ? abiertas.filter((o) => o !== "temporario") : [];
+	const puedeSolicitar = operacionesSolicitud.length > 0;
+	const esTemporario = tieneOperacion(p, "temporario");
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
 	const enlace = typeof window !== "undefined" ? window.location.href : "";
@@ -219,7 +221,7 @@ export default function DetallePropiedad() {
 						</section>
 					)}
 
-					{p.categoria_operacion === "temporario" && (
+					{esTemporario && (
 						<section aria-labelledby="titulo-disponibilidad" className="flex flex-col gap-5">
 							<h2 id="titulo-disponibilidad" className="font-display m-0 text-[32px] font-normal">
 								Reservá tu estadía
@@ -256,16 +258,24 @@ export default function DetallePropiedad() {
 					<div className="tarjeta-color flex flex-col gap-6 rounded-3xl border border-[#efe9df]/15 p-6 sm:p-8 lg:sticky lg:top-24">
 						<div className="flex flex-col gap-1.5">
 							<p className="calma-micro m-0 text-[#efe9df]/60">{operacion}</p>
-							{precio.anterior && (
-								<p className="m-0 flex flex-wrap items-center gap-2.5 text-[15px] text-[#efe9df]/60">
-									<s>{precio.anterior}</s>
-									<span className="calma-micro rounded-full bg-[#d9382b] px-2.5 py-1 text-[11px] text-white">−{precio.descuento}%</span>
-									{p.descuento?.hasta && <span className="text-[13px]">hasta el {new Date(p.descuento.hasta).toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "UTC" })}</span>}
-								</p>
-							)}
-							<p className="font-display m-0 text-[clamp(36px,3.4vw,48px)] leading-none">{precio.principal}</p>
-							{precio.anterior && p.descuento?.motivo && <p className="m-0 text-[14px] text-[#efe9df]/75">{p.descuento.motivo}</p>}
-							{precio.referencia && <p className="m-0 text-[14px] text-[#efe9df]/65">{precio.referencia}</p>}
+							{precios.map((precio, indice) => (
+								<div key={precio.operacion} className={`flex flex-col gap-1.5 ${indice > 0 ? "mt-3 border-t border-[#efe9df]/15 pt-4" : ""}`}>
+									{precios.length > 1 && <p className="calma-micro m-0 text-[#efe9df]/60">{precio.operacion === "venta" ? "Venta" : "Alquiler"}</p>}
+									{precio.anterior && (
+										<p className="m-0 flex flex-wrap items-center gap-2.5 text-[15px] text-[#efe9df]/60">
+											<s>{precio.anterior}</s>
+											<span className="calma-micro rounded-full bg-[#d9382b] px-2.5 py-1 text-[11px] text-white">−{precio.descuento}%</span>
+											{indice === 0 && p.descuento?.hasta && <span className="text-[13px]">hasta el {new Date(p.descuento.hasta).toLocaleDateString("es-AR", { day: "numeric", month: "long", timeZone: "UTC" })}</span>}
+										</p>
+									)}
+									<p className={`font-display m-0 leading-none ${precios.length > 1 ? "text-[clamp(30px,2.8vw,40px)]" : "text-[clamp(36px,3.4vw,48px)]"}`}>{precio.principal}</p>
+									{precio.referencia && <p className="m-0 text-[14px] text-[#efe9df]/65">{precio.referencia}</p>}
+									{precios.length > 1 && !abiertas.includes(precio.operacion) && p.estado === "alquilado" && precio.operacion === "alquiler" && (
+										<p className="m-0 text-[14px] text-[#efe9df]/75">Ya está alquilada: se vende con el inquilino adentro.</p>
+									)}
+								</div>
+							))}
+							{precios[0]?.anterior && p.descuento?.motivo && <p className="m-0 text-[14px] text-[#efe9df]/75">{p.descuento.motivo}</p>}
 							{p.montoExpensas ? <p className="m-0 pt-1 text-[14px] text-[#efe9df]/65">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 							{p.estado === "reservado" && p.reservadaHasta && (
 								<p className="m-0 pt-1 text-[14px] text-[#efe9df]/75">
@@ -273,7 +283,7 @@ export default function DetallePropiedad() {
 								</p>
 							)}
 						</div>
-						{p.financiacion?.disponible && p.estado !== "vendido" && p.estado !== "alquilado" && (
+						{p.financiacion?.disponible && abiertas.includes("venta") && (
 							<div className="flex flex-col gap-1.5 border-t border-[#efe9df]/15 pt-5">
 								<p className="calma-micro m-0 text-[#efe9df]/60">Financiación</p>
 								<p className="m-0 text-[16px] leading-snug">
@@ -331,7 +341,7 @@ export default function DetallePropiedad() {
 							<ConsultaEmail titulo={p.title} mensajeInicial={mensaje} deshabilitado={p.permitirEmail === false} />
 							<BotonFavorito propiedadId={p._id} titulo={p.title} variante="texto" />
 							{(p.estado === "alquilado" || p.estado === "reservado") && <AvisoDisponibilidad propiedadId={p._id} />}
-							<Compartir titulo={p.title} resumen={`${operacion} · ${precio.principal}${p.ciudad ? ` · ${p.ciudad}` : ""}`} />
+							<Compartir titulo={p.title} resumen={`${operacion} · ${textoPrecios}${p.ciudad ? ` · ${p.ciudad}` : ""}`} />
 						</div>
 						<div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
 							<BotonComparar propiedadId={p._id} />
@@ -344,12 +354,12 @@ export default function DetallePropiedad() {
 				</aside>
 			</div>
 
-			{sePuedeVisitar && <AgendarVisita ref={visita} propiedad={p} precio={precio.principal} />}
+			{sePuedeVisitar && <AgendarVisita ref={visita} propiedad={p} precio={textoPrecios} />}
 
 			{/* Celular: el precio y el botón principal quedan siempre a mano (en la ficha van al final, después del mapa) */}
 			<div className="fixed inset-x-0 bottom-0 z-40 flex items-center justify-between gap-4 border-t border-[#efe9df]/15 bg-[#071733]/95 px-5 py-3 backdrop-blur lg:hidden">
 				<div className="flex min-w-0 flex-col">
-					<span className="truncate text-[16px] leading-tight">{precio.principal}</span>
+					<span className="truncate text-[16px] leading-tight">{textoPrecios}</span>
 					{precio.anterior ? <s className="text-[12px] text-[#efe9df]/55">{precio.anterior}</s> : estadoNoDisponible ? <span className="text-[12px] text-[#efe9df]/60">{estadoNoDisponible}</span> : null}
 				</div>
 				{esTemporario ? (

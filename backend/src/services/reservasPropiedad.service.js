@@ -2,6 +2,7 @@
 const mongoose = require('mongoose');
 const ReservaPropiedad = require('../models/reservaPropiedad.model');
 const Property = require('../models/property.model');
+const { operacionesDe, operacionesAbiertas } = require('../utils/operaciones');
 
 const DIAS_MAXIMOS = 180;
 const MS_DIA = 24 * 60 * 60 * 1000;
@@ -24,6 +25,7 @@ const revisarDatos = (cuerpo = {}, ahora = new Date()) => {
     if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'El email no es válido.' };
     if (!email && telefono.replace(/\D/g, '').length < 6) return { error: 'Cargá un email o un teléfono para contactar a quien reserva.' };
     if (!Number.isFinite(monto) || monto <= 0) return { error: 'El monto de la seña tiene que ser mayor a cero.' };
+    if (cuerpo.operacion !== undefined && cuerpo.operacion !== '' && !['venta', 'alquiler'].includes(cuerpo.operacion)) return { error: 'La operación tiene que ser venta o alquiler.' };
     if (Number.isNaN(limite.getTime())) return { error: 'La fecha límite no es válida.' };
     if (limite.getTime() <= ahora.getTime()) return { error: 'La fecha límite tiene que ser futura.' };
     if (limite.getTime() > ahora.getTime() + DIAS_MAXIMOS * MS_DIA) return { error: `La reserva puede durar como mucho ${DIAS_MAXIMOS} días.` };
@@ -31,6 +33,7 @@ const revisarDatos = (cuerpo = {}, ahora = new Date()) => {
     return {
         datos: {
             propiedad: cuerpo.propiedad,
+            operacion: ['venta', 'alquiler'].includes(cuerpo.operacion) ? cuerpo.operacion : null,
             cliente: { nombre, email, telefono, usuario: mongoose.isValidObjectId(cuerpo.cliente?.usuario) ? cuerpo.cliente.usuario : null },
             sena: { monto, moneda, recibidaEl: ahora },
             fechaLimite: limite,
@@ -39,20 +42,22 @@ const revisarDatos = (cuerpo = {}, ahora = new Date()) => {
     };
 };
 
-// Devuelve la propiedad a «Disponible» solo si sigue reservada (no pisa un cambio que hizo el administrador)
-const liberarPropiedad = async (propiedadId) => {
-    const { modifiedCount } = await Property.updateOne({ _id: propiedadId, estado: 'reservado' }, { $set: { estado: 'disponible' }, $unset: { reservadaHasta: 1 } });
+// Devuelve la propiedad al estado que tenía (disponible, o alquilada si era una venta con inquilino) solo si
+// sigue reservada (no pisa un cambio que hizo el administrador)
+const liberarPropiedad = async (propiedadId, estadoAnterior = 'disponible') => {
+    const estado = estadoAnterior === 'alquilado' ? 'alquilado' : 'disponible';
+    const { modifiedCount } = await Property.updateOne({ _id: propiedadId, estado: 'reservado' }, { $set: { estado }, $unset: { reservadaHasta: 1 } });
     // Quienes esperaban esta propiedad reciben el aviso de que se liberó
-    if (modifiedCount) require('./avisos.service').propiedadDisponible(propiedadId);
+    if (modifiedCount && estado === 'disponible') require('./avisos.service').propiedadDisponible(propiedadId);
     return modifiedCount;
 };
 
 // Pasa a «vencida» las activas cuya fecha límite ya pasó y libera sus propiedades. Barato: usa el índice.
 const vencerReservas = async (ahora = new Date()) => {
-    const vencidas = await ReservaPropiedad.find({ estado: 'activa', fechaLimite: { $lt: ahora } }).select('_id propiedad').lean();
+    const vencidas = await ReservaPropiedad.find({ estado: 'activa', fechaLimite: { $lt: ahora } }).select('_id propiedad estadoAnterior').lean();
     for (const r of vencidas) {
         const { modifiedCount } = await ReservaPropiedad.updateOne({ _id: r._id, estado: 'activa' }, { $set: { estado: 'vencida', cerradaEl: ahora } });
-        if (modifiedCount) await liberarPropiedad(r.propiedad);
+        if (modifiedCount) await liberarPropiedad(r.propiedad, r.estadoAnterior);
     }
     return vencidas.length;
 };
@@ -62,7 +67,7 @@ const listar = async ({ estado, propiedad } = {}) => {
     const filtro = {};
     if (['activa', 'concretada', 'cancelada', 'vencida'].includes(estado)) filtro.estado = estado;
     if (mongoose.isValidObjectId(propiedad)) filtro.propiedad = propiedad;
-    return ReservaPropiedad.find(filtro).sort({ estado: 1, fechaLimite: 1, createdAt: -1 }).populate('propiedad', 'title images estado categoria_operacion price moneda').lean();
+    return ReservaPropiedad.find(filtro).sort({ estado: 1, fechaLimite: 1, createdAt: -1 }).populate('propiedad', 'title images estado categoria_operacion operaciones precios price moneda').lean();
 };
 
 // Crea la reserva y marca la propiedad. La propiedad se toma con una actualización condicional (solo si está
@@ -72,25 +77,34 @@ const crear = async (cuerpo) => {
     const { datos, error } = revisarDatos(cuerpo);
     if (error) return { status: 400, error };
 
-    const propiedad = await Property.findById(datos.propiedad).select('title estado categoria_operacion').lean();
+    const propiedad = await Property.findById(datos.propiedad).select('title estado vendida categoria_operacion operaciones').lean();
     if (!propiedad) return { status: 404, error: 'La propiedad no existe.' };
-    if (propiedad.categoria_operacion === 'temporario') {
+    if (operacionesDe(propiedad).includes('temporario')) {
         return { status: 400, error: 'Los alquileres temporarios se reservan por noches desde Reservas.' };
     }
-    const operacion = propiedad.categoria_operacion === 'alquiler' ? 'alquiler' : 'venta';
+    // HU-25: con venta y alquiler hay que decir cuál se reserva; con una sola operación, es esa
+    const abiertas = operacionesAbiertas(propiedad);
+    if (!abiertas.length) return { status: 409, error: 'La propiedad no está disponible: ya está reservada, alquilada o vendida.' };
+    const operacion = datos.operacion || (operacionesDe(propiedad).length === 1 ? operacionesDe(propiedad)[0] : null);
+    if (!operacion) return { status: 400, error: 'Elegí si la seña es por la venta o por el alquiler.' };
+    if (!abiertas.includes(operacion)) {
+        return { status: 409, error: `La propiedad no está disponible para ${operacion === 'venta' ? 'la venta' : 'el alquiler'}.` };
+    }
+    // Reservar la venta de una propiedad alquilada (con inquilino adentro) la deja reservada y, si se cae, vuelve a alquilada
+    const estadoAnterior = propiedad.estado === 'alquilado' ? 'alquilado' : 'disponible';
 
     const tomada = await Property.findOneAndUpdate(
-        { _id: datos.propiedad, estado: { $in: ['disponible', null] } },
+        { _id: datos.propiedad, estado: estadoAnterior === 'alquilado' ? 'alquilado' : { $in: ['disponible', null] } },
         { $set: { estado: 'reservado', reservadaHasta: datos.fechaLimite } },
         { new: true }
     );
     if (!tomada) return { status: 409, error: 'La propiedad no está disponible: ya está reservada, alquilada o vendida.' };
 
     try {
-        const reserva = await ReservaPropiedad.create({ ...datos, operacion, tituloPropiedad: propiedad.title });
+        const reserva = await ReservaPropiedad.create({ ...datos, operacion, estadoAnterior, tituloPropiedad: propiedad.title });
         return { reserva };
     } catch (e) {
-        await liberarPropiedad(datos.propiedad);
+        await liberarPropiedad(datos.propiedad, estadoAnterior);
         throw e;
     }
 };
@@ -106,12 +120,16 @@ const cerrar = async (id, estado, cierre = '') => {
     );
     if (!reserva) return { status: 409, error: 'La reserva ya no está activa.' };
     if (estado === 'concretada') {
+        // Se concreta una operación y se cierra la propiedad entera (con sus dos categorías)
         await Property.updateOne(
             { _id: reserva.propiedad },
-            { $set: { estado: reserva.operacion === 'alquiler' ? 'alquilado' : 'vendido' }, $unset: { reservadaHasta: 1 } }
+            {
+                $set: reserva.operacion === 'alquiler' ? { estado: 'alquilado' } : { estado: 'vendido', vendida: true },
+                $unset: { reservadaHasta: 1 },
+            }
         );
     } else {
-        await liberarPropiedad(reserva.propiedad);
+        await liberarPropiedad(reserva.propiedad, reserva.estadoAnterior);
     }
     return { reserva };
 };

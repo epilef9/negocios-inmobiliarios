@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import TarjetaPropiedad from "@/components/sitio/TarjetaPropiedad";
 import { useDolarBlue } from "@/components/sitio/precio";
 import { obtenerPropiedades } from "@/components/sitio/datos";
+import { tieneOperacion } from "@/components/sitio/operaciones";
 import type { ApiProperty } from "@/services/api";
 
 // Propiedades de una localidad. Llegan armadas desde el servidor; si el servidor no pudo leerlas, se piden acá.
@@ -18,7 +19,7 @@ export default function ListadoLocalidad({ iniciales, categoria, coincide }: { i
 		obtenerPropiedades()
 			.then((todas) =>
 				activo &&
-				setLista(todas.filter((p) => p.categoria_operacion === categoria && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(coincide)))
+				setLista(todas.filter((p) => tieneOperacion(p, categoria) && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(coincide)))
 			)
 			.catch(() => activo && setLista([]));
 		return () => {
@@ -49,7 +50,7 @@ export default function ListadoLocalidad({ iniciales, categoria, coincide }: { i
 		<ul className="m-0 grid list-none gap-x-6 gap-y-14 p-0 sm:grid-cols-2 lg:grid-cols-3">
 			{lista.map((p) => (
 				<li key={p._id}>
-					<TarjetaPropiedad propiedad={p} blue={blue} revelar={false} />
+					<TarjetaPropiedad propiedad={p} blue={blue} revelar={false} operacion={categoria} />
 				</li>
 			))}
 		</ul>

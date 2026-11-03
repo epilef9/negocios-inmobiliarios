@@ -24,6 +24,10 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 	return body.data as T;
 }
 
+export type Operacion = "venta" | "alquiler" | "temporario";
+// price va en dólares; moneda es la moneda en que se cargó y priceARS el valor en pesos
+export type PrecioOperacion = { price?: number; moneda?: "USD" | "ARS"; priceARS?: number };
+
 export type ApiProperty = {
 	_id: string;
 	title: string;
@@ -44,8 +48,15 @@ export type ApiProperty = {
 	cochera?: string;
 	pisoUnidad?: string;
 	images?: string[];
-	categoria_operacion?: "venta" | "alquiler" | "temporario";
+	// HU-25 / RF-03: operaciones en las que se publica y el precio de cada una (ver components/sitio/operaciones.ts).
+	// categoria_operacion y price/moneda/priceARS son la copia de la operación principal.
+	operaciones?: Operacion[];
+	precios?: { venta?: PrecioOperacion; alquiler?: PrecioOperacion };
+	categoria_operacion?: Operacion;
+	// Ya no se usa (las solicitudes siguen a operaciones); queda en las propiedades viejas
 	operacionesSolicitud?: ("venta" | "alquiler")[];
+	// Ya se vendió aunque después figure alquilada (HU-28)
+	vendida?: boolean;
 	permitirSolicitudes?: boolean;
 	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
 	cantidad_ambientes?: number;

@@ -65,6 +65,11 @@ const visitaSchema = new mongoose.Schema(
         canceladaAt: { type: Date, default: null },
         // 223: cuándo se mandó el mail de recordatorio del día anterior (para no mandarlo dos veces)
         recordatorioEnviadoAt: { type: Date, default: null },
+        // Respuesta del cliente a los botones del recordatorio ("Confirmo" / "No voy a poder")
+        asistencia: {
+            respuesta: { type: String, enum: ['confirmo', 'no_voy', null], default: null },
+            respondidaAt: { type: Date, default: null },
+        },
         motivoCancelacion: { type: String, trim: true, default: '', maxlength: 300 },
         // Cuenta del cliente que la pidió con la sesión iniciada (HU-34: la ve y la cancela desde Mi cuenta)
         usuario: {

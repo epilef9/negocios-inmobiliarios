@@ -72,6 +72,8 @@ const sumarDias = (iso, dias) => {
     const [a, m, d] = iso.split('-').map(Number);
     return new Date(Date.UTC(a, m - 1, d + dias)).toISOString().slice(0, 10);
 };
+// "2026-11-12" → "jueves, 12 de noviembre" (para los mails)
+const fechaLarga = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
 // "2026-02-30" tiene el formato pero no existe
 const esFecha = (texto) => typeof texto === 'string' && ISO.test(texto) && sumarDias(texto, 0) === texto;
 
@@ -264,9 +266,10 @@ const reservar = (datos, { controlarHorario = true } = {}, crear) =>
 // Reprograma una visita a otro día y hora: controla dentro del candado que el turno nuevo esté libre (sin contar
 // la misma visita) y que la oficina no cierre ese día. `cambiar(session)` guarda el cambio. Devuelve
 // { visita } o { motivo }. El administrador puede ofrecer un horario fuera de la agenda, pero nunca uno ocupado.
-const reprogramar = (id, fecha, horario, cambiar) =>
+// Con `controlarHorario` (el cliente desde el enlace del mail) además tiene que caer en un turno de atención.
+const reprogramar = (id, fecha, horario, cambiar, { controlarHorario = false } = {}) =>
     conCandado(async (session) => {
-        const motivo = await motivoNoDisponible(fecha, horario, { controlarHorario: false, session, ignorar: id });
+        const motivo = await motivoNoDisponible(fecha, horario, { controlarHorario, session, ignorar: id });
         if (motivo) return { motivo };
         return { visita: await cambiar(session) };
     });
@@ -291,6 +294,7 @@ module.exports = {
     reprogramar,
     ahoraEnArgentina,
     fechaIso,
+    fechaLarga,
     horaCorta,
     sumarDias,
     turnosDe,

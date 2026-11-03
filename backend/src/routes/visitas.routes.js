@@ -27,6 +27,15 @@ router.get('/disponibilidad', visitasController.getDisponibilidad);
 router.get('/mias', authMiddleware, requireClient, visitasController.misVisitas);
 router.patch('/:id/cancelar', authMiddleware, requireClient, validateVisitaId, visitasController.cancelarMiVisita);
 
+// Gestionar la visita desde el enlace del mail (sin cuenta): ver, cancelar o pedir otro horario.
+// Con freno de intentos, para que nadie pueda probar tokens al azar.
+router.post('/gestion/ver', frenos.tokens, visitasController.verGestion);
+router.post('/gestion/cancelar', frenos.tokens, visitasController.cancelarGestion);
+router.post('/gestion/reprogramar', frenos.tokens, visitasController.reprogramarGestion);
+// Confirmar asistencia desde el recordatorio del día anterior (enlace de un solo uso)
+router.post('/asistencia/ver', frenos.tokens, visitasController.verAsistencia);
+router.post('/asistencia/responder', frenos.tokens, visitasController.responderAsistencia);
+
 // Obtener una visita por ID
 router.get('/:id', soloAdmin, validateVisitaId, visitasController.getVisitaById);
 

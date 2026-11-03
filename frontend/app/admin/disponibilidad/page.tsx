@@ -6,6 +6,7 @@ import { createRango, deleteRango, getRangos, type RangoDisponibilidad, type Tip
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { MESES, SEMANA, celdasDelMes, fechaCorta, fechaLarga, hoyIso, mesSiguiente, nochesEntre, rangoDeLaNoche, sumarDias } from '@/components/calendario/fechas';
+import { tieneOperacion } from '@/components/sitio/operaciones';
 
 // Disponibilidad del alquiler temporario: el administrador marca en el calendario las noches que no se
 // alquilan (bloqueo) o que ya están alquiladas por fuera (ocupada). La ficha pública muestra el resto como libres.
@@ -69,7 +70,7 @@ export default function DisponibilidadAdminPage() {
   useEffect(() => {
     getProperties()
       .then((todas) => {
-        const temporarias = (todas ?? []).filter((p) => p.categoria_operacion === 'temporario');
+        const temporarias = (todas ?? []).filter((p) => tieneOperacion(p, 'temporario'));
         setPropiedades(temporarias);
         // Desde el detalle de una reserva se llega con ?propiedad=<id>
         const pedida = new URLSearchParams(window.location.search).get('propiedad');

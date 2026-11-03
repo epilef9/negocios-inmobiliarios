@@ -22,7 +22,8 @@ export default function SitioPage() {
   const [errores, setErrores] = useState<Partial<Record<Seccion, string>>>({});
 
   const [contacto, setContacto] = useState<Contacto | null>(null);
-  const [lugares, setLugares] = useState<(Omit<Lugar, 'latitud' | 'longitud'> & { latitud: string; longitud: string; link?: string })[]>([]);
+  // linkLeido: el último link que ya se convirtió en latitud y longitud (para no volver a leerlo al guardar)
+  const [lugares, setLugares] = useState<(Omit<Lugar, 'latitud' | 'longitud'> & { latitud: string; longitud: string; link?: string; linkLeido?: string })[]>([]);
   const [costos, setCostos] = useState<Costos | null>(null);
   const [banco, setBanco] = useState<Banco | null>(null);
 
@@ -56,13 +57,45 @@ export default function SitioPage() {
 
   const completarDesdeLink = async (i: number) => {
     const link = lugares[i]?.link?.trim();
-    if (!link) return;
+    if (!link || link === lugares[i]?.linkLeido) return;
     try {
       const { latitud, longitud } = await resolveMapsLink(link);
-      setLugares((ls) => ls.map((l, j) => (j === i ? { ...l, latitud, longitud } : l)));
+      setLugares((ls) => ls.map((l, j) => (j === i ? { ...l, latitud, longitud, linkLeido: link } : l)));
     } catch {
       setErrores((x) => ({ ...x, lugares: 'No pudimos leer ese link de Google Maps. Probá con el link de «Compartir» o escribí latitud y longitud.' }));
     }
+  };
+
+  // Al guardar con un link recién pegado (sin salir antes del campo) se lee ahí mismo: si no, se mandaba sin
+  // coordenadas y el backend respondía que el punto no estaba en Entre Ríos
+  const guardarLugares = async (e: FormEvent) => {
+    e.preventDefault();
+    setErrores((x) => ({ ...x, lugares: undefined }));
+    setGuardando('lugares');
+    const fallar = (mensaje: string) => {
+      setErrores((x) => ({ ...x, lugares: mensaje }));
+      setGuardando(null);
+    };
+    const listos = [];
+    for (const l of lugares) {
+      const link = l.link?.trim();
+      let { latitud, longitud } = l;
+      if (link && link !== l.linkLeido) {
+        try {
+          ({ latitud, longitud } = await resolveMapsLink(link));
+        } catch {
+          return fallar(`No pudimos leer el link de «${l.nombre || 'un lugar'}». Probá con el link de «Compartir» o escribí latitud y longitud.`);
+        }
+      }
+      // Acepta la coma decimal: "-32,07" es lo mismo que "-32.07"
+      const lat = Number(String(latitud).trim().replace(',', '.'));
+      const lng = Number(String(longitud).trim().replace(',', '.'));
+      if (!String(latitud).trim() || !String(longitud).trim() || !Number.isFinite(lat) || !Number.isFinite(lng)) {
+        return fallar(`Falta la ubicación de «${l.nombre || 'un lugar'}»: pegá su link de Google Maps o escribí latitud y longitud.`);
+      }
+      listos.push({ nombre: l.nombre, localidad: l.localidad, latitud: lat, longitud: lng });
+    }
+    await guardar('lugares', { lugares: listos });
   };
 
   if (error) {
@@ -151,11 +184,7 @@ export default function SitioPage() {
           </Tarjeta>
         </form>
 
-        <form
-          onSubmit={(e) =>
-            guardar('lugares', { lugares: lugares.map((l) => ({ nombre: l.nombre, localidad: l.localidad, latitud: Number(l.latitud), longitud: Number(l.longitud) })) }, e)
-          }
-        >
+        <form onSubmit={guardarLugares}>
           <Tarjeta
             titulo="Lugares de referencia"
             descripcion="En la ficha de cada propiedad se muestra a cuántas cuadras queda de estos lugares (Universidad, Sanatorio, plaza, terminal…). Pegá el link de Google Maps de cada uno para tomar el punto exacto."
