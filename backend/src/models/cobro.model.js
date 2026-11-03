@@ -13,8 +13,21 @@ const cobroSchema = new mongoose.Schema(
         pagadoEl: { type: String, default: null },
         medio: { type: String, enum: ['efectivo', 'transferencia', 'otro', null], default: null },
         nota: { type: String, trim: true, default: '', maxlength: 300 },
-        // Correlativo de los recibos (solo los cobros pagados tienen número)
+        // Correlativo de los recibos (solo los cobros pagados tienen número). Sale del contador 'recibo':
+        // un número anulado no se vuelve a usar.
         numeroRecibo: { type: Number },
+        // Pagos que se anularon en este mes, con el recibo que dejó de valer (explica el salto en la numeración)
+        anulaciones: [
+            {
+                _id: false,
+                numeroRecibo: Number,
+                monto: Number,
+                moneda: String,
+                pagadoEl: String,
+                medio: String,
+                anuladoEl: { type: Date, default: Date.now },
+            },
+        ],
         avisadoEl: { type: Date, default: null },
         numeroContrato: { type: String, default: '' },
         inquilino: { type: String, default: '' },
