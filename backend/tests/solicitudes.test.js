@@ -91,11 +91,37 @@ test('sincronizar guarda cierre una sola vez y envía un aviso, sin base real', 
 
 test('no se crean solicitudes sobre propiedades vendidas ni alquiladas', async (t) => {
     t.mock.method(Solicitud, 'findOne', async () => null);
-    for (const estado of ['vendido', 'alquilado']) {
-        const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', estado, categoria_operacion: 'venta' }) }));
-        await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'compra' }), (error) => error.statusCode === 409);
+    const casos = [
+        [{ estado: 'vendido', categoria_operacion: 'venta' }, 'compra'],
+        [{ estado: 'alquilado', categoria_operacion: 'alquiler' }, 'alquiler'],
+        [{ estado: 'reservado', operaciones: ['venta', 'alquiler'] }, 'compra'],
+        // Se vendió y después el comprador la alquiló: la venta no se reabre
+        [{ estado: 'alquilado', operaciones: ['venta', 'alquiler'], vendida: true }, 'compra'],
+        // En venta y alquiler, ya alquilada: la de alquiler se cierra
+        [{ estado: 'alquilado', operaciones: ['venta', 'alquiler'] }, 'alquiler'],
+    ];
+    for (const [propiedad, operacion] of casos) {
+        const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', ...propiedad }) }));
+        await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion }), (error) => error.statusCode === 409);
         consulta.mock.restore();
     }
+});
+
+test('HU-25: solicitudes según las operaciones de la propiedad', async (t) => {
+    t.mock.method(Solicitud, 'findOne', async () => null);
+    const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', estado: 'disponible', operaciones: ['alquiler'] }) }));
+    await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'compra' }), (error) => error.statusCode === 409 && /no admite/.test(error.message));
+    consulta.mock.restore();
+    const temporario = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Cabaña', estado: 'disponible', operaciones: ['temporario'] }) }));
+    await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'alquiler' }), (error) => error.statusCode === 409);
+    temporario.mock.restore();
+});
+
+test('HU-28: venta con inquilino adentro sigue abierta para compra y cierra solo las de alquiler', async () => {
+    const propiedad = { estado: 'alquilado', operaciones: ['venta', 'alquiler'] };
+    assert.equal(ciclo.cambioAutomatico({ estado: 'pendiente', operacion: 'compra', createdAt: new Date() }, propiedad), null);
+    assert.equal(ciclo.cambioAutomatico({ estado: 'pendiente', operacion: 'alquiler', createdAt: new Date() }, propiedad).estado, 'cerrada');
+    assert.equal(ciclo.cambioAutomatico({ estado: 'pendiente', operacion: 'compra', createdAt: new Date() }, { ...propiedad, vendida: true }).estado, 'cerrada');
 });
 
 test('el servicio de propiedades dispara el cierre al guardar vendido', async (t) => {

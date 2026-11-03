@@ -5,6 +5,7 @@ const SolicitudNotificacion = require('../models/solicitud-notificacion.model');
 const Property = require('../models/property.model');
 const ciclo = require('./solicitudes-ciclo.service');
 const { cifrar, descifrar, obtenerClave } = require('../utils/cifrado-solicitudes');
+const { operacionesDe, operacionesAbiertas, operacionDeSolicitud, precioDe, principalDe } = require('../utils/operaciones');
 
 const TIPOS_DOCUMENTO = {
     dniTitularFrente: 'DNI del titular (frente)',
@@ -87,7 +88,7 @@ const cifrarDocumentos = async (solicitud, archivos) => {
 
 const asegurarPropiedadSolicitable = async (propiedadId, operacion) => {
     const propiedad = await Property.findById(propiedadId)
-        .select('title location ciudad price priceARS moneda categoria_operacion operacionesSolicitud permitirSolicitudes estado')
+        .select('title location ciudad price priceARS moneda categoria_operacion operaciones precios permitirSolicitudes estado vendida')
         .lean();
     if (!propiedad) {
         const error = new Error('La propiedad ya no está publicada.');
@@ -95,15 +96,15 @@ const asegurarPropiedadSolicitable = async (propiedadId, operacion) => {
         throw error;
     }
 
-    const disponibles = Array.isArray(propiedad.operacionesSolicitud) && propiedad.operacionesSolicitud.length
-        ? propiedad.operacionesSolicitud
-        : [propiedad.categoria_operacion];
-    if (propiedad.permitirSolicitudes === false || propiedad.categoria_operacion === 'temporario' || !disponibles.includes(operacion === 'compra' ? 'venta' : 'alquiler')) {
+    // HU-25: se admiten solicitudes para las operaciones en las que está publicada (no temporario)
+    const buscada = operacionDeSolicitud(operacion);
+    if (propiedad.permitirSolicitudes === false || !operacionesDe(propiedad).includes(buscada)) {
         const error = new Error('Esta propiedad no admite solicitudes para esa operación.');
         error.statusCode = 409;
         throw error;
     }
-    if (propiedad.estado && propiedad.estado !== 'disponible') {
+    // Reservada, vendida o alquilada no admite más; la venta con inquilino adentro sí (HU-28)
+    if (!operacionesAbiertas(propiedad).includes(buscada)) {
         const error = new Error('Esta propiedad ya no está disponible para nuevas solicitudes.');
         error.statusCode = 409;
         throw error;
@@ -175,13 +176,18 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
     }
 };
 
-const camposPropiedadAdmin = 'title ciudad location price priceARS moneda tipo_inmueble estado images categoria_operacion direccionCompleta';
+const camposPropiedadAdmin = 'title ciudad location price priceARS moneda tipo_inmueble estado vendida images categoria_operacion operaciones precios direccionCompleta';
 
 const infoPublica = (solicitud) => {
     const propiedadPoblada = solicitud.propiedad && typeof solicitud.propiedad === 'object' && solicitud.propiedad.title !== undefined
         ? solicitud.propiedad
         : null;
     const propiedadId = propiedadPoblada?._id || solicitud.propiedad;
+    const precio = propiedadPoblada
+        ? precioDe(propiedadPoblada, operacionDeSolicitud(solicitud.operacion)) ?? precioDe(propiedadPoblada, principalDe(propiedadPoblada))
+        : null;
+    // En la moneda en que se publicó (price está siempre en dólares)
+    const precioMostrado = precio ? { monto: precio.moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price, moneda: precio.moneda } : null;
     return ({
     id: String(solicitud._id),
     operacion: solicitud.operacion,
@@ -208,9 +214,10 @@ const infoPublica = (solicitud) => {
         direccion: propiedadPoblada?.direccionCompleta || propiedadPoblada?.location || null,
         tipoInmueble: propiedadPoblada?.tipo_inmueble || null,
         estadoPropiedad: propiedadPoblada?.estado || null,
-        tipoOperacion: propiedadPoblada?.categoria_operacion || null,
-        precio: propiedadPoblada?.price ?? null,
-        moneda: propiedadPoblada?.moneda || null,
+        // El precio que se muestra es el de la operación de la solicitud (compra → venta)
+        tipoOperacion: propiedadPoblada ? operacionDeSolicitud(solicitud.operacion) : null,
+        precio: precioMostrado?.monto ?? null,
+        moneda: precioMostrado?.moneda || null,
         imagen: Array.isArray(propiedadPoblada?.images) && propiedadPoblada.images.length ? propiedadPoblada.images[0] : null,
     },
     });
@@ -260,7 +267,7 @@ const serializarSolicitudAdmin = (solicitud) => {
 
 const listarMias = async (usuario) => {
     const solicitudes = await Solicitud.find({ usuario })
-        .populate('propiedad', 'title ciudad location images estado')
+        .populate('propiedad', 'title ciudad location images estado vendida operaciones categoria_operacion')
         .sort({ createdAt: -1 })
         .limit(100)
         .lean();
@@ -554,7 +561,7 @@ const listarNotificacionesAdmin = async () => {
 
 const contarPendientes = async () => {
     const pendientes = await Solicitud.find({ estado: 'pendiente', archivada: { $ne: true } })
-        .populate('propiedad', 'title estado').lean();
+        .populate('propiedad', 'title estado vendida operaciones categoria_operacion').lean();
     let cantidad = 0;
     for (const solicitud of pendientes) {
         const actual = await ciclo.sincronizarSolicitud(solicitud, solicitud.propiedad);

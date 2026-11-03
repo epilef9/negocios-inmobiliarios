@@ -5,6 +5,7 @@ import type { ApiProperty } from '@/services/api';
 import { useAjustes } from '@/components/sitio/useAjustes';
 import { descuentoVigente } from '@/components/sitio/precio';
 import { calcularAlquiler, calcularVenta } from './calculadora';
+import { operacionesAbiertas, precioDe } from '@/components/sitio/operaciones';
 
 const formato = (n: number) => Math.round(n).toLocaleString('es-AR');
 
@@ -14,15 +15,18 @@ export default function CalculadoraIngreso({ propiedad, blue }: { propiedad: Api
   const id = useId();
   const { costos } = useAjustes();
   const [abierta, setAbierta] = useState(false);
-  const operacion = propiedad.categoria_operacion;
+  // HU-25: con venta y alquiler se elige qué calcular; solo las operaciones que siguen abiertas
+  const opciones = operacionesAbiertas(propiedad).filter((o): o is 'venta' | 'alquiler' => o === 'venta' || o === 'alquiler');
+  const [elegida, setElegida] = useState<'venta' | 'alquiler' | null>(null);
+  const operacion = elegida && opciones.includes(elegida) ? elegida : opciones[0];
   const mesesPublicados = propiedad.duracionAlquilerMeses || 0;
   const [meses, setMeses] = useState(mesesPublicados || 24);
 
-  if (!costos || (operacion !== 'alquiler' && operacion !== 'venta')) return null;
-  if (propiedad.estado === 'vendido' || propiedad.estado === 'alquilado') return null;
+  if (!costos || !operacion) return null;
 
-  const moneda = propiedad.moneda === 'ARS' ? 'ARS' : 'USD';
-  const base = (moneda === 'ARS' ? propiedad.priceARS ?? propiedad.price : propiedad.price) * (1 - descuentoVigente(propiedad) / 100);
+  const precio = precioDe(propiedad, operacion) ?? { price: propiedad.price, moneda: propiedad.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: propiedad.priceARS };
+  const moneda = precio.moneda === 'ARS' ? 'ARS' : 'USD';
+  const base = (moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price) * (1 - descuentoVigente(propiedad) / 100);
   const calculo = operacion === 'alquiler' ? calcularAlquiler(base, moneda, meses, costos.alquiler, blue) : calcularVenta(base, moneda, costos.venta);
 
   return (
@@ -31,6 +35,21 @@ export default function CalculadoraIngreso({ propiedad, blue }: { propiedad: Api
         <h2 id={`${id}-titulo`} className="font-display m-0 text-[32px] font-normal">
           ¿Cuánto necesito {operacion === 'alquiler' ? 'para entrar' : 'para comprarla'}?
         </h2>
+        {opciones.length > 1 && (
+          <div role="group" aria-label="Qué calcular" className="flex gap-2">
+            {opciones.map((o) => (
+              <button
+                key={o}
+                type="button"
+                aria-pressed={operacion === o}
+                onClick={() => setElegida(o)}
+                className={`calma-micro cursor-pointer rounded-full px-4 py-2 text-[11px] transition-colors ${operacion === o ? 'bg-[#efe9df] text-[#071733]' : 'border border-[#efe9df]/30 text-[#efe9df]/80 hover:border-[#efe9df]'}`}
+              >
+                {o === 'venta' ? 'Comprar' : 'Alquilar'}
+              </button>
+            ))}
+          </div>
+        )}
         <button type="button" aria-expanded={abierta} aria-controls={`${id}-detalle`} onClick={() => setAbierta((a) => !a)} className="calma-micro calma-link cursor-pointer text-[12px]">
           {abierta ? 'Ocultar el detalle' : 'Ver el cálculo'}
         </button>

@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion, normalizar, obtenerPropiedades } from '@/components/sitio/datos';
-import { datosCortos, precioDePropiedad, useDolarBlue } from '@/components/sitio/precio';
+import { datosCortos, precioDePropiedad, preciosDePropiedad, useDolarBlue } from '@/components/sitio/precio';
 import type { Encuadre, Posicion, PuntoMapa } from './MapaSatelital';
+import { operacionesDe } from '@/components/sitio/operaciones';
 
 // Leaflet usa `window`: el mapa se carga solo en el navegador
 const MapaSatelital = dynamic(() => import('./MapaSatelital'), {
@@ -313,8 +314,10 @@ function TarjetaMapa({
     el.style.top = `${top}px`;
   }, [estilo, angosto]);
   const [fotoRota, setFotoRota] = useState(false);
-  const operacion = propiedad.categoria_operacion || '';
-  const precio = precioDePropiedad(propiedad, blue);
+  // HU-25: una etiqueta por operación y, con venta y alquiler, los dos precios
+  const operaciones = operacionesDe(propiedad);
+  const precios = preciosDePropiedad(propiedad, blue);
+  const precio = precios[0] ?? precioDePropiedad(propiedad, blue);
   const datos = datosCortos(propiedad);
 
   return (
@@ -332,9 +335,13 @@ function TarjetaMapa({
           // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen del backend con dominio variable
           <img src={imagen} alt="" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
         )}
-        {etiquetaOperacion[operacion] && (
-          <span className={`calma-micro absolute rounded-full px-2.5 py-1 ${angosto ? 'left-2 top-2' : 'left-3 top-3'} ${COLOR_OPERACION[operacion] ?? ''}`}>
-            {etiquetaOperacion[operacion]}
+        {operaciones.length > 0 && (
+          <span className={`absolute flex gap-1.5 ${angosto ? 'left-2 top-2 flex-col items-start' : 'left-3 top-3'}`}>
+            {operaciones.map((operacion) => (
+              <span key={operacion} className={`calma-micro rounded-full px-2.5 py-1 ${COLOR_OPERACION[operacion] ?? ''}`}>
+                {etiquetaOperacion[operacion]}
+              </span>
+            ))}
           </span>
         )}
       </div>
@@ -358,6 +365,9 @@ function TarjetaMapa({
           <span className="flex flex-col">
             <span className="text-[16px]">{precio.principal}</span>
             {precio.referencia && <span className="text-[12px] text-[#efe9df]/55">{precio.referencia}</span>}
+            {precios.slice(1).map((otro) => (
+              <span key={otro.operacion} className="text-[14px] text-[#efe9df]/80">o {otro.principal}</span>
+            ))}
           </span>
           <Link href={`/propiedades/${propiedad._id}`} className="calma-micro calma-link shrink-0">
             Ver propiedad

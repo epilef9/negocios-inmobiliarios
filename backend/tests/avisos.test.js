@@ -25,3 +25,15 @@ describe('Búsquedas guardadas', () => {
         assert.equal(describirBusqueda(limpiarFiltros({ operation: 'venta', propertyType: 'casa', location: 'Crespo' })), 'Compra · casa · en Crespo');
     });
 });
+
+
+describe('Búsqueda con varias operaciones', () => {
+    it('HU-25: una propiedad en venta y alquiler coincide con búsquedas de las dos operaciones, cada una con su precio', () => {
+        const ambas = { ...casa, categoria_operacion: 'venta', operaciones: ['venta', 'alquiler'], price: 90000, precios: { venta: { price: 90000, moneda: 'USD' }, alquiler: { price: 400, moneda: 'USD' } } };
+        assert.equal(cumpleBusqueda(ambas, { operacion: 'alquiler', precioMax: 500 }), true);
+        assert.equal(cumpleBusqueda(ambas, { operacion: 'venta', precioMax: 500 }), false);
+        assert.equal(cumpleBusqueda(ambas, { operacion: 'venta', precioMin: 80000 }), true);
+        assert.equal(cumpleBusqueda(ambas, { precioMax: 500 }), true);
+        assert.equal(cumpleBusqueda(ambas, { operacion: 'temporario' }), false);
+    });
+});

@@ -7,6 +7,7 @@ import SitioBase from "@/components/sitio/SitioBase";
 import Revelar from "@/components/sitio/Revelar";
 import TarjetaPropiedad from "@/components/sitio/TarjetaPropiedad";
 import { useDolarBlue } from "@/components/sitio/precio";
+import { precioEnDolares, tieneOperacion } from "@/components/sitio/operaciones";
 import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades } from "@/components/sitio/datos";
 import { useContacto } from "@/components/sitio/useAjustes";
 import VistasRecientes from "@/components/sitio/VistasRecientes";
@@ -50,18 +51,20 @@ const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
 // Un monoambiente es un departamento de 1 ambiente (así se carga en el panel); los viejos se buscan como departamento
 const tipoGeneral = (tipo: string) => (normalizar(tipo) === "monoambiente" ? "departamento" : normalizar(tipo));
 
+// HU-25: una propiedad en venta y alquiler aparece en las dos operaciones; el precio que se compara es el de la
+// operación filtrada (sin filtro, el de la principal)
 const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
-	const operacion = p.categoria_operacion || p.operation || p.category || "";
+	const precio = precioEnDolares(p, f.operation) ?? p.price;
 	const tipo = p.tipo_inmueble || p.propertyType || "";
 	const estado = p.estado || p.status || "";
 	const comodidades = p.comodidades || p.amenities || [];
 	const ambientes = p.cantidad_ambientes ?? p.bedrooms;
 	return (
-		(!f.operation || normalizar(operacion) === f.operation) &&
+		(!f.operation || tieneOperacion(p, f.operation)) &&
 		(!f.location || normalizar(p.ciudad) === normalizar(f.location)) &&
 		(!f.propertyType || tipoGeneral(tipo) === f.propertyType) &&
-		(!f.minPrice || p.price >= Number(f.minPrice)) &&
-		(!f.maxPrice || p.price <= Number(f.maxPrice)) &&
+		(!f.minPrice || precio >= Number(f.minPrice)) &&
+		(!f.maxPrice || precio <= Number(f.maxPrice)) &&
 		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&
 		(!f.amenities || comodidades.includes(f.amenities)) &&
 		(!f.status || normalizar(estado) === f.status)
@@ -144,8 +147,9 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 		const lista = propiedades.filter((p) => cumpleFiltros(p, filtros));
 		const fecha = (p: ApiProperty) => (p.createdAt ? Date.parse(p.createdAt) : 0);
 		if (orden === "recientes") return [...lista].sort((a, b) => fecha(b) - fecha(a));
-		if (orden === "menor") return [...lista].sort((a, b) => a.price - b.price);
-		if (orden === "mayor") return [...lista].sort((a, b) => b.price - a.price);
+		const valor = (p: ApiProperty) => precioEnDolares(p, filtros.operation) ?? p.price;
+		if (orden === "menor") return [...lista].sort((a, b) => valor(a) - valor(b));
+		if (orden === "mayor") return [...lista].sort((a, b) => valor(b) - valor(a));
 		return lista;
 	}, [propiedades, filtros, orden, reordenando]);
 
@@ -351,7 +355,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 										</span>
 									</div>
 								)}
-								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} />
+								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} operacion={filtros.operation} />
 							</li>
 						))}
 					</ul>

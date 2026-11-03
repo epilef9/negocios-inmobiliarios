@@ -3,6 +3,7 @@
 const mongoose = require('mongoose');
 const Estadistica = require('../models/estadistica.model');
 const Property = require('../models/property.model');
+const { operacionesDe } = require('../utils/operaciones');
 
 const CAMPOS = ['vistas', 'whatsapp', 'visitas', 'favoritos', 'solicitudes'];
 // Lo que puede contar el navegador; el resto lo cuenta el servidor cuando pasa de verdad
@@ -45,7 +46,7 @@ const resumen = async (dias = 30) => {
     const [porPropiedad, porDia, propiedades] = await Promise.all([
         Estadistica.aggregate([{ $match: { dia: { $gte: desde, $lte: hasta } } }, { $group: { _id: '$propiedad', ...suma } }]),
         Estadistica.aggregate([{ $match: { dia: { $gte: desde, $lte: hasta } } }, { $group: { _id: '$dia', ...suma } }, { $sort: { _id: 1 } }]),
-        Property.find().select('title estado categoria_operacion images ciudad').lean(),
+        Property.find().select('title estado categoria_operacion operaciones images ciudad').lean(),
     ]);
 
     const datos = new Map(porPropiedad.map((p) => [String(p._id), p]));
@@ -57,6 +58,7 @@ const resumen = async (dias = 30) => {
                 titulo: p.title,
                 estado: p.estado || 'disponible',
                 operacion: p.categoria_operacion || '',
+                operaciones: operacionesDe(p),
                 ciudad: p.ciudad || '',
                 foto: p.images?.[0] || '',
                 ...Object.fromEntries(CAMPOS.map((c) => [c, d[c] || 0])),

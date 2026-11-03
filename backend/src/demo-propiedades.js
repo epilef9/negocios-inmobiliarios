@@ -20,6 +20,7 @@ const mongoose = require('mongoose');
 const connectDB = require('./config/database');
 const Property = require('./models/property.model');
 const { usaCloudinary, subirUrlACloudinary } = require('./services/imagenes.service');
+const { normalizarOperaciones } = require('./services/properties.service');
 
 const SOLO_PROBAR = process.argv.includes('--probar');
 const QUITAR = process.argv.includes('--quitar');
@@ -134,13 +135,14 @@ const PROPIEDADES = [
         description:
             'Departamento luminoso en primer piso, con balcón al frente. Living comedor integrado, cocina separada con alacena y bajo mesada, ' +
             'dos dormitorios con placares y baño completo. Calefacción a gas y aire acondicionado en el living. ' +
-            'Cochera descubierta. Cerca del centro comercial y de la universidad.',
+            'Cochera descubierta. Cerca del centro comercial y de la universidad. Se alquila y también se vende.',
         location: 'Villa Libertador San Martín, Entre Ríos',
         direccionCompleta: 'Villa Libertador San Martín, Entre Ríos',
         referenciasUbicacion: 'A dos cuadras del centro comercial.',
-        categoria_operacion: 'alquiler',
+        // HU-25: en venta y en alquiler a la vez, cada una con su precio
+        operaciones: ['venta', 'alquiler'],
+        precios: { venta: { moneda: 'USD', price: 68000 }, alquiler: { moneda: 'ARS', priceARS: 650000 } },
         tipo_inmueble: 'departamento',
-        ...enPesos(650000),
         cantidad_ambientes: 3,
         bedrooms: 2,
         bathrooms: 1,
@@ -339,7 +341,8 @@ async function cargar() {
     for (const [indice, { fotos, ...datos }] of PROPIEDADES.entries()) {
         const images = await subirFotos({ fotos, codigoInterno: datos.codigoInterno });
         const existente = await Property.findOne({ codigoInterno: datos.codigoInterno }).select('_id').lean();
-        const cambios = { ...datos, images, orden: indice + 1, updatedAt: new Date() };
+        // Con el formato de operaciones y precios por operación (HU-25)
+        const cambios = { ...normalizarOperaciones(datos), images, orden: indice + 1, updatedAt: new Date() };
         if (!SOLO_PROBAR) {
             await Property.updateOne({ codigoInterno: datos.codigoInterno }, { $set: cambios, $setOnInsert: { createdAt: new Date() } }, { upsert: true, runValidators: true });
         }

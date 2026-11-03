@@ -10,7 +10,7 @@ export type EstadoSena = 'activa' | 'concretada' | 'cancelada' | 'vencida';
 
 export type Sena = {
   _id: string;
-  propiedad: (Pick<ApiProperty, '_id' | 'title' | 'images' | 'estado' | 'categoria_operacion' | 'price' | 'moneda'>) | string | null;
+  propiedad: (Pick<ApiProperty, '_id' | 'title' | 'images' | 'estado' | 'categoria_operacion' | 'operaciones' | 'price' | 'moneda'>) | string | null;
   tituloPropiedad: string;
   operacion: 'venta' | 'alquiler';
   cliente: { nombre: string; email?: string; telefono?: string };
@@ -20,11 +20,15 @@ export type Sena = {
   notas?: string;
   cierre?: string;
   cerradaEl?: string | null;
+  // Estado de la propiedad antes de la reserva: «alquilado» si es la venta de una propiedad con inquilino (HU-28)
+  estadoAnterior?: 'disponible' | 'alquilado';
   createdAt: string;
 };
 
 export type NuevaSena = {
   propiedad: string;
+  // HU-25: con venta y alquiler hay que decir cuál se reserva
+  operacion?: 'venta' | 'alquiler';
   cliente: { nombre: string; email?: string; telefono?: string };
   sena: { monto: number; moneda: 'USD' | 'ARS' };
   fechaLimite: string;

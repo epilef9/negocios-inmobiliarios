@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import SitioBase from "@/components/sitio/SitioBase";
 import { useAuth } from "@/context/AuthContext";
 import { getPropertyById, type ApiProperty } from "@/services/api";
+import { operacionesAbiertas, precioDe } from "@/components/sitio/operaciones";
 import { crearSolicitud, type TipoOperacionSolicitud } from "@/services/solicitudes";
 
 type Persona = {
@@ -70,10 +71,12 @@ const MAXIMO_ARCHIVO = 20 * 1024 * 1024;
 
 const OPERACIONES: Record<TipoOperacionSolicitud, string> = { alquiler: "alquiler", compra: "compra" };
 
-function precioLegible(propiedad: ApiProperty) {
-	const moneda = propiedad.moneda === "ARS" ? "ARS" : "USD";
-	const importe = propiedad.moneda === "ARS" ? propiedad.priceARS ?? propiedad.price : propiedad.price;
-	return `${moneda} ${Number(importe || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+// Precio de la operación pedida (compra → venta); con venta y alquiler cada una tiene el suyo (HU-25)
+function precioLegible(propiedad: ApiProperty, operacion: TipoOperacionSolicitud | null) {
+	const precio = (operacion && precioDe(propiedad, operacion === "compra" ? "venta" : "alquiler"))
+		|| { price: propiedad.price, moneda: propiedad.moneda === "ARS" ? "ARS" : "USD", priceARS: propiedad.priceARS };
+	const importe = precio.moneda === "ARS" ? precio.priceARS ?? precio.price : precio.price;
+	return `${precio.moneda} ${Number(importe || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}${operacion === "alquiler" ? " por mes" : ""}`;
 }
 
 function camposPersona(prefijo: "titular" | "cotitular" | "garante", datos: Persona, cambiar: (clave: keyof Persona, valor: string) => void, id: string) {
@@ -172,13 +175,9 @@ function SolicitudForm() {
 
 	const datosOperacion = useMemo(() => {
 		if (!propiedad || !operacion) return false;
+		// HU-25: se puede pedir compra o alquiler según las operaciones que siguen abiertas (incluye la venta con inquilino)
 		const actual = operacion === "compra" ? "venta" : "alquiler";
-		const permitidas = propiedad.operacionesSolicitud?.length
-			? propiedad.operacionesSolicitud
-			: propiedad.categoria_operacion === "venta" || propiedad.categoria_operacion === "alquiler"
-				? [propiedad.categoria_operacion]
-				: [];
-		return propiedad.estado === "disponible" && propiedad.permitirSolicitudes !== false && propiedad.categoria_operacion !== "temporario" && permitidas.includes(actual);
+		return propiedad.permitirSolicitudes !== false && operacionesAbiertas(propiedad).includes(actual);
 	}, [operacion, propiedad]);
 
 	const archivosAdjuntos = useMemo(() => {
@@ -347,7 +346,7 @@ function SolicitudForm() {
 				<p className={estilosEtiqueta}>PROPIEDAD SELECCIONADA</p>
 				<h2 id="resumen-propiedad" className="font-display m-0 text-[28px] leading-tight">{propiedad.title}</h2>
 				<p className="m-0 text-[14px] text-[#efe9df]/65">{propiedad.ciudad || propiedad.location}</p>
-				<p className="m-0 text-[15px] font-medium">{precioLegible(propiedad)}</p>
+				<p className="m-0 text-[15px] font-medium">{precioLegible(propiedad, operacion)}</p>
 				{operacion && <span className="calma-micro mt-1 self-start rounded-full bg-[#efe9df] px-3 py-1 text-[10px] text-[#071733]">Solicitud de {OPERACIONES[operacion]}</span>}
 			</div>
 		</section>

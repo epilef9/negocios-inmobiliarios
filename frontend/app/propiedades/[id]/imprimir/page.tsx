@@ -5,10 +5,10 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import LogoEmpresa from "@/components/sitio/LogoEmpresa";
 import { useContacto } from "@/components/sitio/useAjustes";
-import { etiquetaOperacion } from "@/components/sitio/datos";
-import { datosCortos, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
+import { datosCortos, etiquetaTipo, precioDePropiedad, preciosDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { COMODIDADES } from "@/components/catalogo/FiltrosCatalogo";
 import { getPropertyById, type ApiProperty } from "@/services/api";
+import { etiquetaOperaciones } from "@/components/sitio/operaciones";
 
 // Ficha de la propiedad en una hoja A4, lista para imprimir o guardar como PDF desde el navegador
 // (vidriera de la oficina o para darle a un cliente). Fondo blanco y sin elementos del sitio.
@@ -44,7 +44,9 @@ export default function ImprimirFicha() {
 	}
 	if (!p) return <main aria-busy="true" className="min-h-dvh bg-white" />;
 
-	const precio = precioDePropiedad(p, blue);
+	// HU-25: con venta y alquiler, los dos precios
+	const precios = preciosDePropiedad(p, blue).length ? preciosDePropiedad(p, blue) : [{ operacion: "venta" as const, ...precioDePropiedad(p, blue) }];
+	const precio = precios[0];
 	// Una foto grande y dos chicas; con menos de tres, solo la portada (la hoja tiene que entrar en una A4)
 	const fotos = (p.images ?? []).length >= 3 ? (p.images ?? []).slice(0, 3) : (p.images ?? []).slice(0, 1);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
@@ -65,7 +67,7 @@ export default function ImprimirFicha() {
 				<header className="flex items-center justify-between gap-6 border-b border-[#071733]/15 pb-5">
 					<LogoEmpresa version="apilado" className="h-12 w-auto" prioridad />
 					<div className="text-right text-[12px] leading-snug">
-						<p className="m-0 font-semibold uppercase tracking-[0.14em]">{etiquetaOperacion[p.categoria_operacion || ""] ?? "Propiedad"}</p>
+						<p className="m-0 font-semibold uppercase tracking-[0.14em]">{etiquetaOperaciones(p)}</p>
 						{p.codigoInterno && <p className="m-0">Código {p.codigoInterno}</p>}
 					</div>
 				</header>
@@ -89,7 +91,12 @@ export default function ImprimirFicha() {
 					</div>
 					<div className="text-right">
 						{precio.anterior && <p className="m-0 text-[13px] text-[#071733]/60 line-through">{precio.anterior}</p>}
-						<p className="font-display m-0 text-[28px] leading-none">{precio.principal}</p>
+						{precios.map((x) => (
+							<p key={x.operacion} className={`font-display m-0 leading-none ${precios.length > 1 ? "mt-1 text-[22px]" : "text-[28px]"}`}>
+								{precios.length > 1 && <span className="font-sans text-[12px] uppercase tracking-[0.14em] text-[#071733]/60">{x.operacion === "venta" ? "Venta " : "Alquiler "}</span>}
+								{x.principal}
+							</p>
+						))}
 						{p.montoExpensas ? <p className="m-0 mt-1 text-[12px]">Expensas ARS {p.montoExpensas.toLocaleString("es-AR")}</p> : null}
 						{p.financiacion?.disponible && (
 							<p className="m-0 mt-1 text-[12px]">

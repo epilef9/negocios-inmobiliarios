@@ -11,6 +11,14 @@ const personaSchema = new mongoose.Schema({
     dni: { type: String, trim: true },
 }, { _id: false });
 
+// Precio de una operación (venta o alquiler). price va siempre en dólares (para ordenar y filtrar);
+// moneda es la moneda en que se cargó y priceARS el valor en pesos.
+const precioSchema = new mongoose.Schema({
+    price: { type: Number, required: true, min: 0 },
+    moneda: { type: String, enum: ['USD', 'ARS'], default: 'USD' },
+    priceARS: { type: Number, min: 0 },
+}, { _id: false });
+
 const propertySchema = new mongoose.Schema({
     // Datos personales: no se leen salvo que se pidan con select('+propietario +inquilino'),
     // así las consultas públicas del catálogo nunca los devuelven (RNF-05).
@@ -26,6 +34,7 @@ const propertySchema = new mongoose.Schema({
     description: {
         type: String,
     },
+    // Precio de la operación principal (copia de precios.venta o precios.alquiler; en temporario, el de referencia)
     price: {
         type: Number,
         required: true,
@@ -46,13 +55,25 @@ const propertySchema = new mongoose.Schema({
     provincia: { type: String, enum: ['entre_rios'] },
     direccionCompleta: String,
     referenciasUbicacion: String,
+    // HU-25 / RF-03: operaciones en las que se publica (venta y alquiler se pueden combinar; temporario va solo)
+    // y el precio de cada una. Ver utils/operaciones.js.
+    operaciones: {
+        type: [{ type: String, enum: ['venta', 'alquiler', 'temporario'] }],
+        default: undefined,
+    },
+    precios: {
+        venta: { type: precioSchema, default: undefined },
+        alquiler: { type: precioSchema, default: undefined },
+    },
+    // Copia de la operación principal (venta si está, si no la única). La mantiene properties.service.
     categoria_operacion: {
         type: String,
         enum: ['venta', 'alquiler', 'temporario'],
     },
+    // Ya no se usa: las solicitudes se admiten para las operaciones de la propiedad. Queda por las cargadas antes.
     operacionesSolicitud: {
         type: [{ type: String, enum: ['venta', 'alquiler'] }],
-        default: [],
+        default: undefined,
     },
     permitirSolicitudes: { type: Boolean, default: true },
     tipo_inmueble: {
@@ -92,6 +113,9 @@ const propertySchema = new mongoose.Schema({
         enum: ['disponible', 'reservado', 'alquilado', 'vendido'],
         default: 'disponible',
     },
+    // Ya se vendió, aunque después figure alquilada (el comprador la alquila): así la venta no se reabre.
+    // Se marca al pasar a vendida y se borra al volver a disponible (ver properties.service).
+    vendida: { type: Boolean, default: undefined },
     // HU-12: descuento por tiempo limitado y plan de financiación propio de la propiedad
     descuento: {
         porcentaje: { type: Number, min: 0, max: 90, default: 0 },
@@ -149,4 +173,4 @@ propertySchema.pre('save', function() {
 
 const Property = mongoose.model('Property', propertySchema);
 
-module.exports = Property;
+module.exports = Property;

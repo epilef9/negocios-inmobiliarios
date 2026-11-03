@@ -8,6 +8,7 @@ const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
 const config = require('../config/env');
+const { operacionesDe, precioDe } = require('../utils/operaciones');
 
 const MAXIMO_AVISOS_POR_USUARIO = 30;
 const MAXIMO_MAILS_BUSQUEDA_POR_DIA = 3;
@@ -16,15 +17,20 @@ const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Ar
 const normalizar = (t = '') => String(t).toLocaleLowerCase('es').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const tipoGeneral = (t = '') => (t === 'monoambiente' ? 'departamento' : t);
 
-// Mismos criterios que los filtros del catálogo
+// Mismos criterios que los filtros del catálogo. Con venta y alquiler (HU-25), el precio que cuenta es el de la
+// operación buscada; sin operación, alcanza con que alguna de las dos entre en el rango.
 const cumpleBusqueda = (p, f = {}) => {
     const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+    const operaciones = operacionesDe(p);
+    const enDolares = (f.operacion ? [f.operacion] : operaciones)
+        .map((o) => (o === 'temporario' ? p.price : precioDe(p, o)?.price))
+        .filter((v) => typeof v === 'number');
+    const enRango = (v) => (f.precioMin == null || v >= f.precioMin) && (f.precioMax == null || v <= f.precioMax);
     return (
-        (!f.operacion || p.categoria_operacion === f.operacion) &&
+        (!f.operacion || operaciones.includes(f.operacion)) &&
         (!f.localidad || normalizar(p.ciudad) === normalizar(f.localidad)) &&
         (!f.tipo || tipoGeneral(p.tipo_inmueble) === f.tipo) &&
-        (f.precioMin == null || p.price >= f.precioMin) &&
-        (f.precioMax == null || p.price <= f.precioMax) &&
+        (f.precioMin == null && f.precioMax == null ? true : enDolares.some(enRango)) &&
         (f.ambientes == null || (ambientes != null && ambientes >= f.ambientes)) &&
         (!f.comodidad || (p.comodidades || []).includes(f.comodidad))
     );
@@ -58,7 +64,7 @@ const describirBusqueda = (f) =>
         .join(' · ');
 
 // ---------- Lo que hace el cliente ----------
-const mios = (usuario) => Aviso.find({ usuario, activo: true }).sort({ createdAt: -1 }).populate('propiedad', 'title images estado ciudad categoria_operacion').lean();
+const mios = (usuario) => Aviso.find({ usuario, activo: true }).sort({ createdAt: -1 }).populate('propiedad', 'title images estado ciudad categoria_operacion operaciones').lean();
 
 const crear = async (usuario, cuerpo = {}) => {
     if ((await Aviso.countDocuments({ usuario, activo: true })) >= MAXIMO_AVISOS_POR_USUARIO) {
