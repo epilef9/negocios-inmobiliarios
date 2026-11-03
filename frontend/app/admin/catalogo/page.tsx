@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getProperties, reorderProperties, type ApiProperty } from '@/services/api';
 import { precioDePropiedad } from '@/components/sitio/precio';
-import { etiquetaOperacion } from '@/components/sitio/datos';
+import { etiquetaOperaciones } from '@/components/sitio/operaciones';
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Encabezado, Esqueleto, EstadoVacio, control, useAviso } from '@/components/panel/ui';
 
@@ -192,7 +192,7 @@ export default function OrdenCatalogoPage() {
                   <div className="min-w-0 flex-1">
                     <span className="block truncate text-[14px] font-medium">{p.title}</span>
                     <span className="block truncate text-[13px] text-panel-suave">
-                      {[etiquetaOperacion[p.categoria_operacion || 'venta'], p.ciudad || p.location, precioDePropiedad(p, null).principal].filter(Boolean).join(' · ')}
+                      {[etiquetaOperaciones(p, 'Venta'), p.ciudad || p.location, precioDePropiedad(p, null).principal].filter(Boolean).join(' · ')}
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center">

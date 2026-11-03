@@ -185,18 +185,23 @@ const avisarInmobiliaria = ({ asunto, intro, filas = [], enlace, boton = 'Abrir 
     });
 };
 
-// Mail simple a un cliente: saludo, párrafos y un botón opcional
-const avisarCliente = ({ para, nombre, asunto, parrafos, boton, enlace, pie }) =>
-    enviar({
+// Mail simple a un cliente: saludo, párrafos y un botón opcional (o varios con `botones: [{ texto, enlace }]`;
+// el primero se destaca)
+const avisarCliente = ({ para, nombre, asunto, parrafos, boton, enlace, botones, pie }) => {
+    const lista = botones || (enlace ? [{ texto: boton || 'Abrir', enlace }] : []);
+    const estilo = (i) =>
+        i === 0
+            ? 'display:inline-block;margin:0 8px 8px 0;padding:12px 22px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px'
+            : 'display:inline-block;margin:0 8px 8px 0;padding:11px 21px;border:1px solid #1a1a1a;color:#1a1a1a;text-decoration:none;border-radius:6px';
+    return enviar({
         para,
         asunto,
-        texto: `Hola${nombre ? ` ${nombre}` : ''},\n\n${parrafos.join('\n\n')}${enlace ? `\n\n${boton || 'Abrir'}: ${enlace}` : ''}${pie ? `\n\n${pie}` : ''}`,
+        texto: `Hola${nombre ? ` ${nombre}` : ''},\n\n${parrafos.join('\n\n')}${lista.map((b) => `\n\n${b.texto}: ${b.enlace}`).join('')}${pie ? `\n\n${pie}` : ''}`,
         html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p>${parrafos.map((p) => `<p style="white-space:pre-wrap">${escapar(p)}</p>`).join('')}${
-            enlace
-                ? `<p><a href="${escapar(enlace)}" style="display:inline-block;padding:12px 22px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px">${escapar(boton || 'Abrir')}</a></p>`
-                : ''
+            lista.length ? `<p>${lista.map((b, i) => `<a href="${escapar(b.enlace)}" style="${estilo(i)}">${escapar(b.texto)}</a>`).join('')}</p>` : ''
         }${pie ? `<p style="color:#666;font-size:13px">${escapar(pie)}</p>` : ''}`,
     });
+};
 
 module.exports = {
     avisarInmobiliaria,

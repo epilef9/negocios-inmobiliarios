@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
-import { obtenerPropiedades, etiquetaOperacion } from "@/components/sitio/datos";
-import { etiquetaEstado, etiquetaTipo, precioDePropiedad, useDolarBlue } from "@/components/sitio/precio";
+import { obtenerPropiedades } from "@/components/sitio/datos";
+import { etiquetaEstado, etiquetaTipo, precioDePropiedad, preciosDePropiedad, useDolarBlue } from "@/components/sitio/precio";
 import { paraComparar, useLista } from "@/components/sitio/listaLocal";
 import { COMODIDADES } from "@/components/catalogo/FiltrosCatalogo";
 import type { ApiProperty } from "@/services/api";
+import { etiquetaOperaciones } from "@/components/sitio/operaciones";
 
 // Comparar 2 o 3 propiedades lado a lado. La selección se guarda en este navegador.
 // En el celular las columnas se deslizan de costado.
@@ -15,7 +16,7 @@ import type { ApiProperty } from "@/services/api";
 const etiquetaComodidad = Object.fromEntries(COMODIDADES.map((c) => [c.value, c.label]));
 
 const FILAS: { titulo: string; valor: (p: ApiProperty) => string }[] = [
-	{ titulo: "Operación", valor: (p) => etiquetaOperacion[p.categoria_operacion || ""] ?? "—" },
+	{ titulo: "Operación", valor: (p) => etiquetaOperaciones(p, "—") },
 	{ titulo: "Estado", valor: (p) => etiquetaEstado[p.estado || "disponible"] ?? "Disponible" },
 	{ titulo: "Tipo", valor: (p) => etiquetaTipo[p.tipo_inmueble || ""] ?? "—" },
 	{ titulo: "Ubicación", valor: (p) => p.ciudad || p.location || "—" },
@@ -85,7 +86,9 @@ export default function CompararPage() {
 										<span className="sr-only">Dato</span>
 									</th>
 									{elegidas.map((p) => {
-										const precio = precioDePropiedad(p, blue);
+										// HU-25: con venta y alquiler, los dos precios
+										const precios = preciosDePropiedad(p, blue);
+										const precio = precios[0] ?? precioDePropiedad(p, blue);
 										return (
 											<th key={p._id} scope="col" className="w-1/3 px-3 pb-6 align-top font-normal">
 												<div className="flex flex-col gap-3">
@@ -98,7 +101,16 @@ export default function CompararPage() {
 													<Link href={`/propiedades/${p._id}`} className="font-display calma-link calma-link-sutil text-[22px] leading-tight">
 														{p.title}
 													</Link>
-													<span className="text-[16px]">{precio.principal}</span>
+													{precios.length > 1 ? (
+														precios.map((x) => (
+															<span key={x.operacion} className="text-[16px]">
+																<span className="text-[#efe9df]/60">{x.operacion === "venta" ? "Venta" : "Alquiler"} · </span>
+																{x.principal}
+															</span>
+														))
+													) : (
+														<span className="text-[16px]">{precio.principal}</span>
+													)}
 													{precio.anterior && <s className="text-[13px] text-[#efe9df]/55">{precio.anterior}</s>}
 													<button type="button" onClick={() => quitar(p._id)} className="calma-micro calma-link calma-link-sutil cursor-pointer self-start text-[11px] text-[#efe9df]/70">
 														Quitar

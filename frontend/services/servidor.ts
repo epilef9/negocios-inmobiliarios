@@ -1,5 +1,6 @@
 // Consultas que hace el servidor de Next (metadatos para compartir, sitemap). No usar desde el navegador.
-import type { ApiProperty } from './api';
+import type { ApiProperty, Operacion } from './api';
+import { operacionesDe, precioDe } from '@/components/sitio/operaciones';
 
 // Dirección pública del sitio, para los links absolutos que leen Google y WhatsApp
 export const urlSitio = () =>
@@ -32,22 +33,26 @@ export const propiedadEnServidor = (id: string) => (/^[a-f\d]{24}$/i.test(id) ? 
 export const propiedadesEnServidor = () => leer<ApiProperty[]>('/properties', 600);
 
 // Texto corto para buscadores y vistas previas: "Venta · Casa · 3 amb. · 120 m² · USD 95.000"
+// Con venta y alquiler (HU-25): "Venta y alquiler · Casa · … · USD 95.000 · ARS 650.000 por mes"
 export function resumenPropiedad(p: ApiProperty) {
-  const operacion = p.categoria_operacion === 'alquiler' ? 'Alquiler' : p.categoria_operacion === 'temporario' ? 'Alquiler por días' : 'Venta';
+  const operaciones = operacionesDe(p).length ? operacionesDe(p) : ['venta' as const];
+  const operacion = operaciones.length === 2 ? 'Venta y alquiler' : operaciones[0] === 'alquiler' ? 'Alquiler' : operaciones[0] === 'temporario' ? 'Alquiler por días' : 'Venta';
   const TIPOS: Record<string, string> = { casa: 'Casa', departamento: 'Departamento', monoambiente: 'Monoambiente', local: 'Local', terreno: 'Terreno' };
   const tipo = TIPOS[p.tipo_inmueble || ''] ?? '';
-  const precio =
-    p.categoria_operacion === 'temporario' && p.precioPorNocheUSD
-      ? `USD ${Math.round(p.precioPorNocheUSD).toLocaleString('es-AR')} por noche`
-      : p.moneda === 'ARS'
-        ? `ARS ${Math.round(p.priceARS ?? p.price).toLocaleString('es-AR')}${p.categoria_operacion === 'alquiler' ? ' por mes' : ''}`
-        : `USD ${Math.round(p.price).toLocaleString('es-AR')}${p.categoria_operacion === 'alquiler' ? ' por mes' : ''}`;
+  const textoPrecio = (o: Operacion) => {
+    if (o === 'temporario' && p.precioPorNocheUSD) return `USD ${Math.round(p.precioPorNocheUSD).toLocaleString('es-AR')} por noche`;
+    const precio = precioDe(p, o) ?? { price: p.price, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: p.priceARS };
+    const sufijo = o === 'alquiler' ? ' por mes' : '';
+    return precio.moneda === 'ARS'
+      ? `ARS ${Math.round(precio.priceARS ?? precio.price).toLocaleString('es-AR')}${sufijo}`
+      : `USD ${Math.round(precio.price).toLocaleString('es-AR')}${sufijo}`;
+  };
   const partes = [
     operacion,
     tipo,
     p.tipo_inmueble !== 'terreno' && p.cantidad_ambientes ? `${p.cantidad_ambientes} amb.` : '',
     p.area ? `${p.area} m²` : '',
-    precio,
+    ...operaciones.map(textoPrecio),
     p.ciudad || '',
   ].filter(Boolean);
   return partes.join(' · ');

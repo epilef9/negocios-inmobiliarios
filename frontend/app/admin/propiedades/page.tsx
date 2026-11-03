@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { deleteProperty, getProperties, updateProperty, type ApiProperty } from '@/services/api';
-import { etiquetaTipo, precioDePropiedad } from '@/components/sitio/precio';
-import { etiquetaOperacion } from '@/components/sitio/datos';
+import { etiquetaTipo, precioDePropiedad, preciosDePropiedad } from '@/components/sitio/precio';
+import { etiquetaOperaciones, operacionesDe, tieneOperacion } from '@/components/sitio/operaciones';
+
+// HU-25: con venta y alquiler, los dos precios (uno debajo del otro)
+const textoPrecios = (p: ApiProperty) => {
+  const precios = preciosDePropiedad(p, null);
+  return precios.length ? precios.map((x) => x.principal) : [precioDePropiedad(p, null).principal];
+};
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Encabezado, Esqueleto, EstadoVacio, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
@@ -116,7 +122,7 @@ export default function PropiedadesAdminPage() {
     (p) =>
       (!texto || [p.title, p.location, p.ciudad, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto))) &&
       (!filtros.tipo || p.tipo_inmueble === filtros.tipo) &&
-      (!filtros.operacion || (p.categoria_operacion || 'venta') === filtros.operacion) &&
+      (!filtros.operacion || tieneOperacion(p, filtros.operacion) || (!operacionesDe(p).length && filtros.operacion === 'venta')) &&
       (!filtros.estado || (p.estado || 'disponible') === filtros.estado)
   );
   const disponibles = lista.filter((p) => !p.estado || p.estado === 'disponible').length;
@@ -239,8 +245,10 @@ export default function PropiedadesAdminPage() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[13.5px] text-panel-suave">{etiquetaOperacion[p.categoria_operacion || 'venta'] ?? 'Venta'}</td>
-                      <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</td>
+                      <td className="px-4 py-3 text-[13.5px] text-panel-suave">{etiquetaOperaciones(p, 'Venta')}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">
+                        {textoPrecios(p).map((texto) => <span key={texto} className="block">{texto}</span>)}
+                      </td>
                       <td className="px-4 py-3">
                         <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
                       </td>
@@ -276,9 +284,9 @@ export default function PropiedadesAdminPage() {
                           {p.title}
                         </Link>
                         <span className="block text-[13px] text-panel-suave">
-                          {[etiquetaOperacion[p.categoria_operacion || 'venta'], p.ciudad || p.location].filter(Boolean).join(' · ')}
+                          {[etiquetaOperaciones(p, 'Venta'), p.ciudad || p.location].filter(Boolean).join(' · ')}
                         </span>
-                        <span className="tabular block text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</span>
+                        <span className="tabular block text-[13.5px] font-medium">{textoPrecios(p).join(' · ')}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">

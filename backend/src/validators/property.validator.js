@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
+const { OPERACIONES, CON_PRECIO_PROPIO } = require('../utils/operaciones');
 
-const requiredFields = ['title', 'price', 'location', 'bedrooms', 'bathrooms', 'area'];
+// price no está: con operaciones nuevas sale del precio de cada operación (ver revisarOperaciones)
+const requiredFields = ['title', 'location', 'bedrooms', 'bathrooms', 'area'];
 const numericFields = [
     'price',
     'priceARS',
@@ -19,7 +21,7 @@ const numericFields = [
 const allowedFields = new Set([
     'title', 'codigoInterno', 'description', 'price', 'moneda', 'priceARS', 'cotizacionDolar',
     'location', 'ciudad', 'provincia', 'direccionCompleta', 'referenciasUbicacion',
-    'categoria_operacion', 'tipo_inmueble', 'cantidad_ambientes', 'comodidades', 'otrasComodidades',
+    'categoria_operacion', 'operaciones', 'precios', 'tipo_inmueble', 'cantidad_ambientes', 'comodidades', 'otrasComodidades',
     'expensas', 'montoExpensas', 'cochera', 'pisoUnidad', 'linkGoogleMaps', 'latitud', 'longitud',
     'permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'permitirSolicitudes', 'operacionesSolicitud', 'horarioAtencion', 'telefonoWhatsApp',
     'precioPorNocheUSD', 'minimoNoches', 'huespedesMaximos', 'costoLimpiezaUSD',
@@ -40,6 +42,48 @@ const dentroDeEntreRios = (lat, lng) => Number.isFinite(lat) && Number.isFinite(
 const esObjetoPlano = (v) => v && typeof v === 'object' && !Array.isArray(v);
 const soloCampos = (obj, campos) => Object.keys(obj).every((k) => campos.includes(k));
 const numeroEntre = (v, min, max) => typeof v === 'number' && Number.isFinite(v) && v >= min && v <= max;
+
+const NOMBRE_OPERACION = { venta: 'venta', alquiler: 'alquiler' };
+
+// HU-25 / RF-03: operaciones elegidas y el precio de cada una. Devuelve el problema o null.
+const revisarOperaciones = (body, isUpdate) => {
+    const { operaciones, precios } = body;
+    if (operaciones !== undefined) {
+        if (!Array.isArray(operaciones) || operaciones.length === 0 || operaciones.some((o) => !OPERACIONES.includes(o)) || new Set(operaciones).size !== operaciones.length) {
+            return 'Elegí al menos una operación: venta, alquiler o alquiler por días';
+        }
+        if (operaciones.includes('temporario') && operaciones.length > 1) {
+            return 'El alquiler por días no se combina con venta ni alquiler';
+        }
+    }
+    if (precios !== undefined) {
+        if (!Array.isArray(operaciones)) return 'Los precios por operación tienen que venir junto con las operaciones';
+        if (!esObjetoPlano(precios) || !soloCampos(precios, CON_PRECIO_PROPIO)) return 'precios tiene un formato inválido';
+        for (const [operacion, precio] of Object.entries(precios)) {
+            if (precio === null || precio === undefined) continue;
+            if (!esObjetoPlano(precio) || !soloCampos(precio, ['price', 'moneda', 'priceARS'])) return `El precio de ${NOMBRE_OPERACION[operacion]} tiene un formato inválido`;
+            if (precio.moneda !== undefined && !['USD', 'ARS'].includes(precio.moneda)) return 'La moneda tiene que ser USD o ARS';
+            for (const campo of ['price', 'priceARS']) {
+                if (precio[campo] !== undefined && !numeroEntre(precio[campo], 0, 1e12)) return `El precio de ${NOMBRE_OPERACION[operacion]} tiene que ser un número no negativo`;
+            }
+        }
+    }
+    if (Array.isArray(operaciones)) {
+        // Cada operación con precio propio necesita su precio cargado (en la moneda elegida)
+        for (const operacion of operaciones.filter((o) => CON_PRECIO_PROPIO.includes(o))) {
+            const precio = precios?.[operacion];
+            const monto = precio ? (precio.moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price) : undefined;
+            if (!(typeof monto === 'number' && monto > 0)) return `Cargá el precio de ${NOMBRE_OPERACION[operacion]}`;
+        }
+    } else if (!isUpdate && (body.price === undefined || body.price === null || body.price === '')) {
+        // Formato viejo (una sola categoría): el precio general es obligatorio
+        return 'price es obligatorio';
+    }
+    if (Array.isArray(operaciones) && operaciones[0] === 'temporario' && !isUpdate && (body.price === undefined || body.price === '')) {
+        return 'price es obligatorio';
+    }
+    return null;
+};
 
 // Devuelve el problema de descuento/financiación, o null si están bien (o no vinieron)
 const revisarOferta = ({ descuento, financiacion }) => {
@@ -137,6 +181,9 @@ const validateProperty = (req, res, next) => {
         errors.push('comodidades contiene valores inválidos');
     }
 
+    const errorOperaciones = revisarOperaciones(req.body, isUpdate);
+    if (errorOperaciones) errors.push(errorOperaciones);
+
     // HU-12: descuento y financiación, con forma fija (nada de campos extra)
     const errorOferta = revisarOferta(req.body);
     if (errorOferta) errors.push(errorOferta);
@@ -182,4 +229,4 @@ const validatePropertyId = (req, res, next) => {
     next();
 };
 
-module.exports = { validateProperty, validatePropertyId, dentroDeEntreRios };
+module.exports = { validateProperty, validatePropertyId, dentroDeEntreRios, revisarOperaciones };

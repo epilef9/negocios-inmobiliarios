@@ -19,6 +19,7 @@ import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, Insignia, Tarjeta
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
 import Icono from '@/components/panel/Icono';
 import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
+import { operacionesDe, precioDe } from '@/components/sitio/operaciones';
 
 const TIPOS = ['Alquiler permanente', 'Alquiler temporario', 'Comercial', 'Compraventa'] as const;
 type TipoContrato = (typeof TIPOS)[number];
@@ -30,19 +31,23 @@ const PLANTILLA_DE: Record<TipoContrato, string> = {
   Compraventa: 'Boleto de compraventa',
 };
 
-// Qué contratos tienen sentido según cómo se publicó la propiedad
+// Qué contratos tienen sentido según cómo se publicó la propiedad (con venta y alquiler, los de las dos)
 const tiposPara = (p?: ApiProperty): readonly TipoContrato[] => {
-  if (!p?.categoria_operacion) return TIPOS;
-  if (p.categoria_operacion === 'venta') return ['Compraventa'];
-  if (p.categoria_operacion === 'temporario') return ['Alquiler temporario'];
-  return p.tipo_inmueble === 'local' ? ['Comercial'] : ['Alquiler permanente'];
+  const operaciones = p ? operacionesDe(p) : [];
+  if (!operaciones.length) return TIPOS;
+  if (operaciones.includes('temporario')) return ['Alquiler temporario'];
+  const tipos: TipoContrato[] = [];
+  if (operaciones.includes('alquiler')) tipos.push(p?.tipo_inmueble === 'local' ? 'Comercial' : 'Alquiler permanente');
+  if (operaciones.includes('venta')) tipos.push('Compraventa');
+  return tipos;
 };
 
 const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
-// Precio publicado, como punto de partida del monto del contrato
-const precioDe = (p: ApiProperty) => {
-  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
-  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}` : `USD ${miles(p.price)}`;
+// Precio publicado de la operación del contrato (compraventa → venta; el resto → alquiler), como punto de partida
+const precioPublicado = (p: ApiProperty, tipo: TipoContrato) => {
+  if (tipo === 'Alquiler temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  const precio = precioDe(p, tipo === 'Compraventa' ? 'venta' : 'alquiler') ?? { price: p.price, moneda: p.moneda, priceARS: p.priceARS };
+  return precio.moneda === 'ARS' ? `ARS ${miles(precio.priceARS ?? precio.price)}` : `USD ${miles(precio.price)}`;
 };
 const AJUSTES = ['Semestral', 'Cuatrimestral', 'Trimestral', 'Anual'] as const;
 const COMISIONES = ['3%', '4%', '5%'];
@@ -347,7 +352,7 @@ function GeneradorContrato() {
         propiedadCiudad: p?.ciudad ?? '',
         tipoContrato,
         plantilla: PLANTILLA_DE[tipoContrato],
-        montoMensual: p ? precioDe(p) : d.montoMensual,
+        montoMensual: p ? precioPublicado(p, tipoContrato) : d.montoMensual,
         duracionMeses: tipoContrato === 'Alquiler temporario' ? '1' : tipoContrato === 'Compraventa' ? '' : d.duracionMeses || '24',
         propietarioUsuarioId: propietario?.id ?? vinculada?.propietarioUsuarioId ?? '',
         propietarioNombre: propietario?.nombre ?? vinculada?.propietarioNombre ?? d.propietarioNombre,

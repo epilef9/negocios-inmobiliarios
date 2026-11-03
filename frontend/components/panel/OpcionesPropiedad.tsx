@@ -1,4 +1,5 @@
 import type { ApiProperty } from '@/services/api';
+import { operacionesAbiertas, operacionesDe } from '@/components/sitio/operaciones';
 
 // Opciones de un <select> de propiedades, agrupadas por tipo de inmueble (los mismos tipos que al cargar una propiedad).
 // Cada opción dice título · localidad · operación, así se distinguen aunque dos títulos se parezcan.
@@ -12,11 +13,11 @@ const GRUPOS: { tipo: NonNullable<ApiProperty['tipo_inmueble']>; titulo: string 
 
 const OPERACION: Record<string, string> = { venta: 'Venta', alquiler: 'Alquiler', temporario: 'Temporario' };
 
-// Las vendidas o alquiladas no se pueden visitar ni contratar de nuevo
-export const propiedadOfrecida = (p: ApiProperty) => p.estado !== 'vendido' && p.estado !== 'alquilado';
+// Las vendidas o alquiladas no se pueden visitar ni contratar de nuevo, salvo la venta con inquilino adentro (HU-28)
+export const propiedadOfrecida = (p: ApiProperty) => p.estado === 'reservado' || operacionesAbiertas(p).length > 0;
 
 export const etiquetaPropiedad = (p: ApiProperty) =>
-  [p.title, p.ciudad, p.categoria_operacion && OPERACION[p.categoria_operacion], p.estado === 'reservado' ? 'reservada' : '']
+  [p.title, p.ciudad, operacionesDe(p).map((o) => OPERACION[o]).join(' y '), p.estado === 'reservado' ? 'reservada' : '']
     .filter(Boolean)
     .join(' · ');
 
