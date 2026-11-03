@@ -13,7 +13,7 @@ import { useContacto } from "@/components/sitio/useAjustes";
 import VistasRecientes from "@/components/sitio/VistasRecientes";
 import GuardarBusqueda from "@/components/catalogo/GuardarBusqueda";
 import BarraComparar from "@/components/sitio/BarraComparar";
-import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
+import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, listaComodidades, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -40,11 +40,12 @@ const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
 		operation: OPERACIONES.some((o) => o.value === operation) ? operation : "",
 		propertyType: TIPOS.some((t) => t.value === propertyType) ? propertyType : "",
 		location: (params.get("ubicacion") || "").slice(0, 100),
-		// Desde una búsqueda guardada (Mi cuenta → Tus avisos) llegan también precio, ambientes y comodidad
+		// Desde una búsqueda guardada (Mi cuenta → Tus avisos) llegan también precio, ambientes y comodidades
 		minPrice: /^\d+$/.test(params.get("minimo") || "") ? (params.get("minimo") as string) : "",
 		maxPrice: /^\d+$/.test(params.get("maximo") || "") ? (params.get("maximo") as string) : "",
 		rooms: /^\d+$/.test(params.get("ambientes") || "") ? (params.get("ambientes") as string) : "",
-		amenities: /^[a-z_]{2,30}$/.test(params.get("comodidad") || "") ? (params.get("comodidad") as string) : "",
+		// Una o varias comodidades separadas por coma («pileta,wifi»)
+		amenities: listaComodidades(params.get("comodidad") || "").join(","),
 	};
 };
 
@@ -66,7 +67,8 @@ const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
 		(!f.minPrice || precio >= Number(f.minPrice)) &&
 		(!f.maxPrice || precio <= Number(f.maxPrice)) &&
 		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&
-		(!f.amenities || comodidades.includes(f.amenities)) &&
+		// Con varias comodidades marcadas, tiene que tener todas
+		listaComodidades(f.amenities).every((c) => comodidades.includes(c)) &&
 		(!f.status || normalizar(estado) === f.status)
 	);
 };
@@ -193,7 +195,8 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 	return (
 		<SitioBase>
 			<Revelar>
-				<header className="encabezado-color encabezado-azul flex flex-col gap-10 px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
+				{/* relative z-20: el desplegable de comodidades se abre por encima de los resultados */}
+				<header className="encabezado-color encabezado-azul relative z-20 flex flex-col gap-10 px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 					<div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
 						<h1
 							data-reveal="lineas"

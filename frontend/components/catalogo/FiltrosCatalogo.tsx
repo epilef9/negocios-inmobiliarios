@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 export type FiltrosPropiedades = {
   operation: string;
@@ -62,6 +62,13 @@ export const COMODIDADES = [
   { value: 'laundry', label: 'Laundry' },
 ];
 
+// Se pueden elegir varias comodidades: viajan juntas, separadas por coma («pileta,wifi»), igual en la dirección
+// del catálogo y en las búsquedas guardadas. Devuelve solo las conocidas y en el orden de la lista.
+export const listaComodidades = (valor = '') => {
+  const elegidas = valor.split(',');
+  return COMODIDADES.map((c) => c.value).filter((c) => elegidas.includes(c));
+};
+
 const ESTADOS = [
   { value: 'disponible', label: 'Disponible' },
   { value: 'reservado', label: 'Reservada' },
@@ -106,15 +113,17 @@ const etiquetaDe = (lista: { value: string; label: string }[], valor: string) =>
 const dolares = (valor: string) => `USD ${Number(valor).toLocaleString('es-AR')}`;
 
 // Un chip por cada filtro puesto, en el mismo orden que la barra, para poder sacarlos de a uno
-function filtrosActivos(f: FiltrosPropiedades): { clave: keyof FiltrosPropiedades; texto: string }[] {
-  const lista: { clave: keyof FiltrosPropiedades; texto: string }[] = [];
+// (cada comodidad elegida tiene su chip)
+type FiltroActivo = { clave: keyof FiltrosPropiedades; texto: string; valor?: string };
+function filtrosActivos(f: FiltrosPropiedades): FiltroActivo[] {
+  const lista: FiltroActivo[] = [];
   if (f.operation) lista.push({ clave: 'operation', texto: etiquetaDe(OPERACIONES, f.operation) });
   if (f.location) lista.push({ clave: 'location', texto: f.location });
   if (f.propertyType) lista.push({ clave: 'propertyType', texto: etiquetaDe(TIPOS, f.propertyType) });
   if (f.minPrice) lista.push({ clave: 'minPrice', texto: `Desde ${dolares(f.minPrice)}` });
   if (f.maxPrice) lista.push({ clave: 'maxPrice', texto: `Hasta ${dolares(f.maxPrice)}` });
   if (f.rooms) lista.push({ clave: 'rooms', texto: `${f.rooms}+ ambientes` });
-  if (f.amenities) lista.push({ clave: 'amenities', texto: etiquetaDe(COMODIDADES, f.amenities) });
+  for (const c of listaComodidades(f.amenities)) lista.push({ clave: 'amenities', texto: etiquetaDe(COMODIDADES, c), valor: c });
   if (f.status) lista.push({ clave: 'status', texto: etiquetaDe(ESTADOS, f.status) });
   return lista;
 }
@@ -124,6 +133,134 @@ function IconoCruz({ className = 'h-3 w-3' }: { className?: string }) {
     <svg aria-hidden="true" viewBox="0 0 16 16" className={className}>
       <path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
     </svg>
+  );
+}
+
+function IconoTilde() {
+  return (
+    <svg aria-hidden="true" viewBox="0 0 16 16" className="h-3 w-3">
+      <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// «Con»: desplegable con casillas para marcar varias comodidades. La propiedad tiene que tener todas las marcadas.
+function SelectorComodidades({ valor, onChange }: { valor: string; onChange: (valor: string) => void }) {
+  const id = useId();
+  const [abierto, setAbierto] = useState(false);
+  const caja = useRef<HTMLDivElement>(null);
+  const boton = useRef<HTMLButtonElement>(null);
+  const elegidas = listaComodidades(valor);
+
+  // Se cierra con Escape o tocando afuera
+  useEffect(() => {
+    if (!abierto) return;
+    const afuera = (e: PointerEvent) => {
+      if (!caja.current?.contains(e.target as Node)) setAbierto(false);
+    };
+    const tecla = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      setAbierto(false);
+      boton.current?.focus();
+    };
+    document.addEventListener('pointerdown', afuera);
+    document.addEventListener('keydown', tecla);
+    return () => {
+      document.removeEventListener('pointerdown', afuera);
+      document.removeEventListener('keydown', tecla);
+    };
+  }, [abierto]);
+
+  const alternar = (comodidad: string) =>
+    onChange(listaComodidades([...elegidas.filter((c) => c !== comodidad), ...(elegidas.includes(comodidad) ? [] : [comodidad])].join(',')).join(','));
+  const resumen =
+    elegidas.length === 0 ? 'Cualquier comodidad' : elegidas.length === 1 ? etiquetaDe(COMODIDADES, elegidas[0]) : `${elegidas.length} comodidades`;
+
+  return (
+    <div
+      ref={caja}
+      // Al salir con Tab hacia otro control, se cierra. Sin destino (un clic en el texto de una opción) no:
+      // los clics afuera ya los cierra el pointerdown.
+      onBlur={(e) => {
+        const destino = e.relatedTarget as Node | null;
+        if (destino && !caja.current?.contains(destino)) setAbierto(false);
+      }}
+      className="relative flex flex-col gap-2.5"
+    >
+      <span className={etiqueta} id={`${id}-etiqueta`}>
+        Con
+      </span>
+      <button
+        ref={boton}
+        id={`${id}-boton`}
+        type="button"
+        aria-expanded={abierto}
+        aria-controls={`${id}-lista`}
+        aria-labelledby={`${id}-etiqueta ${id}-boton`}
+        onClick={() => setAbierto((v) => !v)}
+        className={`${control} relative flex cursor-pointer items-center pr-9 text-left transition-colors duration-500 group-hover:text-white`}
+      >
+        <span className="truncate">{resumen}</span>
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 20 20"
+          className={`pointer-events-none absolute right-1 h-4 w-4 text-[#efe9df]/55 transition duration-500 group-hover:text-[#efe9df] ${abierto ? 'rotate-180' : 'motion-safe:group-hover:translate-y-0.5'}`}
+        >
+          <path d="M5 8l5 5 5-5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </button>
+
+      {abierto && (
+        <div
+          id={`${id}-lista`}
+          role="group"
+          aria-labelledby={`${id}-etiqueta`}
+          className="absolute left-0 top-full z-30 mt-4 w-[min(26rem,calc(100vw-2rem))] cursor-default rounded-2xl border border-[#efe9df]/15 bg-[#0b1f40] p-2 text-[#efe9df] shadow-2xl"
+        >
+          <p className="m-0 px-3 pb-1 pt-2 text-[13px] text-[#efe9df]/60">Marcá todas las que necesites.</p>
+          <ul className="m-0 grid list-none grid-cols-1 p-0 sm:grid-cols-2">
+            {COMODIDADES.map((c) => {
+              const marcada = elegidas.includes(c.value);
+              return (
+                <li key={c.value}>
+                  <label className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg px-3 text-[15px] transition-colors duration-200 hover:bg-[#efe9df]/[0.07]">
+                    <input type="checkbox" checked={marcada} onChange={() => alternar(c.value)} className="peer sr-only" />
+                    <span
+                      aria-hidden="true"
+                      className={`grid h-[18px] w-[18px] shrink-0 place-items-center rounded-[4px] border transition-colors duration-200 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#efe9df] ${
+                        marcada ? 'border-[#d9382b] bg-[#d9382b] text-white' : 'border-[#efe9df]/45'
+                      }`}
+                    >
+                      {marcada && <IconoTilde />}
+                    </span>
+                    {c.label}
+                  </label>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="mt-1 flex items-center justify-between gap-3 border-t border-[#efe9df]/15 px-3 pb-1 pt-3">
+            {elegidas.length > 0 ? (
+              <button type="button" onClick={() => onChange('')} className="calma-micro calma-link calma-link-sutil cursor-pointer text-[11px]">
+                Borrar ({elegidas.length})
+              </button>
+            ) : (
+              <span />
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setAbierto(false);
+                boton.current?.focus();
+              }}
+              className="calma-micro cursor-pointer rounded-full border border-[#efe9df]/30 px-4 py-2 transition-colors duration-300 hover:border-[#efe9df] hover:bg-[#efe9df]/[0.06]"
+            >
+              Listo
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -141,6 +278,8 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
   const activos = filtrosActivos(filtros);
   const hayFiltros = activos.length > 0;
   const cambiar = (clave: keyof FiltrosPropiedades, valor: string) => onCambiar({ ...filtros, [clave]: valor });
+  const quitar = ({ clave, valor }: FiltroActivo) =>
+    clave === 'amenities' && valor ? cambiar('amenities', listaComodidades(filtros.amenities).filter((c) => c !== valor).join(',')) : cambiar(clave, '');
 
   return (
     <form role="search" aria-label="Filtrar propiedades" onSubmit={(e) => e.preventDefault()} className="border-y border-[#efe9df]/20">
@@ -262,17 +401,9 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
               ))}
             </Desplegable>
           </label>
-          <label className={`${campo} ${celdaInteractiva} border-t pr-4 lg:border-l lg:border-t-0 lg:px-6`}>
-            <span className={etiqueta}>Con</span>
-            <Desplegable value={filtros.amenities} onChange={(valor) => cambiar('amenities', valor)}>
-              <option value="">Cualquier comodidad</option>
-              {COMODIDADES.map((c) => (
-                <option key={c.value} value={c.value}>
-                  {c.label}
-                </option>
-              ))}
-            </Desplegable>
-          </label>
+          <div className={`${campo.replace('gap-2.5 ', '')} ${celdaInteractiva} border-t pr-4 lg:border-l lg:border-t-0 lg:px-6`}>
+            <SelectorComodidades valor={filtros.amenities} onChange={(valor) => cambiar('amenities', valor)} />
+          </div>
           <label className={`${campo} ${celdaInteractiva} border-l border-t pl-4 lg:border-t-0 lg:px-6`}>
             <span className={etiqueta}>Estado</span>
             <Desplegable value={filtros.status} onChange={(valor) => cambiar('status', valor)}>
@@ -290,15 +421,15 @@ export default function FiltrosCatalogo({ filtros, localidades, onCambiar, onLim
       {hayFiltros && (
         <div className="flex items-center gap-3 border-t border-[#efe9df]/20 py-4">
           <ul aria-label="Filtros aplicados" className="m-0 flex min-w-0 flex-1 list-none gap-2 overflow-x-auto p-0 [mask-image:linear-gradient(to_right,#000_82%,transparent)] [scrollbar-width:none] sm:flex-wrap sm:overflow-visible sm:[mask-image:none]">
-            {activos.map(({ clave, texto }) => (
-              <li key={clave} className="filtro-chip shrink-0">
+            {activos.map((filtro) => (
+              <li key={`${filtro.clave}-${filtro.valor ?? ''}`} className="filtro-chip shrink-0">
                 <button
                   type="button"
-                  onClick={() => cambiar(clave, '')}
-                  aria-label={`Quitar filtro: ${texto}`}
+                  onClick={() => quitar(filtro)}
+                  aria-label={`Quitar filtro: ${filtro.texto}`}
                   className="group/chip flex min-h-9 cursor-pointer items-center gap-2 rounded-full border border-[#efe9df]/25 py-1.5 pl-3.5 pr-3 text-[13px] text-[#efe9df]/85 transition-colors duration-300 hover:border-[#d9382b] hover:text-[#efe9df] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#efe9df]"
                 >
-                  {texto}
+                  {filtro.texto}
                   <IconoCruz className="h-3 w-3 text-[#efe9df]/50 transition-colors duration-300 group-hover/chip:text-[#d9382b]" />
                 </button>
               </li>
