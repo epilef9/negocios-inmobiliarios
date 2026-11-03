@@ -1,6 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
+import { fotoDeAncho, propsFoto } from '@/components/sitio/foto';
 
 type Props = { imagenes: string[]; titulo: string };
 
@@ -49,7 +50,7 @@ export default function Galeria({ imagenes, titulo }: Props) {
           // eslint-disable-next-line @next/next/no-img-element -- las imágenes vienen del backend con dominio variable
           <img
             key={src + i}
-            src={src}
+            {...propsFoto(src, "(min-width: 1024px) 66vw, 100vw", 1280)}
             alt={`${titulo}, foto ${i + 1} de ${total}`}
             aria-hidden={i !== actual}
             loading={i === 0 ? 'eager' : 'lazy'}
@@ -94,7 +95,7 @@ export default function Galeria({ imagenes, titulo }: Props) {
               className={`h-16 w-24 shrink-0 overflow-hidden transition-opacity sm:h-20 sm:w-32 ${i === actual ? 'opacity-100 ring-1 ring-[#efe9df]' : 'opacity-50 hover:opacity-90'}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- miniatura de una imagen del backend */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img src={fotoDeAncho(src, 256)} alt="" loading="lazy" className="h-full w-full object-cover" />
             </button>
           ))}
         </div>

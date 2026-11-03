@@ -8,6 +8,7 @@ import { datosCortos, etiquetaEstado, precioDePropiedad, preciosDePropiedad } fr
 import { etiquetaOperaciones, operacionesAbiertas, operacionesDe, tieneOperacion } from './operaciones';
 import BotonFavorito from './BotonFavorito';
 import ConmutadorComparar from './ConmutadorComparar';
+import { propsFoto } from './foto';
 
 type Props = {
   propiedad: ApiProperty;
@@ -64,7 +65,7 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
           <div data-parallax={revelar ? '' : undefined} className="absolute inset-0">
             {/* eslint-disable-next-line @next/next/no-img-element -- las imágenes vienen del backend con dominio variable */}
             <img
-              src={imagen}
+              {...propsFoto(imagen, "(min-width: 1024px) 50vw, 100vw")}
               alt={propiedad.title}
               loading="lazy"
               onError={() => setFotoRota(true)}
