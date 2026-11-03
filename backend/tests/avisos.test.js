@@ -21,6 +21,16 @@ describe('Búsquedas guardadas', () => {
         assert.equal(cumpleBusqueda({ ...casa, tipo_inmueble: 'monoambiente' }, limpiarFiltros({ propertyType: 'departamento' })), true);
     });
 
+    it('con varias comodidades, la propiedad tiene que tener todas', () => {
+        const f = limpiarFiltros({ amenities: 'parrilla,pileta' });
+        assert.equal(f.comodidad, 'parrilla,pileta');
+        assert.equal(cumpleBusqueda(casa, f), false);
+        assert.equal(cumpleBusqueda({ ...casa, comodidades: ['pileta', 'parrilla', 'wifi'] }, f), true);
+        assert.equal(cumpleBusqueda(casa, limpiarFiltros({ amenities: 'parrilla' })), true, 'las búsquedas de una sola comodidad siguen igual');
+        assert.equal(limpiarFiltros({ amenities: 'pileta,<b>,pileta, wifi' }).comodidad, 'pileta,wifi');
+        assert.equal(limpiarFiltros({ amenities: ['pileta'] }).comodidad, '');
+    });
+
     it('describe la búsqueda para el mail', () => {
         assert.equal(describirBusqueda(limpiarFiltros({ operation: 'venta', propertyType: 'casa', location: 'Crespo' })), 'Compra · casa · en Crespo');
     });

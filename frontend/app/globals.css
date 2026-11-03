@@ -418,13 +418,13 @@ html.dark .panel {
 /* Foto satelital un poco apagada para que los "+" y los textos resalten sobre el azul del sitio */
 .mapa-zonas .leaflet-container { background: #071733; font-family: inherit; outline: none; }
 .mapa-zonas .leaflet-tile-pane { filter: saturate(0.9) brightness(0.8) contrast(1.06); }
-.mapa-zonas .leaflet-control-attribution {
-  margin: 0 10px 6px 0; padding: 0;
-  background: transparent; color: rgba(239, 233, 223, 0.38); font-size: 9px; letter-spacing: 0.02em;
-  transition: color 0.3s;
+/* Créditos de las imágenes: fondo negro y letras blancas para que se lean sobre el satélite.
+   Con .leaflet-container porque leaflet.css se carga después y pisaba el fondo con blanco. */
+.mapa-zonas .leaflet-container .leaflet-control-attribution {
+  margin: 0 10px 6px 0; padding: 2px 7px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 10px; letter-spacing: 0.02em; line-height: 1.5;
 }
-.mapa-zonas .leaflet-control-attribution:hover { color: rgba(239, 233, 223, 0.8); }
-.mapa-zonas .leaflet-control-attribution a { color: inherit; }
+.mapa-zonas .leaflet-container .leaflet-control-attribution a { color: inherit; }
 .mapa-pin { display: grid; place-items: center; cursor: pointer; }
 .mapa-pin:focus-visible { outline: none; }
 .mapa-pin-boton {
