@@ -99,6 +99,9 @@ exports.createVisita = async (req, res) => {
         );
         if (motivo) return res.status(409).json({ message: motivo, code: 'HORARIO_NO_DISPONIBLE' });
         if (datos.propiedad.id) await require('../services/estadisticas.service').sumar(datos.propiedad.id, 'visitas');
+        // Mail de confirmación con el enlace para gestionarla. Se espera antes de responder: en Vercel lo que
+        // queda corriendo después de la respuesta puede cortarse. Si falla, la visita queda agendada igual.
+        await visitasService.avisarGestion(newVisita, 'agendada');
 
         return res.status(201).json({ data: newVisita, message: 'Visita agendada correctamente' });
     } catch (error) {
@@ -161,6 +164,28 @@ exports.cancelarMiVisita = async (req, res) => {
         return res.status(500).json({ message: 'No pudimos cancelar la visita' });
     }
 };
+
+// Gestionar la visita desde el enlace del mail, sin cuenta. El token viaja en el cuerpo (POST), nunca en la URL.
+const responderGestion = (accion, mensaje) => async (req, res) => {
+    try {
+        const { visita, token, error, status, code } = await accion(req.body || {});
+        if (error) return res.status(status).json({ message: error, ...(code ? { code } : {}) });
+        return res.status(200).json({ data: { visita, ...(token ? { token } : {}) }, ...(mensaje ? { message: mensaje } : {}) });
+    } catch (error) {
+        console.error('Error al gestionar la visita desde el enlace:', error);
+        return res.status(500).json({ message: 'No pudimos completar el pedido. Probá de nuevo o escribinos por WhatsApp.' });
+    }
+};
+
+exports.verGestion = responderGestion(({ token }) => visitasService.verPorToken(token));
+exports.cancelarGestion = responderGestion(
+    ({ token, motivo }) => visitasService.cancelarPorToken(token, corto(motivo, 300)),
+    'Cancelaste la visita. El horario quedó libre.'
+);
+exports.reprogramarGestion = responderGestion(
+    ({ token, fecha, horario }) => visitasService.reprogramarPorToken(token, corto(fecha, 10), corto(horario, 5)),
+    'Listo, pediste el nuevo horario. Te avisamos cuando lo confirmemos.'
+);
 
 exports.deleteVisita = async (req, res) => {
     try {

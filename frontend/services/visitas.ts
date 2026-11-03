@@ -194,3 +194,23 @@ export type Agenda = { dias: DiaAgenda[]; horario: string; hoy: string; hasta: s
 
 export const getDisponibilidad = (desde: string, hasta: string) =>
   request<Agenda>(`/visitas/disponibilidad?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
+
+// Gestionar la visita desde el enlace del mail, sin cuenta. El token va en el cuerpo, nunca en la URL de la API.
+export interface VisitaGestion {
+  nombre: string;
+  propiedad: { id: string; titulo: string; direccion: string };
+  fecha: string | null; // "YYYY-MM-DD"
+  horario: string | null; // "10:30"
+  estado: EstadoVisita;
+  cancelable: boolean;
+}
+// `token`: al pedir otro horario llega un enlace nuevo que reemplaza al anterior
+type RespuestaGestion = { visita: VisitaGestion; token?: string };
+
+const gestionar = (accion: 'ver' | 'cancelar' | 'reprogramar', datos: Record<string, string>) =>
+  request<RespuestaGestion>(`/visitas/gestion/${accion}`, { method: 'POST', body: JSON.stringify(datos) });
+
+export const verVisitaPorEnlace = (token: string) => gestionar('ver', { token });
+export const cancelarVisitaPorEnlace = (token: string, motivo: string) => gestionar('cancelar', { token, motivo });
+export const reprogramarVisitaPorEnlace = (token: string, fecha: string, horario: string) =>
+  gestionar('reprogramar', { token, fecha, horario });

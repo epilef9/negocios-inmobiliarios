@@ -2,6 +2,9 @@ const visitasRepository = require('../repositories/visitas.repository');
 const agenda = require('./agenda.service');
 const emailService = require('./email.service');
 const config = require('../config/env');
+const tokensVisita = require('./tokensVisita.service');
+
+const ENLACE_INVALIDO = 'Este enlace no es válido o ya venció. Si necesitás cambiar tu visita, escribinos por WhatsApp.';
 
 // Estados en los que el cliente todavía puede cancelar su visita
 const CANCELABLES = ['pendiente', 'confirmada', 'reprogramada'];
@@ -16,6 +19,55 @@ const puedeCancelar = (visita, ahora = agenda.ahoraEnArgentina()) => {
     const [h, m] = hora.split(':').map(Number);
     return h * 60 + m > ahora.minutos;
 };
+
+const cuandoEs = (visita) => {
+    const fecha = agenda.fechaIso(visita.fecha);
+    const hora = agenda.horaCorta(visita.horario);
+    return fecha && hora ? `${agenda.fechaLarga(fecha)} a las ${hora} h` : `${visita.fecha} · ${visita.horario}`;
+};
+
+const TEXTOS_GESTION = {
+    agendada: { asunto: 'Recibimos tu pedido de visita', intro: (cuando) => `Pediste visitar la propiedad el ${cuando}. Te avisamos por mail cuando la confirmemos.` },
+    confirmada: { asunto: 'Tu visita está confirmada', intro: (cuando) => `Tu visita quedó confirmada para el ${cuando}. Te esperamos.` },
+    reprogramada: { asunto: 'Cambiamos el horario de tu visita', intro: (cuando) => `Reprogramamos tu visita para el ${cuando}.` },
+    cambiada: { asunto: 'Recibimos tu cambio de horario', intro: (cuando) => `Pediste pasar tu visita al ${cuando}. Te avisamos cuando la confirmemos.` },
+};
+
+// Mail al cliente con el botón "Gestionar mi visita" (enlace nuevo: el anterior deja de valer).
+// Devuelve el token emitido o null. Nunca tira error: si el mail falla, la visita queda igual.
+const avisarGestion = async (visita, motivo) => {
+    if (!visita?.cliente?.email) return null;
+    let token = null;
+    try {
+        const textos = TEXTOS_GESTION[motivo];
+        const sitio = config.urlPublica();
+        token = sitio ? await tokensVisita.emitir(visita, 'gestion') : null;
+        const { titulo = 'la propiedad', direccion } = visita.propiedad || {};
+        await emailService.avisarCliente({
+            para: visita.cliente.email,
+            nombre: visita.cliente.nombre,
+            asunto: `${textos.asunto} · ${titulo}`,
+            parrafos: [textos.intro(cuandoEs(visita)), `Propiedad: ${titulo}${direccion ? `\nDirección: ${direccion}` : ''}`],
+            ...(token ? { boton: 'Gestionar mi visita', enlace: `${sitio}/visitas/gestionar#t=${token}` } : {}),
+            pie: token
+                ? 'Desde el botón podés ver tu visita, cancelarla o pedir otro horario. El enlace vale hasta el día de la visita. Araceli Balbuena · Negocios Inmobiliarios'
+                : 'Si necesitás cambiar algo, escribinos por WhatsApp. Araceli Balbuena · Negocios Inmobiliarios',
+        });
+    } catch (error) {
+        console.error('No se pudo mandar el mail de la visita:', error.message);
+    }
+    return token;
+};
+
+// Lo que ve quien abre el enlace: sin teléfono ni email
+const datosGestion = (visita) => ({
+    nombre: String(visita.cliente?.nombre || '').split(' ')[0],
+    propiedad: { id: visita.propiedad?.id || '', titulo: visita.propiedad?.titulo || '', direccion: visita.propiedad?.direccion || '' },
+    fecha: agenda.fechaIso(visita.fecha),
+    horario: agenda.horaCorta(visita.horario),
+    estado: visita.estado,
+    cancelable: puedeCancelar(visita),
+});
 
 const INITIAL_SEED_VISITAS = [
     {
@@ -350,23 +402,33 @@ class VisitasService {
 
     // Cambia el estado. Si trae fecha u horario nuevos (reprogramar), el turno se controla en la agenda:
     // devuelve { visita } o { motivo } cuando el horario nuevo está ocupado o la oficina cierra ese día.
+    // Al confirmarla o reprogramarla se le manda al cliente un mail con un enlace nuevo para gestionarla.
     async updateEstadoVisita(id, estado, extra = {}) {
         const updateData = { estado };
         if (extra.motivo !== undefined) {
             updateData.motivoRechazo = extra.motivo;
         }
 
-        if (!extra.nuevaFecha && !extra.nuevoHorario) {
-            return { visita: await visitasRepository.updateVisita(id, updateData) };
-        }
-
         const actual = await visitasRepository.getVisitaById(id);
         if (!actual) return { visita: null };
-        updateData.fecha = extra.nuevaFecha || actual.fecha;
-        updateData.horario = extra.nuevoHorario || actual.horario;
-        return agenda.reprogramar(id, updateData.fecha, updateData.horario, (session) =>
-            visitasRepository.updateVisita(id, updateData, { session })
-        );
+        const cambiaDia = Boolean(extra.nuevaFecha || extra.nuevoHorario);
+
+        let resultado;
+        if (!cambiaDia) {
+            resultado = { visita: await visitasRepository.updateVisita(id, updateData) };
+        } else {
+            updateData.fecha = extra.nuevaFecha || actual.fecha;
+            updateData.horario = extra.nuevoHorario || actual.horario;
+            resultado = await agenda.reprogramar(id, updateData.fecha, updateData.horario, (session) =>
+                visitasRepository.updateVisita(id, updateData, { session })
+            );
+        }
+
+        const { visita } = resultado;
+        if (visita && ['confirmada', 'reprogramada'].includes(estado) && (estado !== actual.estado || cambiaDia)) {
+            await avisarGestion(visita, estado);
+        }
+        return resultado;
     }
 
     // HU-34: las visitas del cliente, cada una con si todavía la puede cancelar
@@ -387,16 +449,23 @@ class VisitasService {
                 (!visita.usuario && email && String(visita.cliente?.email || '').toLowerCase() === email));
         if (!esSuya) return { status: 404, error: 'No encontramos esa visita en tu cuenta.' };
         if (!puedeCancelar(visita)) return { status: 409, error: 'Esta visita ya no se puede cancelar.' };
-        const actualizada = await visitasRepository.updateVisita(id, {
+        return { visita: await this.cancelar(visita, motivo, 'Mi cuenta') };
+    }
+
+    // Cancela (el turno queda libre al dejar de estar pendiente/confirmada/reprogramada), anula los enlaces
+    // de los mails y avisa a la inmobiliaria. `origen` dice desde dónde: "Mi cuenta" o "el enlace del mail".
+    async cancelar(visita, motivo, origen) {
+        const actualizada = await visitasRepository.updateVisita(visita._id, {
             estado: 'cancelada',
             canceladaAt: new Date(),
             motivoCancelacion: motivo,
         });
+        await tokensVisita.anular(visita._id);
         // Se avisa a la inmobiliaria; si el mail falla, la cancelación igual queda hecha
-        emailService
+        await emailService
             .avisarInmobiliaria({
                 asunto: `Visita cancelada · ${visita.propiedad?.titulo || 'Propiedad'}`,
-                intro: 'Un cliente canceló su visita desde Mi cuenta. El horario quedó libre en la agenda.',
+                intro: `Un cliente canceló su visita desde ${origen}. El horario quedó libre en la agenda.`,
                 filas: [
                     ['Cliente', visita.cliente?.nombre || ''],
                     ['Teléfono', visita.cliente?.telefono || ''],
@@ -408,7 +477,61 @@ class VisitasService {
                 boton: 'Ver las visitas',
             })
             .catch((error) => console.error('No se pudo avisar la cancelación de la visita:', error.message));
-        return { visita: actualizada };
+        return actualizada;
+    }
+
+    // Desde el enlace del mail (sin cuenta). Todas devuelven { status: 404 } igual para cualquier enlace que no sirva.
+    async verPorToken(token) {
+        const valido = await tokensVisita.validar(token, 'gestion');
+        return valido ? { visita: datosGestion(valido.visita) } : { status: 404, error: ENLACE_INVALIDO };
+    }
+
+    async cancelarPorToken(token, motivo = '') {
+        const valido = await tokensVisita.validar(token, 'gestion');
+        if (!valido) return { status: 404, error: ENLACE_INVALIDO };
+        if (!puedeCancelar(valido.visita)) return { status: 409, error: 'Esta visita ya no se puede cancelar.' };
+        return { visita: datosGestion(await this.cancelar(valido.visita, motivo, 'el enlace del mail')) };
+    }
+
+    // Pasa la visita a otro turno libre (dentro del horario de atención) y vuelve a "pendiente" para que la
+    // inmobiliaria la confirme. Devuelve también el enlace nuevo, que reemplaza al que tenía abierto.
+    async reprogramarPorToken(token, fechaIso, hora) {
+        const valido = await tokensVisita.validar(token, 'gestion');
+        if (!valido) return { status: 404, error: ENLACE_INVALIDO };
+        const anterior = valido.visita;
+        if (!puedeCancelar(anterior)) return { status: 409, error: 'Esta visita ya no se puede cambiar.' };
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaIso) || !/^\d{2}:\d{2}$/.test(hora)) {
+            return { status: 400, error: 'Elegí un día y un horario.' };
+        }
+        const [a, m, d] = fechaIso.split('-');
+        // Mismo formato que guarda "Agendar una visita"
+        const datos = { fecha: `${d}/${m}/${a}`, horario: `${hora} h`, estado: 'pendiente', recordatorioEnviadoAt: null };
+        const { motivo, visita } = await agenda.reprogramar(
+            anterior._id,
+            datos.fecha,
+            datos.horario,
+            (session) => visitasRepository.updateVisita(anterior._id, datos, { session }),
+            { controlarHorario: true }
+        );
+        if (motivo) return { status: 409, error: motivo, code: 'HORARIO_NO_DISPONIBLE' };
+
+        const nuevo = await avisarGestion(visita, 'cambiada');
+        await emailService
+            .avisarInmobiliaria({
+                asunto: `Cambio de horario de visita · ${visita.propiedad?.titulo || 'Propiedad'}`,
+                intro: 'Un cliente pidió otro horario desde el enlace del mail. La visita quedó pendiente de confirmar.',
+                filas: [
+                    ['Cliente', visita.cliente?.nombre || ''],
+                    ['Teléfono', visita.cliente?.telefono || ''],
+                    ['Propiedad', visita.propiedad?.titulo || ''],
+                    ['Antes', `${anterior.fecha} · ${anterior.horario}`],
+                    ['Ahora', `${visita.fecha} · ${visita.horario}`],
+                ],
+                enlace: `${config.urlFrontend()}/admin/visitas`,
+                boton: 'Ver las visitas',
+            })
+            .catch((error) => console.error('No se pudo avisar el cambio de horario de la visita:', error.message));
+        return { visita: datosGestion(visita), token: nuevo };
     }
 
     async deleteVisita(id) {
@@ -425,3 +548,4 @@ class VisitasService {
 
 module.exports = new VisitasService();
 module.exports.puedeCancelar = puedeCancelar;
+module.exports.avisarGestion = avisarGestion;

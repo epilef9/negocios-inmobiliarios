@@ -77,7 +77,7 @@ const resumenPanel = async () => {
     };
 };
 
-const fechaLarga = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const { fechaLarga } = agenda;
 
 // Lo que corre el cron. Cada mail que falla se registra y no frena a los demás.
 const ejecutar = async () => {
