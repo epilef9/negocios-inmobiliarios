@@ -1,7 +1,7 @@
 'use client';
 
 import { useAjustes } from '@/components/sitio/useAjustes';
-import { lugaresCercanos } from './cercania';
+import { lugaresCercanos } from './distancias';
 
 // A cuántas cuadras y minutos a pie quedan los lugares importantes (los carga el administrador en Ajustes)
 export default function Cercania({ latitud, longitud, ciudad }: { latitud?: string; longitud?: string; ciudad?: string }) {
