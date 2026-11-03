@@ -40,6 +40,7 @@ router.get('/pendientes', authMiddleware, authMiddleware.requireAdmin, async (_r
         publicaciones: () => SolicitudPublicacion.countDocuments({ estado: 'pendiente' }),
         senas: senasPorVencer,
         contratos: contratosParaRevisar,
+        cobros: () => require('../services/cobros.service').contarAtrasados(),
     };
     const claves = Object.keys(tareas);
     const resultados = await Promise.allSettled(claves.map((c) => tareas[c]()));
@@ -125,7 +126,12 @@ const armarResumen = async () => {
         const pronto = porVencer.filter((c) => c.dias <= 15);
         items.push({ clave: 'contratos-pronto', urgencia: 1, orden: 5, cantidad: pronto.length, href: '/admin/contratos', titulo: `${plural(pronto.length, 'contrato vence', 'contratos vencen')} en 15 días o menos`, detalle: pronto[0] ? `${pronto[0].propiedad} · ${pronto[0].cliente} (en ${pronto[0].dias} días).` : undefined });
         items.push({ clave: 'contratos', urgencia: 2, orden: 15, cantidad: porVencer.length - pronto.length, href: '/admin/contratos', titulo: `${plural(porVencer.length - pronto.length, 'contrato vence', 'contratos vencen')} en los próximos 2 meses` });
-        items.push({ clave: 'contratos-indice', urgencia: 2, orden: 16, cantidad: actualizan.length, href: '/admin/contratos', titulo: `${plural(actualizan.length, 'contrato actualiza', 'contratos actualizan')} el precio este mes` });
+        items.push({ clave: 'contratos-indice', urgencia: 2, orden: 16, cantidad: actualizan.length, href: '/admin/cobros', titulo: `${plural(actualizan.length, 'contrato actualiza', 'contratos actualizan')} el precio este mes` });
+    });
+
+    await seguro(async () => {
+        const n = await require('../services/cobros.service').contarAtrasados();
+        items.push({ clave: 'cobros', urgencia: 2, orden: 17, cantidad: n, href: '/admin/cobros', titulo: `${plural(n, 'alquiler atrasado', 'alquileres atrasados')} este mes`, detalle: 'Registrá el pago o mandale el aviso al inquilino.' });
     });
 
     await seguro(async () => {

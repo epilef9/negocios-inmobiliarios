@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion, normalizar, obtenerPropiedades } from '@/components/sitio/datos';
+ fix/accesibilidad
 import { datosCortos, precioDePropiedad, preciosDePropiedad, useDolarBlue } from '@/components/sitio/precio';
+import { fotoDeAncho } from '@/components/sitio/foto';
+import { datosCortos, precioDePropiedad, preciosDePropiedad, useDolarBlue } from '@/components/sitio/precio';
+develop
 import type { Encuadre, Posicion, PuntoMapa } from './MapaSatelital';
 import { operacionesDe } from '@/components/sitio/operaciones';
 
@@ -333,7 +337,7 @@ function TarjetaMapa({
       <div className={`relative shrink-0 bg-[#0e2652] ${angosto ? 'w-28' : 'h-36'}`}>
         {imagen && !fotoRota && (
           // eslint-disable-next-line @next/next/no-img-element -- las fotos vienen del backend con dominio variable
-          <img src={imagen} alt="" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
+          <img src={fotoDeAncho(imagen, 640)} alt="" loading="lazy" onError={() => setFotoRota(true)} className="absolute inset-0 h-full w-full object-cover" />
         )}
         {operaciones.length > 0 && (
           <span className={`absolute flex gap-1.5 ${angosto ? 'left-2 top-2 flex-col items-start' : 'left-3 top-3'}`}>
