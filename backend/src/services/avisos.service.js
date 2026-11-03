@@ -17,23 +17,30 @@ const hoy = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Ar
 const normalizar = (t = '') => String(t).toLocaleLowerCase('es').normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
 const tipoGeneral = (t = '') => (t === 'monoambiente' ? 'departamento' : t);
 
-// Comodidades de una búsqueda: una o varias separadas por coma; se descarta lo que no tenga forma de comodidad
-const listaComodidades = (valor) =>
-    typeof valor === 'string' ? valor.split(',').map((c) => c.trim()).filter((c) => /^[a-z_]{2,30}$/.test(c)) : [];
+// Operación, localidad, tipo y comodidades pueden traer varias opciones separadas por coma («casa,departamento»)
+const separar = (valor) => (typeof valor === 'string' ? valor.split(',').map((v) => v.trim()).filter(Boolean) : []);
+const listaComodidades = (valor) => separar(valor).filter((c) => /^[a-z_]{2,30}$/.test(c));
+const OPERACIONES = ['venta', 'alquiler', 'temporario'];
+const TIPOS = ['casa', 'departamento', 'local', 'terreno'];
+const sinRepetir = (lista, maximo) => [...new Set(lista)].slice(0, maximo).join(',');
 
 // Mismos criterios que los filtros del catálogo. Con venta y alquiler (HU-25), el precio que cuenta es el de la
 // operación buscada; sin operación, alcanza con que alguna de las dos entre en el rango.
+// En operación, localidad y tipo alcanza con una de las opciones; las comodidades tienen que estar todas.
 const cumpleBusqueda = (p, f = {}) => {
     const ambientes = p.cantidad_ambientes ?? p.bedrooms;
     const operaciones = operacionesDe(p);
-    const enDolares = (f.operacion ? [f.operacion] : operaciones)
+    const buscadas = separar(f.operacion).filter((o) => operaciones.includes(o));
+    const localidades = separar(f.localidad).map(normalizar);
+    const tipos = separar(f.tipo);
+    const enDolares = (f.operacion ? buscadas : operaciones)
         .map((o) => (o === 'temporario' ? p.price : precioDe(p, o)?.price))
         .filter((v) => typeof v === 'number');
     const enRango = (v) => (f.precioMin == null || v >= f.precioMin) && (f.precioMax == null || v <= f.precioMax);
     return (
-        (!f.operacion || operaciones.includes(f.operacion)) &&
-        (!f.localidad || normalizar(p.ciudad) === normalizar(f.localidad)) &&
-        (!f.tipo || tipoGeneral(p.tipo_inmueble) === f.tipo) &&
+        (!f.operacion || buscadas.length > 0) &&
+        (!localidades.length || localidades.includes(normalizar(p.ciudad))) &&
+        (!tipos.length || tipos.includes(tipoGeneral(p.tipo_inmueble))) &&
         (f.precioMin == null && f.precioMax == null ? true : enDolares.some(enRango)) &&
         (f.ambientes == null || (ambientes != null && ambientes >= f.ambientes)) &&
         // Una o varias comodidades («pileta,wifi»): tiene que tener todas
@@ -46,9 +53,9 @@ const limpiarFiltros = (f = {}) => {
     const texto = (v, max = 60) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
     const numero = (v) => (v === '' || v == null || !Number.isFinite(Number(v)) || Number(v) < 0 ? null : Number(v));
     return {
-        operacion: ['venta', 'alquiler', 'temporario'].includes(f.operation) ? f.operation : '',
-        localidad: texto(f.location, 80),
-        tipo: ['casa', 'departamento', 'local', 'terreno'].includes(f.propertyType) ? f.propertyType : '',
+        operacion: sinRepetir(separar(f.operation).filter((o) => OPERACIONES.includes(o)), 3),
+        localidad: sinRepetir(separar(texto(f.location, 300)).map((l) => l.slice(0, 80)), 10),
+        tipo: sinRepetir(separar(f.propertyType).filter((t) => TIPOS.includes(t)), 4),
         precioMin: numero(f.minPrice),
         precioMax: numero(f.maxPrice),
         ambientes: numero(f.rooms),
@@ -56,11 +63,17 @@ const limpiarFiltros = (f = {}) => {
     };
 };
 
+// «casa», «casa o departamento», «casa, local o terreno»
+const unir = (lista) => {
+    const l = lista.filter(Boolean);
+    return l.length > 1 ? `${l.slice(0, -1).join(', ')} o ${l[l.length - 1]}` : l[0] || '';
+};
+
 const describirBusqueda = (f) =>
     [
-        { venta: 'Compra', alquiler: 'Alquiler', temporario: 'Alquiler por días' }[f.operacion] || 'Cualquier operación',
-        f.tipo ? { casa: 'casa', departamento: 'departamento', local: 'local', terreno: 'terreno' }[f.tipo] : '',
-        f.localidad ? `en ${f.localidad}` : '',
+        unir(separar(f.operacion).map((o) => ({ venta: 'Compra', alquiler: 'Alquiler', temporario: 'Alquiler por días' })[o])) || 'Cualquier operación',
+        unir(separar(f.tipo).map((t) => ({ casa: 'casa', departamento: 'departamento', local: 'local', terreno: 'terreno' })[t])),
+        f.localidad ? `en ${unir(separar(f.localidad))}` : '',
         f.ambientes ? `${f.ambientes}+ ambientes` : '',
         f.precioMin != null ? `desde USD ${f.precioMin.toLocaleString('es-AR')}` : '',
         f.precioMax != null ? `hasta USD ${f.precioMax.toLocaleString('es-AR')}` : '',

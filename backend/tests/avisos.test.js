@@ -31,6 +31,18 @@ describe('Búsquedas guardadas', () => {
         assert.equal(limpiarFiltros({ amenities: ['pileta'] }).comodidad, '');
     });
 
+    it('con varias operaciones, localidades o tipos, alcanza con una', () => {
+        const f = limpiarFiltros({ operation: 'venta,alquiler,robar', location: 'Crespo, Libertador San Martín', propertyType: 'casa,departamento,castillo' });
+        assert.deepEqual([f.operacion, f.localidad, f.tipo], ['venta,alquiler', 'Crespo,Libertador San Martín', 'casa,departamento']);
+        assert.equal(cumpleBusqueda(casa, f), true);
+        assert.equal(cumpleBusqueda({ ...casa, ciudad: 'Diamante' }, f), false);
+        assert.equal(cumpleBusqueda({ ...casa, tipo_inmueble: 'local' }, f), false);
+        assert.equal(cumpleBusqueda(casa, limpiarFiltros({ operation: 'venta,temporario' })), false);
+        // El precio que cuenta es el de una de las operaciones buscadas
+        assert.equal(cumpleBusqueda(casa, limpiarFiltros({ operation: 'venta,alquiler', maxPrice: '500' })), true);
+        assert.equal(describirBusqueda(f), 'Compra o Alquiler · casa o departamento · en Crespo o Libertador San Martín');
+    });
+
     it('describe la búsqueda para el mail', () => {
         assert.equal(describirBusqueda(limpiarFiltros({ operation: 'venta', propertyType: 'casa', location: 'Crespo' })), 'Compra · casa · en Crespo');
     });

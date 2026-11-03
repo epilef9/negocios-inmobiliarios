@@ -22,12 +22,23 @@ export const bajaDeAviso = (token: string) => request<{ tipo: string }>('/avisos
 const OPERACION: Record<string, string> = { venta: 'Compra', alquiler: 'Alquiler', temporario: 'Alquiler por días' };
 const TIPO: Record<string, string> = { casa: 'Casa', departamento: 'Departamento', local: 'Local', terreno: 'Terreno' };
 
+// Las búsquedas pueden tener varias opciones por filtro, separadas por coma: «Casa o Departamento»
+const unir = (valor: string | undefined, nombres?: Record<string, string>) => {
+  const lista = (valor || '')
+    .split(',')
+    .map((v) => v.trim())
+    .filter(Boolean)
+    .map((v) => (nombres ? nombres[v] : v))
+    .filter(Boolean);
+  return lista.length > 1 ? `${lista.slice(0, -1).join(', ')} o ${lista[lista.length - 1]}` : lista[0] || '';
+};
+
 export const describirFiltros = (f?: FiltrosAviso) =>
   f
     ? [
-        OPERACION[f.operacion] || 'Cualquier operación',
-        TIPO[f.tipo] || '',
-        f.localidad ? `en ${f.localidad}` : '',
+        unir(f.operacion, OPERACION) || 'Cualquier operación',
+        unir(f.tipo, TIPO),
+        f.localidad ? `en ${unir(f.localidad)}` : '',
         f.ambientes ? `${f.ambientes}+ ambientes` : '',
         f.precioMin != null ? `desde USD ${f.precioMin.toLocaleString('es-AR')}` : '',
         f.precioMax != null ? `hasta USD ${f.precioMax.toLocaleString('es-AR')}` : '',
