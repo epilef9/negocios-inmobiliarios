@@ -13,7 +13,7 @@ import { useContacto } from "@/components/sitio/useAjustes";
 import VistasRecientes from "@/components/sitio/VistasRecientes";
 import GuardarBusqueda from "@/components/catalogo/GuardarBusqueda";
 import BarraComparar from "@/components/sitio/BarraComparar";
-import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, listaComodidades, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
+import FiltrosCatalogo, { ESTADOS, FILTROS_VACIOS, OPERACIONES, TIPOS, elegidasDe, listaComodidades, separar, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
@@ -33,13 +33,12 @@ const TITULO = "Propiedades";
 
 // Filtros que llegan en la dirección desde otra página (por ejemplo, el buscador del Home)
 const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
-	const operation = params.get("operacion") || "";
-	const propertyType = params.get("tipo") || "";
+	// Operación, tipo y ubicación pueden traer varias opciones separadas por coma
 	return {
 		...FILTROS_VACIOS,
-		operation: OPERACIONES.some((o) => o.value === operation) ? operation : "",
-		propertyType: TIPOS.some((t) => t.value === propertyType) ? propertyType : "",
-		location: (params.get("ubicacion") || "").slice(0, 100),
+		operation: elegidasDe(OPERACIONES, params.get("operacion") || "").join(","),
+		propertyType: elegidasDe(TIPOS, params.get("tipo") || "").join(","),
+		location: separar((params.get("ubicacion") || "").slice(0, 300)).join(","),
 		// Desde una búsqueda guardada (Mi cuenta → Tus avisos) llegan también precio, ambientes y comodidades
 		minPrice: /^\d+$/.test(params.get("minimo") || "") ? (params.get("minimo") as string) : "",
 		maxPrice: /^\d+$/.test(params.get("maximo") || "") ? (params.get("maximo") as string) : "",
@@ -52,24 +51,33 @@ const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
 // Un monoambiente es un departamento de 1 ambiente (así se carga en el panel); los viejos se buscan como departamento
 const tipoGeneral = (tipo: string) => (normalizar(tipo) === "monoambiente" ? "departamento" : normalizar(tipo));
 
-// HU-25: una propiedad en venta y alquiler aparece en las dos operaciones; el precio que se compara es el de la
-// operación filtrada (sin filtro, el de la principal)
+// Precios en dólares que cuentan para filtrar y ordenar. HU-25: una propiedad en venta y alquiler aparece en las dos
+// operaciones; se usan los precios de las operaciones marcadas que tenga (sin ninguna marcada, el de la principal).
+const preciosParaFiltrar = (p: ApiProperty, f: FiltrosPropiedades) => {
+	const marcadas = elegidasDe(OPERACIONES, f.operation).filter((o) => tieneOperacion(p, o));
+	return (marcadas.length ? marcadas : [undefined]).map((o) => precioEnDolares(p, o) ?? p.price);
+};
+
+// En operación, ubicación, tipo y estado alcanza con cumplir una de las opciones marcadas; las comodidades, todas
 const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
-	const precio = precioEnDolares(p, f.operation) ?? p.price;
 	const tipo = p.tipo_inmueble || p.propertyType || "";
 	const estado = p.estado || p.status || "";
 	const comodidades = p.comodidades || p.amenities || [];
 	const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+	const operaciones = elegidasDe(OPERACIONES, f.operation);
+	const lugares = separar(f.location).map(normalizar);
+	const tipos = elegidasDe(TIPOS, f.propertyType);
+	const estados = elegidasDe(ESTADOS, f.status);
+	const enRango = (precio: number) => (!f.minPrice || precio >= Number(f.minPrice)) && (!f.maxPrice || precio <= Number(f.maxPrice));
 	return (
-		(!f.operation || tieneOperacion(p, f.operation)) &&
-		(!f.location || normalizar(p.ciudad) === normalizar(f.location)) &&
-		(!f.propertyType || tipoGeneral(tipo) === f.propertyType) &&
-		(!f.minPrice || precio >= Number(f.minPrice)) &&
-		(!f.maxPrice || precio <= Number(f.maxPrice)) &&
+		(!operaciones.length || operaciones.some((o) => tieneOperacion(p, o))) &&
+		(!lugares.length || lugares.includes(normalizar(p.ciudad))) &&
+		(!tipos.length || tipos.includes(tipoGeneral(tipo))) &&
+		preciosParaFiltrar(p, f).some(enRango) &&
 		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&
 		// Con varias comodidades marcadas, tiene que tener todas
 		listaComodidades(f.amenities).every((c) => comodidades.includes(c)) &&
-		(!f.status || normalizar(estado) === f.status)
+		(!estados.length || estados.includes(normalizar(estado)))
 	);
 };
 
@@ -149,7 +157,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 		const lista = propiedades.filter((p) => cumpleFiltros(p, filtros));
 		const fecha = (p: ApiProperty) => (p.createdAt ? Date.parse(p.createdAt) : 0);
 		if (orden === "recientes") return [...lista].sort((a, b) => fecha(b) - fecha(a));
-		const valor = (p: ApiProperty) => precioEnDolares(p, filtros.operation) ?? p.price;
+		const valor = (p: ApiProperty) => Math.min(...preciosParaFiltrar(p, filtros));
 		if (orden === "menor") return [...lista].sort((a, b) => valor(a) - valor(b));
 		if (orden === "mayor") return [...lista].sort((a, b) => valor(b) - valor(a));
 		return lista;
@@ -358,7 +366,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 										</span>
 									</div>
 								)}
-								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} operacion={filtros.operation} />
+								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} operacion={elegidasDe(OPERACIONES, filtros.operation).length === 1 ? filtros.operation : undefined} />
 							</li>
 						))}
 					</ul>
