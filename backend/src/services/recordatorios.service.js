@@ -8,6 +8,7 @@ const Contrato = require('../models/contrato.model');
 const agenda = require('./agenda.service');
 const emailService = require('./email.service');
 const config = require('../config/env');
+const tokensVisita = require('./tokensVisita.service');
 
 const DIAS_AVISO_VENCIMIENTO = 60;
 const ESTADOS_VIGENTES = ['activo', 'firmado', 'por_vencer'];
@@ -77,7 +78,33 @@ const resumenPanel = async () => {
     };
 };
 
-const fechaLarga = (iso) => new Date(`${iso}T12:00:00Z`).toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' });
+const { fechaLarga } = agenda;
+
+// Mail del día anterior a una visita, con "Confirmo" / "No voy a poder" (un solo enlace de un solo uso: la respuesta
+// se confirma en la página, porque algunos correos abren los enlaces solos para revisarlos).
+// Sin dirección pública del sitio sale sin esos botones, como antes.
+const mandarRecordatorio = async (v) => {
+    const sitio = config.urlPublica();
+    const token = sitio ? await tokensVisita.emitir(v, 'asistencia', { unSoloUso: true }) : null;
+    const respuesta = (r) => `${sitio}/visitas/asistencia#t=${token}&r=${r}`;
+    const fecha = agenda.fechaIso(v.fecha);
+    await emailService.avisarCliente({
+        para: v.cliente.email,
+        nombre: v.cliente.nombre,
+        asunto: `Mañana es tu visita a ${v.propiedad?.titulo || 'la propiedad'}`,
+        parrafos: [
+            `Te recordamos la visita de mañana, ${fecha ? fechaLarga(fecha) : v.fecha}, a las ${agenda.horaCorta(v.horario)} h.`,
+            `Propiedad: ${v.propiedad?.titulo || ''}${v.propiedad?.direccion ? `\nDirección: ${v.propiedad.direccion}` : ''}`,
+            token
+                ? '¿Vas a poder venir? Avisanos con un clic: si no podés, le damos el horario a otra persona.'
+                : 'Si no vas a poder ir, cancelala desde Mi cuenta o avisanos por WhatsApp así le damos el horario a otra persona.',
+        ],
+        ...(token
+            ? { botones: [{ texto: 'Confirmo', enlace: respuesta('confirmo') }, { texto: 'No voy a poder', enlace: respuesta('no_voy') }] }
+            : { boton: 'Ver mis visitas', enlace: `${config.urlFrontend()}/visitas` }),
+        pie: 'Araceli Balbuena · Negocios Inmobiliarios',
+    });
+};
 
 // Lo que corre el cron. Cada mail que falla se registra y no frena a los demás.
 const ejecutar = async () => {
@@ -94,19 +121,7 @@ const ejecutar = async () => {
         const { modifiedCount } = await Visita.updateOne({ _id: v._id, recordatorioEnviadoAt: null }, { $set: { recordatorioEnviadoAt: new Date() } });
         if (!modifiedCount) continue;
         try {
-            await emailService.avisarCliente({
-                para: v.cliente.email,
-                nombre: v.cliente.nombre,
-                asunto: `Mañana es tu visita a ${v.propiedad?.titulo || 'la propiedad'}`,
-                parrafos: [
-                    `Te recordamos la visita de mañana, ${fechaLarga(manana)}, a las ${agenda.horaCorta(v.horario)} h.`,
-                    `Propiedad: ${v.propiedad?.titulo || ''}${v.propiedad?.direccion ? `\nDirección: ${v.propiedad.direccion}` : ''}`,
-                    'Si no vas a poder ir, cancelala desde Mi cuenta o avisanos por WhatsApp así le damos el horario a otra persona.',
-                ],
-                boton: 'Ver mis visitas',
-                enlace: `${config.urlFrontend()}/visitas`,
-                pie: 'Araceli Balbuena · Negocios Inmobiliarios',
-            });
+            await mandarRecordatorio(v);
             resultado.visitasAvisadas++;
         } catch (error) {
             resultado.errores++;
@@ -142,4 +157,4 @@ const ejecutar = async () => {
     return resultado;
 };
 
-module.exports = { tocaActualizar, venceProntoDias, mesesEntre, resumenPanel, ejecutar, DIAS_AVISO_VENCIMIENTO };
+module.exports = { tocaActualizar, venceProntoDias, mesesEntre, resumenPanel, ejecutar, mandarRecordatorio, DIAS_AVISO_VENCIMIENTO };

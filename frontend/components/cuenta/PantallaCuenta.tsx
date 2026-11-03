@@ -13,6 +13,8 @@ export const control =
   'w-full rounded-none border-0 border-b border-[#efe9df]/30 bg-transparent py-3 text-[18px] text-[#efe9df] placeholder:text-[#efe9df]/35 transition-colors duration-500 focus:border-[#efe9df] focus:outline-none aria-[invalid=true]:border-[#d9382b]';
 export const botonPrincipal =
   'calma-micro flex w-full items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60';
+// El mismo botón, del ancho de su texto. Sumarle "w-auto" a botonPrincipal no alcanza: en el CSS gana w-full.
+export const botonCompacto = botonPrincipal.replace('w-full', 'w-auto');
 
 // Solo se aceptan rutas internas para volver después de ingresar
 // (los navegadores tratan "/\otro.com" igual que "//otro.com", así que también se rechaza la barra invertida)
@@ -121,7 +123,7 @@ export function YaIngresaste({ nombre, onSalir }: { nombre: string; onSalir: () 
         Ya ingresaste como <strong className="font-semibold">{nombre}</strong>.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Link href="/favoritos" className={`${botonPrincipal} w-auto`}>
+        <Link href="/favoritos" className={botonCompacto}>
           Ir a mis favoritos
         </Link>
         <button

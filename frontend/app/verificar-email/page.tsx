@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import PantallaCuenta, { botonPrincipal, destinoSeguro } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { botonCompacto, destinoSeguro } from '@/components/cuenta/PantallaCuenta';
 
 // Destino del enlace del mail: confirma el email y deja la sesión iniciada
 function Confirmacion() {
@@ -47,7 +47,7 @@ function Confirmacion() {
     return (
       <div role="status" className="flex flex-col gap-6 border-t border-[#efe9df]/20 pt-8">
         <p className="m-0 text-[17px] leading-relaxed">Listo, tu email quedó confirmado y ya ingresaste.</p>
-        <Link href={destino || '/propiedades'} className={`${botonPrincipal} w-auto self-start`}>
+        <Link href={destino || '/propiedades'} className={`${botonCompacto} self-start`}>
           {destino ? 'Continuar con la solicitud' : 'Ver propiedades'}
         </Link>
       </div>
@@ -57,7 +57,7 @@ function Confirmacion() {
   return (
     <div role="alert" className="flex flex-col gap-6 border-t border-[#efe9df]/20 pt-8">
       <p className="m-0 text-[17px] leading-relaxed text-[#ff8a7d]">{mensaje}</p>
-      <Link href="/login" className={`${botonPrincipal} w-auto self-start`}>
+      <Link href="/login" className={`${botonCompacto} self-start`}>
         Ir a ingresar
       </Link>
     </div>
