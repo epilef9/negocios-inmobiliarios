@@ -1,7 +1,7 @@
 import { request } from './api';
 
 // Números del menú del panel: lo que hay para revisar o confirmar en cada sección
-export type PendientesPanel = Partial<Record<'visitas' | 'reservas' | 'solicitudes' | 'publicaciones' | 'senas' | 'contratos', number>>;
+export type PendientesPanel = Partial<Record<'visitas' | 'reservas' | 'solicitudes' | 'publicaciones' | 'senas' | 'contratos' | 'cobros', number>>;
 
 export const getPendientesPanel = () => request<PendientesPanel>('/panel/pendientes');
 

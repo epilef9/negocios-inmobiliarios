@@ -27,6 +27,7 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: { clave: 'solicitudes', texto: 'por revisar' } },
   { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
   { href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: { clave: 'contratos', texto: 'para revisar (vencen o actualizan precio)' } },
+  { href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { clave: 'cobros', texto: 'alquileres atrasados' } },
   { href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { clave: 'publicaciones', texto: 'por revisar' } },
   { href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
   { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion', incluye: ['/admin/catalogo', '/admin/sitio'] },
