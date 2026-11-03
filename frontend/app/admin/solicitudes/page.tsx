@@ -460,7 +460,7 @@ export default function SolicitudesAdminPage() {
                 role="tab"
                 aria-selected={pestana === 'activas'}
                 onClick={() => cambiarPestana('activas')}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${pestana === 'activas' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors sm:min-h-0 ${pestana === 'activas' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
               >
                 Activas
                 <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && item.estado === 'pendiente').length}</span>
@@ -470,7 +470,7 @@ export default function SolicitudesAdminPage() {
                 role="tab"
                 aria-selected={pestana === 'historial'}
                 onClick={() => cambiarPestana('historial')}
-                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors ${pestana === 'historial' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
+                className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors sm:min-h-0 ${pestana === 'historial' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
               >
                 Historial
                 <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && ['aprobada', 'rechazada', 'vencida', 'cerrada'].includes(item.estado)).length}</span>

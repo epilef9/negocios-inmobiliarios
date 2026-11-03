@@ -102,6 +102,7 @@ export default function BienvenidaPage() {
   const saludo = saludoSegunHora(ahora.getHours());
 
   return (
+    // Colores fijos del sitio (no sigue la paleta ni el modo claro/oscuro del panel): decisión de Pablo
     <main className="relative isolate min-h-dvh overflow-hidden bg-[#071733] font-sans text-[#efe9df] selection:bg-[#d9382b] selection:text-white">
       {/* Fondo: foto con acercamiento lento, oscurecida para que el texto se lea */}
       <div aria-hidden="true" className="absolute inset-0 -z-10">
@@ -231,7 +232,7 @@ export default function BienvenidaPage() {
           ) : (
             <span className="hidden sm:inline">Elegí con un clic o con las teclas 1, 2 y 3.</span>
           )}
-          <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
+          <button type="button" onClick={pedirSalida} className="-my-[9px] inline-flex min-h-11 items-center calma-link calma-link-sutil text-[#efe9df]/70 hover:text-[#efe9df]">
             Cerrar sesión
           </button>
           {dialogoSalida}

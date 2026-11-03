@@ -836,7 +836,7 @@ export default function HorarioVisitasPage() {
                               aria-label={`Quitar la franja de ${t.desde} a ${t.hasta} del ${DIAS[dia].toLowerCase()}`}
                               title="Quitar franja"
                               onClick={() => cambiarTramos(dia, (ts) => ts.filter((_, j) => j !== i))}
-                              className="ml-0.5 rounded-md p-1.5 text-panel-tenue transition-colors hover:bg-panel-superficie hover:text-red-600 dark:hover:text-red-400"
+                              className="-my-2 ml-0.5 rounded-md p-[15px] text-panel-tenue transition-colors hover:bg-panel-superficie sm:my-0 sm:p-1.5 hover:text-red-600 dark:hover:text-red-400"
                             >
                               <Icono nombre="cerrar" className="h-3.5 w-3.5" />
                             </button>
@@ -846,7 +846,7 @@ export default function HorarioVisitasPage() {
                           <button
                             type="button"
                             onClick={() => cambiarTramos(dia, (ts) => [...ts, franjaSiguiente(ts, horario.duracionMinutos)])}
-                            className="flex items-center gap-1.5 rounded-lg border border-dashed border-panel-borde-fuerte px-3 py-1.5 text-[13px] text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto"
+                            className="flex min-h-11 items-center gap-1.5 rounded-lg border border-dashed border-panel-borde-fuerte px-3 py-1.5 text-[13px] sm:min-h-0 text-panel-suave transition-colors hover:bg-panel-hundido hover:text-panel-texto"
                           >
                             <Icono nombre="mas" className="h-4 w-4" />
                             Franja
@@ -856,7 +856,7 @@ export default function HorarioVisitasPage() {
                           variante="fantasma"
                           tamano="sm"
                           icono="copiar"
-                          className="max-sm:h-10"
+                          className="max-sm:h-11"
                           onClick={() => setCopiando({ desde: dia, hacia: [] })}
                           aria-label={`Copiar el horario del ${DIAS[dia].toLowerCase()} a otros días`}
                         >
@@ -926,7 +926,7 @@ export default function HorarioVisitasPage() {
                     type="button"
                     aria-pressed={cierre.motivo === m}
                     onClick={() => setCierre({ ...cierre, motivo: cierre.motivo === m ? '' : m })}
-                    className={`rounded-full px-3 py-1 text-[12.5px] font-medium ring-1 ring-inset transition-colors ${
+                    className={`min-h-11 rounded-full px-3 py-1 text-[12.5px] font-medium ring-1 ring-inset sm:min-h-0 transition-colors ${
                       cierre.motivo === m
                         ? 'bg-amber-400 text-amber-950 ring-amber-500'
                         : 'bg-panel-superficie text-panel-suave ring-panel-borde-fuerte hover:text-panel-texto hover:ring-amber-400'
@@ -985,7 +985,6 @@ export default function HorarioVisitasPage() {
                             setRecienGuardado(false);
                             setHorario({ ...horario, cerrados: horario.cerrados.filter((_, j) => j !== i) });
                           }}
-                          className="max-sm:h-10 max-sm:w-10"
                         />
                       </span>
                     </li>
