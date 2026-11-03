@@ -5,11 +5,8 @@ import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { ApiProperty } from '@/services/api';
 import { etiquetaOperacion, normalizar, obtenerPropiedades } from '@/components/sitio/datos';
- fix/accesibilidad
 import { datosCortos, precioDePropiedad, preciosDePropiedad, useDolarBlue } from '@/components/sitio/precio';
 import { fotoDeAncho } from '@/components/sitio/foto';
-import { datosCortos, precioDePropiedad, preciosDePropiedad, useDolarBlue } from '@/components/sitio/precio';
-develop
 import type { Encuadre, Posicion, PuntoMapa } from './MapaSatelital';
 import { operacionesDe } from '@/components/sitio/operaciones';
 
