@@ -3,13 +3,13 @@
 const { body, validationResult } = require('express-validator');
 
 const clientValidator = [
-    body('name')
+    body('nombre')
         .notEmpty().withMessage('El nombre es obligatorio.')
         .isString().withMessage('El nombre debe ser una cadena de texto.'),
     body('email')
         .notEmpty().withMessage('El correo electrónico es obligatorio.')
         .isEmail().withMessage('El formato del correo electrónico no es válido.'),
-    body('phone')
+    body('telefono')
         .optional()
         .isString().withMessage('El teléfono debe ser una cadena de texto.'),
     body('address')

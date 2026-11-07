@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const clientSchema = new mongoose.Schema({
-    name: {
+    nombre: {
         type: String,
         required: true,
         trim: true
@@ -12,7 +12,7 @@ const clientSchema = new mongoose.Schema({
         unique: true,
         trim: true
     },
-    phone: {
+    telefono: {
         type: String,
         required: true,
         trim: true

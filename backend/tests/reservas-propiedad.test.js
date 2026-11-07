@@ -82,7 +82,7 @@ describe('Reservas con seña: operaciones', () => {
 
     const preparar = (t, propiedad) => {
         t.mock.method(ReservaPropiedad, 'find', () => ({ select: () => ({ lean: async () => [] }) }));
-        t.mock.method(Property, 'findById', () => ({ select: () => ({ lean: async () => ({ _id: base.propiedad, title: 'Casa', ...propiedad }) }) }));
+        t.mock.method(Property, 'findById', () => ({ select: () => ({ lean: async () => ({ _id: base.propiedad, titulo: 'Casa', ...propiedad }) }) }));
         const toma = t.mock.method(Property, 'findOneAndUpdate', async () => ({ _id: base.propiedad }));
         const alta = t.mock.method(ReservaPropiedad, 'create', async (d) => d);
         return { toma, alta };
@@ -105,7 +105,7 @@ describe('Reservas con seña: operaciones', () => {
     });
 
     it('con una sola operación la toma sola', async (t) => {
-        preparar(t, { estado: 'disponible', categoria_operacion: 'alquiler' });
+        preparar(t, { estado: 'disponible', categoriaOperacion: 'alquiler' });
         const r = await servicio.crear(pedido);
         assert.equal(r.reserva.operacion, 'alquiler');
     });
@@ -132,11 +132,11 @@ describe('Reservas con seña: operaciones', () => {
 describe('Operaciones y precios de la propiedad', () => {
     const crear = (body) => {
         let resultado = 'ok';
-        validateProperty({ method: 'POST', body: { title: 'Casa', location: 'X', bedrooms: 1, bathrooms: 1, area: 50, latitud: '-32.07', longitud: '-60.46', ...body } }, { status: () => ({ json: (j) => (resultado = j.errors.join(' | ')) }) }, () => {});
+        validateProperty({ method: 'POST', body: { titulo: 'Casa', ubicacion: 'X', dormitorios: 1, banos: 1, area: 50, latitud: '-32.07', longitud: '-60.46', ...body } }, { status: () => ({ json: (j) => (resultado = j.errors.join(' | ')) }) }, () => {});
         return resultado;
     };
-    const venta = { moneda: 'USD', price: 90000 };
-    const alquiler = { moneda: 'ARS', priceARS: 450000 };
+    const venta = { moneda: 'USD', precio: 90000 };
+    const alquiler = { moneda: 'ARS', precioARS: 450000 };
 
     it('acepta venta y alquiler, cada una con su precio', () => {
         assert.equal(crear({ operaciones: ['venta', 'alquiler'], precios: { venta, alquiler } }), 'ok');
@@ -145,16 +145,16 @@ describe('Operaciones y precios de la propiedad', () => {
 
     it('pide el precio de cada operación elegida', () => {
         assert.match(crear({ operaciones: ['venta', 'alquiler'], precios: { venta } }), /precio de alquiler/);
-        assert.match(crear({ operaciones: ['venta'], precios: { venta: { moneda: 'USD', price: 0 } } }), /precio de venta/);
+        assert.match(crear({ operaciones: ['venta'], precios: { venta: { moneda: 'USD', precio: 0 } } }), /precio de venta/);
     });
 
     it('el temporario no se combina', () => {
-        assert.match(crear({ operaciones: ['temporario', 'venta'], precios: { venta }, price: 40 }), /no se combina/);
-        assert.equal(crear({ operaciones: ['temporario'], price: 40 }), 'ok');
+        assert.match(crear({ operaciones: ['temporario', 'venta'], precios: { venta }, precio: 40 }), /no se combina/);
+        assert.equal(crear({ operaciones: ['temporario'], precio: 40 }), 'ok');
     });
 
     it('rechaza operaciones repetidas, vacías o desconocidas y precios sin operaciones', () => {
-        assert.match(crear({ operaciones: [], price: 1 }), /al menos una operación/);
+        assert.match(crear({ operaciones: [], precio: 1 }), /al menos una operación/);
         assert.match(crear({ operaciones: ['venta', 'venta'], precios: { venta } }), /al menos una operación/);
         assert.match(crear({ operaciones: ['permuta'] }), /al menos una operación/);
         assert.match(probar({ precios: { venta } }), /junto con las operaciones/);
@@ -162,8 +162,8 @@ describe('Operaciones y precios de la propiedad', () => {
     });
 
     it('sigue aceptando el formato viejo (una categoría y un precio)', () => {
-        assert.equal(crear({ categoria_operacion: 'venta', price: 1000 }), 'ok');
-        assert.match(crear({ categoria_operacion: 'venta' }), /price es obligatorio/);
+        assert.equal(crear({ categoriaOperacion: 'venta', precio: 1000 }), 'ok');
+        assert.match(crear({ categoriaOperacion: 'venta' }), /precio es obligatorio/);
     });
 });
 
@@ -173,11 +173,11 @@ describe('Operaciones: normalización y migración', () => {
     const { operacionesAbiertas, precioDe } = require('../src/utils/operaciones');
 
     it('guarda cada precio en dólares y copia la principal (venta)', () => {
-        const d = normalizarOperaciones({ operaciones: ['alquiler', 'venta'], precios: { venta: { moneda: 'USD', price: 90000 }, alquiler: { moneda: 'ARS', priceARS: 500000 } }, cotizacionDolar: 1000 });
+        const d = normalizarOperaciones({ operaciones: ['alquiler', 'venta'], precios: { venta: { moneda: 'USD', precio: 90000 }, alquiler: { moneda: 'ARS', precioARS: 500000 } }, cotizacionDolar: 1000 });
         assert.deepEqual(d.operaciones, ['venta', 'alquiler']);
-        assert.equal(d.categoria_operacion, 'venta');
-        assert.equal(d.price, 90000);
-        assert.deepEqual(d.precios.alquiler, { price: 500, moneda: 'ARS', priceARS: 500000 });
+        assert.equal(d.categoriaOperacion, 'venta');
+        assert.equal(d.precio, 90000);
+        assert.deepEqual(d.precios.alquiler, { precio: 500, moneda: 'ARS', precioARS: 500000 });
     });
 
     it('un cambio solo de estado no toca operaciones ni precios', () => {
@@ -185,9 +185,9 @@ describe('Operaciones: normalización y migración', () => {
     });
 
     it('migra una propiedad vieja y avisa si aceptaba solicitudes de otra operación', () => {
-        const { cambios, falta } = cambiosPara({ categoria_operacion: 'venta', price: 1, moneda: 'USD', priceARS: 1400, operacionesSolicitud: ['venta', 'alquiler'] });
+        const { cambios, falta } = cambiosPara({ categoriaOperacion: 'venta', precio: 1, moneda: 'USD', precioARS: 1400, operacionesSolicitud: ['venta', 'alquiler'] });
         assert.deepEqual(cambios.operaciones, ['venta']);
-        assert.equal(cambios['precios.venta'].priceARS, 1400);
+        assert.equal(cambios['precios.venta'].precioARS, 1400);
         assert.equal(falta, 'alquiler');
     });
 
@@ -196,11 +196,11 @@ describe('Operaciones: normalización y migración', () => {
         assert.deepEqual(operacionesAbiertas({ estado: 'reservado', operaciones: ['venta', 'alquiler'] }), []);
         assert.deepEqual(operacionesAbiertas({ estado: 'alquilado', operaciones: ['venta', 'alquiler'] }), ['venta']);
         assert.deepEqual(operacionesAbiertas({ estado: 'alquilado', operaciones: ['venta'], vendida: true }), []);
-        assert.deepEqual(operacionesAbiertas({ estado: 'vendido', categoria_operacion: 'venta' }), []);
+        assert.deepEqual(operacionesAbiertas({ estado: 'vendido', categoriaOperacion: 'venta' }), []);
     });
 
     it('lee el precio de las propiedades viejas', () => {
-        assert.equal(precioDe({ categoria_operacion: 'alquiler', price: 300, moneda: 'USD' }, 'alquiler').price, 300);
-        assert.equal(precioDe({ categoria_operacion: 'alquiler', price: 300 }, 'venta'), null);
+        assert.equal(precioDe({ categoriaOperacion: 'alquiler', precio: 300, moneda: 'USD' }, 'alquiler').precio, 300);
+        assert.equal(precioDe({ categoriaOperacion: 'alquiler', precio: 300 }, 'venta'), null);
     });
 });

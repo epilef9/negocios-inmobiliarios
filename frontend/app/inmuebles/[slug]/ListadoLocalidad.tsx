@@ -19,7 +19,7 @@ export default function ListadoLocalidad({ iniciales, categoria, coincide }: { i
 		obtenerPropiedades()
 			.then((todas) =>
 				activo &&
-				setLista(todas.filter((p) => tieneOperacion(p, categoria) && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(coincide)))
+				setLista(todas.filter((p) => tieneOperacion(p, categoria) && `${p.ciudad ?? ""} ${p.ubicacion ?? ""}`.toLocaleLowerCase("es").includes(coincide)))
 			)
 			.catch(() => activo && setLista([]));
 		return () => {

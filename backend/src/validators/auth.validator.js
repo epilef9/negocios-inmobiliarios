@@ -41,8 +41,8 @@ const validateRegister = (req, res, next) => {
     }
 
     // Ignorar cualquier intento de autoasignarse rol desde el cliente
-    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'role')) {
-        delete req.body.role;
+    if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'rol')) {
+        delete req.body.rol;
     }
 
     if (errors.length > 0) {

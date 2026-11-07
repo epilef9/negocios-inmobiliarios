@@ -21,7 +21,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    if (user.role !== 'admin') {
+    if (user.rol !== 'admin') {
       router.replace('/');
     }
   }, [user, isLoading, router]);
@@ -32,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user || user.role !== 'admin') {
+  if (!user || user.rol !== 'admin') {
     return (
       <div className="panel flex min-h-dvh items-center justify-center text-sm text-panel-suave">Redirigiendo…</div>
     );

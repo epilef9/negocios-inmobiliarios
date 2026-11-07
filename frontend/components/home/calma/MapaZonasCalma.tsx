@@ -48,7 +48,7 @@ function enElMapa(p: ApiProperty) {
   return { lat, lng };
 }
 
-const zonaDe = (p: ApiProperty) => ZONAS.find((z) => normalizar(p.ciudad ?? p.location).includes(z.clave));
+const zonaDe = (p: ApiProperty) => ZONAS.find((z) => normalizar(p.ciudad ?? p.ubicacion).includes(z.clave));
 
 const resumen = (texto = '', largo = 120) => {
   const limpio = texto.replace(/\s+/g, ' ').trim();
@@ -109,7 +109,7 @@ export default function MapaZonasCalma() {
   );
 
   const puntos = useMemo<PuntoMapa[]>(
-    () => ubicadas.map(({ p, coords }) => ({ id: p._id, lat: coords.lat, lng: coords.lng, titulo: p.title })),
+    () => ubicadas.map(({ p, coords }) => ({ id: p._id, lat: coords.lat, lng: coords.lng, titulo: p.titulo })),
     [ubicadas],
   );
 
@@ -274,7 +274,7 @@ export default function MapaZonasCalma() {
         {ubicadas.map(({ p, zona: z }) => (
           <li key={p._id}>
             <Link href={`/propiedades/${p._id}`}>
-              {p.title}
+              {p.titulo}
               {z ? `, en ${z.nombre}` : ''}: {precioDePropiedad(p, blue).principal}
             </Link>
           </li>
@@ -301,7 +301,7 @@ function TarjetaMapa({
   onSalir: () => void;
   onCerrar: () => void;
 }) {
-  const imagen = propiedad.images?.[0];
+  const imagen = propiedad.fotos?.[0];
   const caja = useRef<HTMLElement>(null);
 
   // La posición se calcula antes de que exista la tarjeta, sin saber cuánto mide. Ya dibujada, si se pasa
@@ -348,7 +348,7 @@ function TarjetaMapa({
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2 p-4">
         <div className="flex items-start justify-between gap-3">
-          <h3 className={`font-display m-0 font-normal leading-tight ${angosto ? 'text-[19px]' : 'text-[22px]'}`}>{propiedad.title}</h3>
+          <h3 className={`font-display m-0 font-normal leading-tight ${angosto ? 'text-[19px]' : 'text-[22px]'}`}>{propiedad.titulo}</h3>
           <button
             type="button"
             onClick={onCerrar}
@@ -361,7 +361,7 @@ function TarjetaMapa({
           </button>
         </div>
         {datos.length > 0 && <p className="m-0 flex flex-wrap gap-x-3 text-[13px] text-[#efe9df]/65">{datos.map((d) => <span key={d}>{d}</span>)}</p>}
-        {propiedad.description && !angosto && <p className="m-0 text-[13px] leading-relaxed text-[#efe9df]/70">{resumen(propiedad.description)}</p>}
+        {propiedad.descripcion && !angosto && <p className="m-0 text-[13px] leading-relaxed text-[#efe9df]/70">{resumen(propiedad.descripcion)}</p>}
         <div className="mt-1 flex items-end justify-between gap-3">
           <span className="flex flex-col">
             <span className="text-[16px]">{precio.principal}</span>

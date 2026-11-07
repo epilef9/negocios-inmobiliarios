@@ -31,7 +31,7 @@ const datosPublicos = (user) => ({
     dni: user.dni || '',
     telefono: user.telefono,
     email: user.email,
-    role: user.role,
+    rol: user.rol,
     checklistRequisitos: user.checklistRequisitos || [],
     emailVerificado: user.emailVerificado !== false,
     createdAt: user.createdAt
@@ -39,7 +39,7 @@ const datosPublicos = (user) => ({
 
 const firmarSesion = (user) =>
     jwt.sign(
-        { id: user._id, email: user.email, role: user.role, nombre: user.nombre, apellido: user.apellido },
+        { id: user._id, email: user.email, rol: user.rol, nombre: user.nombre, apellido: user.apellido },
         getJwtSecret(),
         { expiresIn: '24h' }
     );
@@ -86,16 +86,16 @@ const authService = {
         const hashedPassword = await bcrypt.hash(userData.password, 10);
 
         // Crear usuario en base de datos mediante el repositorio.
-        // El registro publico siempre crea clientes; nunca aceptar role del request (escalada de privilegios).
+        // El registro publico siempre crea clientes; nunca aceptar rol del request (escalada de privilegios).
         // Queda sin verificar: no puede ingresar hasta confirmar el enlace que se le manda por mail.
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
             telefono,
-            username: userData.username || userData.email.toLowerCase().trim(),
+            nombreUsuario: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),
-            password: hashedPassword,
-            role: 'cliente',
+            contrasena: hashedPassword,
+            rol: 'cliente',
             emailVerificado: false
         });
 
@@ -123,7 +123,7 @@ const authService = {
         }
 
         // Comparar contrasena hasheada
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.contrasena);
         if (!isMatch) {
             const error = new Error('Credenciales invalidas');
             error.statusCode = 401;
@@ -202,11 +202,11 @@ const authService = {
         if (!user || !user.restablecimientoExpira || user.restablecimientoExpira < new Date()) {
             throw errorHttp('El enlace venció o ya se usó. Pedí uno nuevo.', 400, 'ENLACE_INVALIDO');
         }
-        if (await bcrypt.compare(password, user.password)) {
+        if (await bcrypt.compare(password, user.contrasena)) {
             throw errorHttp('La contraseña nueva tiene que ser distinta de la anterior.', 400, 'PASSWORD_REPETIDA');
         }
 
-        user.password = await bcrypt.hash(password, 10);
+        user.contrasena = await bcrypt.hash(password, 10);
         user.restablecimientoHash = undefined;
         user.restablecimientoExpira = undefined;
         user.credencialesCambiadasEn = new Date();
@@ -236,7 +236,7 @@ const authService = {
 
         const anterior = user.email;
         user.email = user.emailPendiente;
-        if (!user.username || user.username === anterior) user.username = user.email;
+        if (!user.nombreUsuario || user.nombreUsuario === anterior) user.nombreUsuario = user.email;
         user.emailPendiente = undefined;
         user.cambioEmailHash = undefined;
         user.cambioEmailExpira = undefined;

@@ -47,7 +47,7 @@ const authMiddleware = async (req, res, next) => {
 
 // Restringe operaciones de administracion al rol admin (RF-09 / RNF-05)
 const requireAdmin = (req, res, next) => {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || req.user.rol !== 'admin') {
         return res.status(403).json({
             message: 'Acceso denegado. Se requiere rol de administrador.'
         });
@@ -57,7 +57,7 @@ const requireAdmin = (req, res, next) => {
 };
 
 const requireClient = (req, res, next) => {
-    if (!req.user || req.user.role !== 'cliente') {
+    if (!req.user || req.user.rol !== 'cliente') {
         return res.status(403).json({ message: 'Esta acción está disponible únicamente para cuentas de cliente.' });
     }
     next();

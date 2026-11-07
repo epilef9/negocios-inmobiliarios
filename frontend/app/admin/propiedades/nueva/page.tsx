@@ -25,9 +25,9 @@ type OperacionForm = "venta" | "alquiler" | "temporario";
 type PrecioForm = { moneda: "USD" | "ARS"; monto: string };
 const PRECIO_VACIO: PrecioForm = { moneda: "USD", monto: "" };
 const NOMBRE_OPERACION: Record<OperacionForm, string> = { venta: "Venta", alquiler: "Alquiler", temporario: "Alquiler por días" };
-const precioParaFormulario = (precio: { price?: number; moneda?: "USD" | "ARS"; priceARS?: number } | null): PrecioForm =>
-  precio && typeof precio.price === "number"
-    ? { moneda: precio.moneda === "ARS" ? "ARS" : "USD", monto: String(precio.moneda === "ARS" ? precio.priceARS ?? precio.price : precio.price) }
+const precioParaFormulario = (precio: { precio?: number; moneda?: "USD" | "ARS"; precioARS?: number } | null): PrecioForm =>
+  precio && typeof precio.precio === "number"
+    ? { moneda: precio.moneda === "ARS" ? "ARS" : "USD", monto: String(precio.moneda === "ARS" ? precio.precioARS ?? precio.precio : precio.precio) }
     : { ...PRECIO_VACIO };
 
 // Límites aproximados de Entre Ríos (con margen): el backend controla lo mismo
@@ -190,34 +190,34 @@ export default function NuevaPropiedadPage() {
         if (property.estado) {
           setEstadoPropiedad(property.estado);
         }
-        const operacionesTemporariaInvalida = operacionesDe(property).includes("temporario") && !["casa", "departamento"].includes(property.tipo_inmueble ?? "");
+        const operacionesTemporariaInvalida = operacionesDe(property).includes("temporario") && !["casa", "departamento"].includes(property.tipoInmueble ?? "");
         setFormData((current) => ({
           ...current,
-          titulo: property.title ?? "",
+          titulo: property.titulo ?? "",
           codigoInterno: property.codigoInterno ?? "",
-          tipoInmueble: property.tipo_inmueble === "monoambiente" ? "departamento" : property.tipo_inmueble ?? current.tipoInmueble,
+          tipoInmueble: property.tipoInmueble === "monoambiente" ? "departamento" : property.tipoInmueble ?? current.tipoInmueble,
           // Una temporaria vieja que no es casa ni departamento pasa a venta (el alquiler por días es solo para viviendas)
           operaciones: operacionesTemporariaInvalida ? ["venta"] : operacionesDe(property),
           ciudadZonaBarrio: property.ciudad ?? "",
           provincia: property.provincia === "entre_rios" ? property.provincia : "entre_rios",
-          direccionCompleta: property.direccionCompleta ?? property.location ?? "",
+          direccionCompleta: property.direccionCompleta ?? property.ubicacion ?? "",
           referenciasUbicacion: property.referenciasUbicacion ?? "",
           precios: {
-            venta: precioParaFormulario(operacionesTemporariaInvalida ? { price: property.price, moneda: property.moneda, priceARS: property.priceARS } : precioDe(property, "venta")),
+            venta: precioParaFormulario(operacionesTemporariaInvalida ? { precio: property.precio, moneda: property.moneda, precioARS: property.precioARS } : precioDe(property, "venta")),
             alquiler: precioParaFormulario(precioDe(property, "alquiler")),
-            temporario: precioParaFormulario(operacionesDe(property).includes("temporario") ? { price: property.price, moneda: property.moneda, priceARS: property.priceARS } : null),
+            temporario: precioParaFormulario(operacionesDe(property).includes("temporario") ? { precio: property.precio, moneda: property.moneda, precioARS: property.precioARS } : null),
           },
           cotizacionDolar: String(property.cotizacionDolar ?? current.cotizacionDolar),
           expensas: property.expensas ?? current.expensas,
           montoExpensas: String(property.montoExpensas ?? ""),
           superficieTotal: String(property.area ?? ""),
-          cantidadAmbientes: String(property.cantidad_ambientes ?? ""),
-          dormitorios: String(property.bedrooms ?? ""),
-          banos: String(property.bathrooms ?? ""),
+          cantidadAmbientes: String(property.ambientes ?? ""),
+          dormitorios: String(property.dormitorios ?? ""),
+          banos: String(property.banos ?? ""),
           cochera: property.cochera ?? "no",
           pisoUnidad: property.pisoUnidad ?? "",
           otrasComodidades: property.otrasComodidades ?? "",
-          descripcion: property.description ?? "",
+          descripcion: property.descripcion ?? "",
           linkGoogleMaps: property.linkGoogleMaps ?? "",
           latitud: property.latitud ?? "",
           longitud: property.longitud ?? "",
@@ -250,7 +250,7 @@ export default function NuevaPropiedadPage() {
           financiacionDetalle: property.financiacion?.detalle ?? "",
         }));
         setComodidadesSeleccionadas(property.comodidades ?? []);
-        setImagenes(property.images ?? []);
+        setImagenes(property.fotos ?? []);
         if (property.linkGoogleMaps && (!property.latitud || !property.longitud)) {
           void completarCoordenadasDesdeLink(property.linkGoogleMaps);
         }
@@ -656,13 +656,13 @@ export default function NuevaPropiedadPage() {
       }
 
       const cotizacionDolar = Number(formData.cotizacionDolar) || 1370;
-      // Precio de una operación en el formato de la API: price en dólares, moneda y priceARS
+      // Precio de una operación en el formato de la API: precio en dólares, moneda y precioARS
       const aPrecio = (operacion: OperacionForm) => {
         const { moneda, monto } = formData.precios[operacion];
         const valor = Number(monto);
         return moneda === "ARS"
-          ? { moneda, priceARS: valor, price: Number((valor / cotizacionDolar).toFixed(2)) }
-          : { moneda, price: valor, priceARS: Number((valor * cotizacionDolar).toFixed(2)) };
+          ? { moneda, precioARS: valor, precio: Number((valor / cotizacionDolar).toFixed(2)) }
+          : { moneda, precio: valor, precioARS: Number((valor * cotizacionDolar).toFixed(2)) };
       };
       const operaciones = formData.operaciones;
       // El backend vuelve a calcular la copia de la principal; se manda igual por compatibilidad
@@ -673,30 +673,30 @@ export default function NuevaPropiedadPage() {
 
       // Armar el objeto con el formato que espera la API
       const propertyData = {
-        title: formData.titulo,
+        titulo: formData.titulo,
         codigoInterno: formData.codigoInterno,
-        description: formData.descripcion,
-        price: principal.price,
+        descripcion: formData.descripcion,
+        precio: principal.precio,
         moneda: principal.moneda,
-        priceARS: principal.priceARS,
+        precioARS: principal.precioARS,
         operaciones,
         precios,
         cotizacionDolar,
-        location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`,
+        ubicacion: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`,
         ciudad: formData.ciudadZonaBarrio,
         provincia: formData.provincia,
         direccionCompleta: formData.direccionCompleta,
         referenciasUbicacion: formData.referenciasUbicacion,
-        categoria_operacion: operaciones[0],
-        tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
-        cantidad_ambientes: Number(formData.cantidadAmbientes),
+        categoriaOperacion: operaciones[0],
+        tipoInmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
+        ambientes: Number(formData.cantidadAmbientes),
         comodidades: esTerreno ? [] : comodidadesSeleccionadas,
         otrasComodidades: esTerreno ? "" : formData.otrasComodidades,
         expensas: formData.expensas,
         montoExpensas: Number(formData.montoExpensas) || 0,
         estado: modoEdicion ? estadoPropiedad : ("disponible" as const),
-        bedrooms: Number(formData.dormitorios),
-        bathrooms: Number(formData.banos),
+        dormitorios: Number(formData.dormitorios),
+        banos: Number(formData.banos),
         area: Number(formData.superficieTotal),
         cochera: formData.cochera,
         pisoUnidad: formData.pisoUnidad,
@@ -718,7 +718,7 @@ export default function NuevaPropiedadPage() {
         checkInDesde: formData.checkInDesde,
         checkOutHasta: formData.checkOutHasta,
         checkInFlexible: formData.checkInFlexible,
-        images: imagenes,
+        fotos: imagenes,
         descuento: {
           porcentaje: Number(formData.descuentoPorcentaje) || 0,
           hasta: formData.descuentoPorcentaje && formData.descuentoHasta ? formData.descuentoHasta : null,

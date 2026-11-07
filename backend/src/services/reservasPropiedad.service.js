@@ -67,7 +67,7 @@ const listar = async ({ estado, propiedad } = {}) => {
     const filtro = {};
     if (['activa', 'concretada', 'cancelada', 'vencida'].includes(estado)) filtro.estado = estado;
     if (mongoose.isValidObjectId(propiedad)) filtro.propiedad = propiedad;
-    return ReservaPropiedad.find(filtro).sort({ estado: 1, fechaLimite: 1, createdAt: -1 }).populate('propiedad', 'title images estado categoria_operacion operaciones precios price moneda').lean();
+    return ReservaPropiedad.find(filtro).sort({ estado: 1, fechaLimite: 1, createdAt: -1 }).populate('propiedad', 'titulo fotos estado categoriaOperacion operaciones precios precio moneda').lean();
 };
 
 // Crea la reserva y marca la propiedad. La propiedad se toma con una actualización condicional (solo si está
@@ -77,7 +77,7 @@ const crear = async (cuerpo) => {
     const { datos, error } = revisarDatos(cuerpo);
     if (error) return { status: 400, error };
 
-    const propiedad = await Property.findById(datos.propiedad).select('title estado vendida categoria_operacion operaciones').lean();
+    const propiedad = await Property.findById(datos.propiedad).select('titulo estado vendida categoriaOperacion operaciones').lean();
     if (!propiedad) return { status: 404, error: 'La propiedad no existe.' };
     if (operacionesDe(propiedad).includes('temporario')) {
         return { status: 400, error: 'Los alquileres temporarios se reservan por noches desde Reservas.' };
@@ -101,7 +101,7 @@ const crear = async (cuerpo) => {
     if (!tomada) return { status: 409, error: 'La propiedad no está disponible: ya está reservada, alquilada o vendida.' };
 
     try {
-        const reserva = await ReservaPropiedad.create({ ...datos, operacion, estadoAnterior, tituloPropiedad: propiedad.title });
+        const reserva = await ReservaPropiedad.create({ ...datos, operacion, estadoAnterior, tituloPropiedad: propiedad.titulo });
         return { reserva };
     } catch (e) {
         await liberarPropiedad(datos.propiedad, estadoAnterior);

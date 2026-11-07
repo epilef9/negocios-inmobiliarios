@@ -19,7 +19,7 @@ export default function EditarPropiedadRedirect() {
       return;
     }
 
-    if (user.role !== "admin") {
+    if (user.rol !== "admin") {
       // Solo los administradores pueden acceder a la edición
       router.replace("/");
       return;

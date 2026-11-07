@@ -22,9 +22,9 @@ const precioTexto = (p: ApiProperty) => {
   const operaciones = operacionesDe(p).length ? operacionesDe(p) : (['venta'] as const);
   return operaciones
     .map((o) => {
-      const precio = precioDe(p, o) ?? { price: p.price, moneda: p.moneda, priceARS: p.priceARS };
+      const precio = precioDe(p, o) ?? { precio: p.precio, moneda: p.moneda, precioARS: p.precioARS };
       const sufijo = o === 'alquiler' ? ' por mes' : '';
-      return precio.moneda === 'ARS' ? `ARS ${miles(precio.priceARS ?? precio.price)}${sufijo}` : `USD ${miles(precio.price)}${sufijo}`;
+      return precio.moneda === 'ARS' ? `ARS ${miles(precio.precioARS ?? precio.precio)}${sufijo}` : `USD ${miles(precio.precio)}${sufijo}`;
     })
     .join(' · ');
 };
@@ -200,8 +200,8 @@ export default function VisitasAdminPage() {
         },
         propiedad: {
           id: propiedad?._id || '',
-          titulo: propiedad?.title || nueva.propiedad,
-          direccion: propiedad?.location || '',
+          titulo: propiedad?.titulo || nueva.propiedad,
+          direccion: propiedad?.ubicacion || '',
           precio: propiedad ? precioTexto(propiedad) : '',
         },
         fecha: fechaParaGuardar(nueva.fecha),

@@ -9,7 +9,7 @@ export default function HomePublicarLink() {
   const { user, isLoading } = useAuth();
 
   // Este acceso solo se muestra a usuarios administradores
-  if (isLoading || user?.role !== 'admin') {
+  if (isLoading || user?.rol !== 'admin') {
     return null;
   }
 

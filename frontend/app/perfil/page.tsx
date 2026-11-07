@@ -164,7 +164,7 @@ export default function PerfilPage() {
 				<h1 className="font-display m-0 text-[clamp(56px,8vw,128px)] font-normal leading-[0.9] tracking-[-0.02em]">Mi cuenta</h1>
 				{user && (
 					<p className="m-0 mt-4 text-[15px] text-[#efe9df]/70">
-						{user.role === "admin" ? "Cuenta de administración" : "Cuenta de cliente"}
+						{user.rol === "admin" ? "Cuenta de administración" : "Cuenta de cliente"}
 						{miembroDesde ? ` · desde ${miembroDesde}` : ""}
 					</p>
 				)}
@@ -177,7 +177,7 @@ export default function PerfilPage() {
 			) : (
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
 					<div className="flex flex-col gap-16">
-						{user && user.role !== "admin" && <ApartadosCuenta />}
+						{user && user.rol !== "admin" && <ApartadosCuenta />}
 
 						<section aria-labelledby={`${id}-datos-titulo`} className="border-t border-[#efe9df]/15 pt-10">
 							<h2 id={`${id}-datos-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
@@ -253,12 +253,12 @@ export default function PerfilPage() {
 					<aside aria-label="Accesos de tu cuenta" className="flex flex-col gap-8 border-t border-[#efe9df]/15 pt-10 lg:self-start">
 						<p className="calma-micro m-0 text-[#efe9df]/55">Tu cuenta</p>
 						<nav className="flex flex-col items-start gap-4">
-							{user?.role === "admin" && (
+							{user?.rol === "admin" && (
 								<Link href="/admin" className={enlaceCuenta}>
 									Ir al panel de administración
 								</Link>
 							)}
-							{user?.role !== "admin" && (
+							{user?.rol !== "admin" && (
 								<>
 									<Link href="/reservas" className={enlaceCuenta}>
 										Tus reservas

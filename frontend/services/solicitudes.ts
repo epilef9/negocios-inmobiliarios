@@ -30,7 +30,7 @@ export type SolicitudResumen = {
 	comentarioFecha?: string | null;
 	historialEstados?: { estado: string; comentario: string; comentarioReferenciaIndice?: number; fecha: string }[];
 	archivada?: boolean;
-	archivadaAt?: string | null;
+	archivadaEn?: string | null;
 	propiedad: { id: string; disponible?: boolean; titulo: string | null; ciudad: string | null; imagen?: string | null; direccion?: string | null; tipoInmueble?: string | null; estadoPropiedad?: string | null; tipoOperacion?: string | null; precio?: number | null; moneda?: string | null } | null;
 };
 
@@ -38,7 +38,7 @@ export type DocumentoSolicitud = {
 	tipo: string;
 	nombre: string;
 	tamano: number;
-	mimeType: string;
+	tipoMime: string;
 	url?: string;
 };
 
@@ -125,7 +125,7 @@ export const agregarComentarioSolicitud = (id: string, comentario: string) =>
 	});
 
 export const actualizarArchivadoSolicitud = (id: string, archivada: boolean) =>
-	request<{ id: string; archivada: boolean; archivadaAt: string | null }>(`/solicitudes/${id}/archivo`, {
+	request<{ id: string; archivada: boolean; archivadaEn: string | null }>(`/solicitudes/${id}/archivo`, {
 		method: "PATCH",
 		body: JSON.stringify({ archivada }),
 	});

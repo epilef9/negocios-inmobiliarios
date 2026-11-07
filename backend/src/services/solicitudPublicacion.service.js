@@ -133,7 +133,7 @@ const solicitudPublicacionService = {
 
     listarMisSolicitudes: async (userId) => {
         return await SolicitudPublicacion.find({ cliente: userId })
-            .populate('propiedadCreada', 'title price location')
+            .populate('propiedadCreada', 'titulo precio ubicacion')
             .sort({ createdAt: -1 });
     },
 
@@ -146,7 +146,7 @@ const solicitudPublicacionService = {
         return await SolicitudPublicacion.find(query)
             .select('+documentos')
             .populate('cliente', 'nombre apellido email telefono dni')
-            .populate('propiedadCreada', 'title price location')
+            .populate('propiedadCreada', 'titulo precio ubicacion')
             .sort({ createdAt: -1 });
     },
 
@@ -154,13 +154,13 @@ const solicitudPublicacionService = {
         const solicitud = await SolicitudPublicacion.findById(id)
             .select('+documentos')
             .populate('cliente', 'nombre apellido email telefono dni')
-            .populate('propiedadCreada', 'title price location');
+            .populate('propiedadCreada', 'titulo precio ubicacion');
 
         if (!solicitud) {
             throw errorHttp('Solicitud no encontrada.', 404);
         }
 
-        if (user.role !== 'admin' && String(solicitud.cliente._id || solicitud.cliente) !== String(user._id || user.id)) {
+        if (user.rol !== 'admin' && String(solicitud.cliente._id || solicitud.cliente) !== String(user._id || user.id)) {
             throw errorHttp('No tenés permiso para ver esta solicitud.', 403);
         }
 
@@ -172,7 +172,7 @@ const solicitudPublicacionService = {
         if (!/^[a-f\d]{24}$/i.test(String(id || ''))) throw errorHttp('Documento no encontrado.', 404);
         const documento = await documentosPublicacion.leer(id);
         if (!documento) throw errorHttp('Documento no encontrado.', 404);
-        if (user.role !== 'admin') {
+        if (user.rol !== 'admin') {
             const referencia = `privado:${String(id).toLowerCase()}`;
             const solicitud = await SolicitudPublicacion.findOne({
                 $or: DOCUMENTOS.map((campo) => ({ [`documentos.${campo}`]: referencia })),
@@ -199,20 +199,20 @@ const solicitudPublicacionService = {
         // 1. Crear la propiedad en el catálogo
         // Con el formato de operaciones (HU-25): la operación pedida con su precio en dólares y en pesos
         const nuevaPropiedad = new Property(normalizarOperaciones({
-            title: solicitud.titulo || `${capitalizar(tipoInmueble)} en ${solicitud.direccion}`,
-            description: solicitud.descripcion || '',
-            price: solicitud.precioPretendido.monto,
+            titulo: solicitud.titulo || `${capitalizar(tipoInmueble)} en ${solicitud.direccion}`,
+            descripcion: solicitud.descripcion || '',
+            precio: solicitud.precioPretendido.monto,
             moneda: solicitud.precioPretendido.moneda || 'USD',
-            location: solicitud.direccion,
+            ubicacion: solicitud.direccion,
             direccionCompleta: `${solicitud.direccion}, ${solicitud.ciudad || 'Libertador San Martín'}`,
             ciudad: solicitud.ciudad || 'Libertador San Martín',
             provincia: 'entre_rios',
             referenciasUbicacion: solicitud.referenciasUbicacion || '',
-            categoria_operacion: solicitud.operacion,
-            tipo_inmueble: tipoInmueble,
-            cantidad_ambientes: solicitud.ambientes ?? 1,
-            bedrooms: solicitud.dormitorios || 0,
-            bathrooms: solicitud.banos ?? 1,
+            categoriaOperacion: solicitud.operacion,
+            tipoInmueble: tipoInmueble,
+            ambientes: solicitud.ambientes ?? 1,
+            dormitorios: solicitud.dormitorios || 0,
+            banos: solicitud.banos ?? 1,
             area: solicitud.superficieTotal || 0,
             superficieCubierta: solicitud.superficieCubierta || 0,
             expensas: solicitud.expensas || '',
@@ -221,7 +221,7 @@ const solicitudPublicacionService = {
             pisoUnidad: solicitud.pisoUnidad || '',
             comodidades: solicitud.comodidades || [],
             otrasComodidades: solicitud.otrasComodidades || '',
-            images: solicitud.fotos && solicitud.fotos.length ? solicitud.fotos : [],
+            fotos: solicitud.fotos && solicitud.fotos.length ? solicitud.fotos : [],
             estado: 'disponible',
             // Vínculo con la solicitud de publicación: los contratos sacan de ahí los datos del dueño.
             publicacion: solicitud._id,

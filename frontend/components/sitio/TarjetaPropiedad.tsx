@@ -34,11 +34,11 @@ const ALTO = {
 };
 
 export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', revelar = true, operacion: filtrada }: Props) {
-  const imagen = propiedad.images?.[0];
+  const imagen = propiedad.fotos?.[0];
   const soloUna = filtrada && tieneOperacion(propiedad, filtrada) ? filtrada : null;
   const operaciones = soloUna ? [soloUna] : operacionesDe(propiedad);
   const operacion = soloUna ? etiquetaOperacion[soloUna] : etiquetaOperaciones(propiedad);
-  const lugar = propiedad.ciudad || propiedad.location;
+  const lugar = propiedad.ciudad || propiedad.ubicacion;
   // Con venta y alquiler se muestran los dos precios; con el filtro de operación, solo el de esa
   const precios = soloUna ? [{ operacion: soloUna, ...precioDePropiedad(propiedad, blue, soloUna) }] : preciosDePropiedad(propiedad, blue);
   const precio = precios[0] ?? { operacion: 'venta', ...precioDePropiedad(propiedad, blue) };
@@ -66,7 +66,7 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
             {/* eslint-disable-next-line @next/next/no-img-element -- las imágenes vienen del backend con dominio variable */}
             <img
               {...propsFoto(imagen, "(min-width: 1024px) 50vw, 100vw")}
-              alt={propiedad.title}
+              alt={propiedad.titulo}
               loading="lazy"
               onError={() => setFotoRota(true)}
               className="h-full w-full object-cover transition-transform duration-[1400ms] ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-[1.05] motion-reduce:transition-none"
@@ -89,7 +89,7 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
             {operacion}
             {lugar ? ` en ${lugar}` : ''}
           </span>
-          <span className={`font-display leading-tight ${grande ? 'text-[34px]' : 'text-[26px]'}`}>{propiedad.title}</span>
+          <span className={`font-display leading-tight ${grande ? 'text-[34px]' : 'text-[26px]'}`}>{propiedad.titulo}</span>
           {!grande && datos.length > 0 && (
             <span className="flex flex-wrap gap-x-3 text-[14px] text-[#efe9df]/70">
               {datos.map((dato) => (
@@ -119,8 +119,8 @@ export default function TarjetaPropiedad({ propiedad, blue, tamano = 'normal', r
         </span>
       </div>
     </Link>
-    <BotonFavorito propiedadId={propiedad._id} titulo={propiedad.title} className="absolute right-4 top-4 z-10" />
-    <ConmutadorComparar propiedadId={propiedad._id} titulo={propiedad.title} className="absolute right-4 top-[68px] z-10" />
+    <BotonFavorito propiedadId={propiedad._id} titulo={propiedad.titulo} className="absolute right-4 top-4 z-10" />
+    <ConmutadorComparar propiedadId={propiedad._id} titulo={propiedad.titulo} className="absolute right-4 top-[68px] z-10" />
     </div>
   );
 }

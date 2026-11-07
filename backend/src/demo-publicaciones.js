@@ -148,7 +148,7 @@ async function propietario(clave) {
     if (SOLO_PROBAR) return { _id: new mongoose.Types.ObjectId(), ...datos };
     // Contraseña al azar que nadie conoce: la cuenta existe solo para ser dueña de las solicitudes
     const password = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 10);
-    return User.create({ ...datos, password, role: 'cliente', emailVerificado: true, checklistRequisitos: REQUISITOS });
+    return User.create({ ...datos, contrasena: password, rol: 'cliente', emailVerificado: true, checklistRequisitos: REQUISITOS });
 }
 
 async function quitar() {

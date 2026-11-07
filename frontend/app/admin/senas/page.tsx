@@ -61,7 +61,7 @@ export default function SenasPage() {
   // Solo se pueden reservar las disponibles de venta o alquiler (las temporarias se reservan por noches)
   const reservables = useMemo(
     // HU-25 / HU-28: las que tienen venta o alquiler abiertos (incluye la venta de una alquilada con inquilino)
-    () => propiedades.filter((p) => operacionesAbiertas(p).some((o) => o !== 'temporario')).sort((a, b) => a.title.localeCompare(b.title)),
+    () => propiedades.filter((p) => operacionesAbiertas(p).some((o) => o !== 'temporario')).sort((a, b) => a.titulo.localeCompare(b.titulo)),
     [propiedades]
   );
   // Operaciones que se pueden reservar en la propiedad elegida (con venta y alquiler hay que elegir una)
@@ -133,7 +133,7 @@ export default function SenasPage() {
     }
   };
 
-  const titulo = (s: Sena) => (s.propiedad && typeof s.propiedad === 'object' ? s.propiedad.title : s.tituloPropiedad);
+  const titulo = (s: Sena) => (s.propiedad && typeof s.propiedad === 'object' ? s.propiedad.titulo : s.tituloPropiedad);
   const idProp = (s: Sena) => (s.propiedad && typeof s.propiedad === 'object' ? s.propiedad._id : typeof s.propiedad === 'string' ? s.propiedad : '');
 
   return (
@@ -260,7 +260,7 @@ export default function SenasPage() {
               <option value="">Elegí una propiedad</option>
               {reservables.map((p) => (
                 <option key={p._id} value={p._id}>
-                  {p.title} · {operacionesAbiertas(p).length === 2 ? 'Venta y alquiler' : operacionesAbiertas(p)[0] === 'alquiler' ? 'Alquiler' : p.estado === 'alquilado' ? 'Venta (con inquilino)' : 'Venta'}
+                  {p.titulo} · {operacionesAbiertas(p).length === 2 ? 'Venta y alquiler' : operacionesAbiertas(p)[0] === 'alquiler' ? 'Alquiler' : p.estado === 'alquilado' ? 'Venta (con inquilino)' : 'Venta'}
                 </option>
               ))}
             </select>

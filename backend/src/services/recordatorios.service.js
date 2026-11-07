@@ -60,8 +60,8 @@ const resumenContratos = async (hoyIso) => {
 };
 
 const visitasDelDia = async (diaIso, { soloSinAviso = false } = {}) => {
-    const visitas = await Visita.find({ estado: { $in: ['pendiente', 'confirmada', 'reprogramada'] }, ...(soloSinAviso ? { recordatorioEnviadoAt: null } : {}) })
-        .select('cliente propiedad fecha horario estado recordatorioEnviadoAt')
+    const visitas = await Visita.find({ estado: { $in: ['pendiente', 'confirmada', 'reprogramada'] }, ...(soloSinAviso ? { recordatorioEnviadoEn: null } : {}) })
+        .select('cliente propiedad fecha horario estado recordatorioEnviadoEn')
         .lean();
     return visitas.filter((v) => agenda.fechaIso(v.fecha) === diaIso).sort((a, b) => String(agenda.horaCorta(a.horario)).localeCompare(String(agenda.horaCorta(b.horario))));
 };
@@ -73,7 +73,7 @@ const resumenPanel = async () => {
     const [visitas, contratos] = await Promise.all([visitasDelDia(manana), resumenContratos(hoy)]);
     return {
         manana,
-        visitasManana: visitas.map((v) => ({ id: String(v._id), cliente: v.cliente?.nombre || '', propiedad: v.propiedad?.titulo || '', hora: agenda.horaCorta(v.horario), estado: v.estado, avisado: Boolean(v.recordatorioEnviadoAt) })),
+        visitasManana: visitas.map((v) => ({ id: String(v._id), cliente: v.cliente?.nombre || '', propiedad: v.propiedad?.titulo || '', hora: agenda.horaCorta(v.horario), estado: v.estado, avisado: Boolean(v.recordatorioEnviadoEn) })),
         ...contratos,
     };
 };
@@ -118,14 +118,14 @@ const ejecutar = async () => {
             continue;
         }
         // Se marca antes de mandar: si el cron se repite, no llega dos veces
-        const { modifiedCount } = await Visita.updateOne({ _id: v._id, recordatorioEnviadoAt: null }, { $set: { recordatorioEnviadoAt: new Date() } });
+        const { modifiedCount } = await Visita.updateOne({ _id: v._id, recordatorioEnviadoEn: null }, { $set: { recordatorioEnviadoEn: new Date() } });
         if (!modifiedCount) continue;
         try {
             await mandarRecordatorio(v);
             resultado.visitasAvisadas++;
         } catch (error) {
             resultado.errores++;
-            await Visita.updateOne({ _id: v._id }, { $set: { recordatorioEnviadoAt: null } });
+            await Visita.updateOne({ _id: v._id }, { $set: { recordatorioEnviadoEn: null } });
             console.error('No se pudo mandar el recordatorio de visita:', error.message);
         }
     }

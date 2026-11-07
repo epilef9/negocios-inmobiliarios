@@ -71,28 +71,28 @@ const base = (lugar, desplazamiento) => {
     };
 };
 
-const enDolares = (usd) => ({ moneda: 'USD', price: usd, priceARS: usd * COTIZACION });
-const enPesos = (ars) => ({ moneda: 'ARS', price: Number((ars / COTIZACION).toFixed(2)), priceARS: ars });
+const enDolares = (usd) => ({ moneda: 'USD', precio: usd, precioARS: usd * COTIZACION });
+const enPesos = (ars) => ({ moneda: 'ARS', precio: Number((ars / COTIZACION).toFixed(2)), precioARS: ars });
 
 const PROPIEDADES = [
     {
         ...base(ubicacion.vlsm, [0.0021, -0.0034]),
         codigoInterno: 'NI-101',
-        title: 'Casa de 3 dormitorios con galería y parque',
-        description:
+        titulo: 'Casa de 3 dormitorios con galería y parque',
+        descripcion:
             'Casa de una planta en una calle tranquila y arbolada, a cinco cuadras de la Universidad Adventista del Plata. ' +
             'Living comedor amplio con salida a la galería, cocina con desayunador y lavadero independiente. ' +
             'Tres dormitorios con placares, el principal con baño en suite. Parque de 300 m² con árboles grandes y parrilla. ' +
             'Cochera para un auto. Escritura al día, lista para mudarse.',
-        location: 'Villa Libertador San Martín, Entre Ríos',
+        ubicacion: 'Villa Libertador San Martín, Entre Ríos',
         direccionCompleta: 'Villa Libertador San Martín, Entre Ríos',
         referenciasUbicacion: 'A cinco cuadras de la Universidad Adventista del Plata y del Sanatorio Adventista.',
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'casa',
         ...enDolares(118000),
-        cantidad_ambientes: 4,
-        bedrooms: 3,
-        bathrooms: 2,
+        ambientes: 4,
+        dormitorios: 3,
+        banos: 2,
         area: 165,
         cochera: 'si',
         comodidades: ['cocina', 'calefaccion', 'parrilla', 'laundry', 'aire'],
@@ -102,20 +102,20 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.vlsm, [-0.0012, 0.0018]),
         codigoInterno: 'NI-102',
-        title: 'Departamento monoambiente amoblado cerca de la UAP',
-        description:
+        titulo: 'Departamento monoambiente amoblado cerca de la UAP',
+        descripcion:
             'Ideal para estudiantes. Monoambiente amoblado con cama, escritorio, placard y kitchenette equipada (anafe, heladera y microondas). ' +
             'Baño completo con ducha. Wifi y aire acondicionado frío/calor incluidos. ' +
             'Edificio chico y silencioso, con lavadero común y patio para bicicletas. Contrato por ciclo lectivo.',
-        location: 'Villa Libertador San Martín, Entre Ríos',
+        ubicacion: 'Villa Libertador San Martín, Entre Ríos',
         direccionCompleta: 'Villa Libertador San Martín, Entre Ríos',
         referenciasUbicacion: 'A tres cuadras de la Universidad Adventista del Plata.',
-        categoria_operacion: 'alquiler',
-        tipo_inmueble: 'departamento',
+        categoriaOperacion: 'alquiler',
+        tipoInmueble: 'departamento',
         ...enPesos(380000),
-        cantidad_ambientes: 1,
-        bedrooms: 0,
-        bathrooms: 1,
+        ambientes: 1,
+        dormitorios: 0,
+        banos: 1,
         area: 32,
         cochera: 'no',
         pisoUnidad: 'Planta baja, unidad 3',
@@ -131,21 +131,21 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.vlsm, [0.0006, 0.0041]),
         codigoInterno: 'NI-103',
-        title: 'Departamento de 2 dormitorios con balcón',
-        description:
+        titulo: 'Departamento de 2 dormitorios con balcón',
+        descripcion:
             'Departamento luminoso en primer piso, con balcón al frente. Living comedor integrado, cocina separada con alacena y bajo mesada, ' +
             'dos dormitorios con placares y baño completo. Calefacción a gas y aire acondicionado en el living. ' +
             'Cochera descubierta. Cerca del centro comercial y de la universidad. Se alquila y también se vende.',
-        location: 'Villa Libertador San Martín, Entre Ríos',
+        ubicacion: 'Villa Libertador San Martín, Entre Ríos',
         direccionCompleta: 'Villa Libertador San Martín, Entre Ríos',
         referenciasUbicacion: 'A dos cuadras del centro comercial.',
         // HU-25: en venta y en alquiler a la vez, cada una con su precio
         operaciones: ['venta', 'alquiler'],
-        precios: { venta: { moneda: 'USD', price: 68000 }, alquiler: { moneda: 'ARS', priceARS: 650000 } },
-        tipo_inmueble: 'departamento',
-        cantidad_ambientes: 3,
-        bedrooms: 2,
-        bathrooms: 1,
+        precios: { venta: { moneda: 'USD', precio: 68000 }, alquiler: { moneda: 'ARS', precioARS: 650000 } },
+        tipoInmueble: 'departamento',
+        ambientes: 3,
+        dormitorios: 2,
+        banos: 1,
         area: 68,
         cochera: 'si',
         pisoUnidad: 'Primer piso, unidad B',
@@ -160,20 +160,20 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.crespo, [0.0034, 0.0025]),
         codigoInterno: 'NI-104',
-        title: 'Casa con pileta y quincho en barrio residencial',
-        description:
+        titulo: 'Casa con pileta y quincho en barrio residencial',
+        descripcion:
             'Casa de dos plantas sobre lote de 600 m² en uno de los barrios más lindos de Crespo. ' +
             'Planta baja con living de doble altura, cocina comedor con isla y toilette; arriba, tres dormitorios (el principal en suite con vestidor) y un segundo baño. ' +
             'Al fondo, pileta de 8 x 4 m, quincho con parrilla y galería. Cochera cubierta para dos autos.',
-        location: 'Crespo, Entre Ríos',
+        ubicacion: 'Crespo, Entre Ríos',
         direccionCompleta: 'Crespo, Entre Ríos',
         referenciasUbicacion: 'Barrio residencial, a ocho cuadras de la plaza principal.',
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'casa',
         ...enDolares(165000),
-        cantidad_ambientes: 5,
-        bedrooms: 3,
-        bathrooms: 3,
+        ambientes: 5,
+        dormitorios: 3,
+        banos: 3,
         area: 210,
         cochera: 'si',
         comodidades: ['pileta', 'parrilla', 'cochera_cubierta', 'cocina', 'calefaccion', 'aire', 'laundry'],
@@ -183,19 +183,19 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.crespo, [-0.0042, -0.0051]),
         codigoInterno: 'NI-105',
-        title: 'Lote de 12 x 30 m con todos los servicios',
-        description:
+        titulo: 'Lote de 12 x 30 m con todos los servicios',
+        descripcion:
             'Lote de 360 m² en loteo nuevo, con agua corriente, cloacas, luz y calle de ripio con cordón cuneta. ' +
             'Terreno plano, listo para construir. Zona de casas nuevas, a cinco minutos del centro. Escritura inmediata.',
-        location: 'Crespo, Entre Ríos',
+        ubicacion: 'Crespo, Entre Ríos',
         direccionCompleta: 'Crespo, Entre Ríos',
         referenciasUbicacion: 'Loteo en el acceso norte, a cinco minutos del centro.',
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'terreno',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'terreno',
         ...enDolares(24000),
-        cantidad_ambientes: 0,
-        bedrooms: 0,
-        bathrooms: 0,
+        ambientes: 0,
+        dormitorios: 0,
+        banos: 0,
         area: 360,
         cochera: 'no',
         comodidades: [],
@@ -204,16 +204,16 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.diamante, [0.0058, -0.0047]),
         codigoInterno: 'NI-106',
-        title: 'Cabaña para 4 personas cerca del Parque Nacional Pre-Delta',
-        description:
+        titulo: 'Cabaña para 4 personas cerca del Parque Nacional Pre-Delta',
+        descripcion:
             'Cabaña de madera en un predio arbolado y tranquilo, a diez minutos del Parque Nacional Pre-Delta y de la costa del Paraná. ' +
             'Un dormitorio con cama matrimonial y entrepiso con dos camas, living con hogar a leña y cocina completa. ' +
             'Ropa de cama y toallas incluidas. Deck con parrilla. Ideal para una escapada de fin de semana.',
-        location: 'Diamante, Entre Ríos',
+        ubicacion: 'Diamante, Entre Ríos',
         direccionCompleta: 'Diamante, Entre Ríos',
         referenciasUbicacion: 'A diez minutos del Parque Nacional Pre-Delta.',
-        categoria_operacion: 'temporario',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'temporario',
+        tipoInmueble: 'casa',
         ...enDolares(60),
         precioPorNocheUSD: 60,
         minimoNoches: 2,
@@ -222,9 +222,9 @@ const PROPIEDADES = [
         checkInDesde: '14:00',
         checkOutHasta: '10:00',
         checkInFlexible: 'si',
-        cantidad_ambientes: 2,
-        bedrooms: 1,
-        bathrooms: 1,
+        ambientes: 2,
+        dormitorios: 1,
+        banos: 1,
         area: 55,
         cochera: 'si',
         comodidades: ['wifi', 'tv', 'cocina', 'calefaccion', 'parrilla', 'aire'],
@@ -234,21 +234,21 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.diamante, [-0.0189, -0.0122]),
         codigoInterno: 'NI-107',
-        title: 'Casa quinta en una hectárea',
-        description:
+        titulo: 'Casa quinta en una hectárea',
+        descripcion:
             'Casa de campo de dos plantas sobre una hectárea parquizada, a tres kilómetros de Diamante por camino consolidado. ' +
             'Dos dormitorios, living comedor con estufa, cocina amplia y galería con parrilla. ' +
             'Perforación con bomba, tanque elevado y luz. Ideal para vivienda permanente o fin de semana.',
-        location: 'Diamante, Entre Ríos',
+        ubicacion: 'Diamante, Entre Ríos',
         direccionCompleta: 'Zona rural, Diamante, Entre Ríos',
         referenciasUbicacion: 'A tres kilómetros del centro de Diamante por camino consolidado.',
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'casa',
         ...enDolares(95000),
         estado: 'reservado',
-        cantidad_ambientes: 3,
-        bedrooms: 2,
-        bathrooms: 1,
+        ambientes: 3,
+        dormitorios: 2,
+        banos: 1,
         area: 10000,
         cochera: 'si',
         comodidades: ['parrilla', 'calefaccion', 'cocina'],
@@ -258,20 +258,20 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.vlsm, [-0.0037, -0.0052]),
         codigoInterno: 'NI-108',
-        title: 'Casa a estrenar de 2 dormitorios',
-        description:
+        titulo: 'Casa a estrenar de 2 dormitorios',
+        descripcion:
             'Casa nueva, de líneas simples, con muy buena luz natural. Living comedor con cocina integrada y salida al patio, ' +
             'dos dormitorios con placares y baño completo con ducha de obra. Aberturas de aluminio con DVH, preinstalación para aire acondicionado ' +
             'y lugar para ampliar. Apta crédito hipotecario.',
-        location: 'Villa Libertador San Martín, Entre Ríos',
+        ubicacion: 'Villa Libertador San Martín, Entre Ríos',
         direccionCompleta: 'Villa Libertador San Martín, Entre Ríos',
         referenciasUbicacion: 'Barrio nuevo, a diez cuadras de la universidad.',
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'casa',
         ...enDolares(89000),
-        cantidad_ambientes: 3,
-        bedrooms: 2,
-        bathrooms: 1,
+        ambientes: 3,
+        dormitorios: 2,
+        banos: 1,
         area: 92,
         cochera: 'no',
         comodidades: ['cocina', 'calefaccion'],
@@ -281,20 +281,20 @@ const PROPIEDADES = [
     {
         ...base(ubicacion.crespo, [0.0009, 0.0013]),
         codigoInterno: 'NI-109',
-        title: 'Local comercial de 85 m² sobre avenida',
-        description:
+        titulo: 'Local comercial de 85 m² sobre avenida',
+        descripcion:
             'Local a la calle sobre una de las avenidas con más movimiento de Crespo, a dos cuadras de la plaza. ' +
             'Salón de 70 m² con vidriera de 6 m de frente, depósito, baño y kitchenette. ' +
             'Instalación eléctrica trifásica y persiana de seguridad. Apto para comercio u oficina.',
-        location: 'Crespo, Entre Ríos',
+        ubicacion: 'Crespo, Entre Ríos',
         direccionCompleta: 'Crespo, Entre Ríos',
         referenciasUbicacion: 'Sobre avenida, a dos cuadras de la plaza principal.',
-        categoria_operacion: 'alquiler',
-        tipo_inmueble: 'local',
+        categoriaOperacion: 'alquiler',
+        tipoInmueble: 'local',
         ...enPesos(900000),
-        cantidad_ambientes: 2,
-        bedrooms: 0,
-        bathrooms: 1,
+        ambientes: 2,
+        dormitorios: 0,
+        banos: 1,
         area: 85,
         cochera: 'no',
         expensas: 'sin_expensas',
@@ -327,8 +327,8 @@ async function cargar() {
     await connectDB();
 
     if (QUITAR) {
-        const existentes = await Property.find({ codigoInterno: { $in: CODIGOS } }).select('title codigoInterno').lean();
-        existentes.forEach((p) => console.log(`  ${SOLO_PROBAR ? 'Se borraría' : 'Borrada'}: ${p.codigoInterno} · ${p.title}`));
+        const existentes = await Property.find({ codigoInterno: { $in: CODIGOS } }).select('titulo codigoInterno').lean();
+        existentes.forEach((p) => console.log(`  ${SOLO_PROBAR ? 'Se borraría' : 'Borrada'}: ${p.codigoInterno} · ${p.titulo}`));
         if (!SOLO_PROBAR) await Property.deleteMany({ codigoInterno: { $in: CODIGOS } });
         console.log(`\n${SOLO_PROBAR ? 'Prueba:' : '✅'} ${existentes.length} propiedades de muestra ${SOLO_PROBAR ? 'para borrar' : 'borradas'}.`);
         return;
@@ -342,15 +342,15 @@ async function cargar() {
         const images = await subirFotos({ fotos, codigoInterno: datos.codigoInterno });
         const existente = await Property.findOne({ codigoInterno: datos.codigoInterno }).select('_id').lean();
         // Con el formato de operaciones y precios por operación (HU-25)
-        const cambios = { ...normalizarOperaciones(datos), images, orden: indice + 1, updatedAt: new Date() };
+        const cambios = { ...normalizarOperaciones(datos), fotos: images, orden: indice + 1, updatedAt: new Date() };
         if (!SOLO_PROBAR) {
             await Property.updateOne({ codigoInterno: datos.codigoInterno }, { $set: cambios, $setOnInsert: { createdAt: new Date() } }, { upsert: true, runValidators: true });
         }
-        console.log(`  ${existente ? 'Actualizada' : 'Creada'}${SOLO_PROBAR ? ' (prueba)' : ''}: ${datos.codigoInterno} · ${datos.title} · ${images.length} fotos`);
+        console.log(`  ${existente ? 'Actualizada' : 'Creada'}${SOLO_PROBAR ? ' (prueba)' : ''}: ${datos.codigoInterno} · ${datos.titulo} · ${images.length} fotos`);
     }
 
     // Las demás propiedades quedan como estaban, después de las de muestra en el catálogo
-    const otras = await Property.find({ codigoInterno: { $nin: CODIGOS } }).select('title codigoInterno images orden').lean();
+    const otras = await Property.find({ codigoInterno: { $nin: CODIGOS } }).select('titulo codigoInterno fotos orden').lean();
     if (!SOLO_PROBAR) {
         await Promise.all(otras.map((p, i) => Property.updateOne({ _id: p._id }, { $set: { orden: PROPIEDADES.length + 1 + i } })));
     }
@@ -358,10 +358,10 @@ async function cargar() {
     if (otras.length && BORRAR_OTRAS) {
         if (!SOLO_PROBAR) await Property.deleteMany({ _id: { $in: otras.map((p) => p._id) } });
         console.log(`\n${SOLO_PROBAR ? 'Se borrarían' : '🗑  Borradas'} las otras ${otras.length} propiedades:`);
-        otras.forEach((p) => console.log(`  - ${p.title}${p.codigoInterno ? ` (${p.codigoInterno})` : ''}`));
+        otras.forEach((p) => console.log(`  - ${p.titulo}${p.codigoInterno ? ` (${p.codigoInterno})` : ''}`));
     } else if (otras.length) {
         console.log('\nOtras propiedades que ya estaban en la base (si son de prueba, borralas desde el panel o corré con --borrar-otras):');
-        otras.forEach((p) => console.log(`  - ${p.title}${p.codigoInterno ? ` (${p.codigoInterno})` : ''} · ${p.images?.length || 0} fotos`));
+        otras.forEach((p) => console.log(`  - ${p.titulo}${p.codigoInterno ? ` (${p.codigoInterno})` : ''} · ${p.fotos?.length || 0} fotos`));
     }
 }
 

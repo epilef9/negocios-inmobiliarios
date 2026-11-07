@@ -11,12 +11,12 @@ const personaSchema = new mongoose.Schema({
     dni: { type: String, trim: true },
 }, { _id: false });
 
-// Precio de una operación (venta o alquiler). price va siempre en dólares (para ordenar y filtrar);
-// moneda es la moneda en que se cargó y priceARS el valor en pesos.
+// Precio de una operación (venta o alquiler). precio va siempre en dólares (para ordenar y filtrar);
+// moneda es la moneda en que se cargó y precioARS el valor en pesos.
 const precioSchema = new mongoose.Schema({
-    price: { type: Number, required: true, min: 0 },
+    precio: { type: Number, required: true, min: 0 },
     moneda: { type: String, enum: ['USD', 'ARS'], default: 'USD' },
-    priceARS: { type: Number, min: 0 },
+    precioARS: { type: Number, min: 0 },
 }, { _id: false });
 
 const propertySchema = new mongoose.Schema({
@@ -26,16 +26,16 @@ const propertySchema = new mongoose.Schema({
     inquilino: { type: personaSchema, select: false },
     // Solicitud de publicación que dio origen a esta propiedad: de ahí sale el dueño para los contratos.
     publicacion: { type: mongoose.Schema.Types.ObjectId, ref: 'SolicitudPublicacion' },
-    title: {
+    titulo: {
         type: String,
         required: true,
     },
     codigoInterno: String,
-    description: {
+    descripcion: {
         type: String,
     },
     // Precio de la operación principal (copia de precios.venta o precios.alquiler; en temporario, el de referencia)
-    price: {
+    precio: {
         type: Number,
         required: true,
         min: 0,
@@ -45,9 +45,9 @@ const propertySchema = new mongoose.Schema({
         enum: ['USD', 'ARS'],
         default: 'USD',
     },
-    priceARS: { type: Number, min: 0 },
+    precioARS: { type: Number, min: 0 },
     cotizacionDolar: { type: Number, min: 0 },
-    location: {
+    ubicacion: {
         type: String,
         required: true,
     },
@@ -66,7 +66,7 @@ const propertySchema = new mongoose.Schema({
         alquiler: { type: precioSchema, default: undefined },
     },
     // Copia de la operación principal (venta si está, si no la única). La mantiene properties.service.
-    categoria_operacion: {
+    categoriaOperacion: {
         type: String,
         enum: ['venta', 'alquiler', 'temporario'],
     },
@@ -76,11 +76,11 @@ const propertySchema = new mongoose.Schema({
         default: undefined,
     },
     permitirSolicitudes: { type: Boolean, default: true },
-    tipo_inmueble: {
+    tipoInmueble: {
         type: String,
         enum: ['departamento', 'local', 'casa', 'monoambiente', 'terreno'],
     },
-    cantidad_ambientes: { type: Number, min: 0 },
+    ambientes: { type: Number, min: 0 },
     comodidades: [String],
     otrasComodidades: String,
     expensas: String,
@@ -135,12 +135,12 @@ const propertySchema = new mongoose.Schema({
         type: Number,
         default: 0,
     },
-    bedrooms: {
+    dormitorios: {
         type: Number,
         required: true,
         min: 0,
     },
-    bathrooms: {
+    banos: {
         type: Number,
         required: true,
         min: 0,
@@ -154,7 +154,7 @@ const propertySchema = new mongoose.Schema({
         type: Number,
         min: 0,
     },
-    images: [{
+    fotos: [{
         type: String,
     }],
     createdAt: {
@@ -173,4 +173,4 @@ propertySchema.pre('save', function() {
 
 const Property = mongoose.model('Property', propertySchema);
 
-module.exports = Property;
+module.exports = Property;

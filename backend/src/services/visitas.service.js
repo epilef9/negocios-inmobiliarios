@@ -420,8 +420,8 @@ class VisitasService {
             updateData.fecha = extra.nuevaFecha || actual.fecha;
             updateData.horario = extra.nuevoHorario || actual.horario;
             // Día nuevo: el recordatorio y la respuesta de asistencia eran del anterior
-            updateData.recordatorioEnviadoAt = null;
-            updateData.asistencia = { respuesta: null, respondidaAt: null };
+            updateData.recordatorioEnviadoEn = null;
+            updateData.asistencia = { respuesta: null, respondidaEn: null };
             resultado = await agenda.reprogramar(id, updateData.fecha, updateData.horario, (session) =>
                 visitasRepository.updateVisita(id, updateData, { session })
             );
@@ -463,7 +463,7 @@ class VisitasService {
         const actualizada = await visitasRepository.updateVisita(visita._id, {
             ...extra,
             estado: 'cancelada',
-            canceladaAt: new Date(),
+            canceladaEn: new Date(),
             motivoCancelacion: motivo,
         });
         await tokensVisita.anular(visita._id);
@@ -515,8 +515,8 @@ class VisitasService {
             fecha: `${d}/${m}/${a}`,
             horario: `${hora} h`,
             estado: 'pendiente',
-            recordatorioEnviadoAt: null,
-            asistencia: { respuesta: null, respondidaAt: null },
+            recordatorioEnviadoEn: null,
+            asistencia: { respuesta: null, respondidaEn: null },
         };
         const { motivo, visita } = await agenda.reprogramar(
             anterior._id,
@@ -562,7 +562,7 @@ class VisitasService {
         if (!puedeCancelar(valido.visita)) return { status: 409, error: 'Esta visita ya no se puede cambiar.' };
         // Si llegan dos clics a la vez, solo uno responde
         if (!(await tokensVisita.consumir(valido.registro))) return { status: 404, error: ENLACE_INVALIDO };
-        const asistencia = { respuesta, respondidaAt: new Date() };
+        const asistencia = { respuesta, respondidaEn: new Date() };
         if (respuesta === 'confirmo') {
             return { visita: datosGestion(await visitasRepository.updateVisita(valido.visita._id, { asistencia })) };
         }

@@ -3,9 +3,9 @@ const mongoose = require('mongoose');
 const documentoSchema = new mongoose.Schema(
     {
         tipo: { type: String, required: true },
-        fileId: { type: mongoose.Schema.Types.ObjectId, required: true },
+        archivoId: { type: mongoose.Schema.Types.ObjectId, required: true },
         tamano: { type: Number, required: true },
-        mimeType: { type: String, enum: ['application/pdf', 'image/jpeg', 'image/png'], required: true },
+        tipoMime: { type: String, enum: ['application/pdf', 'image/jpeg', 'image/png'], required: true },
     },
     { _id: false }
 );
@@ -28,11 +28,11 @@ const solicitudSchema = new mongoose.Schema(
         propiedad: { type: mongoose.Schema.Types.ObjectId, ref: 'Property', required: true, index: true },
         operacion: { type: String, enum: ['alquiler', 'compra'], required: true },
         estado: { type: String, enum: ['pendiente', 'aprobada', 'rechazada', 'vencida', 'cerrada'], default: 'pendiente', index: true },
-        reactivadaAt: { type: Date, default: null },
+        reactivadaEn: { type: Date, default: null },
         comentarioEstado: { type: String, trim: true, maxlength: 500, default: '' },
         historialEstados: { type: [cambioEstadoSchema], default: [] },
         archivada: { type: Boolean, default: false, index: true },
-        archivadaAt: { type: Date, default: null },
+        archivadaEn: { type: Date, default: null },
         archivadaPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         datosCifrados: { type: String, required: true, select: false },
         documentos: { type: [documentoSchema], default: [] },

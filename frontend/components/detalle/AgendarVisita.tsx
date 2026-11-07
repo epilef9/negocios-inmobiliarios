@@ -66,8 +66,8 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
         },
         propiedad: {
           id: propiedad._id,
-          titulo: propiedad.title,
-          direccion: propiedad.direccionCompleta || propiedad.location,
+          titulo: propiedad.titulo,
+          direccion: propiedad.direccionCompleta || propiedad.ubicacion,
           precio,
         },
         fecha: `${d}/${m}/${a}`,
@@ -105,7 +105,7 @@ const AgendarVisita = forwardRef<AgendarVisitaHandle, Props>(function AgendarVis
           <h2 id="visita-titulo" className="font-display m-0 text-[34px] font-normal leading-none">
             {estado === 'enviada' ? 'Pedido enviado' : 'Agendar una visita'}
           </h2>
-          <p className="m-0 text-[14px] text-[#efe9df]/70">{propiedad.title}</p>
+          <p className="m-0 text-[14px] text-[#efe9df]/70">{propiedad.titulo}</p>
         </div>
         <button
           type="button"

@@ -40,7 +40,7 @@ export default function ApartadoCuenta({
           </div>
         ) : !user ? (
           <InvitacionIngresar ruta={ruta} titulo={`Ingresá para ver ${titulo.toLowerCase()}`} />
-        ) : user.role === "admin" ? (
+        ) : user.rol === "admin" ? (
           <p className="m-0 text-[15px] text-[#efe9df]/70">
             Este apartado es para cuentas de cliente. Lo que cargan los clientes se gestiona desde el{" "}
             <Link href="/admin" className="calma-link">
