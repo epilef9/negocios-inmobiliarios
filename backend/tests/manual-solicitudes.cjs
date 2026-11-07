@@ -6,12 +6,12 @@ const http = require('node:http');
 const { infoCliente } = require('../src/services/solicitudes.service');
 const { cambioAutomatico } = require('../src/services/solicitudes-ciclo.service');
 const fecha = (dias) => new Date(Date.now() - dias * 86400000).toISOString();
-let role = 'cliente';
+let rol = 'cliente';
 let vendida = false;
 const user = () => ({ id: '507f1f77bcf86cd799439001', nombre: 'Ana', apellido: 'Prueba', email: 'cliente@example.com',
-    dni: '30123456', telefono: '3434444444', role, createdAt: fecha(20), preferencias: { tema: 'light', paleta: 'corporativo' } });
-const propiedad = { _id: '507f1f77bcf86cd799439011', title: 'Casa de prueba con jardín', ciudad: 'Paraná', location: 'Paraná',
-    estado: 'disponible', images: ['http://localhost:3100/images/home-inmobiliaria.webp'] };
+    dni: '30123456', telefono: '3434444444', rol, createdAt: fecha(20), preferencias: { tema: 'light', paleta: 'corporativo' } });
+const propiedad = { _id: '507f1f77bcf86cd799439011', titulo: 'Casa de prueba con jardín', ciudad: 'Paraná', ubicacion: 'Paraná',
+    estado: 'disponible', fotos: ['http://localhost:3100/images/home-inmobiliaria.webp'] };
 const solicitudes = [
     { _id: '507f1f77bcf86cd799439021', propiedad, estado: 'pendiente', operacion: 'alquiler', createdAt: fecha(10),
         historialEstados: [
@@ -21,7 +21,7 @@ const solicitudes = [
             { estado: 'pendiente', comentario: 'L'.repeat(500), fecha: fecha(1) },
             { estado: 'pendiente', comentario: '', comentarioReferenciaIndice: 3, fecha: fecha(0) },
         ] },
-    { _id: '507f1f77bcf86cd799439022', propiedad: { ...propiedad, title: 'Departamento sin respuesta', images: [] }, estado: 'pendiente', operacion: 'compra', createdAt: fecha(61), historialEstados: [] },
+    { _id: '507f1f77bcf86cd799439022', propiedad: { ...propiedad, titulo: 'Departamento sin respuesta', fotos: [] }, estado: 'pendiente', operacion: 'compra', createdAt: fecha(61), historialEstados: [] },
 ];
 const actuales = () => solicitudes.map((solicitud) => {
     const inmueble = { ...solicitud.propiedad, estado: vendida ? 'vendido' : 'disponible' };
@@ -44,8 +44,8 @@ http.createServer(async (req, res) => {
     const path = new URL(req.url, 'http://localhost:4100').pathname;
     if (path.startsWith('/qa')) {
         if (path === '/qa/vendida') vendida = true;
-        if (path === '/qa/admin') role = 'admin';
-        if (path === '/qa/cliente') role = 'cliente';
+        if (path === '/qa/admin') rol = 'admin';
+        if (path === '/qa/cliente') rol = 'cliente';
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         return res.end('<h1>QA local: datos ficticios</h1><a href="/qa/vendida">Marcar propiedad como vendida</a><br><a href="/qa/admin">Usar rol administrador</a><br><a href="/qa/cliente">Usar rol cliente</a><br><a href="http://localhost:3100/perfil">Ver Mi cuenta</a><br><a href="http://localhost:3100/admin/solicitudes">Ver panel</a>');
     }

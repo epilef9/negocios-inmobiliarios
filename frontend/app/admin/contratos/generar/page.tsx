@@ -37,7 +37,7 @@ const tiposPara = (p?: ApiProperty): readonly TipoContrato[] => {
   if (!operaciones.length) return TIPOS;
   if (operaciones.includes('temporario')) return ['Alquiler temporario'];
   const tipos: TipoContrato[] = [];
-  if (operaciones.includes('alquiler')) tipos.push(p?.tipo_inmueble === 'local' ? 'Comercial' : 'Alquiler permanente');
+  if (operaciones.includes('alquiler')) tipos.push(p?.tipoInmueble === 'local' ? 'Comercial' : 'Alquiler permanente');
   if (operaciones.includes('venta')) tipos.push('Compraventa');
   return tipos;
 };
@@ -46,8 +46,8 @@ const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
 // Precio publicado de la operación del contrato (compraventa → venta; el resto → alquiler), como punto de partida
 const precioPublicado = (p: ApiProperty, tipo: TipoContrato) => {
   if (tipo === 'Alquiler temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
-  const precio = precioDe(p, tipo === 'Compraventa' ? 'venta' : 'alquiler') ?? { price: p.price, moneda: p.moneda, priceARS: p.priceARS };
-  return precio.moneda === 'ARS' ? `ARS ${miles(precio.priceARS ?? precio.price)}` : `USD ${miles(precio.price)}`;
+  const precio = precioDe(p, tipo === 'Compraventa' ? 'venta' : 'alquiler') ?? { precio: p.precio, moneda: p.moneda, precioARS: p.precioARS };
+  return precio.moneda === 'ARS' ? `ARS ${miles(precio.precioARS ?? precio.precio)}` : `USD ${miles(precio.precio)}`;
 };
 const AJUSTES = ['Semestral', 'Cuatrimestral', 'Trimestral', 'Anual'] as const;
 const COMISIONES = ['3%', '4%', '5%'];
@@ -323,7 +323,7 @@ function GeneradorContrato() {
   }, [parametro]);
 
   // Al abrir un contrato guardado, se marca la propiedad del listado que coincide con su título
-  const propiedadElegida = datos.propiedadId || propiedades.find((p) => p.title === datos.propiedadTitulo)?._id || '';
+  const propiedadElegida = datos.propiedadId || propiedades.find((p) => p.titulo === datos.propiedadTitulo)?._id || '';
 
   const cambiar = <K extends keyof Datos>(campo: K, valor: Datos[K]) => {
     setDatos((d) => ({ ...d, [campo]: valor }));
@@ -347,8 +347,8 @@ function GeneradorContrato() {
       return {
         ...d,
         propiedadId: idPropiedad,
-        propiedadTitulo: p?.title ?? '',
-        propiedadDireccion: p?.direccionCompleta || p?.location || '',
+        propiedadTitulo: p?.titulo ?? '',
+        propiedadDireccion: p?.direccionCompleta || p?.ubicacion || '',
         propiedadCiudad: p?.ciudad ?? '',
         tipoContrato,
         plantilla: PLANTILLA_DE[tipoContrato],

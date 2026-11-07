@@ -28,19 +28,19 @@ const sinRepetir = (lista, maximo) => [...new Set(lista)].slice(0, maximo).join(
 // operación buscada; sin operación, alcanza con que alguna de las dos entre en el rango.
 // En operación, localidad y tipo alcanza con una de las opciones; las comodidades tienen que estar todas.
 const cumpleBusqueda = (p, f = {}) => {
-    const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+    const ambientes = p.ambientes ?? p.dormitorios;
     const operaciones = operacionesDe(p);
     const buscadas = separar(f.operacion).filter((o) => operaciones.includes(o));
     const localidades = separar(f.localidad).map(normalizar);
     const tipos = separar(f.tipo);
     const enDolares = (f.operacion ? buscadas : operaciones)
-        .map((o) => (o === 'temporario' ? p.price : precioDe(p, o)?.price))
+        .map((o) => (o === 'temporario' ? p.precio : precioDe(p, o)?.precio))
         .filter((v) => typeof v === 'number');
     const enRango = (v) => (f.precioMin == null || v >= f.precioMin) && (f.precioMax == null || v <= f.precioMax);
     return (
         (!f.operacion || buscadas.length > 0) &&
         (!localidades.length || localidades.includes(normalizar(p.ciudad))) &&
-        (!tipos.length || tipos.includes(tipoGeneral(p.tipo_inmueble))) &&
+        (!tipos.length || tipos.includes(tipoGeneral(p.tipoInmueble))) &&
         (f.precioMin == null && f.precioMax == null ? true : enDolares.some(enRango)) &&
         (f.ambientes == null || (ambientes != null && ambientes >= f.ambientes)) &&
         // Una o varias comodidades («pileta,wifi»): tiene que tener todas
@@ -82,7 +82,7 @@ const describirBusqueda = (f) =>
         .join(' · ');
 
 // ---------- Lo que hace el cliente ----------
-const mios = (usuario) => Aviso.find({ usuario, activo: true }).sort({ createdAt: -1 }).populate('propiedad', 'title images estado ciudad categoria_operacion operaciones').lean();
+const mios = (usuario) => Aviso.find({ usuario, activo: true }).sort({ createdAt: -1 }).populate('propiedad', 'titulo fotos estado ciudad categoriaOperacion operaciones').lean();
 
 const crear = async (usuario, cuerpo = {}) => {
     if ((await Aviso.countDocuments({ usuario, activo: true })) >= MAXIMO_AVISOS_POR_USUARIO) {
@@ -136,8 +136,8 @@ const propiedadDisponible = async (propiedadId) => {
                 .avisarCliente({
                     para: user.email,
                     nombre: user.nombre,
-                    asunto: `«${p.title}» ya está disponible`,
-                    parrafos: [`La propiedad que estabas esperando volvió a estar disponible: ${p.title}${p.ciudad ? `, en ${p.ciudad}` : ''}.`, 'Si te interesa, escribinos o pedí una visita cuanto antes.'],
+                    asunto: `«${p.titulo}» ya está disponible`,
+                    parrafos: [`La propiedad que estabas esperando volvió a estar disponible: ${p.titulo}${p.ciudad ? `, en ${p.ciudad}` : ''}.`, 'Si te interesa, escribinos o pedí una visita cuanto antes.'],
                     boton: 'Ver la propiedad',
                     enlace: linkFicha(p),
                     pie: `Este aviso ya se cumplió y no te vamos a escribir de nuevo por esta propiedad.`,
@@ -169,8 +169,8 @@ const coincidenciasDeBusqueda = async (p) => {
                 .avisarCliente({
                     para: user.email,
                     nombre: user.nombre,
-                    asunto: `Entró una propiedad como la que buscás: ${p.title}`,
-                    parrafos: [`Coincide con tu búsqueda guardada (${describirBusqueda(a.filtros)}):`, `${p.title}${p.ciudad ? ` · ${p.ciudad}` : ''}`],
+                    asunto: `Entró una propiedad como la que buscás: ${p.titulo}`,
+                    parrafos: [`Coincide con tu búsqueda guardada (${describirBusqueda(a.filtros)}):`, `${p.titulo}${p.ciudad ? ` · ${p.ciudad}` : ''}`],
                     boton: 'Ver la propiedad',
                     enlace: linkFicha(p),
                     pie: `¿No querés más avisos de esta búsqueda? Date de baja acá: ${linkBaja(a)}`,

@@ -64,18 +64,18 @@ const cifrarDocumentos = async (solicitud, archivos) => {
     try {
         for (const [tipo, lista] of Object.entries(archivos)) {
             for (const archivo of lista) {
-                const fileId = await subirBuffer(
+                const archivoId = await subirBuffer(
                     bucket,
                     cifrar(archivo.buffer),
                     `${solicitud._id}-${crypto.randomUUID()}`,
                     { solicitud: String(solicitud._id), tipo }
                 );
-                ids.push(fileId);
+                ids.push(archivoId);
                 documentos.push({
                     tipo,
-                    fileId,
+                    archivoId,
                     tamano: archivo.size,
-                    mimeType: archivo.mimetype === 'image/jpg' ? 'image/jpeg' : archivo.mimetype,
+                    tipoMime: archivo.mimetype === 'image/jpg' ? 'image/jpeg' : archivo.mimetype,
                 });
             }
         }
@@ -88,7 +88,7 @@ const cifrarDocumentos = async (solicitud, archivos) => {
 
 const asegurarPropiedadSolicitable = async (propiedadId, operacion) => {
     const propiedad = await Property.findById(propiedadId)
-        .select('title location ciudad price priceARS moneda categoria_operacion operaciones precios permitirSolicitudes estado vendida')
+        .select('titulo ubicacion ciudad precio precioARS moneda categoriaOperacion operaciones precios permitirSolicitudes estado vendida')
         .lean();
     if (!propiedad) {
         const error = new Error('La propiedad ya no está publicada.');
@@ -130,7 +130,7 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
     if (porReferencias) {
         const documentosService = require('./solicitudes-documentos.service');
         solicitud.documentos = Object.entries(archivos).flatMap(([tipo, lista]) => lista.map((archivo) => ({
-            tipo, fileId: archivo.fileId, tamano: archivo.size, mimeType: archivo.mimetype,
+            tipo, archivoId: archivo.fileId, tamano: archivo.size, tipoMime: archivo.mimetype,
         })));
         try {
             await mongoose.connection.transaction(async (session) => {
@@ -140,7 +140,7 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
                 await documentosService.vincular(solicitud.documentos, solicitud, session);
                 await solicitud.save({ session });
                 await SolicitudNotificacion.create([{ solicitud: solicitud._id,
-                    mensaje: `Nueva solicitud de ${descripcionSolicitud(operacion)} para ${propiedad.title}.` }], { session });
+                    mensaje: `Nueva solicitud de ${descripcionSolicitud(operacion)} para ${propiedad.titulo}.` }], { session });
             });
             return { solicitud, repetida: false };
         } catch (error) {
@@ -158,7 +158,7 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
         await solicitud.save();
         await SolicitudNotificacion.create({
             solicitud: solicitud._id,
-            mensaje: `Nueva solicitud de ${descripcionSolicitud(operacion)} para ${propiedad.title}.`,
+            mensaje: `Nueva solicitud de ${descripcionSolicitud(operacion)} para ${propiedad.titulo}.`,
         });
         return { solicitud, repetida: false };
     } catch (error) {
@@ -176,25 +176,25 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
     }
 };
 
-const camposPropiedadAdmin = 'title ciudad location price priceARS moneda tipo_inmueble estado vendida images categoria_operacion operaciones precios direccionCompleta';
+const camposPropiedadAdmin = 'titulo ciudad ubicacion precio precioARS moneda tipoInmueble estado vendida fotos categoriaOperacion operaciones precios direccionCompleta';
 
 const infoPublica = (solicitud) => {
-    const propiedadPoblada = solicitud.propiedad && typeof solicitud.propiedad === 'object' && solicitud.propiedad.title !== undefined
+    const propiedadPoblada = solicitud.propiedad && typeof solicitud.propiedad === 'object' && solicitud.propiedad.titulo !== undefined
         ? solicitud.propiedad
         : null;
     const propiedadId = propiedadPoblada?._id || solicitud.propiedad;
     const precio = propiedadPoblada
         ? precioDe(propiedadPoblada, operacionDeSolicitud(solicitud.operacion)) ?? precioDe(propiedadPoblada, principalDe(propiedadPoblada))
         : null;
-    // En la moneda en que se publicó (price está siempre en dólares)
-    const precioMostrado = precio ? { monto: precio.moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price, moneda: precio.moneda } : null;
+    // En la moneda en que se publicó (precio está siempre en dólares)
+    const precioMostrado = precio ? { monto: precio.moneda === 'ARS' ? precio.precioARS ?? precio.precio : precio.precio, moneda: precio.moneda } : null;
     return ({
     id: String(solicitud._id),
     operacion: solicitud.operacion,
     estado: solicitud.estado,
     comentarioEstado: solicitud.comentarioEstado || '',
     archivada: solicitud.archivada === true,
-    archivadaAt: solicitud.archivadaAt || null,
+    archivadaEn: solicitud.archivadaEn || null,
     historialEstados: Array.isArray(solicitud.historialEstados)
         ? solicitud.historialEstados.map(({ estado, comentario, comentarioReferenciaIndice, fecha }) => ({
             estado,
@@ -208,17 +208,17 @@ const infoPublica = (solicitud) => {
     propiedad: propiedadId && {
         id: String(propiedadId),
         disponible: Boolean(propiedadPoblada),
-        titulo: propiedadPoblada?.title || null,
-        ciudad: propiedadPoblada?.ciudad || propiedadPoblada?.location || null,
-        localidad: propiedadPoblada?.ciudad || propiedadPoblada?.location || null,
-        direccion: propiedadPoblada?.direccionCompleta || propiedadPoblada?.location || null,
-        tipoInmueble: propiedadPoblada?.tipo_inmueble || null,
+        titulo: propiedadPoblada?.titulo || null,
+        ciudad: propiedadPoblada?.ciudad || propiedadPoblada?.ubicacion || null,
+        localidad: propiedadPoblada?.ciudad || propiedadPoblada?.ubicacion || null,
+        direccion: propiedadPoblada?.direccionCompleta || propiedadPoblada?.ubicacion || null,
+        tipoInmueble: propiedadPoblada?.tipoInmueble || null,
         estadoPropiedad: propiedadPoblada?.estado || null,
         // El precio que se muestra es el de la operación de la solicitud (compra → venta)
         tipoOperacion: propiedadPoblada ? operacionDeSolicitud(solicitud.operacion) : null,
         precio: precioMostrado?.monto ?? null,
         moneda: precioMostrado?.moneda || null,
-        imagen: Array.isArray(propiedadPoblada?.images) && propiedadPoblada.images.length ? propiedadPoblada.images[0] : null,
+        imagen: Array.isArray(propiedadPoblada?.fotos) && propiedadPoblada.fotos.length ? propiedadPoblada.fotos[0] : null,
     },
     });
 };
@@ -230,11 +230,11 @@ const infoCliente = (solicitud) => {
         comentarioFecha: mensajes[0]?.fecha || null };
 };
 
-const infoDocumentos = (solicitudId, documentos) => (Array.isArray(documentos) ? documentos : []).map(({ tipo, tamano, mimeType }) => ({
+const infoDocumentos = (solicitudId, documentos) => (Array.isArray(documentos) ? documentos : []).map(({ tipo, tamano, tipoMime }) => ({
     tipo,
     nombre: TIPOS_DOCUMENTO[tipo] || 'Documento',
     tamano,
-    mimeType,
+    tipoMime,
     url: `/solicitudes/${solicitudId}/documentos/${encodeURIComponent(tipo)}`,
 }));
 
@@ -267,7 +267,7 @@ const serializarSolicitudAdmin = (solicitud) => {
 
 const listarMias = async (usuario) => {
     const solicitudes = await Solicitud.find({ usuario })
-        .populate('propiedad', 'title ciudad location images estado vendida operaciones categoria_operacion')
+        .populate('propiedad', 'titulo ciudad ubicacion fotos estado vendida operaciones categoriaOperacion')
         .sort({ createdAt: -1 })
         .limit(100)
         .lean();
@@ -386,7 +386,7 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
         await asegurarPropiedadSolicitable(solicitud.propiedad, solicitud.operacion);
     }
     if (estado === 'pendiente' && ['vencida', 'cerrada'].includes(solicitud.estado)) {
-        cambios.$set.reactivadaAt = new Date();
+        cambios.$set.reactivadaEn = new Date();
     }
     const actualizada = await Solicitud.findOneAndUpdate(
         filtro,
@@ -454,13 +454,13 @@ const actualizarArchivado = async ({ id, archivada, administradoPor }) => {
         ? {
             $set: {
                 archivada: true,
-                archivadaAt: new Date(),
+                archivadaEn: new Date(),
                 archivadaPor: administradoPor,
             },
         }
         : {
             $set: { archivada: false },
-            $unset: { archivadaAt: 1, archivadaPor: 1 },
+            $unset: { archivadaEn: 1, archivadaPor: 1 },
         };
     const solicitud = await Solicitud.findByIdAndUpdate(id, cambios, { new: true, runValidators: true }).lean();
     if (!solicitud) {
@@ -471,7 +471,7 @@ const actualizarArchivado = async ({ id, archivada, administradoPor }) => {
     return {
         id: String(solicitud._id),
         archivada: solicitud.archivada === true,
-        archivadaAt: solicitud.archivadaAt || null,
+        archivadaEn: solicitud.archivadaEn || null,
     };
 };
 
@@ -485,9 +485,9 @@ const eliminarDefinitivamente = async (id) => mongoose.connection.transaction(as
 
     const idsDocumentos = [...new Map(
         (Array.isArray(solicitud.documentos) ? solicitud.documentos : [])
-            .map(({ fileId }) => [String(fileId), fileId])
+            .map(({ archivoId }) => [String(archivoId), archivoId])
     ).values()];
-    if (idsDocumentos.some((fileId) => !mongoose.isValidObjectId(fileId))) {
+    if (idsDocumentos.some((archivoId) => !mongoose.isValidObjectId(archivoId))) {
         const error = new Error('No se pudo verificar de forma segura la documentación asociada; no se eliminó la solicitud.');
         error.statusCode = 409;
         throw error;
@@ -496,7 +496,7 @@ const eliminarDefinitivamente = async (id) => mongoose.connection.transaction(as
     if (idsDocumentos.length) {
         const documentoCompartido = await Solicitud.exists({
             _id: { $ne: solicitud._id },
-            'documentos.fileId': { $in: idsDocumentos },
+            'documentos.archivoId': { $in: idsDocumentos },
         }).session(session);
         if (documentoCompartido) {
             const error = new Error('Un documento está asociado a otra solicitud; no se eliminó ningún dato.');
@@ -540,7 +540,7 @@ const listarNotificacionesAdmin = async () => {
         .populate({
             path: 'solicitud',
             select: 'operacion estado createdAt propiedad archivada',
-            populate: { path: 'propiedad', select: 'title' },
+            populate: { path: 'propiedad', select: 'titulo' },
         })
         .sort({ createdAt: -1 })
         .limit(20)
@@ -555,13 +555,13 @@ const listarNotificacionesAdmin = async () => {
             solicitudId: String(notificacion.solicitud._id),
             estado: notificacion.solicitud.estado,
             operacion: notificacion.solicitud.operacion,
-            propiedad: notificacion.solicitud.propiedad?.title || 'Propiedad',
+            propiedad: notificacion.solicitud.propiedad?.titulo || 'Propiedad',
         }));
 };
 
 const contarPendientes = async () => {
     const pendientes = await Solicitud.find({ estado: 'pendiente', archivada: { $ne: true } })
-        .populate('propiedad', 'title estado vendida operaciones categoria_operacion').lean();
+        .populate('propiedad', 'titulo estado vendida operaciones categoriaOperacion').lean();
     let cantidad = 0;
     for (const solicitud of pendientes) {
         const actual = await ciclo.sincronizarSolicitud(solicitud, solicitud.propiedad);
@@ -580,10 +580,10 @@ const obtenerDocumento = async (solicitudId, usuario, esAdmin, tipo) => {
     if (!documento) return null;
 
     const bucket = bucketDocumentos();
-    const file = await bucket.find({ _id: documento.fileId }).next();
+    const file = await bucket.find({ _id: documento.archivoId }).next();
     if (!file || file.metadata?.solicitud !== String(solicitud._id)) return null;
-    const contenido = descifrar(await leerBuffer(bucket.openDownloadStream(documento.fileId)));
-    return { contenido, mimeType: documento.mimeType, nombre: TIPOS_DOCUMENTO[tipo] || 'Documento' };
+    const contenido = descifrar(await leerBuffer(bucket.openDownloadStream(documento.archivoId)));
+    return { contenido, mimeType: documento.tipoMime, nombre: TIPOS_DOCUMENTO[tipo] || 'Documento' };
 };
 
 module.exports = {

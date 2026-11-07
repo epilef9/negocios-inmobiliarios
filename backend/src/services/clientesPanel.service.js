@@ -29,18 +29,18 @@ const claveDe = (persona) => {
 
 const resumenPropiedad = (p) => ({
     id: String(p._id),
-    titulo: p.title,
-    direccion: p.direccionCompleta || p.location || '',
+    titulo: p.titulo,
+    direccion: p.direccionCompleta || p.ubicacion || '',
     estado: p.estado || 'disponible',
-    operacion: p.categoria_operacion || null,
+    operacion: p.categoriaOperacion || null,
     operaciones: operacionesDe(p),
-    imagen: Array.isArray(p.images) && p.images.length ? p.images[0] : null,
+    imagen: Array.isArray(p.fotos) && p.fotos.length ? p.fotos[0] : null,
 });
 
 const panel = async () => {
     const [propiedades, usuarios, contratos] = await Promise.all([
         Property.find().select('+propietario +inquilino').sort({ orden: 1, createdAt: -1 }).lean(),
-        User.find({ role: 'cliente' }).select('nombre apellido email telefono dni emailVerificado createdAt').sort({ nombre: 1 }).lean(),
+        User.find({ rol: 'cliente' }).select('nombre apellido email telefono dni emailVerificado createdAt').sort({ nombre: 1 }).lean(),
         Contrato.find({ estado: { $in: ['activo', 'firmado', 'por_vencer'] } }).lean(),
     ]);
 
@@ -87,7 +87,7 @@ const panel = async () => {
         let inquilino = p.inquilino && (p.inquilino.nombre || p.inquilino.usuario) ? { ...p.inquilino } : null;
         let origenInquilino = inquilino ? 'propiedad' : null;
         if (!inquilino) {
-            const contrato = contratoPorTitulo.get(normalizar(p.title));
+            const contrato = contratoPorTitulo.get(normalizar(p.titulo));
             if (contrato && contrato.cliente) {
                 inquilino = { nombre: contrato.cliente.nombre, email: contrato.cliente.email, telefono: contrato.cliente.telefono };
                 origenInquilino = 'contrato';
@@ -175,7 +175,7 @@ const asignar = async (propertyId, rol, persona, reemplazar = false) => {
         }
     }
 
-    const propiedad = await Property.findById(propertyId).select('+propietario +inquilino estado vendida title');
+    const propiedad = await Property.findById(propertyId).select('+propietario +inquilino estado vendida titulo');
     if (!propiedad) throw errorHttp('Propiedad no encontrada', 404);
 
     const esMisma = (a, b) => {

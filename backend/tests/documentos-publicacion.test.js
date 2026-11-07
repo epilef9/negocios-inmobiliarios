@@ -75,8 +75,8 @@ test('descarga: el dueño y el admin sí, otro usuario no', async () => {
     const [referencia] = await documentos.guardar([archivo(PDF)], CLIENTE);
     const id = referencia.slice(8);
     solicitudes.push({ cliente: CLIENTE, documentos: { dni: referencia } });
-    assert.deepEqual((await servicio.obtenerDocumento(id, { _id: CLIENTE, role: 'cliente' })).contenido, PDF);
-    assert.deepEqual((await servicio.obtenerDocumento(id, { _id: OTRO, role: 'admin' })).contenido, PDF);
-    await assert.rejects(servicio.obtenerDocumento(id, { _id: OTRO, role: 'cliente' }), { statusCode: 403 });
-    await assert.rejects(servicio.obtenerDocumento('../../.env', { _id: CLIENTE, role: 'cliente' }), { statusCode: 404 });
+    assert.deepEqual((await servicio.obtenerDocumento(id, { _id: CLIENTE, rol: 'cliente' })).contenido, PDF);
+    assert.deepEqual((await servicio.obtenerDocumento(id, { _id: OTRO, rol: 'admin' })).contenido, PDF);
+    await assert.rejects(servicio.obtenerDocumento(id, { _id: OTRO, rol: 'cliente' }), { statusCode: 403 });
+    await assert.rejects(servicio.obtenerDocumento('../../.env', { _id: CLIENTE, rol: 'cliente' }), { statusCode: 404 });
 });

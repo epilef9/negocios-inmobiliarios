@@ -4,7 +4,7 @@ import { operacionesAbiertas, operacionesDe } from '@/components/sitio/operacion
 // Opciones de un <select> de propiedades, agrupadas por tipo de inmueble (los mismos tipos que al cargar una propiedad).
 // Cada opción dice título · localidad · operación, así se distinguen aunque dos títulos se parezcan.
 
-const GRUPOS: { tipo: NonNullable<ApiProperty['tipo_inmueble']>; titulo: string }[] = [
+const GRUPOS: { tipo: NonNullable<ApiProperty['tipoInmueble']>; titulo: string }[] = [
   { tipo: 'casa', titulo: 'Casas' },
   { tipo: 'departamento', titulo: 'Departamentos' },
   { tipo: 'local', titulo: 'Locales' },
@@ -17,12 +17,12 @@ const OPERACION: Record<string, string> = { venta: 'Venta', alquiler: 'Alquiler'
 export const propiedadOfrecida = (p: ApiProperty) => p.estado === 'reservado' || operacionesAbiertas(p).length > 0;
 
 export const etiquetaPropiedad = (p: ApiProperty) =>
-  [p.title, p.ciudad, operacionesDe(p).map((o) => OPERACION[o]).join(' y '), p.estado === 'reservado' ? 'reservada' : '']
+  [p.titulo, p.ciudad, operacionesDe(p).map((o) => OPERACION[o]).join(' y '), p.estado === 'reservado' ? 'reservada' : '']
     .filter(Boolean)
     .join(' · ');
 
 // Un monoambiente es un departamento de 1 ambiente (así se carga en el panel)
-const tipoGeneral = (p: ApiProperty) => (p.tipo_inmueble === 'monoambiente' ? 'departamento' : p.tipo_inmueble);
+const tipoGeneral = (p: ApiProperty) => (p.tipoInmueble === 'monoambiente' ? 'departamento' : p.tipoInmueble);
 
 export default function OpcionesPropiedad({ propiedades }: { propiedades: ApiProperty[] }) {
   const sinTipo = propiedades.filter((p) => !GRUPOS.some((g) => g.tipo === tipoGeneral(p)));

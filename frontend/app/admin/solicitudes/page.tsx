@@ -392,7 +392,7 @@ export default function SolicitudesAdminPage() {
     try {
       const resultado = await actualizarArchivadoSolicitud(solicitud.id, archivada);
       setSolicitudes((actuales) => actuales.map((item) => item.id === resultado.id
-        ? { ...item, archivada: resultado.archivada, archivadaAt: resultado.archivadaAt }
+        ? { ...item, archivada: resultado.archivada, archivadaEn: resultado.archivadaEn }
         : item));
       setSolicitudParaArchivar(null);
       mostrar(archivada ? 'Solicitud archivada.' : 'Solicitud restaurada.');
@@ -430,7 +430,7 @@ export default function SolicitudesAdminPage() {
       setPreview({
         url: URL.createObjectURL(blob),
         nombre: documento.nombre,
-        mime: documento.mimeType,
+        mime: documento.tipoMime,
       });
     } catch {
       setError('No se pudo abrir este documento. Probá nuevamente o consultá con la inmobiliaria.');
@@ -702,7 +702,7 @@ export default function SolicitudesAdminPage() {
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
                               <p className="m-0 truncate text-[14px] font-medium text-panel-texto">{nombreDocumentoPresentado(seleccionada.documentos ?? [], index)}</p>
-                              <p className="m-0 mt-1 text-[12px] text-panel-suave">{documento.mimeType}</p>
+                              <p className="m-0 mt-1 text-[12px] text-panel-suave">{documento.tipoMime}</p>
                             </div>
                             <Icono nombre="imagen" className="mt-0.5 h-4 w-4 text-panel-suave" />
                           </div>

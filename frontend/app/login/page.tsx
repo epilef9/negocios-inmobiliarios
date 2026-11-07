@@ -39,7 +39,7 @@ function FormularioIngreso() {
     setEnviando(true);
     try {
       const usuario = await login({ email: email.trim(), password });
-      router.push(volver ?? (usuario.role === 'admin' ? '/admin/bienvenida' : '/'));
+      router.push(volver ?? (usuario.rol === 'admin' ? '/admin/bienvenida' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
       if (err instanceof AuthRequestError && err.code === 'EMAIL_NO_VERIFICADO') {

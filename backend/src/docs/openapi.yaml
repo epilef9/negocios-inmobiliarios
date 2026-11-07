@@ -195,13 +195,13 @@ components:
       properties:
         id:
           type: string
-        title:
+        titulo:
           type: string
-        description:
+        descripcion:
           type: string
-        price:
+        precio:
           type: number
-        location:
+        ubicacion:
           type: string
         createdAt:
           type: string
@@ -218,7 +218,7 @@ components:
           type: string
         email:
           type: string
-        password:
+        contrasena:
           type: string
         createdAt:
           type: string

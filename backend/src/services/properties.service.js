@@ -18,7 +18,7 @@ const PROPERTY_AMENITIES = new Set([
     'laundry',
 ]);
 
-const CAMPOS_DE_PRECIO = ['price', 'priceARS', 'moneda', 'cotizacionDolar'];
+const CAMPOS_DE_PRECIO = ['precio', 'precioARS', 'moneda', 'cotizacionDolar'];
 
 const normalizePropertyPrices = (propertyData) => {
     const normalized = { ...propertyData };
@@ -29,30 +29,30 @@ const normalizePropertyPrices = (propertyData) => {
     normalized.cotizacionDolar = rate;
 
     if (normalized.moneda === 'ARS') {
-        const priceARS = Number(normalized.priceARS ?? normalized.price);
-        normalized.priceARS = priceARS;
-        normalized.price = Number((priceARS / rate).toFixed(2));
+        const precioARS = Number(normalized.precioARS ?? normalized.precio);
+        normalized.precioARS = precioARS;
+        normalized.precio = Number((precioARS / rate).toFixed(2));
     } else {
         normalized.moneda = 'USD';
-        normalized.price = Number(normalized.price);
-        normalized.priceARS = Number((normalized.price * rate).toFixed(2));
+        normalized.precio = Number(normalized.precio);
+        normalized.precioARS = Number((normalized.precio * rate).toFixed(2));
     }
 
     return normalized;
 };
 
-// Pasa un precio cargado en el formulario ({ moneda, price o priceARS }) a { price en USD, moneda, priceARS }
+// Pasa un precio cargado en el formulario ({ moneda, precio o precioARS }) a { precio en USD, moneda, precioARS }
 const normalizarPrecio = (entrada, rate) => {
     if (entrada.moneda === 'ARS') {
-        const priceARS = Number(entrada.priceARS ?? entrada.price);
-        return { price: Number((priceARS / rate).toFixed(2)), moneda: 'ARS', priceARS };
+        const precioARS = Number(entrada.precioARS ?? entrada.precio);
+        return { precio: Number((precioARS / rate).toFixed(2)), moneda: 'ARS', precioARS };
     }
-    const price = Number(entrada.price);
-    return { price, moneda: 'USD', priceARS: Number((price * rate).toFixed(2)) };
+    const precio = Number(entrada.precio);
+    return { precio, moneda: 'USD', precioARS: Number((precio * rate).toFixed(2)) };
 };
 
-// HU-25 / RF-03: arma operaciones, el precio de cada una y la copia de la principal (categoria_operacion,
-// price, moneda y priceARS). Acepta también el formato viejo (solo categoria_operacion y price).
+// HU-25 / RF-03: arma operaciones, el precio de cada una y la copia de la principal (categoriaOperacion,
+// precio, moneda y precioARS). Acepta también el formato viejo (solo categoriaOperacion y precio).
 // Si el cambio no toca operaciones ni precios, lo devuelve igual.
 const normalizarOperaciones = (propertyData) => {
     const datos = { ...propertyData };
@@ -60,7 +60,7 @@ const normalizarOperaciones = (propertyData) => {
     delete datos.operacionesSolicitud;
 
     const nuevas = Array.isArray(datos.operaciones) ? operacionesDe({ operaciones: datos.operaciones }) : null;
-    const operaciones = nuevas?.length ? nuevas : datos.categoria_operacion ? operacionesDe({ categoria_operacion: datos.categoria_operacion }) : null;
+    const operaciones = nuevas?.length ? nuevas : datos.categoriaOperacion ? operacionesDe({ categoriaOperacion: datos.categoriaOperacion }) : null;
     if (!operaciones?.length) {
         delete datos.precios;
         return CAMPOS_DE_PRECIO.some((campo) => datos[campo] !== undefined) ? normalizePropertyPrices(datos) : datos;
@@ -69,19 +69,19 @@ const normalizarOperaciones = (propertyData) => {
     const rate = Number(datos.cotizacionDolar) > 0 ? Number(datos.cotizacionDolar) : DEFAULT_DOLLAR_RATE;
     datos.cotizacionDolar = rate;
     datos.operaciones = operaciones;
-    datos.categoria_operacion = operaciones[0];
+    datos.categoriaOperacion = operaciones[0];
 
     if (operaciones[0] === 'temporario') {
         // El temporario usa su precio por noche; el precio general queda como referencia, como antes
         datos.precios = {};
-        return datos.price !== undefined ? normalizePropertyPrices(datos) : datos;
+        return datos.precio !== undefined ? normalizePropertyPrices(datos) : datos;
     }
 
     const precios = {};
     operaciones.forEach((operacion, indice) => {
         const entrada = datos.precios?.[operacion]
             // Formato viejo: el precio general es el de la única operación
-            ?? (indice === 0 && !nuevas && datos.price !== undefined ? { price: datos.price, moneda: datos.moneda, priceARS: datos.priceARS } : null);
+            ?? (indice === 0 && !nuevas && datos.precio !== undefined ? { precio: datos.precio, moneda: datos.moneda, precioARS: datos.precioARS } : null);
         if (entrada) precios[operacion] = normalizarPrecio(entrada, rate);
     });
     datos.precios = precios;
@@ -152,4 +152,4 @@ module.exports = {
     updateProperty,
     deleteProperty,
     reorderProperties,
-};
+};

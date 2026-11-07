@@ -11,17 +11,17 @@ describe('Properties API', () => {
     let clienteToken;
 
     const propertyPayload = {
-        title: 'Beautiful House',
-        description: 'A beautiful house in the city center',
-        price: 300000,
-        location: 'City Center',
+        titulo: 'Beautiful House',
+        descripcion: 'A beautiful house in the city center',
+        precio: 300000,
+        ubicacion: 'City Center',
         latitud: '-32.0712',
         longitud: '-60.4591',
-        bedrooms: 3,
-        bathrooms: 2,
+        dormitorios: 3,
+        banos: 2,
         area: 100,
-        categoria_operacion: 'venta',
-        tipo_inmueble: 'casa',
+        categoriaOperacion: 'venta',
+        tipoInmueble: 'casa',
         estado: 'disponible',
     };
 
@@ -36,18 +36,18 @@ describe('Properties API', () => {
             nombre: 'Admin',
             apellido: 'Test',
             email: 'admin.test@example.com',
-            username: 'admin.test@example.com',
-            password: passwordHash,
-            role: 'admin',
+            nombreUsuario: 'admin.test@example.com',
+            contrasena: passwordHash,
+            rol: 'admin',
         });
 
         await User.create({
             nombre: 'Cliente',
             apellido: 'Test',
             email: 'cliente.test@example.com',
-            username: 'cliente.test@example.com',
-            password: passwordHash,
-            role: 'cliente',
+            nombreUsuario: 'cliente.test@example.com',
+            contrasena: passwordHash,
+            rol: 'cliente',
         });
 
         const adminLogin = await request(app)
@@ -79,15 +79,15 @@ describe('Properties API', () => {
 
         it('should return every property that has the requested amenity', async () => {
             await Property.create([
-                { ...propertyPayload, title: 'With air 1', comodidades: ['aire', 'wifi'] },
-                { ...propertyPayload, title: 'With air 2', comodidades: ['aire'] },
-                { ...propertyPayload, title: 'Without air', comodidades: ['pileta'] },
+                { ...propertyPayload, titulo: 'With air 1', comodidades: ['aire', 'wifi'] },
+                { ...propertyPayload, titulo: 'With air 2', comodidades: ['aire'] },
+                { ...propertyPayload, titulo: 'Without air', comodidades: ['pileta'] },
             ]);
 
             const res = await request(app).get('/api/properties?comodidad=aire');
 
             expect(res.statusCode).toEqual(200);
-            expect(res.body.data.map((property) => property.title)).toEqual(expect.arrayContaining(['With air 1', 'With air 2']));
+            expect(res.body.data.map((property) => property.titulo)).toEqual(expect.arrayContaining(['With air 1', 'With air 2']));
             expect(res.body.data).toHaveLength(2);
         });
     });
@@ -113,7 +113,7 @@ describe('Properties API', () => {
                 .send(propertyPayload);
             expect(res.statusCode).toEqual(201);
             expect(res.body.data).toHaveProperty('_id');
-            expect(res.body.data.title).toEqual(propertyPayload.title);
+            expect(res.body.data.titulo).toEqual(propertyPayload.titulo);
         });
     });
 
@@ -123,7 +123,7 @@ describe('Properties API', () => {
 
             const res = await request(app).get(`/api/properties/${property._id}`);
             expect(res.statusCode).toEqual(200);
-            expect(res.body.data.title).toEqual(property.title);
+            expect(res.body.data.titulo).toEqual(property.titulo);
         });
     });
 
@@ -131,13 +131,13 @@ describe('Properties API', () => {
         it('should update a property as admin', async () => {
             const property = await Property.create(propertyPayload);
 
-            const updatedData = { title: 'Updated House' };
+            const updatedData = { titulo: 'Updated House' };
             const res = await request(app)
                 .put(`/api/properties/${property._id}`)
                 .set('Authorization', `Bearer ${adminToken}`)
                 .send(updatedData);
             expect(res.statusCode).toEqual(200);
-            expect(res.body.data.title).toEqual(updatedData.title);
+            expect(res.body.data.titulo).toEqual(updatedData.titulo);
         });
     });
 

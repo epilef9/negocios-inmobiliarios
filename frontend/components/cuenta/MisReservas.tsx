@@ -155,8 +155,8 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
             const estado = ESTADOS[r.estado];
             const propiedadId = idPropiedad(r);
             const datosPropiedad = typeof r.propiedad === 'object' ? r.propiedad : null;
-            const foto = datosPropiedad?.images?.[0];
-            const titulo = datosPropiedad?.title || r.tituloPropiedad || 'Propiedad';
+            const foto = datosPropiedad?.fotos?.[0];
+            const titulo = datosPropiedad?.titulo || r.tituloPropiedad || 'Propiedad';
             const apagada = r.estado === 'cancelada' || r.estado === 'rechazada' || (r.estado === 'confirmada' && r.salida <= hoy);
             return (
               <li key={r.id} className="grid gap-x-6 gap-y-4 border-b border-[#efe9df]/12 py-7 first:pt-0 sm:grid-cols-[112px_minmax(0,1fr)]">

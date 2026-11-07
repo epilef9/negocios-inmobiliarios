@@ -18,12 +18,12 @@ const etiquetaComodidad = Object.fromEntries(COMODIDADES.map((c) => [c.value, c.
 const FILAS: { titulo: string; valor: (p: ApiProperty) => string }[] = [
 	{ titulo: "Operación", valor: (p) => etiquetaOperaciones(p, "—") },
 	{ titulo: "Estado", valor: (p) => etiquetaEstado[p.estado || "disponible"] ?? "Disponible" },
-	{ titulo: "Tipo", valor: (p) => etiquetaTipo[p.tipo_inmueble || ""] ?? "—" },
-	{ titulo: "Ubicación", valor: (p) => p.ciudad || p.location || "—" },
+	{ titulo: "Tipo", valor: (p) => etiquetaTipo[p.tipoInmueble || ""] ?? "—" },
+	{ titulo: "Ubicación", valor: (p) => p.ciudad || p.ubicacion || "—" },
 	{ titulo: "Superficie", valor: (p) => (p.area ? `${p.area} m²` : "—") },
-	{ titulo: "Ambientes", valor: (p) => (p.cantidad_ambientes ? String(p.cantidad_ambientes) : "—") },
-	{ titulo: "Dormitorios", valor: (p) => (p.tipo_inmueble === "terreno" ? "—" : String(p.bedrooms ?? "—")) },
-	{ titulo: "Baños", valor: (p) => (p.tipo_inmueble === "terreno" ? "—" : String(p.bathrooms ?? "—")) },
+	{ titulo: "Ambientes", valor: (p) => (p.ambientes ? String(p.ambientes) : "—") },
+	{ titulo: "Dormitorios", valor: (p) => (p.tipoInmueble === "terreno" ? "—" : String(p.dormitorios ?? "—")) },
+	{ titulo: "Baños", valor: (p) => (p.tipoInmueble === "terreno" ? "—" : String(p.banos ?? "—")) },
 	{ titulo: "Cochera", valor: (p) => (p.cochera === "si" ? "Sí" : p.cochera === "no" ? "No" : p.cochera || "—") },
 	{
 		titulo: "Expensas",
@@ -93,13 +93,13 @@ export default function CompararPage() {
 											<th key={p._id} scope="col" className="w-1/3 px-3 pb-6 align-top font-normal">
 												<div className="flex flex-col gap-3">
 													<div className="aspect-[4/3] overflow-hidden rounded-xl bg-[#0e2652]">
-														{p.images?.[0] && (
+														{p.fotos?.[0] && (
 															// eslint-disable-next-line @next/next/no-img-element
-															<img src={p.images[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
+															<img src={p.fotos[0]} alt="" className="h-full w-full object-cover" loading="lazy" />
 														)}
 													</div>
 													<Link href={`/propiedades/${p._id}`} className="font-display calma-link calma-link-sutil text-[22px] leading-tight">
-														{p.title}
+														{p.titulo}
 													</Link>
 													{precios.length > 1 ? (
 														precios.map((x) => (

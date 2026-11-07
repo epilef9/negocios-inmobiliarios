@@ -1,16 +1,16 @@
 const mongoose = require('mongoose');
 const { OPERACIONES, CON_PRECIO_PROPIO } = require('../utils/operaciones');
 
-// price no está: con operaciones nuevas sale del precio de cada operación (ver revisarOperaciones)
-const requiredFields = ['title', 'location', 'bedrooms', 'bathrooms', 'area'];
+// precio no está: con operaciones nuevas sale del precio de cada operación (ver revisarOperaciones)
+const requiredFields = ['titulo', 'ubicacion', 'dormitorios', 'banos', 'area'];
 const numericFields = [
-    'price',
-    'priceARS',
+    'precio',
+    'precioARS',
     'cotizacionDolar',
-    'bedrooms',
-    'bathrooms',
+    'dormitorios',
+    'banos',
     'area',
-    'cantidad_ambientes',
+    'ambientes',
     'montoExpensas',
     'precioPorNocheUSD',
     'minimoNoches',
@@ -19,18 +19,18 @@ const numericFields = [
     'duracionAlquilerMeses',
 ];
 const allowedFields = new Set([
-    'title', 'codigoInterno', 'description', 'price', 'moneda', 'priceARS', 'cotizacionDolar',
-    'location', 'ciudad', 'provincia', 'direccionCompleta', 'referenciasUbicacion',
-    'categoria_operacion', 'operaciones', 'precios', 'tipo_inmueble', 'cantidad_ambientes', 'comodidades', 'otrasComodidades',
+    'titulo', 'codigoInterno', 'descripcion', 'precio', 'moneda', 'precioARS', 'cotizacionDolar',
+    'ubicacion', 'ciudad', 'provincia', 'direccionCompleta', 'referenciasUbicacion',
+    'categoriaOperacion', 'operaciones', 'precios', 'tipoInmueble', 'ambientes', 'comodidades', 'otrasComodidades',
     'expensas', 'montoExpensas', 'cochera', 'pisoUnidad', 'linkGoogleMaps', 'latitud', 'longitud',
     'permitirVisita', 'permitirWhatsApp', 'permitirEmail', 'permitirSolicitudes', 'operacionesSolicitud', 'horarioAtencion', 'telefonoWhatsApp',
     'precioPorNocheUSD', 'minimoNoches', 'huespedesMaximos', 'costoLimpiezaUSD',
     'duracionAlquilerMeses', 'unidadDuracionAlquiler', 'checkInDesde', 'checkOutHasta',
-    'checkInFlexible', 'estado', 'images', 'descuento', 'financiacion',
-    'bedrooms', 'bathrooms', 'area',
+    'checkInFlexible', 'estado', 'fotos', 'descuento', 'financiacion',
+    'dormitorios', 'banos', 'area',
 ]);
 const stringLimits = {
-    title: 160, codigoInterno: 60, description: 3000, location: 240, ciudad: 100,
+    titulo: 160, codigoInterno: 60, descripcion: 3000, ubicacion: 240, ciudad: 100,
     direccionCompleta: 240, referenciasUbicacion: 500, otrasComodidades: 500,
     linkGoogleMaps: 1000, latitud: 40, longitud: 40, horarioAtencion: 100,
     telefonoWhatsApp: 40, checkInDesde: 20, checkOutHasta: 20,
@@ -61,9 +61,9 @@ const revisarOperaciones = (body, isUpdate) => {
         if (!esObjetoPlano(precios) || !soloCampos(precios, CON_PRECIO_PROPIO)) return 'precios tiene un formato inválido';
         for (const [operacion, precio] of Object.entries(precios)) {
             if (precio === null || precio === undefined) continue;
-            if (!esObjetoPlano(precio) || !soloCampos(precio, ['price', 'moneda', 'priceARS'])) return `El precio de ${NOMBRE_OPERACION[operacion]} tiene un formato inválido`;
+            if (!esObjetoPlano(precio) || !soloCampos(precio, ['precio', 'moneda', 'precioARS'])) return `El precio de ${NOMBRE_OPERACION[operacion]} tiene un formato inválido`;
             if (precio.moneda !== undefined && !['USD', 'ARS'].includes(precio.moneda)) return 'La moneda tiene que ser USD o ARS';
-            for (const campo of ['price', 'priceARS']) {
+            for (const campo of ['precio', 'precioARS']) {
                 if (precio[campo] !== undefined && !numeroEntre(precio[campo], 0, 1e12)) return `El precio de ${NOMBRE_OPERACION[operacion]} tiene que ser un número no negativo`;
             }
         }
@@ -72,15 +72,15 @@ const revisarOperaciones = (body, isUpdate) => {
         // Cada operación con precio propio necesita su precio cargado (en la moneda elegida)
         for (const operacion of operaciones.filter((o) => CON_PRECIO_PROPIO.includes(o))) {
             const precio = precios?.[operacion];
-            const monto = precio ? (precio.moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price) : undefined;
+            const monto = precio ? (precio.moneda === 'ARS' ? precio.precioARS ?? precio.precio : precio.precio) : undefined;
             if (!(typeof monto === 'number' && monto > 0)) return `Cargá el precio de ${NOMBRE_OPERACION[operacion]}`;
         }
-    } else if (!isUpdate && (body.price === undefined || body.price === null || body.price === '')) {
+    } else if (!isUpdate && (body.precio === undefined || body.precio === null || body.precio === '')) {
         // Formato viejo (una sola categoría): el precio general es obligatorio
-        return 'price es obligatorio';
+        return 'precio es obligatorio';
     }
-    if (Array.isArray(operaciones) && operaciones[0] === 'temporario' && !isUpdate && (body.price === undefined || body.price === '')) {
-        return 'price es obligatorio';
+    if (Array.isArray(operaciones) && operaciones[0] === 'temporario' && !isUpdate && (body.precio === undefined || body.precio === '')) {
+        return 'precio es obligatorio';
     }
     return null;
 };
@@ -149,7 +149,7 @@ const validateProperty = (req, res, next) => {
     )) {
         errors.push('operacionesSolicitud debe contener una sola vez cada operación válida (venta o alquiler)');
     }
-    if (req.body.categoria_operacion === 'temporario' && Array.isArray(req.body.operacionesSolicitud) && req.body.operacionesSolicitud.length) {
+    if (req.body.categoriaOperacion === 'temporario' && Array.isArray(req.body.operacionesSolicitud) && req.body.operacionesSolicitud.length) {
         errors.push('Las propiedades temporarias no admiten solicitudes de compra o alquiler permanente');
     }
 
@@ -169,12 +169,12 @@ const validateProperty = (req, res, next) => {
         }
     });
 
-    if (req.body.images !== undefined && (!Array.isArray(req.body.images) || req.body.images.some((image) => typeof image !== 'string'))) {
-        errors.push('images debe ser un arreglo de textos');
+    if (req.body.fotos !== undefined && (!Array.isArray(req.body.fotos) || req.body.fotos.some((image) => typeof image !== 'string'))) {
+        errors.push('fotos debe ser un arreglo de textos');
     }
 
-    if (Array.isArray(req.body.images) && req.body.images.length > 20) {
-        errors.push('images no puede contener más de 20 elementos');
+    if (Array.isArray(req.body.fotos) && req.body.fotos.length > 20) {
+        errors.push('fotos no puede contener más de 20 elementos');
     }
 
     if (Array.isArray(req.body.comodidades) && (req.body.comodidades.length > 30 || req.body.comodidades.some((item) => typeof item !== 'string' || item.length > 80))) {
@@ -229,4 +229,4 @@ const validatePropertyId = (req, res, next) => {
     next();
 };
 
-module.exports = { validateProperty, validatePropertyId, dentroDeEntreRios, revisarOperaciones };
+module.exports = { validateProperty, validatePropertyId, dentroDeEntreRios, revisarOperaciones };

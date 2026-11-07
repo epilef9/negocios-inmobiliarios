@@ -7,7 +7,7 @@ export type FiltrosAviso = { operacion: string; localidad: string; tipo: string;
 export type Aviso = {
   _id: string;
   tipo: 'disponibilidad' | 'busqueda';
-  propiedad?: Pick<ApiProperty, '_id' | 'title' | 'images' | 'estado' | 'ciudad' | 'categoria_operacion'> | null;
+  propiedad?: Pick<ApiProperty, '_id' | 'titulo' | 'fotos' | 'estado' | 'ciudad' | 'categoriaOperacion'> | null;
   filtros?: FiltrosAviso;
   avisadoEn?: string | null;
   createdAt: string;

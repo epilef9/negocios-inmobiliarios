@@ -46,11 +46,11 @@ function FeatureIcon({ kind }: { kind: "rooms" | "bathrooms" | "area" }) {
 export default function PropiedadCard({ property }: PropiedadCardProps) {
 	const router = useRouter();
 	// Preparar los datos que se muestran en la tarjeta
-	const image = property.images?.[0] || PLACEHOLDER_IMAGE;
-	const operation = property.categoria_operacion || property.operation || property.category || "Propiedad";
-	const type = property.tipo_inmueble || property.propertyType || "Inmueble";
+	const image = property.fotos?.[0] || PLACEHOLDER_IMAGE;
+	const operation = property.categoriaOperacion || property.operation || property.category || "Propiedad";
+	const type = property.tipoInmueble || property.propertyType || "Inmueble";
 	const currency = property.moneda || "USD";
-	const rooms = property.cantidad_ambientes ?? property.bedrooms;
+	const rooms = property.ambientes ?? property.dormitorios;
 	const status = property.estado || property.status || "disponible";
 	const statusLabel = status;
 	const statusIsAvailable = status.toLocaleLowerCase("es") === "disponible";
@@ -70,7 +70,7 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 			}}
 		>
 			<div className="relative aspect-[16/10] overflow-hidden bg-[#e9edf4]">
-				<img src={image} alt={property.title} className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-105" />
+				<img src={image} alt={property.titulo} className="h-full w-full object-cover transition duration-700 ease-out group-hover:scale-105" />
 				<div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#071a52]/75 to-transparent" aria-hidden="true" />
 				<span className={`absolute right-4 top-4 inline-flex items-center gap-1.5 rounded-full border px-3 py-2 text-[10px] font-bold uppercase tracking-[0.12em] text-white shadow-lg backdrop-blur-sm ${statusIsAvailable ? "border-white/30 bg-[#10265A]/95 shadow-[#071a52]/30" : "border-red-200/40 bg-[#b4232b]/95 shadow-red-950/25"}`}>
 					<svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -89,23 +89,23 @@ export default function PropiedadCard({ property }: PropiedadCardProps) {
 					</svg>
 					{type}
 				</p>
-				<h2 className="mt-1.5 line-clamp-2 text-lg font-bold leading-snug text-[#141a2b]">{property.title}</h2>
+				<h2 className="mt-1.5 line-clamp-2 text-lg font-bold leading-snug text-[#141a2b]">{property.titulo}</h2>
 				<p className="mt-2 flex items-start gap-2 text-sm leading-snug text-[#69707f]">
 					<svg className="mt-0.5 h-4 w-4 shrink-0 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
 						<path d="M20 10c0 5-8 11-8 11S4 15 4 10a8 8 0 1 1 16 0Z" />
 						<circle cx="12" cy="10" r="2.5" />
 					</svg>
-					<span>{property.location}</span>
+					<span>{property.ubicacion}</span>
 				</p>
 				<div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 border-y border-[#edf0f4] py-3 text-xs font-medium text-[#69707f]">
 					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="rooms" /></svg>{rooms} amb.</span>
-					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="bathrooms" /></svg>{property.bathrooms} baño{property.bathrooms === 1 ? "" : "s"}</span>
+					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="bathrooms" /></svg>{property.banos} baño{property.banos === 1 ? "" : "s"}</span>
 					<span className="inline-flex items-center gap-1.5"><svg className="h-4 w-4 text-[#d9382b]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><FeatureIcon kind="area" /></svg>{property.area} m²</span>
 				</div>
 				<div className="mt-auto flex items-end justify-between gap-3 pt-5">
 					<div>
-						<p className="text-xl font-bold tracking-tight text-[#071a52]">{formatPrice(property.price, currency)}</p>
-						{property.priceARS !== undefined && <p className="mt-1 text-xs text-[#69707f]">{formatPrice(property.priceARS, "ARS")}</p>}
+						<p className="text-xl font-bold tracking-tight text-[#071a52]">{formatPrice(property.precio, currency)}</p>
+						{property.precioARS !== undefined && <p className="mt-1 text-xs text-[#69707f]">{formatPrice(property.precioARS, "ARS")}</p>}
 						{property.expenses !== undefined && <p className="mt-1 text-[11px] text-[#69707f]">Expensas {formatPrice(property.expenses, "ARS")}</p>}
 					</div>
 					<Link href={`/propiedades/${property._id}`} onClick={(event) => event.stopPropagation()} className="shrink-0 rounded-lg bg-[#071a52] px-3.5 py-2.5 text-xs font-semibold text-white transition hover:bg-[#d9382b]">Ver detalle</Link>

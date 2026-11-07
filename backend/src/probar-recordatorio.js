@@ -28,7 +28,7 @@ async function probar() {
     if (!inicio || inicio <= new Date()) throw new Error('La visita ya pasó (o su fecha no se entiende): el enlace nacería vencido.');
 
     await mandarRecordatorio(visita);
-    await Visita.updateOne({ _id: visita._id }, { $set: { recordatorioEnviadoAt: new Date() } });
+    await Visita.updateOne({ _id: visita._id }, { $set: { recordatorioEnviadoEn: new Date() } });
     console.log(`Recordatorio mandado a ${visita.cliente.email}.`);
 }
 

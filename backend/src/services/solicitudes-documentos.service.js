@@ -59,7 +59,7 @@ const resolver = async (referencias, usuario, clave) => {
 // La asociación es exclusiva y atómica con la creación de la solicitud.
 const vincular = async (documentos, solicitud, session) => {
     for (const documento of documentos) {
-        const resultado = await archivos().updateOne({ _id: documento.fileId,
+        const resultado = await archivos().updateOne({ _id: documento.archivoId,
             'metadata.usuario': String(solicitud.usuario), 'metadata.clave': solicitud.claveIdempotencia,
             'metadata.tipo': documento.tipo, 'metadata.solicitud': { $exists: false },
             'metadata.temporalHasta': { $gt: new Date() },

@@ -58,9 +58,9 @@ export interface SolicitudPublicacion {
   motivoRechazo?: string;
   propiedadCreada?: {
     _id: string;
-    title: string;
-    price: number;
-    location: string;
+    titulo: string;
+    precio: number;
+    ubicacion: string;
   } | string;
   createdAt: string;
   updatedAt: string;

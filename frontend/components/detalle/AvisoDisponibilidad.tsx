@@ -13,7 +13,7 @@ export default function AvisoDisponibilidad({ propiedadId }: { propiedadId: stri
   const [avisoId, setAvisoId] = useState<string | null>(null);
   const [trabajando, setTrabajando] = useState(false);
   const [error, setError] = useState('');
-  const esCliente = user?.role === 'cliente';
+  const esCliente = user?.rol === 'cliente';
 
   useEffect(() => {
     if (!esCliente) return;
@@ -29,7 +29,7 @@ export default function AvisoDisponibilidad({ propiedadId }: { propiedadId: stri
     };
   }, [esCliente, propiedadId]);
 
-  if (isLoading || user?.role === 'admin') return null;
+  if (isLoading || user?.rol === 'admin') return null;
 
   const alternar = async () => {
     if (!user) {

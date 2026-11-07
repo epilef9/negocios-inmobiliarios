@@ -10,7 +10,7 @@ export type EstadoSena = 'activa' | 'concretada' | 'cancelada' | 'vencida';
 
 export type Sena = {
   _id: string;
-  propiedad: (Pick<ApiProperty, '_id' | 'title' | 'images' | 'estado' | 'categoria_operacion' | 'operaciones' | 'price' | 'moneda'>) | string | null;
+  propiedad: (Pick<ApiProperty, '_id' | 'titulo' | 'fotos' | 'estado' | 'categoriaOperacion' | 'operaciones' | 'precio' | 'moneda'>) | string | null;
   tituloPropiedad: string;
   operacion: 'venta' | 'alquiler';
   cliente: { nombre: string; email?: string; telefono?: string };

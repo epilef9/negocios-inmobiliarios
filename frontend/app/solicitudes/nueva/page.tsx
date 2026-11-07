@@ -74,8 +74,8 @@ const OPERACIONES: Record<TipoOperacionSolicitud, string> = { alquiler: "alquile
 // Precio de la operación pedida (compra → venta); con venta y alquiler cada una tiene el suyo (HU-25)
 function precioLegible(propiedad: ApiProperty, operacion: TipoOperacionSolicitud | null) {
 	const precio = (operacion && precioDe(propiedad, operacion === "compra" ? "venta" : "alquiler"))
-		|| { price: propiedad.price, moneda: propiedad.moneda === "ARS" ? "ARS" : "USD", priceARS: propiedad.priceARS };
-	const importe = precio.moneda === "ARS" ? precio.priceARS ?? precio.price : precio.price;
+		|| { precio: propiedad.precio, moneda: propiedad.moneda === "ARS" ? "ARS" : "USD", precioARS: propiedad.precioARS };
+	const importe = precio.moneda === "ARS" ? precio.precioARS ?? precio.precio : precio.precio;
 	return `${precio.moneda} ${Number(importe || 0).toLocaleString("es-AR", { maximumFractionDigits: 0 })}${operacion === "alquiler" ? " por mes" : ""}`;
 }
 
@@ -338,14 +338,14 @@ function SolicitudForm() {
 	const resumenPropiedad = propiedad && (
 		<section aria-labelledby="resumen-propiedad" className="grid overflow-hidden rounded-3xl border border-[#efe9df]/15 bg-[#0b2048]/60 sm:grid-cols-[220px_1fr]">
 			<div className="relative aspect-[16/10] bg-[#0b2048] sm:aspect-auto">
-				{propiedad.images?.[0] ? (
-					<Image src={propiedad.images[0]} alt={`Imagen de ${propiedad.title}`} fill unoptimized sizes="220px" className="object-cover" />
+				{propiedad.fotos?.[0] ? (
+					<Image src={propiedad.fotos[0]} alt={`Imagen de ${propiedad.titulo}`} fill unoptimized sizes="220px" className="object-cover" />
 				) : <div aria-hidden="true" className="h-full min-h-36 bg-gradient-to-br from-[#132a54] to-[#071733]" />}
 			</div>
 			<div className="flex flex-col justify-center gap-2 p-5 sm:p-6">
 				<p className={estilosEtiqueta}>PROPIEDAD SELECCIONADA</p>
-				<h2 id="resumen-propiedad" className="font-display m-0 text-[28px] leading-tight">{propiedad.title}</h2>
-				<p className="m-0 text-[14px] text-[#efe9df]/65">{propiedad.ciudad || propiedad.location}</p>
+				<h2 id="resumen-propiedad" className="font-display m-0 text-[28px] leading-tight">{propiedad.titulo}</h2>
+				<p className="m-0 text-[14px] text-[#efe9df]/65">{propiedad.ciudad || propiedad.ubicacion}</p>
 				<p className="m-0 text-[15px] font-medium">{precioLegible(propiedad, operacion)}</p>
 				{operacion && <span className="calma-micro mt-1 self-start rounded-full bg-[#efe9df] px-3 py-1 text-[10px] text-[#071733]">Solicitud de {OPERACIONES[operacion]}</span>}
 			</div>
@@ -386,7 +386,7 @@ function SolicitudForm() {
 		);
 	}
 
-	if (user.role !== "cliente") {
+	if (user.rol !== "cliente") {
 		return (
 			<SitioBase>
 				<main className="mx-auto flex min-h-[70vh] max-w-4xl flex-col gap-6 px-5 pb-24 pt-32 sm:px-10">
@@ -558,7 +558,7 @@ function SolicitudForm() {
 							<h2 id="confirmar" className="font-display m-0 text-3xl">Revisá antes de enviar</h2>
 						</div>
 						<dl className="m-0 grid gap-4 border-t border-[#efe9df]/15 pt-5 sm:grid-cols-2">
-							<div><dt className={estilosEtiqueta}>PROPIEDAD</dt><dd className="m-0 pt-1 text-[14px]">{propiedad.title}</dd></div>
+							<div><dt className={estilosEtiqueta}>PROPIEDAD</dt><dd className="m-0 pt-1 text-[14px]">{propiedad.titulo}</dd></div>
 							<div><dt className={estilosEtiqueta}>OPERACIÓN</dt><dd className="m-0 pt-1 text-[14px] capitalize">{operacion}</dd></div>
 							<div className="sm:col-span-2">
 								<dt className={estilosEtiqueta}>DATOS DEL TITULAR</dt>

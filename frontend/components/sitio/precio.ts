@@ -59,18 +59,18 @@ export function precioDePropiedad(p: ApiProperty, blue: number | null, operacion
   const descuento = descuentoVigente(p);
   const factor = 1 - descuento / 100;
   const conDescuento = (texto: string) => (descuento ? { anterior: texto, descuento } : {});
-  const precio = precioDe(p, operacion) ?? { price: p.price, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: p.priceARS };
+  const precio = precioDe(p, operacion) ?? { precio: p.precio, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', precioARS: p.precioARS };
 
   if (precio.moneda === 'ARS') {
-    const pesos = precio.priceARS ?? precio.price;
+    const pesos = precio.precioARS ?? precio.precio;
     return { principal: `ARS ${formato(pesos * factor)}${sufijo}`, ...conDescuento(`ARS ${formato(pesos)}`) };
   }
 
-  const ars = blue ? precio.price * factor * blue : precio.priceARS ? precio.priceARS * factor : undefined;
+  const ars = blue ? precio.precio * factor * blue : precio.precioARS ? precio.precioARS * factor : undefined;
   return {
-    principal: `USD ${formato(precio.price * factor)}${sufijo}`,
+    principal: `USD ${formato(precio.precio * factor)}${sufijo}`,
     referencia: ars ? `ARS ${formato(ars)}${blue ? ' con el blue de hoy' : ' aprox.'}` : undefined,
-    ...conDescuento(`USD ${formato(precio.price)}`),
+    ...conDescuento(`USD ${formato(precio.precio)}`),
   };
 }
 
@@ -97,9 +97,9 @@ export const etiquetaEstado: Record<string, string> = {
 // Datos cortos para la tarjeta: ambientes, baños y superficie
 export function datosCortos(p: ApiProperty) {
   const datos: string[] = [];
-  const ambientes = p.cantidad_ambientes ?? p.bedrooms;
-  if (p.tipo_inmueble !== 'terreno' && ambientes) datos.push(`${ambientes} amb.`);
-  if (p.tipo_inmueble !== 'terreno' && p.bathrooms) datos.push(`${p.bathrooms} ${p.bathrooms === 1 ? 'baño' : 'baños'}`);
+  const ambientes = p.ambientes ?? p.dormitorios;
+  if (p.tipoInmueble !== 'terreno' && ambientes) datos.push(`${ambientes} amb.`);
+  if (p.tipoInmueble !== 'terreno' && p.banos) datos.push(`${p.banos} ${p.banos === 1 ? 'baño' : 'baños'}`);
   if (p.area) datos.push(`${p.area} m²`);
   return datos;
 }

@@ -17,11 +17,11 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    username: {
+    nombreUsuario: {
         type: String,
         trim: true
     },
-    password: {
+    contrasena: {
         type: String,
         required: true
     },
@@ -32,7 +32,7 @@ const userSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     },
-    role: {
+    rol: {
         type: String,
         enum: ['admin', 'cliente', 'user'],
         default: 'cliente'
@@ -121,10 +121,10 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Middleware para asignar username por defecto y actualizar fecha
+// Middleware para asignar nombreUsuario por defecto y actualizar fecha
 userSchema.pre('save', function() {
-    if (!this.username && this.email) {
-        this.username = this.email;
+    if (!this.nombreUsuario && this.email) {
+        this.nombreUsuario = this.email;
     }
     this.updatedAt = Date.now();
 });

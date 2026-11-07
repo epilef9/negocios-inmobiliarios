@@ -22,7 +22,7 @@ test('vence exactamente a los 60 días sin respuesta; las resueltas no vencen', 
         assert.equal(ciclo.cambioAutomatico({ ...pendiente, estado }, {}, limite), null);
     }
     assert.equal(ciclo.cambioAutomatico({ ...pendiente, historialEstados: [{ comentario: 'En revisión', fecha: new Date('2026-01-02') }] }, {}, limite), null);
-    assert.equal(ciclo.cambioAutomatico({ ...pendiente, reactivadaAt: limite }, {}, limite), null);
+    assert.equal(ciclo.cambioAutomatico({ ...pendiente, reactivadaEn: limite }, {}, limite), null);
 });
 
 test('vendido y alquilado cierran pendientes, incluso si también vencerían', () => {
@@ -92,8 +92,8 @@ test('sincronizar guarda cierre una sola vez y envía un aviso, sin base real', 
 test('no se crean solicitudes sobre propiedades vendidas ni alquiladas', async (t) => {
     t.mock.method(Solicitud, 'findOne', async () => null);
     const casos = [
-        [{ estado: 'vendido', categoria_operacion: 'venta' }, 'compra'],
-        [{ estado: 'alquilado', categoria_operacion: 'alquiler' }, 'alquiler'],
+        [{ estado: 'vendido', categoriaOperacion: 'venta' }, 'compra'],
+        [{ estado: 'alquilado', categoriaOperacion: 'alquiler' }, 'alquiler'],
         [{ estado: 'reservado', operaciones: ['venta', 'alquiler'] }, 'compra'],
         // Se vendió y después el comprador la alquiló: la venta no se reabre
         [{ estado: 'alquilado', operaciones: ['venta', 'alquiler'], vendida: true }, 'compra'],
@@ -101,7 +101,7 @@ test('no se crean solicitudes sobre propiedades vendidas ni alquiladas', async (
         [{ estado: 'alquilado', operaciones: ['venta', 'alquiler'] }, 'alquiler'],
     ];
     for (const [propiedad, operacion] of casos) {
-        const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', ...propiedad }) }));
+        const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ titulo: 'Casa', ...propiedad }) }));
         await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion }), (error) => error.statusCode === 409);
         consulta.mock.restore();
     }
@@ -109,10 +109,10 @@ test('no se crean solicitudes sobre propiedades vendidas ni alquiladas', async (
 
 test('HU-25: solicitudes según las operaciones de la propiedad', async (t) => {
     t.mock.method(Solicitud, 'findOne', async () => null);
-    const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Casa', estado: 'disponible', operaciones: ['alquiler'] }) }));
+    const consulta = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ titulo: 'Casa', estado: 'disponible', operaciones: ['alquiler'] }) }));
     await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'compra' }), (error) => error.statusCode === 409 && /no admite/.test(error.message));
     consulta.mock.restore();
-    const temporario = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ title: 'Cabaña', estado: 'disponible', operaciones: ['temporario'] }) }));
+    const temporario = t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => ({ titulo: 'Cabaña', estado: 'disponible', operaciones: ['temporario'] }) }));
     await assert.rejects(solicitudesService.crear({ usuario: 'prueba', propiedadId: 'prueba', operacion: 'alquiler' }), (error) => error.statusCode === 409);
     temporario.mock.restore();
 });
@@ -159,7 +159,7 @@ test('documentos individuales: no permite asociar un archivo ya reclamado', asyn
     const originalDb = mongoose.connection.db;
     mongoose.connection.db = { collection: () => ({ updateOne: async () => ({ modifiedCount: 0 }) }) };
     try {
-        await assert.rejects(servicio.vincular([{ fileId: new mongoose.Types.ObjectId(), tipo: 'domicilio' }], { _id: 's', usuario: 'u', claveIdempotencia: 'c' }, {}), /ya se usó/);
+        await assert.rejects(servicio.vincular([{ archivoId: new mongoose.Types.ObjectId(), tipo: 'domicilio' }], { _id: 's', usuario: 'u', claveIdempotencia: 'c' }, {}), /ya se usó/);
     } finally { mongoose.connection.db = originalDb; }
 });
 
@@ -288,15 +288,15 @@ test('lista solicitudes válidas y conserva las que no pueden descifrarse sin ex
         lean() {
             return Promise.resolve([{
                 _id: '507f1f77bcf86cd799439011',
-                title: 'Casa válida',
-                location: 'Paraná',
+                titulo: 'Casa válida',
+                ubicacion: 'Paraná',
                 ciudad: 'Paraná',
                 direccionCompleta: 'Calle 1',
-                tipo_inmueble: 'casa',
-                price: 120000,
+                tipoInmueble: 'casa',
+                precio: 120000,
                 moneda: 'USD',
-                images: ['https://images.example/casa.jpg'],
-                categoria_operacion: 'venta',
+                fotos: ['https://images.example/casa.jpg'],
+                categoriaOperacion: 'venta',
                 estado: 'disponible',
             }]);
         },
@@ -343,9 +343,9 @@ test('actualiza el estado y conserva el comentario e historial sin tocar la prop
         datosCifrados: cifrado,
         documentos: [{
             tipo: 'dniTitularFrente',
-            fileId: '507f1f77bcf86cd799439013',
+            archivoId: '507f1f77bcf86cd799439013',
             tamano: 1234,
-            mimeType: 'image/jpeg',
+            tipoMime: 'image/jpeg',
         }],
         createdAt: new Date(),
     };
@@ -466,7 +466,7 @@ test('reutiliza el último comentario al cambiar estado sin duplicarlo en el his
     };
     Property.findById = () => ({
         select() { return this; },
-        lean: async () => ({ title: 'Casa', estado: 'disponible', categoria_operacion: 'alquiler' }),
+        lean: async () => ({ titulo: 'Casa', estado: 'disponible', categoriaOperacion: 'alquiler' }),
     });
 
     try {
@@ -646,7 +646,7 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
         const solicitud = {
             _id: '507f1f77bcf86cd799439011',
             archivada: update.$set.archivada,
-            archivadaAt: update.$set.archivadaAt || null,
+            archivadaEn: update.$set.archivadaEn || null,
         };
         return { lean: () => Promise.resolve(solicitud) };
     };
@@ -659,7 +659,7 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
         });
         assert.equal(archivada.archivada, true);
         assert.equal(cambios[0].$set.archivadaPor, '507f1f77bcf86cd799439012');
-        assert.ok(cambios[0].$set.archivadaAt instanceof Date);
+        assert.ok(cambios[0].$set.archivadaEn instanceof Date);
 
         const restaurada = await solicitudesService.actualizarArchivado({
             id: '507f1f77bcf86cd799439011',
@@ -667,7 +667,7 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
             administradoPor: '507f1f77bcf86cd799439012',
         });
         assert.equal(restaurada.archivada, false);
-        assert.deepEqual(cambios[1].$unset, { archivadaAt: 1, archivadaPor: 1 });
+        assert.deepEqual(cambios[1].$unset, { archivadaEn: 1, archivadaPor: 1 });
         assert.equal(cambios[1].$set.archivada, false);
     } finally {
         Solicitud.findByIdAndUpdate = originalFindByIdAndUpdate;
@@ -725,10 +725,10 @@ test('el endpoint de comentario valida texto obligatorio y solo invoca el servic
 
 test('elimina en una transacción solo la solicitud y los documentos exclusivos verificados', async () => {
     const solicitudId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
-    const fileId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
+    const archivoId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
     const solicitud = {
         _id: solicitudId,
-        documentos: [{ fileId }],
+        documentos: [{ archivoId }],
     };
     const operaciones = [];
     const originalTransaction = mongoose.connection.transaction;
@@ -748,7 +748,7 @@ test('elimina en una transacción solo la solicitud y los documentos exclusivos 
                     find(filtro, opciones) {
                         operaciones.push({ operacion: 'buscar-archivo', filtro, opciones });
                         return {
-                            toArray: async () => [{ _id: fileId, metadata: { solicitud: String(solicitudId) } }],
+                            toArray: async () => [{ _id: archivoId, metadata: { solicitud: String(solicitudId) } }],
                         };
                     },
                     deleteMany: async (filtro, opciones) => {
@@ -799,7 +799,7 @@ test('elimina en una transacción solo la solicitud y los documentos exclusivos 
             'borrar-notificacion',
         ]);
         const borradoArchivo = operaciones.find(({ operacion }) => operacion === 'borrar-archivo');
-        assert.deepEqual(borradoArchivo.filtro, { _id: { $in: [fileId] } });
+        assert.deepEqual(borradoArchivo.filtro, { _id: { $in: [archivoId] } });
         const borradoSolicitud = operaciones.find(({ operacion }) => operacion === 'borrar-solicitud');
         assert.deepEqual(borradoSolicitud.filtro, { _id: solicitudId });
         assert.equal(borradoSolicitud.opciones.session.id, 'transaction-test');
@@ -815,7 +815,7 @@ test('elimina en una transacción solo la solicitud y los documentos exclusivos 
 
 test('no elimina solicitud ni archivos cuando la propiedad de un documento GridFS no coincide', async () => {
     const solicitudId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
-    const fileId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
+    const archivoId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
     const originalTransaction = mongoose.connection.transaction;
     const originalDb = mongoose.connection.db;
     const originalFindById = Solicitud.findById;
@@ -829,7 +829,7 @@ test('no elimina solicitud ni archivos cuando la propiedad de un documento GridF
             if (nombre === 'documentosSolicitudes.files') {
                 return {
                     find: () => ({
-                        toArray: async () => [{ _id: fileId, metadata: { solicitud: 'otra-solicitud' } }],
+                        toArray: async () => [{ _id: archivoId, metadata: { solicitud: 'otra-solicitud' } }],
                     }),
                 };
             }
@@ -843,7 +843,7 @@ test('no elimina solicitud ni archivos cuando la propiedad de un documento GridF
     };
     Solicitud.findById = () => ({
         session() { return this; },
-        lean: async () => ({ _id: solicitudId, documentos: [{ fileId }] }),
+        lean: async () => ({ _id: solicitudId, documentos: [{ archivoId }] }),
     });
     Solicitud.exists = () => ({ session: async () => null });
     Solicitud.deleteOne = async () => {
@@ -868,7 +868,7 @@ test('no elimina solicitud ni archivos cuando la propiedad de un documento GridF
 
 test('no elimina archivos compartidos por más de una solicitud', async () => {
     const solicitudId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439011');
-    const fileId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
+    const archivoId = new mongoose.Types.ObjectId('507f1f77bcf86cd799439013');
     const originalTransaction = mongoose.connection.transaction;
     const originalDb = mongoose.connection.db;
     const originalFindById = Solicitud.findById;
@@ -886,7 +886,7 @@ test('no elimina archivos compartidos por más de una solicitud', async () => {
     };
     Solicitud.findById = () => ({
         session() { return this; },
-        lean: async () => ({ _id: solicitudId, documentos: [{ fileId }] }),
+        lean: async () => ({ _id: solicitudId, documentos: [{ archivoId }] }),
     });
     Solicitud.exists = () => ({ session: async () => ({ _id: 'otra-solicitud' }) });
     Solicitud.deleteOne = async () => {

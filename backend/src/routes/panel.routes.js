@@ -135,8 +135,8 @@ const armarResumen = async () => {
     });
 
     await seguro(async () => {
-        const props = await Property.find({ estado: { $nin: ['vendido', 'alquilado'] } }).select('images latitud longitud').lean();
-        const sinFotos = props.filter((p) => !p.images?.length).length;
+        const props = await Property.find({ estado: { $nin: ['vendido', 'alquilado'] } }).select('fotos latitud longitud').lean();
+        const sinFotos = props.filter((p) => !p.fotos?.length).length;
         const sinUbicacion = props.filter((p) => !p.latitud || !p.longitud).length;
         items.push({ clave: 'sin-fotos', urgencia: 3, orden: 20, cantidad: sinFotos, href: '/admin/propiedades', titulo: `${plural(sinFotos, 'propiedad sin fotos', 'propiedades sin fotos')}` });
         items.push({ clave: 'sin-ubicacion', urgencia: 3, orden: 21, cantidad: sinUbicacion, href: '/admin/propiedades', titulo: `${plural(sinUbicacion, 'propiedad sin ubicación', 'propiedades sin ubicación')} en el mapa` });

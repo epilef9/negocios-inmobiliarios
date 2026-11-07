@@ -46,7 +46,7 @@ const resumen = async (dias = 30) => {
     const [porPropiedad, porDia, propiedades] = await Promise.all([
         Estadistica.aggregate([{ $match: { dia: { $gte: desde, $lte: hasta } } }, { $group: { _id: '$propiedad', ...suma } }]),
         Estadistica.aggregate([{ $match: { dia: { $gte: desde, $lte: hasta } } }, { $group: { _id: '$dia', ...suma } }, { $sort: { _id: 1 } }]),
-        Property.find().select('title estado categoria_operacion operaciones images ciudad').lean(),
+        Property.find().select('titulo estado categoriaOperacion operaciones fotos ciudad').lean(),
     ]);
 
     const datos = new Map(porPropiedad.map((p) => [String(p._id), p]));
@@ -55,12 +55,12 @@ const resumen = async (dias = 30) => {
             const d = datos.get(String(p._id)) || {};
             return {
                 id: String(p._id),
-                titulo: p.title,
+                titulo: p.titulo,
                 estado: p.estado || 'disponible',
-                operacion: p.categoria_operacion || '',
+                operacion: p.categoriaOperacion || '',
                 operaciones: operacionesDe(p),
                 ciudad: p.ciudad || '',
-                foto: p.images?.[0] || '',
+                foto: p.fotos?.[0] || '',
                 ...Object.fromEntries(CAMPOS.map((c) => [c, d[c] || 0])),
             };
         })
