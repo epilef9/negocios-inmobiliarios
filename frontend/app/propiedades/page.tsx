@@ -55,15 +55,15 @@ const tipoGeneral = (tipo: string) => (normalizar(tipo) === "monoambiente" ? "de
 // operaciones; se usan los precios de las operaciones marcadas que tenga (sin ninguna marcada, el de la principal).
 const preciosParaFiltrar = (p: ApiProperty, f: FiltrosPropiedades) => {
 	const marcadas = elegidasDe(OPERACIONES, f.operation).filter((o) => tieneOperacion(p, o));
-	return (marcadas.length ? marcadas : [undefined]).map((o) => precioEnDolares(p, o) ?? p.price);
+	return (marcadas.length ? marcadas : [undefined]).map((o) => precioEnDolares(p, o) ?? p.precio);
 };
 
 // En operación, ubicación, tipo y estado alcanza con cumplir una de las opciones marcadas; las comodidades, todas
 const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
-	const tipo = p.tipo_inmueble || p.propertyType || "";
+	const tipo = p.tipoInmueble || p.propertyType || "";
 	const estado = p.estado || p.status || "";
 	const comodidades = p.comodidades || p.amenities || [];
-	const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+	const ambientes = p.ambientes ?? p.dormitorios;
 	const operaciones = elegidasDe(OPERACIONES, f.operation);
 	const lugares = separar(f.location).map(normalizar);
 	const tipos = elegidasDe(TIPOS, f.propertyType);
@@ -101,7 +101,7 @@ function PropiedadesConFiltros() {
 function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }) {
 	const { whatsappUrl } = useContacto();
 	const { user } = useAuth();
-	const esAdmin = user?.role === "admin";
+	const esAdmin = user?.rol === "admin";
 	const blue = useDolarBlue();
 
 	const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
@@ -354,7 +354,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 													type="button"
 													onClick={() => mover(propiedad._id, destino)}
 													disabled={(destino === "inicio" || destino === "arriba") ? indice === 0 : indice === mostradas.length - 1}
-													aria-label={`${texto}: ${propiedad.title}`}
+													aria-label={`${texto}: ${propiedad.titulo}`}
 													title={texto}
 													className="flex h-11 w-11 items-center justify-center rounded-lg text-[#efe9df] transition-colors hover:bg-[#efe9df]/10 disabled:opacity-30"
 												>

@@ -14,7 +14,7 @@ export interface User {
   dni?: string;
   telefono?: string;
   email: string;
-  role: string;
+  rol: string;
   checklistRequisitos?: string[];
   emailVerificado?: boolean;
   preferencias?: UserPreferences;

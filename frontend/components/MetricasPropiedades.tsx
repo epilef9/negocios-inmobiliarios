@@ -26,7 +26,7 @@ export default function MetricasPropiedades() {
       {metricDefinitions.map(({ key, label }) => {
         const count = properties.filter(
           (property) =>
-            isAvailable(property) && property.categoria_operacion === key,
+            isAvailable(property) && property.categoriaOperacion === key,
         ).length;
 
         return (

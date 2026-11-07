@@ -75,23 +75,23 @@ exports.createVisita = async (req, res) => {
         }
 
         if (typeof propiedad.id === 'string' && mongoose.isValidObjectId(propiedad.id)) {
-            const real = await Property.findById(propiedad.id).select('title location direccionCompleta estado permitirVisita').lean();
+            const real = await Property.findById(propiedad.id).select('titulo ubicacion direccionCompleta estado permitirVisita').lean();
             if (!real) return res.status(404).json({ message: 'La propiedad ya no está publicada' });
             if (real.estado === 'vendido' || real.estado === 'alquilado') {
                 return res.status(409).json({ message: 'Esta propiedad ya no está disponible para visitas' });
             }
             // Solo se frena si el administrador la desactivó a propósito (vacía cuenta como sí)
-            if (real.permitirVisita === false && !(req.user && req.user.role === 'admin')) {
+            if (real.permitirVisita === false && !(req.user && req.user.rol === 'admin')) {
                 return res.status(409).json({ message: 'Esta propiedad no recibe pedidos de visita. Escribinos por WhatsApp.' });
             }
             datos.propiedad.id = String(real._id);
-            datos.propiedad.titulo = real.title;
-            datos.propiedad.direccion = real.direccionCompleta || real.location || '';
+            datos.propiedad.titulo = real.titulo;
+            datos.propiedad.direccion = real.direccionCompleta || real.ubicacion || '';
         }
 
         // Que el horario esté libre (y, para el público, dentro del horario de atención). Se controla y se guarda
         // dentro del candado de la agenda: dos pedidos al mismo tiempo no pueden quedarse con el mismo turno.
-        const esAdmin = req.user && req.user.role === 'admin';
+        const esAdmin = req.user && req.user.rol === 'admin';
         // Si la pide un cliente con la sesión iniciada, queda en su cuenta (HU-34: Mis visitas)
         if (req.user && !esAdmin) datos.usuario = req.user._id;
         const { motivo, visita: newVisita } = await agenda.reservar(datos, { controlarHorario: !esAdmin }, (conDuracion, session) =>

@@ -15,7 +15,7 @@ export default function GuardarBusqueda({ filtros }: { filtros: FiltrosPropiedad
   const [estado, setEstado] = useState<'listo' | 'guardando' | 'guardada'>('listo');
   const [error, setError] = useState('');
   const conFiltros = Object.entries(filtros).some(([clave, valor]) => clave !== 'status' && valor);
-  if (!conFiltros || user?.role === 'admin') return null;
+  if (!conFiltros || user?.rol === 'admin') return null;
 
   const guardar = async () => {
     if (!user) {

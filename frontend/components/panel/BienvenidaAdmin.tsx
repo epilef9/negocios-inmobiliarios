@@ -18,7 +18,7 @@ export default function BienvenidaAdmin() {
       olvidarBienvenida();
       return;
     }
-    if (user.role !== 'admin') return;
+    if (user.rol !== 'admin') return;
     if (ruta.startsWith(RUTA_BIENVENIDA) || ruta === '/login' || ruta === '/register') return;
     if (bienvenidaYaVista()) return;
     router.replace(rutaBienvenida(ruta + window.location.search));

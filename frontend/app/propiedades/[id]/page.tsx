@@ -14,23 +14,23 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 	const p = await propiedadEnServidor(id);
 	if (!p) return { title: "Propiedad | Araceli Balbuena Negocios Inmobiliarios" };
 	const resumen = resumenPropiedad(p);
-	const descripcion = `${resumen}.${p.description ? ` ${p.description.replace(/\s+/g, " ").slice(0, 160)}` : ""}`;
-	const foto = p.images?.[0];
+	const descripcion = `${resumen}.${p.descripcion ? ` ${p.descripcion.replace(/\s+/g, " ").slice(0, 160)}` : ""}`;
+	const foto = p.fotos?.[0];
 	const url = `${urlSitio()}/propiedades/${p._id}`;
 	return {
-		title: `${p.title} | Araceli Balbuena Negocios Inmobiliarios`,
+		title: `${p.titulo} | Araceli Balbuena Negocios Inmobiliarios`,
 		description: descripcion,
 		alternates: { canonical: url },
 		openGraph: {
 			type: "website",
 			url,
-			title: p.title,
+			title: p.titulo,
 			description: resumen,
 			siteName: "Araceli Balbuena Negocios Inmobiliarios",
 			locale: "es_AR",
-			...(foto ? { images: [{ url: foto, alt: p.title }] } : {}),
+			...(foto ? { images: [{ url: foto, alt: p.titulo }] } : {}),
 		},
-		twitter: { card: foto ? "summary_large_image" : "summary", title: p.title, description: resumen, ...(foto ? { images: [foto] } : {}) },
+		twitter: { card: foto ? "summary_large_image" : "summary", title: p.titulo, description: resumen, ...(foto ? { images: [foto] } : {}) },
 	};
 }
 
@@ -39,11 +39,11 @@ function ofertas(p: ApiProperty) {
 	const abiertas = operacionesAbiertas(p);
 	const lista = (operacionesDe(p).length ? operacionesDe(p) : ["venta" as const]).map((operacion) => {
 		const temporario = operacion === "temporario" && p.precioPorNocheUSD;
-		const precio = precioDe(p, operacion) ?? { price: p.price, moneda: p.moneda === "ARS" ? "ARS" : "USD", priceARS: p.priceARS };
+		const precio = precioDe(p, operacion) ?? { precio: p.precio, moneda: p.moneda === "ARS" ? "ARS" : "USD", precioARS: p.precioARS };
 		return {
 			"@type": "Offer",
 			name: operacion === "venta" ? "Venta" : operacion === "alquiler" ? "Alquiler mensual" : "Alquiler por noche",
-			price: temporario ? p.precioPorNocheUSD : precio.moneda === "ARS" ? precio.priceARS ?? precio.price : precio.price,
+			price: temporario ? p.precioPorNocheUSD : precio.moneda === "ARS" ? precio.precioARS ?? precio.precio : precio.precio,
 			priceCurrency: !temporario && precio.moneda === "ARS" ? "ARS" : "USD",
 			availability: abiertas.includes(operacion) ? "https://schema.org/InStock" : "https://schema.org/SoldOut",
 		};
@@ -59,13 +59,13 @@ export default async function Page({ params }: Props) {
 		? {
 				"@context": "https://schema.org",
 				"@type": "RealEstateListing",
-				name: p.title,
+				name: p.titulo,
 				url: `${urlSitio()}/propiedades/${p._id}`,
 				description: resumenPropiedad(p),
-				...(p.images?.length ? { image: p.images.slice(0, 5) } : {}),
+				...(p.fotos?.length ? { image: p.fotos.slice(0, 5) } : {}),
 				// HU-25: una oferta por operación (venta y alquiler tienen cada una su precio)
 				offers: ofertas(p),
-				address: { "@type": "PostalAddress", streetAddress: p.direccionCompleta || p.location, addressLocality: p.ciudad, addressRegion: "Entre Ríos", addressCountry: "AR" },
+				address: { "@type": "PostalAddress", streetAddress: p.direccionCompleta || p.ubicacion, addressLocality: p.ciudad, addressRegion: "Entre Ríos", addressCountry: "AR" },
 			}
 		: null;
 	return (

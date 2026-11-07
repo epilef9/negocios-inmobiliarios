@@ -9,7 +9,7 @@ const reservasController = require('../controllers/reservas.controller');
 const soloAdmin = [authMiddleware, requireAdmin];
 // El administrador carga las estadías desde el panel (Disponibilidad), no reservando desde el sitio
 const soloClientes = (req, res, next) => {
-    if (req.user?.role === 'admin') {
+    if (req.user?.rol === 'admin') {
         return res.status(403).json({ message: 'Con la cuenta de administrador las estadías se cargan desde el panel.' });
     }
     next();

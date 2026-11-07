@@ -4,7 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const { cumpleBusqueda, limpiarFiltros, describirBusqueda } = require('../src/services/avisos.service');
 
-const casa = { categoria_operacion: 'alquiler', ciudad: 'Libertador San Martín', tipo_inmueble: 'casa', price: 400, cantidad_ambientes: 4, comodidades: ['parrilla'] };
+const casa = { categoriaOperacion: 'alquiler', ciudad: 'Libertador San Martín', tipoInmueble: 'casa', precio: 400, ambientes: 4, comodidades: ['parrilla'] };
 
 describe('Búsquedas guardadas', () => {
     it('limpia los filtros del catálogo y descarta valores raros', () => {
@@ -16,9 +16,9 @@ describe('Búsquedas guardadas', () => {
     it('coincide con los mismos criterios del catálogo', () => {
         const f = limpiarFiltros({ operation: 'alquiler', location: 'libertador san martin', rooms: '3', maxPrice: '500' });
         assert.equal(cumpleBusqueda(casa, f), true);
-        assert.equal(cumpleBusqueda({ ...casa, price: 600 }, f), false);
-        assert.equal(cumpleBusqueda({ ...casa, categoria_operacion: 'venta' }, f), false);
-        assert.equal(cumpleBusqueda({ ...casa, tipo_inmueble: 'monoambiente' }, limpiarFiltros({ propertyType: 'departamento' })), true);
+        assert.equal(cumpleBusqueda({ ...casa, precio: 600 }, f), false);
+        assert.equal(cumpleBusqueda({ ...casa, categoriaOperacion: 'venta' }, f), false);
+        assert.equal(cumpleBusqueda({ ...casa, tipoInmueble: 'monoambiente' }, limpiarFiltros({ propertyType: 'departamento' })), true);
     });
 
     it('con varias comodidades, la propiedad tiene que tener todas', () => {
@@ -36,7 +36,7 @@ describe('Búsquedas guardadas', () => {
         assert.deepEqual([f.operacion, f.localidad, f.tipo], ['venta,alquiler', 'Crespo,Libertador San Martín', 'casa,departamento']);
         assert.equal(cumpleBusqueda(casa, f), true);
         assert.equal(cumpleBusqueda({ ...casa, ciudad: 'Diamante' }, f), false);
-        assert.equal(cumpleBusqueda({ ...casa, tipo_inmueble: 'local' }, f), false);
+        assert.equal(cumpleBusqueda({ ...casa, tipoInmueble: 'local' }, f), false);
         assert.equal(cumpleBusqueda(casa, limpiarFiltros({ operation: 'venta,temporario' })), false);
         // El precio que cuenta es el de una de las operaciones buscadas
         assert.equal(cumpleBusqueda(casa, limpiarFiltros({ operation: 'venta,alquiler', maxPrice: '500' })), true);
@@ -51,7 +51,7 @@ describe('Búsquedas guardadas', () => {
 
 describe('Búsqueda con varias operaciones', () => {
     it('HU-25: una propiedad en venta y alquiler coincide con búsquedas de las dos operaciones, cada una con su precio', () => {
-        const ambas = { ...casa, categoria_operacion: 'venta', operaciones: ['venta', 'alquiler'], price: 90000, precios: { venta: { price: 90000, moneda: 'USD' }, alquiler: { price: 400, moneda: 'USD' } } };
+        const ambas = { ...casa, categoriaOperacion: 'venta', operaciones: ['venta', 'alquiler'], precio: 90000, precios: { venta: { precio: 90000, moneda: 'USD' }, alquiler: { precio: 400, moneda: 'USD' } } };
         assert.equal(cumpleBusqueda(ambas, { operacion: 'alquiler', precioMax: 500 }), true);
         assert.equal(cumpleBusqueda(ambas, { operacion: 'venta', precioMax: 500 }), false);
         assert.equal(cumpleBusqueda(ambas, { operacion: 'venta', precioMin: 80000 }), true);

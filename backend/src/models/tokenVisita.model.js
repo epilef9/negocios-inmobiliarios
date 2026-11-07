@@ -12,7 +12,7 @@ const tokenVisitaSchema = new mongoose.Schema(
         // Si la visita cambia de estado (la confirman, la rechazan, la cancela), el enlace deja de valer
         estadoAlEmitir: { type: String, required: true },
         unSoloUso: { type: Boolean, default: false },
-        usadoAt: { type: Date, default: null },
+        usadoEn: { type: Date, default: null },
     },
     { timestamps: true }
 );

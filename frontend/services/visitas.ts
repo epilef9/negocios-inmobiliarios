@@ -26,7 +26,7 @@ export interface Visita {
   // Solo en "Mis visitas": si el cliente todavía la puede cancelar
   cancelable?: boolean;
   // Respuesta a los botones del recordatorio del día anterior
-  asistencia?: { respuesta: 'confirmo' | 'no_voy' | null; respondidaAt?: string | null };
+  asistencia?: { respuesta: 'confirmo' | 'no_voy' | null; respondidaEn?: string | null };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -72,7 +72,7 @@ function normalizeVisita(raw: VisitaCruda): Visita {
     notaAdicional: raw.notaAdicional || '',
     motivoRechazo: raw.motivoRechazo || '',
     cancelable: Boolean(raw.cancelable),
-    asistencia: { respuesta: raw.asistencia?.respuesta ?? null, respondidaAt: raw.asistencia?.respondidaAt ?? null },
+    asistencia: { respuesta: raw.asistencia?.respuesta ?? null, respondidaEn: raw.asistencia?.respondidaEn ?? null },
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };

@@ -22,7 +22,7 @@ const cambioAutomatico = (solicitud, propiedad, ahora = new Date()) => {
     if (['vendido', 'alquilado'].includes(propiedad?.estado) && !operacionesAbiertas(propiedad).includes(operacionDeSolicitud(solicitud.operacion))) {
         return { estado: 'cerrada', comentario: MENSAJE_CIERRE, fecha: ahora };
     }
-    const inicio = new Date(solicitud.reactivadaAt || solicitud.createdAt).getTime();
+    const inicio = new Date(solicitud.reactivadaEn || solicitud.createdAt).getTime();
     const respondida = (solicitud.historialEstados || []).some((cambio) =>
         cambio.comentario?.trim() && !cambio.automatico && new Date(cambio.fecha).getTime() > inicio);
     if (!respondida && Number.isFinite(inicio) && ahora.getTime() >= inicio + DIAS_VENCIMIENTO_SOLICITUD * DIA) {

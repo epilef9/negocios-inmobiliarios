@@ -38,19 +38,19 @@ export function resumenPropiedad(p: ApiProperty) {
   const operaciones = operacionesDe(p).length ? operacionesDe(p) : ['venta' as const];
   const operacion = operaciones.length === 2 ? 'Venta y alquiler' : operaciones[0] === 'alquiler' ? 'Alquiler' : operaciones[0] === 'temporario' ? 'Alquiler por días' : 'Venta';
   const TIPOS: Record<string, string> = { casa: 'Casa', departamento: 'Departamento', monoambiente: 'Monoambiente', local: 'Local', terreno: 'Terreno' };
-  const tipo = TIPOS[p.tipo_inmueble || ''] ?? '';
+  const tipo = TIPOS[p.tipoInmueble || ''] ?? '';
   const textoPrecio = (o: Operacion) => {
     if (o === 'temporario' && p.precioPorNocheUSD) return `USD ${Math.round(p.precioPorNocheUSD).toLocaleString('es-AR')} por noche`;
-    const precio = precioDe(p, o) ?? { price: p.price, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: p.priceARS };
+    const precio = precioDe(p, o) ?? { precio: p.precio, moneda: p.moneda === 'ARS' ? 'ARS' : 'USD', precioARS: p.precioARS };
     const sufijo = o === 'alquiler' ? ' por mes' : '';
     return precio.moneda === 'ARS'
-      ? `ARS ${Math.round(precio.priceARS ?? precio.price).toLocaleString('es-AR')}${sufijo}`
-      : `USD ${Math.round(precio.price).toLocaleString('es-AR')}${sufijo}`;
+      ? `ARS ${Math.round(precio.precioARS ?? precio.precio).toLocaleString('es-AR')}${sufijo}`
+      : `USD ${Math.round(precio.precio).toLocaleString('es-AR')}${sufijo}`;
   };
   const partes = [
     operacion,
     tipo,
-    p.tipo_inmueble !== 'terreno' && p.cantidad_ambientes ? `${p.cantidad_ambientes} amb.` : '',
+    p.tipoInmueble !== 'terreno' && p.ambientes ? `${p.ambientes} amb.` : '',
     p.area ? `${p.area} m²` : '',
     ...operaciones.map(textoPrecio),
     p.ciudad || '',

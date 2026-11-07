@@ -36,13 +36,13 @@ function caracteristicas(p: ApiProperty) {
 	const agregar = (etiqueta: string, valor: string | number | undefined | null) => {
 		if (valor !== undefined && valor !== null && valor !== "" && valor !== 0) filas.push([etiqueta, String(valor)]);
 	};
-	const esTerreno = p.tipo_inmueble === "terreno";
-	agregar("Tipo", etiquetaTipo[p.tipo_inmueble || ""] ?? p.tipo_inmueble);
+	const esTerreno = p.tipoInmueble === "terreno";
+	agregar("Tipo", etiquetaTipo[p.tipoInmueble || ""] ?? p.tipoInmueble);
 	agregar("Superficie", p.area ? `${p.area} m²` : undefined);
 	if (!esTerreno) {
-		agregar("Ambientes", p.cantidad_ambientes);
-		agregar("Dormitorios", p.bedrooms);
-		agregar("Baños", p.bathrooms);
+		agregar("Ambientes", p.ambientes);
+		agregar("Dormitorios", p.dormitorios);
+		agregar("Baños", p.banos);
 		agregar("Cochera", p.cochera === "si" ? "Sí" : p.cochera === "no" ? "No" : p.cochera);
 		agregar("Piso", p.pisoUnidad);
 	}
@@ -137,7 +137,7 @@ export default function DetallePropiedad() {
 	const ubicacion =
 		(p.direccionCompleta && p.ciudad && p.direccionCompleta.toLocaleLowerCase("es").includes(p.ciudad.toLocaleLowerCase("es"))
 			? p.direccionCompleta
-			: [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ")) || p.location;
+			: [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ")) || p.ubicacion;
 	const estadoNoDisponible = conInquilino ? "Se vende con inquilino" : p.estado && p.estado !== "disponible" ? etiquetaEstado[p.estado] : null;
 	// Una propiedad vendida o alquilada ya no se puede visitar (salvo la venta con inquilino adentro)
 	// Vacía cuenta como sí: las propiedades cargadas antes de que existiera la casilla también se pueden visitar
@@ -149,7 +149,7 @@ export default function DetallePropiedad() {
 	const filas = caracteristicas(p);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
 	const enlace = typeof window !== "undefined" ? window.location.href : "";
-	const mensaje = `Hola, me interesa la propiedad "${p.title}"${enlace ? ` (${enlace})` : ""}. ¿Me pasan más información?`;
+	const mensaje = `Hola, me interesa la propiedad "${p.titulo}"${enlace ? ` (${enlace})` : ""}. ¿Me pasan más información?`;
 	const numeroWhatsApp = p.permitirWhatsApp && p.telefonoWhatsApp ? `https://wa.me/${p.telefonoWhatsApp.replace(/\D/g, "")}` : whatsappUrl;
 	const whatsapp = `${numeroWhatsApp}?text=${encodeURIComponent(mensaje)}`;
 	const tieneMapa = Boolean(p.latitud && p.longitud);
@@ -162,9 +162,9 @@ export default function DetallePropiedad() {
 						Propiedades
 					</Link>
 					<span aria-hidden="true">/</span>
-					<span className="truncate text-[#efe9df]/80">{p.title}</span>
+					<span className="truncate text-[#efe9df]/80">{p.titulo}</span>
 				</nav>
-				<Galeria imagenes={p.images ?? []} titulo={p.title} />
+				<Galeria imagenes={p.fotos ?? []} titulo={p.titulo} />
 			</div>
 
 			<div className="grid gap-12 px-5 pb-20 pt-12 sm:px-10 lg:grid-cols-12 lg:gap-6 lg:pt-16">
@@ -175,7 +175,7 @@ export default function DetallePropiedad() {
 							{p.ciudad ? ` en ${p.ciudad}` : ""}
 							{estadoNoDisponible && <span className="rounded-full bg-[#efe9df] px-3 py-1 text-[#071733]">{estadoNoDisponible}</span>}
 						</p>
-						<h1 className="font-display m-0 text-[clamp(44px,5.4vw,84px)] font-normal leading-[0.98] tracking-[-0.02em]">{p.title}</h1>
+						<h1 className="font-display m-0 text-[clamp(44px,5.4vw,84px)] font-normal leading-[0.98] tracking-[-0.02em]">{p.titulo}</h1>
 						<p className="m-0 text-[16px] text-[#efe9df]/75">{ubicacion}</p>
 					</header>
 
@@ -195,12 +195,12 @@ export default function DetallePropiedad() {
 						</section>
 					)}
 
-					{p.description && (
+					{p.descripcion && (
 						<section aria-labelledby="titulo-descripcion" className="flex flex-col gap-4">
 							<h2 id="titulo-descripcion" className="font-display m-0 text-[32px] font-normal">
 								Sobre la propiedad
 							</h2>
-							<p className="m-0 max-w-[68ch] whitespace-pre-line text-[17px] leading-[1.7] text-[#efe9df]/85">{p.description}</p>
+							<p className="m-0 max-w-[68ch] whitespace-pre-line text-[17px] leading-[1.7] text-[#efe9df]/85">{p.descripcion}</p>
 						</section>
 					)}
 
@@ -248,7 +248,7 @@ export default function DetallePropiedad() {
 								Abrir en Google Maps
 							</a>
 						)}
-						<Cercania latitud={p.latitud} longitud={p.longitud} ciudad={p.ciudad || p.location} />
+						<Cercania latitud={p.latitud} longitud={p.longitud} ciudad={p.ciudad || p.ubicacion} />
 					</section>
 
 					<CalculadoraIngreso propiedad={p} blue={blue} />
@@ -338,10 +338,10 @@ export default function DetallePropiedad() {
 							>
 								Escribir por WhatsApp
 							</a>
-							<ConsultaEmail titulo={p.title} mensajeInicial={mensaje} deshabilitado={p.permitirEmail === false} />
-							<BotonFavorito propiedadId={p._id} titulo={p.title} variante="texto" />
+							<ConsultaEmail titulo={p.titulo} mensajeInicial={mensaje} deshabilitado={p.permitirEmail === false} />
+							<BotonFavorito propiedadId={p._id} titulo={p.titulo} variante="texto" />
 							{(p.estado === "alquilado" || p.estado === "reservado") && <AvisoDisponibilidad propiedadId={p._id} />}
-							<Compartir titulo={p.title} resumen={`${operacion} · ${textoPrecios}${p.ciudad ? ` · ${p.ciudad}` : ""}`} />
+							<Compartir titulo={p.titulo} resumen={`${operacion} · ${textoPrecios}${p.ciudad ? ` · ${p.ciudad}` : ""}`} />
 						</div>
 						<div className="flex flex-wrap items-center justify-center gap-x-6 gap-y-3">
 							<BotonComparar propiedadId={p._id} />

@@ -25,41 +25,41 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 
 export type Operacion = "venta" | "alquiler" | "temporario";
-// price va en dólares; moneda es la moneda en que se cargó y priceARS el valor en pesos
-export type PrecioOperacion = { price?: number; moneda?: "USD" | "ARS"; priceARS?: number };
+// precio va en dólares; moneda es la moneda en que se cargó y precioARS el valor en pesos
+export type PrecioOperacion = { precio?: number; moneda?: "USD" | "ARS"; precioARS?: number };
 
 export type ApiProperty = {
 	_id: string;
-	title: string;
+	titulo: string;
 	codigoInterno?: string;
-	description: string;
-	price: number;
+	descripcion: string;
+	precio: number;
 	moneda?: "USD" | "ARS";
-	priceARS?: number;
+	precioARS?: number;
 	cotizacionDolar?: number;
-	location: string;
+	ubicacion: string;
 	ciudad?: string;
 	provincia?: string;
 	direccionCompleta?: string;
 	referenciasUbicacion?: string;
-	bedrooms: number;
-	bathrooms: number;
+	dormitorios: number;
+	banos: number;
 	area: number;
 	cochera?: string;
 	pisoUnidad?: string;
-	images?: string[];
+	fotos?: string[];
 	// HU-25 / RF-03: operaciones en las que se publica y el precio de cada una (ver components/sitio/operaciones.ts).
-	// categoria_operacion y price/moneda/priceARS son la copia de la operación principal.
+	// categoriaOperacion y precio/moneda/precioARS son la copia de la operación principal.
 	operaciones?: Operacion[];
 	precios?: { venta?: PrecioOperacion; alquiler?: PrecioOperacion };
-	categoria_operacion?: Operacion;
+	categoriaOperacion?: Operacion;
 	// Ya no se usa (las solicitudes siguen a operaciones); queda en las propiedades viejas
 	operacionesSolicitud?: ("venta" | "alquiler")[];
 	// Ya se vendió aunque después figure alquilada (HU-28)
 	vendida?: boolean;
 	permitirSolicitudes?: boolean;
-	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
-	cantidad_ambientes?: number;
+	tipoInmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
+	ambientes?: number;
 	comodidades?: string[];
 	otrasComodidades?: string;
 	expensas?: string;

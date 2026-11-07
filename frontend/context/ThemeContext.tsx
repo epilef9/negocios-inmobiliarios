@@ -103,7 +103,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Las preferencias remotas pertenecen a la cuenta y sobrescriben el respaldo local.
   useEffect(() => {
     if (isAuthLoading) return;
-    if (!user || user.role !== 'admin') {
+    if (!user || user.rol !== 'admin') {
       return;
     }
 
@@ -144,7 +144,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme, palette]);
 
   useEffect(() => {
-    if (!preferencesLoaded || !user || user.role !== 'admin') return;
+    if (!preferencesLoaded || !user || user.rol !== 'admin') return;
     void saveUserPreferences({ tema: theme, paleta: palette });
   }, [theme, palette, preferencesLoaded, user]);
 

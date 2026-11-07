@@ -136,7 +136,7 @@ class ContratoService {
     async listarSolicitudesParaContrato() {
         const solicitudes = await Solicitud.find({ estado: { $in: ['aprobada', 'pendiente'] } })
             .select('+datosCifrados')
-            .populate('propiedad', 'title ciudad location')
+            .populate('propiedad', 'titulo ciudad ubicacion')
             .sort({ estado: 1, createdAt: -1 })
             .limit(100)
             .lean();
@@ -163,8 +163,8 @@ class ContratoService {
                 },
                 propiedad: solicitud.propiedad ? {
                     id: String(solicitud.propiedad._id),
-                    titulo: solicitud.propiedad.title,
-                    ciudad: solicitud.propiedad.ciudad || solicitud.propiedad.location || '',
+                    titulo: solicitud.propiedad.titulo,
+                    ciudad: solicitud.propiedad.ciudad || solicitud.propiedad.ubicacion || '',
                 } : null,
             };
         });
@@ -194,7 +194,7 @@ class ContratoService {
         }
 
         const propiedad = await Property.findById(solicitud.propiedad)
-            .select('title location ciudad direccionCompleta price priceARS moneda categoria_operacion operaciones precios tipo_inmueble publicacion +propietario')
+            .select('titulo ubicacion ciudad direccionCompleta precio precioARS moneda categoriaOperacion operaciones precios tipoInmueble publicacion +propietario')
             .lean();
 
         const dueno = propiedad
@@ -206,7 +206,7 @@ class ContratoService {
         const precioOperacion = propiedad ? precioDe(propiedad, operacion) ?? precioDe(propiedad, principalDe(propiedad)) : null;
         const moneda = precioOperacion?.moneda || null;
         const precio = precioOperacion
-            ? Number(moneda === 'ARS' ? (precioOperacion.priceARS ?? precioOperacion.price) : precioOperacion.price)
+            ? Number(moneda === 'ARS' ? (precioOperacion.precioARS ?? precioOperacion.precio) : precioOperacion.precio)
             : null;
 
         return {
@@ -227,11 +227,11 @@ class ContratoService {
             } : null,
             propiedad: propiedad ? {
                 id: String(propiedad._id),
-                titulo: propiedad.title || '',
-                direccion: propiedad.direccionCompleta || propiedad.location || '',
+                titulo: propiedad.titulo || '',
+                direccion: propiedad.direccionCompleta || propiedad.ubicacion || '',
                 ciudad: propiedad.ciudad || '',
-                tipoInmueble: propiedad.tipo_inmueble || '',
-                operacion: operacionesDe(propiedad).includes(operacion) ? operacion : propiedad.categoria_operacion || '',
+                tipoInmueble: propiedad.tipoInmueble || '',
+                operacion: operacionesDe(propiedad).includes(operacion) ? operacion : propiedad.categoriaOperacion || '',
                 precio: Number.isFinite(precio) ? precio : null,
                 moneda,
             } : null,

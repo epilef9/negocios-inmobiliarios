@@ -679,7 +679,7 @@ export default function DisponibilidadAdminPage() {
               {propiedades.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.codigoInterno ? `${p.codigoInterno}: ` : ''}
-                  {p.title}
+                  {p.titulo}
                 </option>
               ))}
             </select>

@@ -24,9 +24,9 @@ export default function CalculadoraIngreso({ propiedad, blue }: { propiedad: Api
 
   if (!costos || !operacion) return null;
 
-  const precio = precioDe(propiedad, operacion) ?? { price: propiedad.price, moneda: propiedad.moneda === 'ARS' ? 'ARS' : 'USD', priceARS: propiedad.priceARS };
+  const precio = precioDe(propiedad, operacion) ?? { precio: propiedad.precio, moneda: propiedad.moneda === 'ARS' ? 'ARS' : 'USD', precioARS: propiedad.precioARS };
   const moneda = precio.moneda === 'ARS' ? 'ARS' : 'USD';
-  const base = (moneda === 'ARS' ? precio.priceARS ?? precio.price : precio.price) * (1 - descuentoVigente(propiedad) / 100);
+  const base = (moneda === 'ARS' ? precio.precioARS ?? precio.precio : precio.precio) * (1 - descuentoVigente(propiedad) / 100);
   const calculo = operacion === 'alquiler' ? calcularAlquiler(base, moneda, meses, costos.alquiler, blue) : calcularVenta(base, moneda, costos.venta);
 
   return (

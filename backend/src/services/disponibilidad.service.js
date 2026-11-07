@@ -64,7 +64,7 @@ const conCandado = (propiedadId, trabajo) =>
 const propiedadTemporaria = async (propiedadId) => {
     if (!mongoose.isValidObjectId(propiedadId)) throw ApiError.badRequest('El id de la propiedad no es válido');
     const propiedad = await Property.findById(propiedadId)
-        .select('title categoria_operacion operaciones minimoNoches precioPorNocheUSD huespedesMaximos costoLimpiezaUSD')
+        .select('titulo categoriaOperacion operaciones minimoNoches precioPorNocheUSD huespedesMaximos costoLimpiezaUSD')
         .lean();
     if (!propiedad) throw ApiError.notFound('Propiedad no encontrada');
     if (!operacionesDe(propiedad).includes('temporario')) {

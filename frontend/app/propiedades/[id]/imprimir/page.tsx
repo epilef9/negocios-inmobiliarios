@@ -48,9 +48,9 @@ export default function ImprimirFicha() {
 	const precios = preciosDePropiedad(p, blue).length ? preciosDePropiedad(p, blue) : [{ operacion: "venta" as const, ...precioDePropiedad(p, blue) }];
 	const precio = precios[0];
 	// Una foto grande y dos chicas; con menos de tres, solo la portada (la hoja tiene que entrar en una A4)
-	const fotos = (p.images ?? []).length >= 3 ? (p.images ?? []).slice(0, 3) : (p.images ?? []).slice(0, 1);
+	const fotos = (p.fotos ?? []).length >= 3 ? (p.fotos ?? []).slice(0, 3) : (p.fotos ?? []).slice(0, 1);
 	const comodidades = (p.comodidades ?? []).map((c) => etiquetaComodidad[c]).filter(Boolean);
-	const datos = [etiquetaTipo[p.tipo_inmueble || ""], ...datosCortos(p), p.cochera === "si" ? "Cochera" : ""].filter(Boolean);
+	const datos = [etiquetaTipo[p.tipoInmueble || ""], ...datosCortos(p), p.cochera === "si" ? "Cochera" : ""].filter(Boolean);
 
 	return (
 		<main className="min-h-dvh bg-[#e9e6e0] py-8 text-[#071733] print:bg-white print:py-0">
@@ -76,16 +76,16 @@ export default function ImprimirFicha() {
 					<div className={`grid gap-2 ${fotos.length === 3 ? "grid-cols-2" : ""}`}>
 						{fotos.map((foto, i) => (
 							// eslint-disable-next-line @next/next/no-img-element
-							<img key={foto} src={foto} alt={i === 0 ? p.title : ""} className={`w-full rounded object-cover ${fotos.length !== 3 ? "h-[90mm]" : i === 0 ? "col-span-2 h-[78mm]" : "h-[42mm]"}`} />
+							<img key={foto} src={foto} alt={i === 0 ? p.titulo : ""} className={`w-full rounded object-cover ${fotos.length !== 3 ? "h-[90mm]" : i === 0 ? "col-span-2 h-[78mm]" : "h-[42mm]"}`} />
 						))}
 					</div>
 				)}
 
 				<div className="flex flex-wrap items-start justify-between gap-6">
 					<div className="flex min-w-0 flex-1 flex-col gap-1.5">
-						<h1 className="font-display m-0 text-[30px] font-normal leading-tight">{p.title}</h1>
+						<h1 className="font-display m-0 text-[30px] font-normal leading-tight">{p.titulo}</h1>
 						<p className="m-0 text-[14px] text-[#071733]/75">
-							{(p.direccionCompleta && p.ciudad && p.direccionCompleta.toLocaleLowerCase("es").includes(p.ciudad.toLocaleLowerCase("es")) ? p.direccionCompleta : [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ")) || p.location}
+							{(p.direccionCompleta && p.ciudad && p.direccionCompleta.toLocaleLowerCase("es").includes(p.ciudad.toLocaleLowerCase("es")) ? p.direccionCompleta : [p.direccionCompleta, p.ciudad].filter(Boolean).join(", ")) || p.ubicacion}
 						</p>
 						<p className="m-0 text-[14px]">{datos.join(" · ")}</p>
 					</div>
@@ -107,7 +107,7 @@ export default function ImprimirFicha() {
 					</div>
 				</div>
 
-				{p.description && <p className="m-0 whitespace-pre-line text-[13px] leading-relaxed">{p.description.slice(0, 900)}</p>}
+				{p.descripcion && <p className="m-0 whitespace-pre-line text-[13px] leading-relaxed">{p.descripcion.slice(0, 900)}</p>}
 
 				{comodidades.length > 0 && (
 					<ul className="m-0 grid list-none grid-cols-3 gap-x-4 gap-y-1 p-0 text-[12.5px]">

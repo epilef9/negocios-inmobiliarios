@@ -39,7 +39,7 @@ export default async function PaginaLocalidad({ params }: Props) {
 	const todas = await propiedadesEnServidor();
 	const deLaZona = todas
 		// HU-25: incluye las que están en venta y alquiler a la vez
-		? todas.filter((p) => tieneOperacion(p, operacion.categoria) && `${p.ciudad ?? ""} ${p.location ?? ""}`.toLocaleLowerCase("es").includes(localidad.coincide))
+		? todas.filter((p) => tieneOperacion(p, operacion.categoria) && `${p.ciudad ?? ""} ${p.ubicacion ?? ""}`.toLocaleLowerCase("es").includes(localidad.coincide))
 		: null;
 	const datos = {
 		"@context": "https://schema.org",

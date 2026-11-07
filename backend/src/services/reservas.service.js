@@ -133,7 +133,7 @@ const crearReserva = async ({ usuario, propiedad: propiedadId, entrada, salida, 
             [
                 {
                     propiedad: propiedadId,
-                    tituloPropiedad: propiedad.title,
+                    tituloPropiedad: propiedad.titulo,
                     cliente: { usuario: usuario._id, nombre, email: usuario.email, telefono: usuario.telefono || '' },
                     entrada,
                     salida,
@@ -278,7 +278,7 @@ const mias = async (usuarioId) => {
         .sort({ createdAt: -1 })
         .limit(100)
         .select('-cliente')
-        .populate('propiedad', 'title images ciudad location');
+        .populate('propiedad', 'titulo fotos ciudad ubicacion');
 };
 
 module.exports = {

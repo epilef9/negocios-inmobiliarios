@@ -78,7 +78,7 @@ export default function MisAvisos() {
                   {a.tipo === 'disponibilidad' ? (
                     a.propiedad ? (
                       <Link href={`/propiedades/${a.propiedad._id}`} className="calma-link calma-link-sutil self-start text-[18px]">
-                        {a.propiedad.title}
+                        {a.propiedad.titulo}
                       </Link>
                     ) : (
                       <span className="text-[18px]">Propiedad que ya no está publicada</span>

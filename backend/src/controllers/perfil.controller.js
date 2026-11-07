@@ -22,7 +22,7 @@ const datosPublicos = (user, emailPendiente) => ({
     telefono: user.telefono || '',
     email: user.email,
     emailPendiente: emailPendiente || undefined,
-    role: user.role,
+    rol: user.rol,
     emailVerificado: user.emailVerificado !== false,
     checklistRequisitos: user.checklistRequisitos || [],
     preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },
@@ -76,7 +76,7 @@ exports.actualizar = async (req, res) => {
         let enlaceDev;
         if (email !== user.email) {
             // Cambiar el email cambia con qué se ingresa: se confirma con la contraseña y con un enlace al email nuevo
-            if (!passwordActual || !(await bcrypt.compare(passwordActual, user.password))) {
+            if (!passwordActual || !(await bcrypt.compare(passwordActual, user.contrasena))) {
                 return res.status(400).json({
                     message: 'Para cambiar el email confirmá con tu contraseña actual.',
                     errores: { passwordActual: 'La contraseña no es correcta.' },

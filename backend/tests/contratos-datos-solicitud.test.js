@@ -13,11 +13,11 @@ const ID_VALIDO = '000000000000000000000001';
 const authStub = (req, res, next) => {
     const rol = req.get('x-test-role');
     if (!rol) return res.status(401).json({ message: 'No token provided' });
-    req.user = { _id: '000000000000000000000099', role: rol };
+    req.user = { _id: '000000000000000000000099', rol: rol };
     next();
 };
 authStub.requireAdmin = (req, res, next) => {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || req.user.rol !== 'admin') {
         return res.status(403).json({ message: 'Acceso denegado. Se requiere rol de administrador.' });
     }
     next();

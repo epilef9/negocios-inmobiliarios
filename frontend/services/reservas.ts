@@ -15,7 +15,7 @@ export interface CambioReserva {
 export interface Reserva {
   id: string;
   // En Mi cuenta llega con la foto y el título actuales; en el panel, solo el id
-  propiedad: string | { _id: string; title?: string; images?: string[]; ciudad?: string; location?: string } | null;
+  propiedad: string | { _id: string; titulo?: string; fotos?: string[]; ciudad?: string; ubicacion?: string } | null;
   tituloPropiedad: string;
   cliente?: { nombre: string; email: string; telefono: string };
   entrada: string;

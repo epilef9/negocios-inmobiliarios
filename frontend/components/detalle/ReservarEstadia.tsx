@@ -58,7 +58,7 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
   const maximoHuespedes = propiedad.huespedesMaximos && propiedad.huespedesMaximos > 0 ? propiedad.huespedesMaximos : 20;
   const minimo = Math.max(1, datos?.minimoNoches ?? propiedad.minimoNoches ?? 1);
   const precioNoche = datos?.precioPorNocheUSD ?? propiedad.precioPorNocheUSD ?? 0;
-  const esAdmin = user?.role === 'admin';
+  const esAdmin = user?.rol === 'admin';
 
   // Al volver de ingresar se recuperan las fechas que había elegido (si siguen libres)
   const recuperarFechas = (d: DisponibilidadPublica) => {

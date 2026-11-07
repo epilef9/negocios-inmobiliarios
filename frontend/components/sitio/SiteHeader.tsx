@@ -52,7 +52,7 @@ export default function SiteHeader() {
       <Link href="/perfil" className="calma-link calma-link-sutil">
         Mi cuenta
       </Link>
-      {user.role === 'admin' && (
+      {user.rol === 'admin' && (
         <Link href="/admin" className="calma-link calma-link-sutil">
           Panel
         </Link>

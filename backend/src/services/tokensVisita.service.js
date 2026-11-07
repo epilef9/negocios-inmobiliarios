@@ -32,7 +32,7 @@ const emitir = async (visita, proposito, { unSoloUso = false } = {}) => {
 // cambiada: quien prueba tokens al azar no se entera de nada.
 const validar = async (token, proposito) => {
     if (typeof token !== 'string' || !TOKEN_VALIDO.test(token)) return null;
-    const registro = await TokenVisita.findOne({ hash: hashDe(token), proposito, expira: { $gt: new Date() }, usadoAt: null }).lean();
+    const registro = await TokenVisita.findOne({ hash: hashDe(token), proposito, expira: { $gt: new Date() }, usadoEn: null }).lean();
     if (!registro) return null;
     const visita = await Visita.findById(registro.visita);
     if (!visita || visita.estado !== registro.estadoAlEmitir) return null;
@@ -41,7 +41,7 @@ const validar = async (token, proposito) => {
 
 // Marca usado un enlace de un solo uso. Atómico: si llegan dos clics a la vez, solo uno gana.
 const consumir = async (registro) =>
-    (await TokenVisita.updateOne({ _id: registro._id, usadoAt: null }, { $set: { usadoAt: new Date() } })).modifiedCount === 1;
+    (await TokenVisita.updateOne({ _id: registro._id, usadoEn: null }, { $set: { usadoEn: new Date() } })).modifiedCount === 1;
 
 // Anula los enlaces de una visita (todos, o los de un propósito)
 const anular = (visitaId, proposito) => TokenVisita.deleteMany({ visita: visitaId, ...(proposito ? { proposito } : {}) });
