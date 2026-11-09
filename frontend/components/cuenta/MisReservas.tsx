@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { fechaLarga } from '@/components/calendario/fechas';
-import PagoReserva from './PagoReserva';
-import { ESTADO_PAGO, getMisPagos, type Pago } from '@/services/pagos';
+import PagoReserva, { ComprobanteMercadoPago } from './PagoReserva';
+import { ESTADO_PAGO, METODO_PAGO, TIPO_PAGO, cuentaDeReserva, dolares, faltaComprobanteMP, getMisPagos, pesos, verificarPagoMP, type Pago } from '@/services/pagos';
 import { cancelarReserva, fechaHoraArgentina, getMisReservas, idPropiedad, usd, type EstadoReserva, type Reserva } from '@/services/reservas';
 
 // Mi cuenta: las reservas de estadías del cliente (HU-20), con el estado en color y qué sigue en cada caso.
@@ -65,8 +65,15 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
   const [errorCancelar, setErrorCancelar] = useState<string | null>(null);
   const [pagos, setPagos] = useState<Pago[]>([]);
   const [pagando, setPagando] = useState<string | null>(null);
-  // Al volver de Mercado Pago llega ?pago=aprobado|pendiente|rechazado (este componente se arma solo en el navegador)
-  const [vueltaPago] = useState(() => (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('pago') : null));
+  // Al volver de Mercado Pago llega ?pago=aprobado|pendiente|rechazado&ref=<nuestro pago>&payment_id=<el de Mercado Pago>
+  // (este componente se arma solo en el navegador)
+  const [vuelta] = useState(() => {
+    if (typeof window === 'undefined') return null;
+    const q = new URLSearchParams(window.location.search);
+    const estado = q.get('pago');
+    return estado ? { estado, ref: q.get('ref') || '', paymentId: q.get('payment_id') || q.get('collection_id') || '' } : null;
+  });
+  const [vueltaPago, setVueltaPago] = useState(vuelta?.estado ?? null);
 
   useEffect(() => {
     let activo = true;
@@ -78,12 +85,28 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
       })
       .catch((e: Error) => activo && setError(e.message || 'No pudimos cargar tus reservas.'));
     getMisPagos()
-      .then((lista) => activo && setPagos(lista))
+      .then(async (lista) => {
+        if (!activo) return;
+        setPagos(lista);
+        // El sitio le pregunta a Mercado Pago cómo quedó el pago (no espera el aviso automático, que en la
+        // computadora no llega). Si quedó acreditado, la reserva se confirma y falta la foto del comprobante.
+        if (vuelta?.ref && /^\d+$/.test(vuelta.paymentId) && vuelta.estado !== 'rechazado') {
+          try {
+            const verificado = await verificarPagoMP(vuelta.ref, vuelta.paymentId);
+            if (!activo) return;
+            setPagos((actual) => [verificado, ...actual.filter((p) => p.id !== verificado.id)]);
+            setVueltaPago(verificado.estado === 'aprobado' ? 'aprobado' : verificado.estado === 'rechazado' ? 'rechazado' : 'pendiente');
+            if (verificado.estado === 'aprobado') getMisReservas().then((r) => activo && setReservas(r)).catch(() => {});
+          } catch {
+            // Si no se pudo consultar, queda el aviso automático de Mercado Pago
+          }
+        }
+      })
       .catch(() => {});
     return () => {
       activo = false;
     };
-  }, []);
+  }, [vuelta]);
 
   const cancelar = async (reserva: Reserva) => {
     setCancelando(true);
@@ -106,8 +129,8 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
   const lista = (reservas ?? [])
     .map((r) => ({ ...r, estado: estadoReal(r) }))
     .sort(comparar(hoy));
-  // El último pago de cada reserva (el más nuevo primero en la lista que manda el servidor)
-  const pagoDe = (id: string) => pagos.find((p) => p.reserva === id && p.estado === 'aprobado') ?? pagos.find((p) => p.reserva === id);
+  // Reemplaza (o agrega) un pago en la lista después de subir un comprobante
+  const actualizarPago = (nuevo: Pago) => setPagos((lista) => [nuevo, ...lista.filter((p) => p.id !== nuevo.id)]);
 
   return (
     <section
@@ -125,9 +148,9 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
       {vueltaPago && (
         <p role="status" className={`m-0 mb-8 rounded-2xl border px-5 py-4 text-[15px] ${vueltaPago === 'rechazado' ? 'border-[#d9382b]/50 text-[#ffc2bc]' : 'border-[#efe9df]/20 text-[#efe9df]'}`}>
           {vueltaPago === 'aprobado'
-            ? '¡Listo! Recibimos tu pago. En unos segundos la reserva aparece como pagada y confirmada.'
+            ? '¡Listo! Mercado Pago acreditó tu pago y los días quedaron reservados. Falta un paso: subí abajo la foto del comprobante.'
             : vueltaPago === 'pendiente'
-              ? 'Tu pago quedó pendiente en Mercado Pago. Te avisamos apenas se acredite.'
+              ? 'Tu pago quedó pendiente en Mercado Pago. Si ya lo hiciste, subí abajo la foto del comprobante y lo revisamos.'
               : 'El pago no se completó. Podés intentarlo de nuevo o pagar por transferencia.'}
         </p>
       )}
@@ -222,33 +245,55 @@ export default function MisReservas({ id, titulo = true }: { id: string; titulo?
                   )}
 
                   {(r.estado === 'pendiente' || r.estado === 'confirmada') && r.salida > hoy && (() => {
-                    const pago = pagoDe(r.id);
-                    if (pago?.estado === 'aprobado') {
-                      return <p className="m-0 text-[15px] text-[#efe9df]">✓ Pagada ({ESTADO_PAGO.aprobado.toLowerCase()} con {pago.metodo === 'mercadopago' ? 'Mercado Pago' : 'transferencia'}).</p>;
-                    }
-                    if (pago?.estado === 'en_revision') {
-                      return <p className="m-0 text-[15px] text-[#efe9df]/80">Recibimos tu comprobante y lo estamos revisando. Mientras tanto las noches siguen guardadas para vos.</p>;
-                    }
+                    const cuenta = cuentaDeReserva(pagos, r.id, r.totalUSD);
+                    const acreditados = cuenta.pagos.filter((p) => p.estado === 'aprobado');
+                    const enRevision = cuenta.pagos.find((p) => p.estado === 'en_revision');
+                    // Pago con Mercado Pago sin la foto del comprobante: si Mercado Pago ya lo informó, se pide; si no, se ofrece
+                    const sinFoto = cuenta.pagos.find(faltaComprobanteMP);
+                    const pidoFoto = sinFoto && (sinFoto.estado === 'aprobado' || sinFoto.informadoPorMP);
+                    const ultimo = cuenta.pagos.find((p) => p.estado !== 'cancelado');
+                    const quedaPorPagar = cuenta.restanteUSD > 0.009;
                     return (
                       <div className="flex flex-col gap-3">
-                        {pago?.estado === 'rechazado' && (
-                          <p className="m-0 text-[14px] text-[#ffc2bc]">
-                            {ESTADO_PAGO.rechazado}
-                            {pago.nota ? `: ${pago.nota}` : ''}. Podés intentarlo de nuevo.
+                        {acreditados.length > 0 && (
+                          <ul className="m-0 flex list-none flex-col gap-1 p-0 text-[15px] text-[#efe9df]">
+                            {acreditados.map((p) => (
+                              <li key={p.id}>
+                                ✓ {TIPO_PAGO[p.tipo]} {p.tipo === 'sena' ? 'acreditada' : 'acreditado'} · {pesos(p.montoARS)} con {METODO_PAGO[p.metodo]}
+                              </li>
+                            ))}
+                            <li className="text-[14px] text-[#efe9df]/70">{quedaPorPagar ? `Falta pagar ${dolares(cuenta.restanteUSD)} de ${dolares(r.totalUSD)}.` : 'La estadía está paga.'}</li>
+                          </ul>
+                        )}
+                        {pidoFoto && sinFoto && <ComprobanteMercadoPago pago={sinFoto} alSubir={actualizarPago} />}
+                        {enRevision && (
+                          <p className="m-0 text-[15px] text-[#efe9df]/80">
+                            Recibimos el comprobante {enRevision.tipo === 'sena' ? 'de la seña' : enRevision.tipo === 'saldo' ? 'del saldo' : 'del pago'} y lo estamos revisando. Mientras tanto las noches siguen guardadas para vos.
                           </p>
                         )}
-                        {pagando === r.id ? (
-                          <PagoReserva
-                            reservaId={r.id}
-                            alSubirComprobante={(nuevo) => {
-                              setPagos((lista) => [nuevo, ...lista]);
-                              setPagando(null);
-                            }}
-                          />
-                        ) : (
-                          <button type="button" onClick={() => setPagando(r.id)} className="calma-micro calma-link cursor-pointer self-start text-[12px] text-[#efe9df]">
-                            Pagar la reserva online
-                          </button>
+                        {quedaPorPagar && !enRevision && (
+                          <>
+                            {ultimo?.estado === 'rechazado' && (
+                              <p className="m-0 text-[14px] text-[#ffc2bc]">
+                                {ESTADO_PAGO.rechazado}
+                                {ultimo.nota ? `: ${ultimo.nota}` : ''}. Podés intentarlo de nuevo.
+                              </p>
+                            )}
+                            {pagando === r.id ? (
+                              <PagoReserva
+                                reservaId={r.id}
+                                alSubirComprobante={(nuevo) => {
+                                  actualizarPago(nuevo);
+                                  setPagando(null);
+                                }}
+                              />
+                            ) : (
+                              <button type="button" onClick={() => setPagando(r.id)} className="calma-micro calma-link cursor-pointer self-start text-[12px] text-[#efe9df]">
+                                {acreditados.length ? 'Pagar el saldo online' : 'Pagar la seña o el total online'}
+                              </button>
+                            )}
+                            {sinFoto && !pidoFoto && pagando !== r.id && <ComprobanteMercadoPago pago={sinFoto} alSubir={actualizarPago} yaPagaste={false} />}
+                          </>
                         )}
                       </div>
                     );

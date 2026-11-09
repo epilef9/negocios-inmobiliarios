@@ -128,6 +128,7 @@ export default function ContratosAdminPage() {
   return (
     <>
       <Encabezado
+        guia="contratos"
         titulo="Contratos"
         descripcion={contratos ? `${activos} activos${porVencer ? ` · ${porVencer} por vencer` : ''} · ${lista.length} en total` : 'Contratos de alquiler y venta generados desde el panel.'}
         acciones={
@@ -139,7 +140,7 @@ export default function ContratosAdminPage() {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-          <div role="tablist" aria-label="Estado de los contratos" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="tablist" data-guia="pestanas" aria-label="Estado de los contratos" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PESTANAS.map((p) => {
               const activa = pestana === p.id;
               const cantidad = lista.filter((c) => p.incluye(c.estado)).length;
@@ -159,7 +160,7 @@ export default function ContratosAdminPage() {
             })}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row">
-            <label className="relative sm:w-72">
+            <label data-guia="filtros" className="relative sm:w-72">
               <span className="sr-only">Buscar</span>
               <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
               <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Número, cliente o propiedad" className={`${control} pl-10`} />
@@ -202,7 +203,7 @@ export default function ContratosAdminPage() {
           ) : contratos && visibles.length === 0 ? (
             <EstadoVacio icono="buscar" titulo="Ningún contrato coincide" accion={<Boton onClick={() => { setBusqueda(''); setAnio(''); setPestana('todos'); }}>Ver todos</Boton>} />
           ) : contratos ? (
-            <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+            <ul data-guia="lista" className="m-0 list-none divide-y divide-panel-borde p-0">
               {visibles.map((c) => {
                 const estado = estadoDe(ESTADO_CONTRATO, c.estado);
                 return (
@@ -229,7 +230,7 @@ export default function ContratosAdminPage() {
                     <span>
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
                     </span>
-                    <div className="-ml-2 flex items-center lg:ml-0 lg:justify-end">
+                    <div data-guia="acciones-fila" className="-ml-2 flex items-center lg:ml-0 lg:justify-end">
                       <button type="button" onClick={() => setDetalle(c)} title="Ver detalle" aria-label={`Ver el contrato ${c.numeroContrato}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                         <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                       </button>

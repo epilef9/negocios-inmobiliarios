@@ -20,3 +20,8 @@ export const getResumenPanel = () => request<ItemPendiente[]>('/panel/resumen');
 export const getAccesosPanel = () => request<string[] | null>('/panel/accesos');
 export const guardarAccesosPanel = (accesos: string[]) =>
   request<string[]>('/panel/accesos', { method: 'PUT', body: JSON.stringify({ accesos }) });
+
+// Secciones del menú principal del panel, guardadas en la cuenta (null = las de siempre)
+export const getMenuPanel = () => request<string[] | null>('/panel/menu');
+export const guardarMenuPanel = (menu: string[] | null) =>
+  request<string[] | null>('/panel/menu', { method: 'PUT', body: JSON.stringify({ menu }) });

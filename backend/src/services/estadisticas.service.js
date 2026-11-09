@@ -77,4 +77,53 @@ const resumen = async (dias = 30) => {
     return { desde, hasta, dias: periodo, totales, propiedades: filas, serie };
 };
 
-module.exports = { CAMPOS, EVENTOS_PUBLICOS, hoyArgentina, restarDias, sumar, registrarEvento, resumen };
+// ---------- Para quien publicó la propiedad (Mi cuenta → Tus publicaciones) ----------
+// Solo números: nunca quién miró, quién guardó en favoritos ni quién pidió una visita.
+
+const periodoValido = (dias) => ([7, 30, 90, 365].includes(Number(dias)) ? Number(dias) : 30);
+
+// Propiedades de una persona: las que publicó desde el sitio (pedido aprobado) y las que la inmobiliaria cargó a su nombre
+const propiasDe = async (usuarioId) => {
+    if (!mongoose.isValidObjectId(usuarioId)) return [];
+    const SolicitudPublicacion = require('../models/solicitudPublicacion.model');
+    const [publicadas, aSuNombre] = await Promise.all([
+        SolicitudPublicacion.find({ cliente: usuarioId, estado: 'aprobada', propiedadCreada: { $ne: null } }).select('propiedadCreada').lean(),
+        Property.find({ 'propietario.usuario': usuarioId }).select('_id').lean(),
+    ]);
+    return [...new Set([...publicadas.map((p) => String(p.propiedadCreada)), ...aSuNombre.map((p) => String(p._id))])];
+};
+
+// Arma la respuesta con las filas de la base (una por propiedad y día): totales del período y vistas día por día
+const armarDeDueno = (propiedades, filas, { desde, hasta, dias }) => {
+    const porPropiedad = new Map(propiedades.map((p) => [String(p._id), new Map()]));
+    for (const f of filas) porPropiedad.get(String(f._id.propiedad))?.set(f._id.dia, f);
+    const lista = propiedades.map((p) => {
+        const delDia = porPropiedad.get(String(p._id));
+        const total = Object.fromEntries(CAMPOS.map((c) => [c, 0]));
+        for (const f of delDia.values()) for (const c of CAMPOS) total[c] += f[c] || 0;
+        const serie = [];
+        for (let i = dias - 1; i >= 0; i--) {
+            const dia = restarDias(hasta, i);
+            serie.push({ dia, vistas: delDia.get(dia)?.vistas || 0 });
+        }
+        return { id: String(p._id), titulo: p.titulo, estado: p.estado || 'disponible', operaciones: operacionesDe(p), foto: p.fotos?.[0] || '', ...total, serie };
+    });
+    const totales = Object.fromEntries(CAMPOS.map((c) => [c, lista.reduce((s, f) => s + f[c], 0)]));
+    return { desde, hasta, dias, totales, propiedades: lista };
+};
+
+const deDueno = async (usuarioId, dias = 30) => {
+    const periodo = periodoValido(dias);
+    const hasta = hoyArgentina();
+    const desde = restarDias(hasta, periodo - 1);
+    const ids = (await propiasDe(usuarioId)).map((id) => new mongoose.Types.ObjectId(id));
+    if (!ids.length) return { desde, hasta, dias: periodo, totales: Object.fromEntries(CAMPOS.map((c) => [c, 0])), propiedades: [] };
+    const suma = Object.fromEntries(CAMPOS.map((c) => [c, { $sum: `$${c}` }]));
+    const [propiedades, filas] = await Promise.all([
+        Property.find({ _id: { $in: ids } }).select('titulo estado categoriaOperacion operaciones fotos').sort({ createdAt: -1 }).lean(),
+        Estadistica.aggregate([{ $match: { propiedad: { $in: ids }, dia: { $gte: desde, $lte: hasta } } }, { $group: { _id: { propiedad: '$propiedad', dia: '$dia' }, ...suma } }]),
+    ]);
+    return armarDeDueno(propiedades, filas, { desde, hasta, dias: periodo });
+};
+
+module.exports = { CAMPOS, EVENTOS_PUBLICOS, hoyArgentina, restarDias, sumar, registrarEvento, resumen, propiasDe, armarDeDueno, deDueno };

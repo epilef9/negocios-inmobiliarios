@@ -13,7 +13,7 @@ import type { ApiProperty } from "@/services/api";
 // Propiedades que el usuario guardó en su cuenta
 export default function FavoritosPage() {
 	const { user, isLoading } = useAuth();
-	const { favoritos } = useFavoritos();
+	const { favoritos, alternar } = useFavoritos();
 	const blue = useDolarBlue();
 	const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
 	const [estado, setEstado] = useState<"cargando" | "listo" | "error">("cargando");
@@ -35,6 +35,11 @@ export default function FavoritosPage() {
 
 	// Al quitar un corazón desde esta página, la tarjeta desaparece sin recargar
 	const visibles = useMemo(() => propiedades.filter((p) => favoritos.has(p._id)), [propiedades, favoritos]);
+	// HU-33: las guardadas que ya no están publicadas (se borraron) se avisan, en vez de desaparecer sin explicación
+	const retiradas = useMemo(
+		() => (estado === "listo" ? [...favoritos].filter((id) => !propiedades.some((p) => p._id === id)) : []),
+		[estado, favoritos, propiedades],
+	);
 
 	const enlaceBoton = "calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white";
 
@@ -74,7 +79,19 @@ export default function FavoritosPage() {
 					<p role="alert" className="font-display m-0 border-y border-[#efe9df]/15 py-14 text-[clamp(26px,3vw,36px)]">
 						No pudimos cargar tus favoritos. Probá de nuevo en un momento.
 					</p>
-				) : visibles.length === 0 ? (
+				) : (
+					<>
+						{retiradas.length > 0 && (
+							<div role="status" className="mb-10 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-[#efe9df]/20 px-5 py-4">
+								<p className="m-0 text-[15px] text-[#efe9df]/80">
+									{retiradas.length === 1 ? "Una propiedad que guardaste ya no está publicada." : `${retiradas.length} propiedades que guardaste ya no están publicadas.`}
+								</p>
+								<button type="button" onClick={() => retiradas.forEach((id) => alternar(id))} className="calma-micro rounded-full border border-[#efe9df]/40 px-5 py-3 text-[11px] transition-colors hover:border-[#efe9df]">
+									Quitar de favoritos
+								</button>
+							</div>
+						)}
+						{visibles.length === 0 ? (
 					<div className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
 						<p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">Todavía no guardaste propiedades.</p>
 						<p className="m-0 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/70">Tocá el corazón de una propiedad para tenerla siempre a mano acá.</p>
@@ -91,6 +108,8 @@ export default function FavoritosPage() {
 							</li>
 						))}
 					</ul>
+						)}
+					</>
 				)}
 			</section>
 		</SitioBase>

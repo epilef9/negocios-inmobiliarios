@@ -5,11 +5,18 @@ const { frenos } = require('../middlewares/seguridad');
 const pagos = require('../services/pagos.service');
 
 const router = express.Router();
-const soloAdmin = [authMiddleware, authMiddleware.requirePermiso('reservas')];
+// Los pagos de estadías se ven en Cobros y en Reservas: alcanza con permiso en cualquiera de las dos
+const soloAdmin = [authMiddleware, authMiddleware.requirePermiso(['cobros', 'reservas'])];
 const soloCliente = [authMiddleware, authMiddleware.requireClient];
 
 // El comprobante queda en memoria solo para validarlo y guardarlo (Vercel no acepta pedidos de más de ~4,5 MB)
 const subida = multer({ storage: multer.memoryStorage(), limits: { fileSize: 4 * 1024 * 1024, files: 1 } });
+
+const leerArchivo = (req, res, next) =>
+    subida.single('comprobante')(req, res, (error) => {
+        if (error) return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message: error.code === 'LIMIT_FILE_SIZE' ? 'El comprobante puede pesar hasta 4 MB.' : 'No pudimos leer el archivo.' });
+        next();
+    });
 
 const responder = (fn) => async (req, res) => {
     try {
@@ -34,17 +41,22 @@ router.post(
 // Cliente
 router.get('/mios', soloCliente, responder(async (req, res) => res.json({ data: await pagos.mios(req.user._id) })));
 router.get('/reserva/:id', soloCliente, responder(async (req, res) => res.json({ data: await pagos.opciones(req.params.id, req.user._id) })));
-router.post('/reserva/:id/mercadopago', frenos.reservas, soloCliente, responder(async (req, res) => res.json({ data: await pagos.crearPreferencia(req.params.id, req.user) })));
+router.post('/reserva/:id/mercadopago', frenos.reservas, soloCliente, responder(async (req, res) => res.json({ data: await pagos.crearPreferencia(req.params.id, req.user, req.body?.tipo) })));
 router.post(
     '/reserva/:id/comprobante',
     frenos.uploads,
     soloCliente,
-    (req, res, next) =>
-        subida.single('comprobante')(req, res, (error) => {
-            if (error) return res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : 400).json({ message: error.code === 'LIMIT_FILE_SIZE' ? 'El comprobante puede pesar hasta 4 MB.' : 'No pudimos leer el archivo.' });
-            next();
-        }),
-    responder(async (req, res) => res.status(201).json({ data: await pagos.subirComprobante(req.params.id, req.user, req.file), message: 'Recibimos el comprobante. Te avisamos cuando lo revisemos.' }))
+    leerArchivo,
+    responder(async (req, res) => res.status(201).json({ data: await pagos.subirComprobante(req.params.id, req.user, req.file, req.body?.tipo), message: 'Recibimos el comprobante. Te avisamos cuando lo revisemos.' }))
+);
+// Al volver de Mercado Pago: se verifica el pago con Mercado Pago y después se sube la foto del comprobante
+router.post('/:id/verificar', frenos.reservas, soloCliente, responder(async (req, res) => res.json({ data: await pagos.verificarMP(req.params.id, req.user, req.body?.paymentId) })));
+router.post(
+    '/:id/comprobante',
+    frenos.uploads,
+    soloCliente,
+    leerArchivo,
+    responder(async (req, res) => res.status(201).json({ data: await pagos.subirComprobanteMP(req.params.id, req.user, req.file), message: 'Recibimos el comprobante. Te avisamos cuando lo revisemos.' }))
 );
 
 // Administrador

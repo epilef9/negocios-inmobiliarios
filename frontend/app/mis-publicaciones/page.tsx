@@ -8,7 +8,7 @@ export default function MisPublicacionesPage() {
     <ApartadoCuenta
       ruta="/mis-publicaciones"
       titulo="Tus publicaciones"
-      descripcion="Las propiedades que nos pediste publicar y en qué estado está cada una."
+      descripcion="Las propiedades que nos pediste publicar, en qué estado está cada una y cuánta gente las vio."
     >
       {(user) => <MisPublicaciones key={user.id} />}
     </ApartadoCuenta>

@@ -3,7 +3,9 @@
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type PaletteId, type ThemeMode } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
-import { BotonLink, Encabezado, Tarjeta } from '@/components/panel/ui';
+import { Boton, BotonLink, Encabezado, Tarjeta, useAviso } from '@/components/panel/ui';
+import { SECCIONES, seccionesDelMenu, useMenuPanel } from '@/components/panel/menuPanel';
+import { puedeEntrarARuta } from '@/lib/permisos';
 
 const MODOS: { id: ThemeMode; titulo: string; texto: string; icono: NombreIcono }[] = [
   { id: 'light', titulo: 'Claro', texto: 'Fondo claro, ideal de día.', icono: 'sol' },
@@ -30,6 +32,82 @@ function Miniatura({ oscuro, marca, acento }: { oscuro: boolean; marca: string; 
   );
 }
 
+// Qué secciones van en el menú principal y cuáles en «Más opciones». Se guarda en la cuenta y el menú cambia al instante.
+function MenuDelPanel() {
+  const { user } = useAuth();
+  const { principal, personalizado, guardar } = useMenuPanel();
+  const { mostrar, aviso } = useAviso();
+  const movibles = seccionesDelMenu((href) => puedeEntrarARuta(user, href)).filter((s) => !s.fija);
+
+  const cambiar = (clave: string, arriba: boolean) => {
+    const lista = SECCIONES.map((s) => s.clave).filter((c) => (c === clave ? arriba : principal.includes(c)));
+    const texto = SECCIONES.find((s) => s.clave === clave)?.texto ?? 'La sección';
+    guardar(lista)
+      .then(() => mostrar(arriba ? `${texto} pasó al menú principal.` : `${texto} pasó a «Más opciones».`))
+      .catch((e) => mostrar(e instanceof Error ? e.message : 'No se pudo guardar el menú.', 'peligro'));
+  };
+
+  const deSiempre = () =>
+    guardar(null)
+      .then(() => mostrar('El menú volvió a como venía.'))
+      .catch((e) => mostrar(e instanceof Error ? e.message : 'No se pudo guardar el menú.', 'peligro'));
+
+  return (
+    <Tarjeta
+      guia="menu"
+      titulo="Menú del panel"
+      descripcion="Elegí qué secciones van en el menú principal. Las demás quedan en «Más opciones», que se abre con la flecha."
+      acciones={
+        personalizado && (
+          <Boton tamano="sm" icono="atras" onClick={deSiempre}>
+            Volver al de siempre
+          </Boton>
+        )
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        {[
+          { arriba: true, titulo: 'Menú principal', vacio: 'Ninguna: solo quedan Inicio y Configuración.', lista: movibles.filter((s) => principal.includes(s.clave)) },
+          { arriba: false, titulo: 'Más opciones', vacio: 'Ninguna: «Más opciones» no aparece en el menú.', lista: movibles.filter((s) => !principal.includes(s.clave)) },
+        ].map((grupo) => (
+          <section key={grupo.titulo} aria-label={grupo.titulo} className="flex flex-col rounded-lg border border-panel-borde">
+            <h3 className="m-0 flex items-center justify-between gap-2 border-b border-panel-borde px-3 py-2.5 text-[13px] font-medium">
+              {grupo.titulo}
+              <span className="tabular rounded-full bg-panel-hundido px-2 text-[12px] font-normal leading-5 text-panel-suave">{grupo.lista.length}</span>
+            </h3>
+            {grupo.lista.length === 0 ? (
+              <p className="m-0 px-3 py-4 text-[13px] text-panel-suave">{grupo.vacio}</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col p-1">
+                {grupo.lista.map((s) => (
+                  <li key={s.clave} className="flex items-center gap-3 rounded-md px-2 py-1 hover:bg-panel-hundido">
+                    <Icono nombre={s.icono} className="h-[18px] w-[18px] shrink-0 text-panel-suave" />
+                    <span className="flex-1 text-sm">{s.texto}</span>
+                    <Boton
+                      tamano="sm"
+                      variante="fantasma"
+                      icono={grupo.arriba ? 'abajo' : 'arriba'}
+                      onClick={() => cambiar(s.clave, !grupo.arriba)}
+                      aria-label={grupo.arriba ? `Pasar ${s.texto} a Más opciones` : `Pasar ${s.texto} al menú principal`}
+                      title={grupo.arriba ? 'Pasar a Más opciones' : 'Pasar al menú principal'}
+                    >
+                      <span className="hidden sm:inline">{grupo.arriba ? 'A Más opciones' : 'Al menú'}</span>
+                    </Boton>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ))}
+      </div>
+      <p className="m-0 mt-3 text-[13px] text-panel-suave">
+        Inicio y Configuración están siempre en el menú principal. El cambio se guarda en tu cuenta y se ve al instante.
+      </p>
+      {aviso}
+    </Tarjeta>
+  );
+}
+
 export default function ConfiguracionPage() {
   const { user } = useAuth();
   const { theme, setTheme, palette, setPalette, palettes, currentPalette } = useTheme();
@@ -37,12 +115,14 @@ export default function ConfiguracionPage() {
   return (
     <>
       <Encabezado
+        guia="configuracion"
         titulo="Configuración"
         descripcion={`Lo que ven los clientes en el sitio y cómo se ve el panel para ${user?.nombre || 'vos'}.`}
       />
 
       <div className="flex max-w-4xl flex-col gap-6">
         <Tarjeta
+          guia="datos-sitio"
           titulo="Datos del sitio"
           descripcion="Contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferencias."
           acciones={
@@ -55,6 +135,7 @@ export default function ConfiguracionPage() {
         </Tarjeta>
 
         <Tarjeta
+          guia="orden-catalogo"
           titulo="Orden del catálogo"
           descripcion="Qué propiedad aparece primero en el catálogo y en el inicio del sitio."
           acciones={
@@ -66,7 +147,35 @@ export default function ConfiguracionPage() {
           <p className="m-0 text-[13.5px] text-panel-suave">Arrastrá las propiedades o usá las flechas; el sitio cambia cuando guardás.</p>
         </Tarjeta>
 
-        <Tarjeta titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">
+        <Tarjeta
+          guia="requisitos"
+          titulo="Requisitos"
+          descripcion="Qué se pide para alquilar, comprar y publicar una propiedad. Se ven en la página Requisitos del sitio y en el asistente de Contacto."
+          acciones={
+            <BotonLink href="/admin/requisitos" variante="principal" icono="checklist">
+              Editar los requisitos
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Agregá, ordená u ocultá cada requisito; el sitio cambia al guardar.</p>
+        </Tarjeta>
+
+        <Tarjeta
+          guia="asistente"
+          titulo="Asistente de Contacto"
+          descripcion="Las preguntas frecuentes que responde solo el asistente de la página Contacto, con sus respuestas. Lo que no sabe responder te llega por WhatsApp."
+          acciones={
+            <BotonLink href="/admin/asistente" variante="principal" icono="editar">
+              Editar las preguntas
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Agregá, ordená o quitá preguntas y probá qué respondería antes de guardar.</p>
+        </Tarjeta>
+
+        <MenuDelPanel />
+
+        <Tarjeta guia="apariencia" titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">
           <div role="radiogroup" aria-label="Apariencia" className="grid gap-3 sm:grid-cols-2">
             {MODOS.map((modo) => {
               const elegido = theme === modo.id;
@@ -94,7 +203,7 @@ export default function ConfiguracionPage() {
           </div>
         </Tarjeta>
 
-        <Tarjeta titulo="Colores del panel" descripcion="El color del menú y de los acentos. El sitio público mantiene sus colores.">
+        <Tarjeta guia="colores" titulo="Colores del panel" descripcion="El color del menú y de los acentos. El sitio público mantiene sus colores.">
           <div role="radiogroup" aria-label="Colores del panel" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {palettes.map((p) => {
               const elegida = palette === p.id;

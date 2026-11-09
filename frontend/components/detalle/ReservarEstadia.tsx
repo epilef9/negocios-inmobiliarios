@@ -209,12 +209,13 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
             </p>
             <p className="m-0 max-w-[60ch] text-[16px] leading-relaxed text-[#efe9df]/80">
               Las noches quedan guardadas para vos mientras la inmobiliaria la revisa: te responde antes del{' '}
-              <span className="text-[#efe9df]">{fechaHoraArgentina(enviada.venceEn)}</span>. Si no llega a confirmarla, las noches se liberan. Seguila desde Mi cuenta.
+              <span className="text-[#efe9df]">{fechaHoraArgentina(enviada.venceEn)}</span>. Si no llega a confirmarla, las noches se liberan.
+              <span className="mt-2 block">¿Querés asegurarlas ya? Desde Mi cuenta pagás la seña o el total con Mercado Pago o por transferencia, y apenas se acredita la reserva queda confirmada.</span>
             </p>
             <div className="flex flex-wrap items-center gap-5 pt-1">
               <Link href="/reservas" className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white">
                 <span className="calma-dot" aria-hidden="true" />
-                Ver en Mi cuenta
+                Pagar o ver en Mi cuenta
               </Link>
               <button type="button" onClick={empezarDeNuevo} className="calma-micro calma-link cursor-pointer text-[#efe9df]/80">
                 Reservar otras fechas

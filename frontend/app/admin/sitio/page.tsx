@@ -10,8 +10,9 @@ import { Alerta, Boton, Campo, Encabezado, Esqueleto, Interruptor, Tarjeta, area
 //  - Lugares de referencia para «a cuántas cuadras queda» en la ficha
 //  - Costos de la calculadora «cuánto necesito para entrar»
 //  - Datos bancarios para el pago por transferencia
+// Las preguntas del asistente de Contacto se editan en su propia pantalla (Configuración → Asistente de Contacto).
 
-type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco';
+type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco' | 'estadias';
 const numero = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')));
 
 export default function SitioPage() {
@@ -26,6 +27,7 @@ export default function SitioPage() {
   const [lugares, setLugares] = useState<(Omit<Lugar, 'latitud' | 'longitud'> & { latitud: string; longitud: string; link?: string; linkLeido?: string })[]>([]);
   const [costos, setCostos] = useState<Costos | null>(null);
   const [banco, setBanco] = useState<Banco | null>(null);
+  const [sena, setSena] = useState('');
 
   const aplicar = (a: AjustesAdmin) => {
     setDatos(a);
@@ -33,6 +35,7 @@ export default function SitioPage() {
     setLugares(a.lugares.map((l) => ({ ...l, latitud: String(l.latitud), longitud: String(l.longitud) })));
     setCostos(a.costos);
     setBanco(a.banco);
+    setSena(String(a.estadias?.senaPorcentaje ?? 30));
   };
 
   useEffect(() => {
@@ -141,10 +144,11 @@ export default function SitioPage() {
 
   return (
     <>
-      <Encabezado volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
+      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos, los datos para transferir, y la seña de las estadías." />
       <div className="flex max-w-4xl flex-col gap-6">
         <form onSubmit={(e) => guardar('contacto', { contacto }, e)}>
           <Tarjeta
+            guia="contacto"
             titulo="Contacto de la oficina"
             descripcion="Se muestra en la barra de arriba, en el pie de todas las páginas y en Contacto."
             acciones={
@@ -186,6 +190,7 @@ export default function SitioPage() {
 
         <form onSubmit={guardarLugares}>
           <Tarjeta
+            guia="lugares"
             titulo="Lugares de referencia"
             descripcion="En la ficha de cada propiedad se muestra a cuántas cuadras queda de estos lugares (Universidad, Sanatorio, plaza, terminal…). Pegá el link de Google Maps de cada uno para tomar el punto exacto."
             acciones={
@@ -224,6 +229,7 @@ export default function SitioPage() {
 
         <form onSubmit={(e) => guardar('costos', { costos }, e)}>
           <Tarjeta
+            guia="calculadora"
             titulo="Calculadora «cuánto necesito para entrar»"
             descripcion="Aparece en la ficha de las propiedades en venta y alquiler cuando la publicás. Los honorarios y el sellado de alquiler se calculan sobre el total del contrato."
             acciones={
@@ -265,6 +271,7 @@ export default function SitioPage() {
 
         <form onSubmit={(e) => guardar('banco', { banco }, e)}>
           <Tarjeta
+            guia="banco"
             titulo="Datos para transferencias"
             descripcion="Los ve solo el cliente que está pagando una reserva por transferencia. Sin titular y CBU o alias, esa opción no se ofrece."
             acciones={
@@ -285,6 +292,35 @@ export default function SitioPage() {
               {campoTexto('Alias', banco.alias, (v) => setBanco({ ...banco, alias: v }), { maxLength: 20 })}
               {campoTexto('CUIT', banco.cuit, (v) => setBanco({ ...banco, cuit: v }), { inputMode: 'numeric', maxLength: 13 })}
             </div>
+          </Tarjeta>
+        </form>
+
+        <form
+          onSubmit={(e) => {
+            const pct = Number(sena.replace(',', '.'));
+            if (!sena.trim() || !Number.isFinite(pct) || pct < 0 || pct > 100) {
+              e.preventDefault();
+              return setErrores((x) => ({ ...x, estadias: 'Escribí un porcentaje entre 0 y 100.' }));
+            }
+            guardar('estadias', { estadias: { senaPorcentaje: pct } }, e);
+          }}
+        >
+          <Tarjeta
+            guia="estadias"
+            titulo="Pago de estadías"
+            descripcion="En los alquileres temporarios, el cliente elige pagar una seña (para que los días queden reservados) o el total. Con 0 % o 100 % solo se ofrece pagar el total."
+            acciones={
+              <Boton variante="principal" type="submit" cargando={guardando === 'estadias'}>
+                Guardar
+              </Boton>
+            }
+          >
+            <Campo etiqueta="Seña (porcentaje del total de la estadía)" htmlFor="sena-estadias" error={errores.estadias} ayuda="Por ejemplo, 30: en una estadía de USD 300, la seña es de USD 90. El resto se paga después desde Mi cuenta.">
+              <div className="flex max-w-40 items-center gap-2">
+                <input id="sena-estadias" inputMode="decimal" value={sena} maxLength={5} onChange={(e) => setSena(e.target.value)} className={`${control} tabular`} />
+                <span className="text-panel-suave">%</span>
+              </div>
+            </Campo>
           </Tarjeta>
         </form>
       </div>
