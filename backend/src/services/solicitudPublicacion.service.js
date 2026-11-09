@@ -315,4 +315,7 @@ const solicitudPublicacionService = {
 
 solicitudPublicacionService.OPCIONES = { TIPOS_PUBLICABLES, OPERACIONES, LOCALIDADES, PROVINCIA, DOCUMENTOS, DOCUMENTOS_OBLIGATORIOS };
 
+// Lo que hay que marcar en Requisitos antes de pedir una publicación (lo usa también npm run ejemplos)
+solicitudPublicacionService.REQUISITOS_PUBLICAR = REQUISITOS_PUBLICAR;
+
 module.exports = solicitudPublicacionService;
