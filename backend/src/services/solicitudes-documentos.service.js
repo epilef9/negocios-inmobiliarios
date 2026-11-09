@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 const { cifrar, obtenerClave } = require('../utils/cifrado-solicitudes');
 
-const MAXIMO_ARCHIVO = 4 * 1024 * 1024;
+const MAXIMO_PDF = 4 * 1024 * 1024;
+const MAXIMO_IMAGEN = 20 * 1024 * 1024;
 const TIPOS = ['dniTitularFrente', 'dniTitularDorso', 'cuilTitular', 'recibosIngresos', 'constanciaIngresos',
     'domicilio', 'dniCotitularFrente', 'dniCotitularDorso', 'escrituraGarantia', 'reciboGarante', 'documentacionCaucion'];
 const errorHttp = (mensaje) => Object.assign(new Error(mensaje), { statusCode: 400 });
@@ -10,12 +11,15 @@ const archivos = () => mongoose.connection.db.collection('documentosSolicitudes.
 const validarLote = (clave) => typeof clave === 'string' && /^[\da-f-]{36}$/i.test(clave);
 
 const guardar = async ({ archivo, usuario, tipo, clave }) => {
-    if (!TIPOS.includes(tipo) || !validarLote(clave) || !archivo || archivo.size > MAXIMO_ARCHIVO) {
-        throw errorHttp('Revisá el tipo de documento, el envío y el tamaño máximo de 4 MB.');
+    const mimeType = archivo?.mimetype === 'image/jpg' ? 'image/jpeg' : archivo?.mimetype;
+    const limite = mimeType === 'application/pdf' ? MAXIMO_PDF : MAXIMO_IMAGEN;
+    if (!TIPOS.includes(tipo) || !validarLote(clave) || !archivo || !['application/pdf', 'image/jpeg', 'image/png'].includes(mimeType)
+        || !Buffer.isBuffer(archivo.buffer) || !Number.isFinite(archivo.size) || archivo.size <= 0 || archivo.size > limite) {
+        throw errorHttp('Revisá el tipo y el tamaño del documento: PDF de hasta 4 MB o imagen JPG/PNG de hasta 20 MB.');
     }
     obtenerClave();
     const metadata = { usuario: String(usuario), tipo, clave, tamano: archivo.size,
-        mimeType: archivo.mimetype === 'image/jpg' ? 'image/jpeg' : archivo.mimetype,
+        mimeType,
         temporalHasta: new Date(Date.now() + 24 * 60 * 60 * 1000) };
     const destino = bucket().openUploadStream(new mongoose.Types.ObjectId().toString(), { metadata, contentType: 'application/octet-stream' });
     try {
@@ -46,7 +50,10 @@ const resolver = async (referencias, usuario, clave) => {
     for (const ref of referencias) {
         const archivo = porId.get(ref.id);
         const meta = archivo?.metadata;
+        const limite = meta?.mimeType === 'application/pdf' ? MAXIMO_PDF : MAXIMO_IMAGEN;
         if (!meta || meta.usuario !== String(usuario) || meta.clave !== clave || meta.tipo !== ref.tipo || !TIPOS.includes(ref.tipo)
+            || !['application/pdf', 'image/jpeg', 'image/png'].includes(meta.mimeType) || !Number.isFinite(meta.tamano)
+            || meta.tamano <= 0 || meta.tamano > limite
             || (!meta.solicitud && new Date(meta.temporalHasta).getTime() <= Date.now())) {
             throw errorHttp('Un documento no pertenece a este envío o venció. Volvé a adjuntarlo.');
         }
@@ -81,4 +88,4 @@ const limpiarTemporales = async () => {
     }
 };
 
-module.exports = { MAXIMO_ARCHIVO, guardar, resolver, vincular, limpiarTemporales };
+module.exports = { MAXIMO_PDF, MAXIMO_IMAGEN, guardar, resolver, vincular, limpiarTemporales };
