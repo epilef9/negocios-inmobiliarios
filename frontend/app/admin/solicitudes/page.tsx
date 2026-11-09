@@ -436,7 +436,7 @@ export default function SolicitudesAdminPage() {
       <Encabezado
         guia="solicitudes"
         titulo="Solicitudes"
-        descripcion="Gestioná las solicitudes de alquiler y compra realizadas por los clientes."
+        descripcion="Una solicitud es el pedido de un cliente para alquilar o comprar una propiedad, con sus datos y su documentación. Si la aprobás y la propiedad se aparta, eso ya es una reserva. Las rechazadas, vencidas o cerradas se borran solas a los 90 días."
       />
       {aviso}
 

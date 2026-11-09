@@ -21,7 +21,7 @@ export const PLAZOS = {
   contratos: '10 años desde la finalización del contrato (plazo de ejemplo)',
 };
 
-export const ULTIMA_ACTUALIZACION = '8 de noviembre de 2026';
+export const ULTIMA_ACTUALIZACION = '9 de noviembre de 2026';
 
 export type Seccion = { titulo: string; parrafos?: string[]; items?: string[] };
 
@@ -113,7 +113,7 @@ export const PRIVACIDAD: Seccion[] = [
   {
     titulo: '4. Cuánto tiempo los guardamos',
     items: [
-      `Documentación de solicitudes rechazadas, vencidas o cerradas: ${PLAZOS.solicitudesCerradas}. Pasado ese plazo se borran los archivos; queda el registro de la solicitud y la fecha de borrado.`,
+      `Solicitudes rechazadas, vencidas o cerradas: ${PLAZOS.solicitudesCerradas}. Pasado ese plazo se borran la solicitud y su documentación. Si la solicitud se usó para firmar un contrato, se borran los archivos y queda solo el registro de la solicitud con la fecha de borrado.`,
       `Contratos y registros de operaciones: ${PLAZOS.contratos}.`,
       'Tu cuenta: mientras esté activa. Podés pedir que la borremos en cualquier momento.',
     ],

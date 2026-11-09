@@ -12,7 +12,7 @@ export type Seccion = (typeof SECCIONES_CON_PERMISO)[number];
 // Cómo se llama cada sección en la pantalla de empleados (mismos nombres que el menú del panel)
 export const ETIQUETAS_SECCION: Record<Seccion, string> = {
   propiedades: 'Propiedades', estadisticas: 'Estadísticas', visitas: 'Visitas', horario: 'Horario de visitas',
-  reservas: 'Reservas', disponibilidad: 'Disponibilidad', senas: 'Reservas con seña', solicitudes: 'Solicitudes',
+  reservas: 'Reservas por días', disponibilidad: 'Disponibilidad', senas: 'Reservas con seña', solicitudes: 'Solicitudes',
   clientes: 'Clientes', contratos: 'Contratos', cobros: 'Cobros', publicaciones: 'Publicaciones', requisitos: 'Requisitos',
 };
 
@@ -26,7 +26,7 @@ export const puedeVer = (user: ConRol, seccion: Seccion) =>
 // De qué sección es una ruta del panel. Inicio (/admin) y la bienvenida las ve todo el personal;
 // Configuración, Datos del sitio, Catálogo, Empleados y Actividad son solo del administrador.
 export const seccionDeRuta = (ruta: string): Seccion | 'solo-admin' | null => {
-  const parte = ruta.replace(/^\/admin\/?/, '').split('/')[0];
+  const parte = ruta.split(/[?#]/)[0].replace(/^\/admin\/?/, '').split('/')[0];
   if (!parte || parte === 'bienvenida') return null;
   return (SECCIONES_CON_PERMISO as readonly string[]).includes(parte) ? (parte as Seccion) : 'solo-admin';
 };
@@ -35,5 +35,7 @@ export const puedeEntrarARuta = (user: ConRol, ruta: string) => {
   const seccion = seccionDeRuta(ruta);
   if (seccion === null) return esPersonal(user);
   if (seccion === 'solo-admin') return esAdmin(user);
+  // Panel → Reservas junta las reservas por días y las con seña: alcanza con tener permiso para una
+  if (seccion === 'reservas' || seccion === 'senas') return puedeVer(user, 'reservas') || puedeVer(user, 'senas');
   return puedeVer(user, seccion);
 };

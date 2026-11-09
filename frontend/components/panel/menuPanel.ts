@@ -9,7 +9,10 @@ import { getMenuPanel, guardarMenuPanel, type PendientesPanel } from '@/services
 
 // `clave`: lo que se guarda en la cuenta (no cambiarla). `fija`: siempre en el menú principal, no se puede mover.
 // `incluye`: otras rutas que marcan la sección como activa. `pendiente`: el número que se muestra al lado.
-export type Pendiente = { clave: keyof PendientesPanel; texto: string };
+// `enConfiguracion`: quien puede entrar a Configuración la encuentra ahí, no en el menú (el empleado con permiso
+// la sigue viendo en el menú, porque Configuración es solo del administrador).
+// `claves`: de dónde sale el número (si son varias, se suman)
+export type Pendiente = { claves: (keyof PendientesPanel)[]; texto: string };
 export type SeccionMenu = {
   clave: string;
   href: string;
@@ -19,26 +22,27 @@ export type SeccionMenu = {
   incluye?: string[];
   pendiente?: Pendiente;
   fija?: boolean;
+  enConfiguracion?: boolean;
 };
 
 export const SECCIONES: SeccionMenu[] = [
   { clave: 'inicio', href: '/admin', texto: 'Inicio', icono: 'inicio', exacta: true, fija: true },
   { clave: 'propiedades', href: '/admin/propiedades', texto: 'Propiedades', icono: 'propiedades' },
   { clave: 'estadisticas', href: '/admin/estadisticas', texto: 'Estadísticas', icono: 'estrella' },
-  { clave: 'visitas', href: '/admin/visitas', texto: 'Visitas', icono: 'visitas', pendiente: { clave: 'visitas', texto: 'por confirmar' } },
+  { clave: 'visitas', href: '/admin/visitas', texto: 'Visitas', icono: 'visitas', pendiente: { claves: ['visitas'], texto: 'por confirmar' } },
   { clave: 'horario', href: '/admin/horario', texto: 'Horario de visitas', icono: 'reloj' },
-  { clave: 'reservas', href: '/admin/reservas', texto: 'Reservas', icono: 'maleta', pendiente: { clave: 'reservas', texto: 'por confirmar (reservas o pagos)' } },
+  // Reservas por días y con seña, en una sola pantalla con dos pestañas
+  { clave: 'reservas', href: '/admin/reservas', texto: 'Reservas', icono: 'maleta', incluye: ['/admin/senas'], pendiente: { claves: ['reservas', 'senas'], texto: 'por confirmar o por vencer' } },
   { clave: 'disponibilidad', href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
-  { clave: 'senas', href: '/admin/senas', texto: 'Reservas con seña', icono: 'candado', pendiente: { clave: 'senas', texto: 'por vencer' } },
-  { clave: 'solicitudes', href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: { clave: 'solicitudes', texto: 'por revisar' } },
+  { clave: 'solicitudes', href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: { claves: ['solicitudes'], texto: 'por revisar' } },
   { clave: 'clientes', href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
-  { clave: 'contratos', href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: { clave: 'contratos', texto: 'para revisar (vencen o actualizan precio)' } },
-  { clave: 'cobros', href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { clave: 'cobros', texto: 'alquileres atrasados' } },
-  { clave: 'publicaciones', href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { clave: 'publicaciones', texto: 'por revisar' } },
-  { clave: 'requisitos', href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
+  { clave: 'contratos', href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: { claves: ['contratos'], texto: 'para revisar (vencen o actualizan precio)' } },
+  { clave: 'cobros', href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { claves: ['cobros'], texto: 'alquileres atrasados' } },
+  { clave: 'publicaciones', href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { claves: ['publicaciones'], texto: 'por revisar' } },
+  { clave: 'requisitos', href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist', enConfiguracion: true },
   { clave: 'empleados', href: '/admin/empleados', texto: 'Empleados', icono: 'clientes' },
   { clave: 'actividad', href: '/admin/actividad', texto: 'Actividad', icono: 'reloj' },
-  { clave: 'configuracion', href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion', incluye: ['/admin/catalogo', '/admin/sitio'], fija: true },
+  { clave: 'configuracion', href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion', incluye: ['/admin/catalogo', '/admin/sitio', '/admin/requisitos'], fija: true },
 ];
 
 // Lo del día a día va arriba; lo que se usa de vez en cuando, en «Más opciones»
@@ -126,6 +130,12 @@ export function useMenuPanel() {
 }
 
 // Reparte las secciones visibles: las del menú principal (en el orden de siempre) y las de «Más opciones»
+// Las secciones que esta persona ve en el menú (las de Configuración no, si puede entrar a Configuración)
+export const seccionesDelMenu = (puedeEntrar: (href: string) => boolean) => {
+  const conConfiguracion = puedeEntrar('/admin/configuracion');
+  return SECCIONES.filter((s) => puedeEntrar(s.href) && !(s.enConfiguracion && conConfiguracion));
+};
+
 export function repartir(visibles: SeccionMenu[], principal: string[]) {
   const arriba = visibles.filter((s) => s.fija || principal.includes(s.clave));
   const mas = visibles.filter((s) => !s.fija && !principal.includes(s.clave));

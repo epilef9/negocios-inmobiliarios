@@ -109,8 +109,8 @@ const armarResumen = async () => {
         await require('../services/reservasPropiedad.service').vencerReservas();
         const activas = await ReservaPropiedad.find({ estado: 'activa', fechaLimite: { $lte: new Date(ahora.getTime() + DIAS_AVISO_SENA * 86400000) } }).select('fechaLimite tituloPropiedad').lean();
         const manianaYa = activas.filter((s) => new Date(s.fechaLimite).getTime() - ahora.getTime() <= 24 * MS_HORA);
-        items.push({ clave: 'senas-hoy', urgencia: 1, orden: 4, cantidad: manianaYa.length, href: '/admin/senas', titulo: `${plural(manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en 24 horas`, detalle: manianaYa[0] ? `${manianaYa[0].tituloPropiedad}: concretala, extendela o cancelala.` : undefined });
-        items.push({ clave: 'senas', urgencia: 2, orden: 12, cantidad: activas.length - manianaYa.length, href: '/admin/senas', titulo: `${plural(activas.length - manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en los próximos días` });
+        items.push({ clave: 'senas-hoy', urgencia: 1, orden: 4, cantidad: manianaYa.length, href: '/admin/reservas?tipo=sena', titulo: `${plural(manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en 24 horas`, detalle: manianaYa[0] ? `${manianaYa[0].tituloPropiedad}: concretala, extendela o cancelala.` : undefined });
+        items.push({ clave: 'senas', urgencia: 2, orden: 12, cantidad: activas.length - manianaYa.length, href: '/admin/reservas?tipo=sena', titulo: `${plural(activas.length - manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en los próximos días` });
     });
 
     await seguro(async () => {

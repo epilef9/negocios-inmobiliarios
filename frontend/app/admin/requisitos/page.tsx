@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Boton, Campo, Encabezado, EstadoVacio, Insignia, Tarjeta, control, useAviso } from '@/components/panel/ui';
+import { useAuth } from '@/context/AuthContext';
+import { esAdmin } from '@/lib/permisos';
 import { createRequisito, deleteRequisito, getRequisitosAdmin, updateRequisito, type OperacionRequisito, type Requisito } from '@/services/requisitos';
 
 const OPERACIONES: { id: OperacionRequisito; texto: string }[] = [
@@ -18,6 +20,7 @@ export default function AdminRequisitosPage() {
   const [editando, setEditando] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const { mostrar, aviso } = useAviso();
+  const { user } = useAuth();
 
   useEffect(() => {
     let vigente = true;
@@ -78,7 +81,13 @@ export default function AdminRequisitosPage() {
 
   return (
     <>
-      <Encabezado guia="requisitos" titulo="Requisitos" descripcion="Administrá las listas que aparecen en la página pública." />
+      <Encabezado
+        guia="requisitos"
+        // Para el administrador está dentro de Configuración; el empleado con permiso entra desde su menú
+        volver={esAdmin(user) ? { href: '/admin/configuracion', texto: 'Configuración' } : undefined}
+        titulo="Requisitos"
+        descripcion="Administrá las listas que aparecen en la página pública."
+      />
       <Tarjeta guia="formulario" titulo={editando ? 'Editar requisito' : 'Agregar requisito'} acciones={editando ? <Boton tamano="sm" onClick={limpiar}>Cancelar</Boton> : undefined}>
         <div className="grid gap-4 md:grid-cols-[180px_1fr_2fr_auto] md:items-end">
           <Campo etiqueta="Operación" htmlFor="requisito-operacion">

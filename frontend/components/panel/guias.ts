@@ -59,8 +59,9 @@ const GUIAS_PANEL = {
     ],
   },
   reservas: {
-    titulo: 'Reservas',
+    titulo: 'Reservas por días',
     pasos: [
+      { objetivo: 'tipos', titulo: 'Dos tipos de reserva', texto: 'Una reserva es una propiedad apartada para alguien. «Por días»: estadías en alquiler temporario que piden desde el sitio. «Con seña»: propiedades en venta o alquiler apartadas con una seña. Las solicitudes (con documentación) están en Solicitudes.' },
       { objetivo: 'pestanas', titulo: 'Reservas de estadía', texto: 'Pedidos de alquiler por días. En «Por confirmar» están las que esperan tu respuesta; las que no respondés a tiempo pasan a «Vencidas».' },
       { objetivo: 'filtros', titulo: 'Buscar', texto: 'Por cliente, email o propiedad.' },
       { objetivo: 'lista', titulo: 'La lista', texto: 'Fechas, huésped, propiedad, total y estado. Las que están por vencer se marcan en rojo.' },
@@ -79,6 +80,7 @@ const GUIAS_PANEL = {
   senas: {
     titulo: 'Reservas con seña',
     pasos: [
+      { objetivo: 'tipos', titulo: 'Dos tipos de reserva', texto: 'Una reserva es una propiedad apartada para alguien. «Con seña»: propiedades en venta o alquiler apartadas con una seña hasta una fecha límite. «Por días»: estadías en alquiler temporario que piden desde el sitio.' },
       { objetivo: 'acciones', titulo: 'Registrar una reserva', texto: 'Cuando alguien deja una seña por una propiedad en venta o alquiler, registrala acá con el monto y la fecha límite.' },
       { objetivo: 'pestanas', titulo: 'Activas e historial', texto: 'Mientras la reserva está activa, la propiedad se ve «Reservada» en el sitio. Las concretadas y canceladas pasan al historial.' },
       { objetivo: 'lista', titulo: 'Cada reserva', texto: 'Quién reservó, cuánto dejó y hasta cuándo. Las que están por vencer se destacan.' },
@@ -88,7 +90,7 @@ const GUIAS_PANEL = {
   solicitudes: {
     titulo: 'Solicitudes',
     pasos: [
-      { objetivo: 'pestanas', titulo: 'Activas y archivadas', texto: 'Los pedidos de alquiler o compra con la documentación del cliente. Las que ya resolviste podés archivarlas para que no molesten.' },
+      { objetivo: 'pestanas', titulo: 'Activas y archivadas', texto: 'Los pedidos de alquiler o compra con la documentación del cliente. Las que ya resolviste podés archivarlas para que no molesten; las rechazadas, vencidas o cerradas se borran solas a los 90 días, con su documentación.' },
       { objetivo: 'filtros', titulo: 'Buscar y ordenar', texto: 'Por nombre, email o propiedad; por operación (alquiler o compra), por estado y por fecha.' },
       { objetivo: 'lista', titulo: 'Cada solicitud', texto: 'Cliente, propiedad, operación y estado. Si la propiedad ya no está disponible, se avisa.' },
       { objetivo: 'acciones-fila', titulo: 'Revisar', texto: '«Ver» abre los datos, los ingresos y los documentos. Desde ahí la aprobás, la rechazás o le pedís al cliente lo que falta; le llega un mail.' },
@@ -157,6 +159,7 @@ const GUIAS_PANEL = {
     pasos: [
       { objetivo: 'datos-sitio', titulo: 'Datos del sitio', texto: 'Teléfono, WhatsApp, dirección, horario, lugares de referencia, la calculadora y los datos para transferencias.' },
       { objetivo: 'orden-catalogo', titulo: 'Orden del catálogo', texto: 'Qué propiedad aparece primero en el catálogo y en el inicio del sitio.' },
+      { objetivo: 'requisitos', titulo: 'Requisitos', texto: 'Lo que se pide para alquilar, comprar o publicar. Se ve en la página Requisitos y lo usa el asistente de Contacto para responder.' },
       { objetivo: 'menu', titulo: 'Tu menú', texto: 'Elegí qué secciones van en el menú principal y cuáles en «Más opciones».' },
       { objetivo: 'apariencia', titulo: 'Claro u oscuro', texto: 'El modo oscuro cansa menos la vista de noche. También se cambia desde abajo del menú.' },
       { objetivo: 'colores', titulo: 'Colores del panel', texto: 'El color del menú y de los acentos. El sitio público no cambia.' },
@@ -177,6 +180,7 @@ const GUIAS_PANEL = {
       { objetivo: 'lugares', titulo: 'Lugares de referencia', texto: 'Pegá el link de Google Maps de cada lugar (la Universidad, el Sanatorio…). En cada ficha se muestra a cuántas cuadras queda.' },
       { objetivo: 'calculadora', titulo: 'La calculadora', texto: 'Depósito, honorarios, sellado y escritura. Con esto el cliente ve cuánto necesita para entrar a una propiedad.' },
       { objetivo: 'banco', titulo: 'Datos para transferencias', texto: 'CBU o alias y titular. Los ve solo quien está pagando una reserva por transferencia.' },
+      { objetivo: 'preguntas', titulo: 'Preguntas del asistente', texto: 'Lo que responde solo el asistente de Contacto: horarios, requisitos, cómo agendar o publicar. Agregá las que te hacen siempre; lo que no sepa responder te llega por WhatsApp.' },
       { titulo: 'Cada bloque se guarda solo', texto: 'Cada tarjeta tiene su botón «Guardar»: lo que cambiás en una no toca las otras.' },
     ],
   },

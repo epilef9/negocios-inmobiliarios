@@ -4,7 +4,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useTheme, type PaletteId, type ThemeMode } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Boton, BotonLink, Encabezado, Tarjeta, useAviso } from '@/components/panel/ui';
-import { SECCIONES, useMenuPanel } from '@/components/panel/menuPanel';
+import { SECCIONES, seccionesDelMenu, useMenuPanel } from '@/components/panel/menuPanel';
 import { puedeEntrarARuta } from '@/lib/permisos';
 
 const MODOS: { id: ThemeMode; titulo: string; texto: string; icono: NombreIcono }[] = [
@@ -37,7 +37,7 @@ function MenuDelPanel() {
   const { user } = useAuth();
   const { principal, personalizado, guardar } = useMenuPanel();
   const { mostrar, aviso } = useAviso();
-  const movibles = SECCIONES.filter((s) => !s.fija && puedeEntrarARuta(user, s.href));
+  const movibles = seccionesDelMenu((href) => puedeEntrarARuta(user, href)).filter((s) => !s.fija);
 
   const cambiar = (clave: string, arriba: boolean) => {
     const lista = SECCIONES.map((s) => s.clave).filter((c) => (c === clave ? arriba : principal.includes(c)));
@@ -145,6 +145,19 @@ export default function ConfiguracionPage() {
           }
         >
           <p className="m-0 text-[13.5px] text-panel-suave">Arrastrá las propiedades o usá las flechas; el sitio cambia cuando guardás.</p>
+        </Tarjeta>
+
+        <Tarjeta
+          guia="requisitos"
+          titulo="Requisitos"
+          descripcion="Qué se pide para alquilar, comprar y publicar una propiedad. Se ven en la página Requisitos del sitio y en el asistente de Contacto."
+          acciones={
+            <BotonLink href="/admin/requisitos" variante="principal" icono="checklist">
+              Editar los requisitos
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Agregá, ordená u ocultá cada requisito; el sitio cambia al guardar.</p>
         </Tarjeta>
 
         <MenuDelPanel />

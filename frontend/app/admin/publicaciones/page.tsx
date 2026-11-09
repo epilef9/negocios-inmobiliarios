@@ -41,6 +41,7 @@ const NOMBRE_OPERACION: Record<string, string> = {
   venta: 'Venta',
   alquiler: 'Alquiler',
   temporario: 'Alquiler temporario',
+  ambas: 'Venta y alquiler',
 };
 const NOMBRE_ESTADO: Record<EstadoSolicitudPublicacion, string> = {
   pendiente: 'Pendiente',
@@ -74,8 +75,12 @@ const FILTROS: { id: FiltroEstado; nombre: string }[] = [
 const tonoEstado = (estado: EstadoSolicitudPublicacion): 'aviso' | 'exito' | 'peligro' =>
   estado === 'aprobada' ? 'exito' : estado === 'rechazada' ? 'peligro' : 'aviso';
 
+const montoTexto = (p?: { monto?: number; moneda?: string }) => `${p?.moneda === 'ARS' ? '$' : 'USD'} ${p?.monto?.toLocaleString('es-AR') ?? '-'}`;
+// Venta y alquiler: los dos precios
 const precio = (sol: SolicitudPublicacion) =>
-  `${sol.precioPretendido?.moneda === 'ARS' ? '$' : 'USD'} ${sol.precioPretendido?.monto?.toLocaleString('es-AR') ?? '-'}`;
+  sol.operacion === 'ambas' && sol.precioAlquiler
+    ? `${montoTexto(sol.precioPretendido)} · alquiler ${montoTexto(sol.precioAlquiler)}/mes`
+    : montoTexto(sol.precioPretendido);
 
 const nombreCliente = (sol: SolicitudPublicacion) => {
   const cliente = typeof sol.cliente === 'object' ? sol.cliente : null;

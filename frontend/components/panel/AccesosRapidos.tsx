@@ -16,7 +16,7 @@ export const ACCESOS: Acceso[] = [
   { clave: 'horario', href: '/admin/horario', texto: 'Horario de visitas', icono: 'reloj' },
   { clave: 'reservas', href: '/admin/reservas', texto: 'Reservas', icono: 'maleta', pendiente: 'reservas' },
   { clave: 'disponibilidad', href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
-  { clave: 'senas', href: '/admin/senas', texto: 'Reservas con seña', icono: 'candado', pendiente: 'senas' },
+  { clave: 'senas', href: '/admin/reservas?tipo=sena', texto: 'Reservas con seña', icono: 'candado', pendiente: 'senas' },
   { clave: 'solicitudes', href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: 'solicitudes' },
   { clave: 'publicaciones', href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: 'publicaciones' },
   { clave: 'clientes', href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },

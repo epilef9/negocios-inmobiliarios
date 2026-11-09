@@ -21,12 +21,14 @@ const ESTADOS: Record<SolicitudPublicacion["estado"], { texto: string; clase: st
   },
 };
 
-const OPERACION: Record<SolicitudPublicacion["operacion"], string> = { venta: "Venta", alquiler: "Alquiler", temporario: "Alquiler temporario" };
+const OPERACION: Record<SolicitudPublicacion["operacion"], string> = { venta: "Venta", alquiler: "Alquiler", temporario: "Alquiler temporario", ambas: "Venta y alquiler" };
 
 const precio = (sol: SolicitudPublicacion) => {
   const monto = sol.precioPretendido?.monto;
   if (!monto) return null;
-  return `${sol.precioPretendido?.moneda === "ARS" ? "$" : "USD"} ${monto.toLocaleString("es-AR")}`;
+  const venta = `${sol.precioPretendido?.moneda === "ARS" ? "$" : "USD"} ${monto.toLocaleString("es-AR")}`;
+  const alquiler = sol.operacion === "ambas" && sol.precioAlquiler?.monto ? `${sol.precioAlquiler.moneda === "USD" ? "USD" : "$"} ${sol.precioAlquiler.monto.toLocaleString("es-AR")}/mes` : "";
+  return alquiler ? `${venta} · alquiler ${alquiler}` : venta;
 };
 
 export default function MisPublicaciones() {

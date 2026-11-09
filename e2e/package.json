@@ -1,0 +1,13 @@
+{
+  "name": "e2e",
+  "private": true,
+  "description": "Pruebas de punta a punta de los recorridos principales (Playwright). Corren contra una base de PRUEBA.",
+  "scripts": {
+    "test": "playwright test",
+    "test:ver": "playwright test --headed",
+    "informe": "playwright show-report"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.56.0"
+  }
+}

@@ -365,9 +365,14 @@ async function cargar() {
     }
 }
 
-cargar()
-    .catch((error) => {
-        console.error('❌ No se pudo cargar el catálogo de muestra:', error.message);
-        process.exitCode = 1;
-    })
-    .finally(() => mongoose.disconnect().catch(() => {}));
+// Solo corre si se llama directo (npm run demo:propiedades); demo-base.js usa la lista de propiedades
+if (require.main === module) {
+    cargar()
+        .catch((error) => {
+            console.error('❌ No se pudo cargar el catálogo de muestra:', error.message);
+            process.exitCode = 1;
+        })
+        .finally(() => mongoose.disconnect().catch(() => {}));
+}
+
+module.exports = { PROPIEDADES, foto };

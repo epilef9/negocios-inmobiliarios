@@ -8,7 +8,7 @@ const SECCIONES = [
     { clave: 'estadisticas', etiqueta: 'Estadísticas' },
     { clave: 'visitas', etiqueta: 'Visitas' },
     { clave: 'horario', etiqueta: 'Horario de visitas' },
-    { clave: 'reservas', etiqueta: 'Reservas' },
+    { clave: 'reservas', etiqueta: 'Reservas por días' },
     { clave: 'disponibilidad', etiqueta: 'Disponibilidad' },
     { clave: 'senas', etiqueta: 'Reservas con seña' },
     { clave: 'solicitudes', etiqueta: 'Solicitudes' },

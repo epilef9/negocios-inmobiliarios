@@ -6,11 +6,11 @@ import { CONTACTO_PREDETERMINADO, enlacesContacto, getAjustesPublicos, type Ajus
 // Ajustes públicos del sitio. Arranca con los datos de siempre (así el HTML del servidor coincide) y los
 // reemplaza por los que cargó el administrador cuando llegan.
 export function useAjustes() {
-  const [ajustes, setAjustes] = useState<AjustesPublicos>({ contacto: CONTACTO_PREDETERMINADO, costos: null, transferencia: false, lugares: [] });
+  const [ajustes, setAjustes] = useState<AjustesPublicos>({ contacto: CONTACTO_PREDETERMINADO, costos: null, transferencia: false, lugares: [], preguntas: [] });
   useEffect(() => {
     let activo = true;
     getAjustesPublicos()
-      .then((a) => activo && setAjustes({ ...a, lugares: a.lugares ?? [], contacto: { ...CONTACTO_PREDETERMINADO, ...a.contacto } }))
+      .then((a) => activo && setAjustes({ ...a, lugares: a.lugares ?? [], preguntas: a.preguntas ?? [], contacto: { ...CONTACTO_PREDETERMINADO, ...a.contacto } }))
       .catch(() => {});
     return () => {
       activo = false;

@@ -22,11 +22,11 @@ const deVercelCron = (req, res, next) => {
 router.get('/recordatorios', deVercelCron, async (_req, res) => {
     try {
         const data = await recordatorios.ejecutar();
-        // La limpieza de documentos viejos no frena a los recordatorios si falla
+        // La limpieza de solicitudes viejas (y su documentación) no frena a los recordatorios si falla
         try {
             data.documentosBorrados = await limpiezaDocumentos.ejecutar();
         } catch (error) {
-            console.error('Error al borrar la documentación de solicitudes viejas:', error);
+            console.error('Error al borrar solicitudes viejas y su documentación:', error);
             data.documentosBorrados = { error: true };
         }
         res.json({ data });

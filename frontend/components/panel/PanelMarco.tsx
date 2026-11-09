@@ -13,7 +13,7 @@ import { EVENTO_RESERVAS } from '@/services/reservas';
 import { EVENTO_PENDIENTES, getPendientesPanel, type PendientesPanel } from '@/services/panel';
 
 import { puedeEntrarARuta } from '@/lib/permisos';
-import { SECCIONES, esActiva, repartir, useMenuPanel, type SeccionMenu } from './menuPanel';
+import { SECCIONES, esActiva, repartir, seccionesDelMenu, useMenuPanel, type SeccionMenu } from './menuPanel';
 
 // El menú oculto se recuerda en este navegador (si no hay almacenamiento, arranca visible)
 const CLAVE_OCULTO = 'panel_menu_oculto';
@@ -117,10 +117,10 @@ function Menu({ alElegir, alOcultar, pendientes, principal }: { alElegir?: () =>
   const ruta = usePathname() ?? '';
   const { user } = useAuth();
   const { arriba, mas } = repartir(
-    SECCIONES.filter((s) => puedeEntrarARuta(user, s.href)),
+    seccionesDelMenu((href) => puedeEntrarARuta(user, href)),
     principal
   );
-  const cantidadDe = (s: SeccionMenu) => (s.pendiente ? pendientes[s.pendiente.clave] ?? 0 : 0);
+  const cantidadDe = (s: SeccionMenu) => (s.pendiente ? s.pendiente.claves.reduce((suma, c) => suma + (pendientes[c] ?? 0), 0) : 0);
   // Configuración va al final, después de «Más opciones»
   const configuracion = arriba.find((s) => s.clave === 'configuracion');
   const principales = arriba.filter((s) => s !== configuracion);

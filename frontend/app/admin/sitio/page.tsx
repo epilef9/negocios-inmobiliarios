@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { resolveMapsLink } from '@/services/api';
-import { getAjustesAdmin, guardarAjustes, type AjustesAdmin, type Banco, type Contacto, type Costos, type Lugar } from '@/services/ajustes';
+import { getAjustesAdmin, guardarAjustes, type AjustesAdmin, type Banco, type Contacto, type Costos, type Lugar, type PreguntaFrecuente } from '@/services/ajustes';
 import { Alerta, Boton, Campo, Encabezado, Esqueleto, Interruptor, Tarjeta, areaTexto, control, useAviso } from '@/components/panel/ui';
 
 // HU-38 / RF-29: datos que se muestran en el sitio y se editan desde el panel. Cada tarjeta se guarda por separado.
@@ -10,8 +10,26 @@ import { Alerta, Boton, Campo, Encabezado, Esqueleto, Interruptor, Tarjeta, area
 //  - Lugares de referencia para «a cuántas cuadras queda» en la ficha
 //  - Costos de la calculadora «cuánto necesito para entrar»
 //  - Datos bancarios para el pago por transferencia
+//  - Preguntas frecuentes que responde el asistente de Contacto
 
-type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco';
+type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco' | 'preguntas';
+// En el formulario las palabras clave se escriben separadas por coma
+type PreguntaEditable = { pregunta: string; respuesta: string; palabras: string; enlaceTexto: string; enlaceHref: string };
+const MAX_PREGUNTAS = 25;
+const aEditable = (p: PreguntaFrecuente): PreguntaEditable => ({
+  pregunta: p.pregunta,
+  respuesta: p.respuesta,
+  palabras: (p.palabras ?? []).join(', '),
+  enlaceTexto: p.enlace?.texto ?? '',
+  enlaceHref: p.enlace?.href ?? '',
+});
+const aGuardar = (p: PreguntaEditable): PreguntaFrecuente => ({
+  pregunta: p.pregunta.trim(),
+  respuesta: p.respuesta.trim(),
+  palabras: p.palabras.split(',').map((x) => x.trim()).filter(Boolean),
+  ...(p.enlaceTexto.trim() || p.enlaceHref.trim() ? { enlace: { texto: p.enlaceTexto.trim(), href: p.enlaceHref.trim() } } : {}),
+});
+const MARCAS = ['{horario}', '{direccion}', '{telefono}', '{email}', '{requisitos-alquilar}', '{requisitos-comprar}', '{requisitos-publicar}'];
 const numero = (v: string) => (v.trim() === '' ? 0 : Number(v.replace(',', '.')));
 
 export default function SitioPage() {
@@ -26,6 +44,8 @@ export default function SitioPage() {
   const [lugares, setLugares] = useState<(Omit<Lugar, 'latitud' | 'longitud'> & { latitud: string; longitud: string; link?: string; linkLeido?: string })[]>([]);
   const [costos, setCostos] = useState<Costos | null>(null);
   const [banco, setBanco] = useState<Banco | null>(null);
+  const [preguntas, setPreguntas] = useState<PreguntaEditable[]>([]);
+  const [abierta, setAbierta] = useState<number | null>(null);
 
   const aplicar = (a: AjustesAdmin) => {
     setDatos(a);
@@ -33,6 +53,7 @@ export default function SitioPage() {
     setLugares(a.lugares.map((l) => ({ ...l, latitud: String(l.latitud), longitud: String(l.longitud) })));
     setCostos(a.costos);
     setBanco(a.banco);
+    setPreguntas((a.preguntas ?? []).map(aEditable));
   };
 
   useEffect(() => {
@@ -98,6 +119,18 @@ export default function SitioPage() {
     await guardar('lugares', { lugares: listos });
   };
 
+  const cambiarPregunta = (i: number, cambio: Partial<PreguntaEditable>) => setPreguntas((ps) => ps.map((p, j) => (j === i ? { ...p, ...cambio } : p)));
+  const moverPregunta = (i: number, hacia: -1 | 1) => {
+    setPreguntas((ps) => {
+      const j = i + hacia;
+      if (j < 0 || j >= ps.length) return ps;
+      const copia = [...ps];
+      [copia[i], copia[j]] = [copia[j], copia[i]];
+      return copia;
+    });
+    setAbierta((a) => (a === i ? i + hacia : a));
+  };
+
   if (error) {
     return (
       <>
@@ -141,7 +174,7 @@ export default function SitioPage() {
 
   return (
     <>
-      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
+      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos, los datos para transferir y las preguntas del asistente." />
       <div className="flex max-w-4xl flex-col gap-6">
         <form onSubmit={(e) => guardar('contacto', { contacto }, e)}>
           <Tarjeta
@@ -288,6 +321,85 @@ export default function SitioPage() {
               {campoTexto('CBU o CVU', banco.cbu, (v) => setBanco({ ...banco, cbu: v }), { inputMode: 'numeric', maxLength: 26 }, '22 números')}
               {campoTexto('Alias', banco.alias, (v) => setBanco({ ...banco, alias: v }), { maxLength: 20 })}
               {campoTexto('CUIT', banco.cuit, (v) => setBanco({ ...banco, cuit: v }), { inputMode: 'numeric', maxLength: 13 })}
+            </div>
+          </Tarjeta>
+        </form>
+
+        <form onSubmit={(e) => guardar('preguntas', { preguntas: preguntas.map(aGuardar) }, e)}>
+          <Tarjeta
+            guia="preguntas"
+            titulo="Preguntas del asistente"
+            descripcion="El asistente de Contacto responde estas preguntas al instante. Las primeras 6 se muestran como botones; lo que no sabe responder lo manda a tu WhatsApp con la pregunta escrita."
+            acciones={
+              <Boton variante="principal" type="submit" cargando={guardando === 'preguntas'}>
+                Guardar
+              </Boton>
+            }
+          >
+            {errores.preguntas && (
+              <div className="mb-4">
+                <Alerta tono="peligro">{errores.preguntas}</Alerta>
+              </div>
+            )}
+            <p className="m-0 mb-4 text-sm text-panel-suave">
+              En la respuesta podés usar marcas que se completan solas con los datos del sitio:{' '}
+              {MARCAS.map((m, i) => (
+                <span key={m}>
+                  <code className="rounded bg-panel-fondo px-1 py-0.5 text-[12px]">{m}</code>
+                  {i < MARCAS.length - 1 ? ' ' : '.'}
+                </span>
+              ))}{' '}
+              Las palabras clave ayudan a encontrar la pregunta aunque la escriban distinto.
+            </p>
+            {preguntas.length === 0 && <p className="m-0 mb-4 text-sm text-panel-suave">No hay preguntas: el asistente solo va a ofrecer escribir por WhatsApp.</p>}
+            <ol className="m-0 flex list-none flex-col gap-3 p-0">
+              {preguntas.map((p, i) => (
+                <li key={i} className="rounded-lg border border-panel-borde">
+                  <div className="flex items-center gap-2 p-2 pl-3">
+                    <button
+                      type="button"
+                      aria-expanded={abierta === i}
+                      onClick={() => setAbierta(abierta === i ? null : i)}
+                      className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm font-medium"
+                    >
+                      <span className="tabular w-5 shrink-0 text-panel-suave">{i + 1}.</span>
+                      <span className="truncate">{p.pregunta || 'Pregunta nueva'}</span>
+                    </button>
+                    <Boton variante="fantasma" tamano="sm" icono="arriba" aria-label={`Subir «${p.pregunta || 'pregunta'}»`} disabled={i === 0} onClick={() => moverPregunta(i, -1)} />
+                    <Boton variante="fantasma" tamano="sm" icono="abajo" aria-label={`Bajar «${p.pregunta || 'pregunta'}»`} disabled={i === preguntas.length - 1} onClick={() => moverPregunta(i, 1)} />
+                    <Boton variante="fantasma" tamano="sm" icono="borrar" aria-label={`Quitar «${p.pregunta || 'pregunta'}»`} onClick={() => { setPreguntas((ps) => ps.filter((_, j) => j !== i)); setAbierta(null); }} />
+                  </div>
+                  {abierta === i && (
+                    <div className="grid gap-4 border-t border-panel-borde p-3 sm:grid-cols-2">
+                      <Campo etiqueta="Pregunta" htmlFor={`pregunta-${i}`} className="sm:col-span-2">
+                        <input id={`pregunta-${i}`} value={p.pregunta} maxLength={120} onChange={(e) => cambiarPregunta(i, { pregunta: e.target.value })} placeholder="¿Aceptan mascotas?" className={control} />
+                      </Campo>
+                      <Campo etiqueta="Respuesta" htmlFor={`respuesta-${i}`} className="sm:col-span-2" ayuda="Un renglón que empieza con «• » se muestra como lista.">
+                        <textarea id={`respuesta-${i}`} rows={4} maxLength={800} value={p.respuesta} onChange={(e) => cambiarPregunta(i, { respuesta: e.target.value })} className={areaTexto} />
+                      </Campo>
+                      <Campo etiqueta="Palabras clave" htmlFor={`palabras-${i}`} className="sm:col-span-2" ayuda="Separadas por coma. Ej.: mascotas, perro, gato">
+                        <input id={`palabras-${i}`} value={p.palabras} onChange={(e) => cambiarPregunta(i, { palabras: e.target.value })} className={control} />
+                      </Campo>
+                      <Campo etiqueta="Texto del enlace (opcional)" htmlFor={`enlace-texto-${i}`}>
+                        <input id={`enlace-texto-${i}`} value={p.enlaceTexto} maxLength={60} onChange={(e) => cambiarPregunta(i, { enlaceTexto: e.target.value })} placeholder="Ver los requisitos" className={control} />
+                      </Campo>
+                      <Campo etiqueta="Adónde lleva" htmlFor={`enlace-href-${i}`} ayuda="Una página del sitio, como /requisitos">
+                        <input id={`enlace-href-${i}`} value={p.enlaceHref} maxLength={200} onChange={(e) => cambiarPregunta(i, { enlaceHref: e.target.value })} placeholder="/requisitos" className={control} />
+                      </Campo>
+                    </div>
+                  )}
+                </li>
+              ))}
+            </ol>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {preguntas.length < MAX_PREGUNTAS && (
+                <Boton tamano="sm" icono="mas" onClick={() => { setPreguntas((ps) => [...ps, { pregunta: '', respuesta: '', palabras: '', enlaceTexto: '', enlaceHref: '' }]); setAbierta(preguntas.length); }}>
+                  Agregar pregunta
+                </Boton>
+              )}
+              <Boton tamano="sm" variante="fantasma" onClick={() => { setPreguntas((datos.sugeridas ?? []).map(aEditable)); setAbierta(null); }}>
+                Volver a las sugeridas
+              </Boton>
             </div>
           </Tarjeta>
         </form>

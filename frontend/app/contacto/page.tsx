@@ -8,6 +8,7 @@ import { useAuth } from '@/context/AuthContext';
 import { enviarConsulta } from '@/services/contacto';
 import { useContacto } from '@/components/sitio/useAjustes';
 import Captcha, { CLAVE_CAPTCHA } from '@/components/sitio/Captcha';
+import AsistenteConsultas from '@/components/sitio/AsistenteConsultas';
 
 // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
 const TITULO = 'Hablemos.';
@@ -331,6 +332,8 @@ export default function ContactoPage() {
             )}
           </div>
         </section>
+
+        <AsistenteConsultas />
 
         <section aria-labelledby={`${id}-oficina`} className="grid gap-10 px-5 pb-20 sm:px-10 lg:grid-cols-12 lg:gap-6">
           <div data-reveal="imagen" className="tarjeta-color overflow-hidden rounded-3xl lg:col-span-7">
