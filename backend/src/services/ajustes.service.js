@@ -5,7 +5,7 @@ const Ajustes = require('../models/ajustes.model');
 
 const ID = new mongoose.Types.ObjectId('000000000000000000000038');
 
-// Preguntas frecuentes del asistente de Contacto. El administrador las edita en Datos del sitio.
+// Preguntas frecuentes del asistente de Contacto. El administrador las edita en Configuración → Asistente de Contacto.
 // En la respuesta se pueden usar marcas que se completan con los datos del sitio:
 // {horario}, {direccion}, {telefono}, {email}, {requisitos-alquilar}, {requisitos-comprar}, {requisitos-publicar}
 const PREGUNTAS_SUGERIDAS = [

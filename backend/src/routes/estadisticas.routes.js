@@ -16,6 +16,16 @@ router.post('/evento', frenos.estadisticas, async (req, res) => {
     res.status(204).end();
 });
 
+// Las propiedades de quien está conectado (las que publicó o están a su nombre), para Mi cuenta
+router.get('/mias', authMiddleware, async (req, res) => {
+    try {
+        res.json({ data: await estadisticas.deDueno(req.user._id, req.query.dias) });
+    } catch (error) {
+        console.error('Error al calcular tus estadísticas:', error);
+        res.status(500).json({ message: 'No se pudieron calcular las estadísticas' });
+    }
+});
+
 // Resumen para el panel
 router.get('/', authMiddleware, authMiddleware.requirePermiso('estadisticas'), async (req, res) => {
     try {

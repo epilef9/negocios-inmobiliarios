@@ -9,7 +9,7 @@ import { buscar, completar, mensajeWhatsapp, PUNTOS_MINIMOS } from './asistente'
 
 // Asistente de preguntas frecuentes de Contacto: responde lo que se pregunta siempre (horarios, requisitos,
 // cómo agendar o publicar) con los datos del sitio, y lo que no sabe lo deriva a WhatsApp con el mensaje armado.
-// Las preguntas las edita el administrador en Panel → Configuración → Datos del sitio.
+// Las preguntas las edita el administrador en Panel → Configuración → Asistente de Contacto.
 
 type Mensaje =
   | { id: number; de: 'persona'; texto: string }

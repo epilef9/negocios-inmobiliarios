@@ -160,6 +160,19 @@ export default function ConfiguracionPage() {
           <p className="m-0 text-[13.5px] text-panel-suave">Agregá, ordená u ocultá cada requisito; el sitio cambia al guardar.</p>
         </Tarjeta>
 
+        <Tarjeta
+          guia="asistente"
+          titulo="Asistente de Contacto"
+          descripcion="Las preguntas frecuentes que responde solo el asistente de la página Contacto, con sus respuestas. Lo que no sabe responder te llega por WhatsApp."
+          acciones={
+            <BotonLink href="/admin/asistente" variante="principal" icono="editar">
+              Editar las preguntas
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Agregá, ordená o quitá preguntas y probá qué respondería antes de guardar.</p>
+        </Tarjeta>
+
         <MenuDelPanel />
 
         <Tarjeta guia="apariencia" titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">

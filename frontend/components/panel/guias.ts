@@ -170,9 +170,19 @@ const GUIAS_PANEL = {
       { objetivo: 'datos-sitio', titulo: 'Datos del sitio', texto: 'Teléfono, WhatsApp, dirección, horario, lugares de referencia, la calculadora y los datos para transferencias.' },
       { objetivo: 'orden-catalogo', titulo: 'Orden del catálogo', texto: 'Qué propiedad aparece primero en el catálogo y en el inicio del sitio.' },
       { objetivo: 'requisitos', titulo: 'Requisitos', texto: 'Lo que se pide para alquilar, comprar o publicar. Se ve en la página Requisitos y lo usa el asistente de Contacto para responder.' },
+      { objetivo: 'asistente', titulo: 'Asistente de Contacto', texto: 'Las preguntas frecuentes que responde solo el asistente de la página Contacto. Agregá las que te hacen siempre con su respuesta.' },
       { objetivo: 'menu', titulo: 'Tu menú', texto: 'Elegí qué secciones van en el menú principal y cuáles en «Más opciones».' },
       { objetivo: 'apariencia', titulo: 'Claro u oscuro', texto: 'El modo oscuro cansa menos la vista de noche. También se cambia desde abajo del menú.' },
       { objetivo: 'colores', titulo: 'Colores del panel', texto: 'El color del menú y de los acentos. El sitio público no cambia.' },
+    ],
+  },
+  asistente: {
+    titulo: 'Asistente de Contacto',
+    pasos: [
+      { objetivo: 'preguntas', titulo: 'Las preguntas', texto: 'Cada una tiene la pregunta, la respuesta y palabras clave para encontrarla aunque la escriban distinto. Las primeras 6 aparecen como botones en Contacto.' },
+      { objetivo: 'preguntas', titulo: 'Datos que se completan solos', texto: 'En la respuesta, {horario}, {telefono} o {requisitos-alquilar} se reemplazan por los datos del sitio. Así, si cambia el horario, la respuesta no queda vieja.' },
+      { objetivo: 'probar', titulo: 'Probalo antes de guardar', texto: 'Escribí una pregunta como la haría un cliente y mirá qué respondería. Si no encuentra la respuesta, sumá palabras clave.' },
+      { titulo: 'No te olvides de guardar', texto: 'Los cambios se ven en Contacto cuando tocás «Guardar».' },
     ],
   },
   catalogo: {
@@ -191,7 +201,6 @@ const GUIAS_PANEL = {
       { objetivo: 'calculadora', titulo: 'La calculadora', texto: 'Depósito, honorarios, sellado y escritura. Con esto el cliente ve cuánto necesita para entrar a una propiedad.' },
       { objetivo: 'banco', titulo: 'Datos para transferencias', texto: 'CBU o alias y titular. Los ve solo quien está pagando una reserva por transferencia.' },
       { objetivo: 'estadias', titulo: 'Seña de las estadías', texto: 'Qué porcentaje del total paga el cliente como seña para reservar los días de un alquiler temporario. El resto lo paga después.' },
-      { objetivo: 'preguntas', titulo: 'Preguntas del asistente', texto: 'Lo que responde solo el asistente de Contacto: horarios, requisitos, cómo agendar o publicar. Agregá las que te hacen siempre; lo que no sepa responder te llega por WhatsApp.' },
       { titulo: 'Cada bloque se guarda solo', texto: 'Cada tarjeta tiene su botón «Guardar»: lo que cambiás en una no toca las otras.' },
     ],
   },
