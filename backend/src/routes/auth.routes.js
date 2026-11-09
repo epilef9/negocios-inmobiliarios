@@ -39,6 +39,9 @@ router.get('/favoritos', authMiddleware, authController.getFavoritos);
 router.put('/favoritos/:propertyId', authMiddleware, authController.agregarFavorito);
 router.delete('/favoritos/:propertyId', authMiddleware, authController.quitarFavorito);
 
+// Cierra la sesión en todos los dispositivos (requiere sesión)
+router.post('/cerrar-sesiones', frenos.tokens, authMiddleware, authController.cerrarSesiones);
+
 // Endpoint para cierre de sesion
 router.post('/logout', authController.logout);
 

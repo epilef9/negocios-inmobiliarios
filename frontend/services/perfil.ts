@@ -58,3 +58,9 @@ export async function pedirCambioPassword() {
   const { data, message } = await pedir<{ enlaceDev?: string }>('/users/me/password', { method: 'POST' });
   return { enlaceDev: data?.enlaceDev, mensaje: message };
 }
+
+// Cierra la sesión en todos los dispositivos. El actual queda con una sesión nueva (el backend cambia la cookie).
+export async function cerrarSesionesEnTodos() {
+  const { data, message } = await pedir<{ user: Perfil }>('/auth/cerrar-sesiones', { method: 'POST' });
+  return { user: data?.user, mensaje: message };
+}

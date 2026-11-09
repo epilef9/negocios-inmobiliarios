@@ -251,6 +251,16 @@ const authService = {
         return { token: firmarSesion(user), user: datosPublicos(user) };
     },
 
+    // Cierra todas las sesiones abiertas de la cuenta (el middleware rechaza las iniciadas antes de esta fecha).
+    // El dispositivo desde el que se pide recibe una sesión nueva para seguir adentro.
+    cerrarSesiones: async (userId) => {
+        const user = await User.findById(userId);
+        if (!user) throw errorHttp('Cuenta no encontrada.', 404);
+        user.credencialesCambiadasEn = new Date();
+        await user.save();
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
+
     logout: async () => {
         return { message: 'Cierre de sesion exitoso' };
     },
