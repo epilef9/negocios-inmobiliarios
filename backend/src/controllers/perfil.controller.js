@@ -23,6 +23,7 @@ const datosPublicos = (user, emailPendiente) => ({
     email: user.email,
     emailPendiente: emailPendiente || undefined,
     rol: user.rol,
+    permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
     emailVerificado: user.emailVerificado !== false,
     checklistRequisitos: user.checklistRequisitos || [],
     preferencias: user.preferencias || { tema: 'light', paleta: 'corporativo' },

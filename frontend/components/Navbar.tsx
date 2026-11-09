@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import Link from "next/link";
 import { useAuth } from '../context/AuthContext';
 
+import { esPersonal } from '@/lib/permisos';
 export default function Navbar() {
 	// Estado del menú en pantallas chicas y sesión actual
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -41,7 +42,7 @@ export default function Navbar() {
               <div className="h-8 w-28 rounded-lg bg-white/10 animate-pulse" aria-hidden="true" />
             ) : user ? (
               <div className="flex items-center space-x-3">
-                {user.rol === 'admin' && (
+                {esPersonal(user) && (
                   <Link 
                     href="/admin" 
                     className="bg-slate-800/80 hover:bg-slate-700 text-white px-3 py-1.5 rounded-lg font-semibold text-xs transition-all backdrop-blur-sm border border-white/20"
@@ -121,7 +122,7 @@ export default function Navbar() {
                   </svg>
                   <span>{user.nombre ? `${user.nombre} ${user.apellido || ''}`.trim() : user.email}</span>
                 </div>
-                {user.rol === 'admin' && (
+                {esPersonal(user) && (
                   <Link href="/admin" className="block w-full">
                     <button className="w-full text-center bg-slate-800 hover:bg-slate-700 text-white px-3 py-2.5 rounded-lg font-semibold text-xs transition-colors border border-white/20">
                       Panel de Administración

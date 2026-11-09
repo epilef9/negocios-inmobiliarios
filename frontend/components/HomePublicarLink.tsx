@@ -5,11 +5,12 @@
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 
+import { esPersonal } from '@/lib/permisos';
 export default function HomePublicarLink() {
   const { user, isLoading } = useAuth();
 
   // Este acceso solo se muestra a usuarios administradores
-  if (isLoading || user?.rol !== 'admin') {
+  if (isLoading || !esPersonal(user)) {
     return null;
   }
 

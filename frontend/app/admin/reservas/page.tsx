@@ -19,6 +19,7 @@ import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insi
 import { ESTADO_RESERVA, estadoDe } from '@/components/panel/estados';
 import { ESTADO_PAGO, aprobarPago, getPagosAdmin, pesos, rechazarPago, urlComprobante, type PagoAdmin } from '@/services/pagos';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 // Reservas de estadías hechas desde el sitio (HU-20). Las pendientes retienen las noches hasta que vencen:
 // se confirman (pasan a ocupadas) o se rechazan (se liberan). Una vencida se puede confirmar igual si
 // nadie tomó esas noches; si las tomó otro cliente, el panel lo dice y no deja confirmarla.
@@ -316,6 +317,7 @@ export default function ReservasAdminPage() {
                     </span>
                     <span className="tabular text-[13.5px] font-medium xl:text-right">{usd(r.totalUSD)}</span>
                     <div className="-ml-2 flex items-center xl:ml-0 xl:justify-end">{trabajando === r.id ? <span className="px-2 text-[13px] text-panel-tenue">Guardando…</span> : acciones(r)}</div>
+                    <ActividadRegistro entidad="reserva" id={r.id} className="md:col-span-full" />
                   </li>
                 );
               })}

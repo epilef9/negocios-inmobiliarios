@@ -9,6 +9,7 @@ import type { ApiProperty } from '@/services/api';
 import type { DisponibilidadPublica } from '@/services/disponibilidad';
 import { calcularTotal, crearReserva, fechaHoraArgentina, usd, type Reserva } from '@/services/reservas';
 
+import { esPersonal } from '@/lib/permisos';
 // Reserva de una estadía en alquiler temporario (HU-20): el cliente toca la entrada y la salida en el
 // calendario de fechas libres, ve el detalle con el total y la envía. Queda pendiente hasta que la
 // inmobiliaria la confirma; mientras tanto esas noches figuran "por confirmar" para todos.
@@ -58,7 +59,7 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
   const maximoHuespedes = propiedad.huespedesMaximos && propiedad.huespedesMaximos > 0 ? propiedad.huespedesMaximos : 20;
   const minimo = Math.max(1, datos?.minimoNoches ?? propiedad.minimoNoches ?? 1);
   const precioNoche = datos?.precioPorNocheUSD ?? propiedad.precioPorNocheUSD ?? 0;
-  const esAdmin = user?.rol === 'admin';
+  const esAdmin = esPersonal(user);
 
   // Al volver de ingresar se recuperan las fechas que había elegido (si siguen libres)
   const recuperarFechas = (d: DisponibilidadPublica) => {

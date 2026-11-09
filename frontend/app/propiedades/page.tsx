@@ -17,6 +17,7 @@ import FiltrosCatalogo, { ESTADOS, FILTROS_VACIOS, OPERACIONES, TIPOS, elegidasD
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
+import { puedeVer } from '@/lib/permisos';
 const POR_PAGINA = 9;
 
 type Orden = "destacadas" | "recientes" | "menor" | "mayor";
@@ -101,7 +102,7 @@ function PropiedadesConFiltros() {
 function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }) {
 	const { whatsappUrl } = useContacto();
 	const { user } = useAuth();
-	const esAdmin = user?.rol === "admin";
+	const esAdmin = puedeVer(user, 'propiedades');
 	const blue = useDolarBlue();
 
 	const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);

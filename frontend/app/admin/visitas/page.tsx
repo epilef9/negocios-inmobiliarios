@@ -10,6 +10,7 @@ import { ASISTENCIA_VISITA, ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } f
 import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
 import { operacionesDe, precioDe, tieneOperacion } from '@/components/sitio/operaciones';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 // Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
 const hoyIso = () => {
   const d = new Date();
@@ -380,6 +381,7 @@ export default function VisitasAdminPage() {
                       <InsigniaAsistencia visita={v} />
                     </span>
                     <div className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
+                    <ActividadRegistro entidad="visita" id={v.id} className="md:col-span-full" />
                   </li>
                 );
               })}

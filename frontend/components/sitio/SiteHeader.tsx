@@ -9,6 +9,7 @@ import AvisoSalida from './AvisoSalida';
 import LogoEmpresa from './LogoEmpresa';
 
 
+import { esPersonal } from '@/lib/permisos';
 // Inicio va primero: no todos saben que el logo lleva a la portada. Contacto va a la derecha, con el punto rojo.
 const enlaces = [
   { href: '/', texto: 'Inicio' },
@@ -52,7 +53,7 @@ export default function SiteHeader() {
       <Link href="/perfil" className="calma-link calma-link-sutil">
         Mi cuenta
       </Link>
-      {user.rol === 'admin' && (
+      {esPersonal(user) && (
         <Link href="/admin" className="calma-link calma-link-sutil">
           Panel
         </Link>

@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin } = authMiddleware;
+const { requirePermiso } = authMiddleware;
 
 // Datos personales de clientes: solo el administrador (RF-09 / RNF-05)
-router.use(authMiddleware, requireAdmin);
+router.use(authMiddleware, requirePermiso('clientes'));
 const clientsController = require('../controllers/clients.controller');
 
 // Panel de clientes: propietarios e inquilinos vinculados a propiedades (va antes de '/:id')

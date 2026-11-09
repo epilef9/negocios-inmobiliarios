@@ -1,4 +1,5 @@
 const SolicitudPublicacion = require('../models/solicitudPublicacion.model');
+const { tienePermiso } = require('../utils/permisos');
 const Property = require('../models/property.model');
 const User = require('../models/user.model');
 const emailService = require('./email.service');
@@ -160,7 +161,7 @@ const solicitudPublicacionService = {
             throw errorHttp('Solicitud no encontrada.', 404);
         }
 
-        if (user.rol !== 'admin' && String(solicitud.cliente._id || solicitud.cliente) !== String(user._id || user.id)) {
+        if (!tienePermiso(user, 'publicaciones') && String(solicitud.cliente._id || solicitud.cliente) !== String(user._id || user.id)) {
             throw errorHttp('No tenés permiso para ver esta solicitud.', 403);
         }
 
@@ -172,7 +173,7 @@ const solicitudPublicacionService = {
         if (!/^[a-f\d]{24}$/i.test(String(id || ''))) throw errorHttp('Documento no encontrado.', 404);
         const documento = await documentosPublicacion.leer(id);
         if (!documento) throw errorHttp('Documento no encontrado.', 404);
-        if (user.rol !== 'admin') {
+        if (!tienePermiso(user, 'publicaciones')) {
             const referencia = `privado:${String(id).toLowerCase()}`;
             const solicitud = await SolicitudPublicacion.findOne({
                 $or: DOCUMENTOS.map((campo) => ({ [`documentos.${campo}`]: referencia })),

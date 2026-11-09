@@ -8,6 +8,7 @@ import { cancelarSena, concretarSena, crearSena, extenderSena, finDelDiaArgentin
 import { hoyIso, sumarDias } from '@/components/calendario/fechas';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, Pestanas, SelectorFecha, Tarjeta, areaTexto, control, useAviso, type Tono } from '@/components/panel/ui';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 // HU-13 / RF-11: reservas con seña de propiedades en venta o alquiler. Mientras está activa, la propiedad
 // figura «Reservada» en el sitio con la fecha límite; si llega ese día sin concretarse, vuelve a «Disponible» sola.
 
@@ -183,7 +184,7 @@ export default function SenasPage() {
                 const estado = ESTADO[s.estado];
                 const dias = diasHasta(s.fechaLimite);
                 return (
-                  <li key={s._id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                  <li key={s._id} className="flex flex-col gap-3 px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
                     <div className="flex min-w-0 flex-col gap-1">
                       <div className="flex flex-wrap items-center gap-2">
                         {idProp(s) ? (
@@ -226,6 +227,7 @@ export default function SenasPage() {
                         </Boton>
                       </div>
                     )}
+                    <ActividadRegistro entidad="sena" id={s._id} className="sm:basis-full" />
                   </li>
                 );
               })}

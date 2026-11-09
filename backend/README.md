@@ -158,3 +158,11 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Usá el mismo valor en todos los entornos que deban leer los documentos existentes. Guardalo en el gestor de secretos del hosting y no lo compartas ni lo cambies sin un plan de recifrado. Los archivos no se sirven desde `/uploads` ni se exponen con URLs públicas. La carga multipart inicial acepta hasta 5 MB por archivo; las cargas individuales cifradas admiten PDF de hasta 4 MB e imágenes de hasta 20 MB antes de optimizarse en el cliente.
+Usá el mismo valor en todos los entornos que deban leer los documentos existentes. Guardalo en el gestor de secretos del hosting y no lo compartas ni lo cambies sin un plan de recifrado. Los archivos no se sirven desde `/uploads` ni se exponen con URLs públicas. Se admiten PDF, JPG/JPEG y PNG de hasta 5 MB por archivo.
+## Empleados con permisos y registro de actividad
+
+El administrador crea cuentas de **empleado** desde Panel → Empleados y les marca las secciones que pueden usar (propiedades, visitas, contratos, etc.; lista en `src/utils/permisos.js`). Sin permisos solo ven el Inicio. Cada ruta del backend controla el permiso con `requirePermiso('seccion')`: un empleado sin permiso recibe 403 aunque escriba la dirección a mano. Configuración, Datos del sitio, Empleados y Actividad son solo del administrador. Dar de baja una cuenta corta sus sesiones y le impide ingresar; la cuenta queda para el registro.
+
+Cada vez que alguien confirma, cancela o cambia una visita, reserva, seña, solicitud, publicación o propiedad, el middleware `registra()` guarda quién, qué, sobre qué y cuándo (modelo `Actividad`, sin vencimiento). Se ve en cada detalle («Ver actividad») y el administrador tiene la lista completa en Panel → Actividad.
+
+Test: `node --test tests/permisos-panel.test.js` (no usa base de datos).

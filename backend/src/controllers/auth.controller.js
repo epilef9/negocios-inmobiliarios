@@ -105,6 +105,7 @@ exports.me = async (req, res) => {
             telefono: user.telefono,
             email: user.email,
             rol: user.rol,
+            permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
             emailVerificado: user.emailVerificado !== false,
             checklistRequisitos: user.checklistRequisitos || [],
             favoritos: Array.isArray(user.favoritos) ? user.favoritos.filter(Boolean).map(String) : [],
