@@ -63,10 +63,12 @@ const revisarIngreso = async (req, res, userId) => {
             parrafos: [
                 `Se inició sesión en tu cuenta de Negocios Inmobiliarios el ${fechaHora()}.`,
                 `Desde: ${describirNavegador(req.get('user-agent'))}${ubicacion ? `\nUbicación aproximada: ${ubicacion}` : ''}`,
-                'Si fuiste vos, no tenés que hacer nada. Si no fuiste vos, cambiá la contraseña ahora: al cambiarla se cierran todas las sesiones abiertas.',
+                'Si fuiste vos, no tenés que hacer nada. Si no fuiste vos, cambiá la contraseña ahora: al cambiarla se cierran todas las sesiones abiertas. También podés cerrarlas desde tu perfil, con el botón «Cerrar sesión en todos los dispositivos».',
             ],
-            boton: 'No fui yo: cambiar la contraseña',
-            enlace: `${config.urlFrontend()}/olvide-contrasena`,
+            botones: [
+                { texto: 'No fui yo: cambiar la contraseña', enlace: `${config.urlFrontend()}/olvide-contrasena` },
+                { texto: 'Cerrar sesión en todos mis dispositivos', enlace: `${config.urlFrontend()}/perfil` },
+            ],
             pie: 'Te avisamos solo cuando el ingreso es desde un navegador o dispositivo que no reconocemos.',
         });
     } catch (error) {
