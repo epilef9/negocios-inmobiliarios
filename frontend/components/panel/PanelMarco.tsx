@@ -12,6 +12,7 @@ import { EVENTO_SOLICITUDES } from '@/services/solicitudes';
 import { EVENTO_RESERVAS } from '@/services/reservas';
 import { EVENTO_PENDIENTES, getPendientesPanel, type PendientesPanel } from '@/services/panel';
 
+import { puedeEntrarARuta } from '@/lib/permisos';
 // `incluye`: otras rutas que marcan la sección como activa (el orden del catálogo se abre desde Configuración)
 // `pendiente`: qué número del servidor se muestra al lado (lo que hay para revisar o confirmar) y cómo se lee
 type Pendiente = { clave: keyof PendientesPanel; texto: string };
@@ -30,6 +31,8 @@ const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boo
   { href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { clave: 'cobros', texto: 'alquileres atrasados' } },
   { href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { clave: 'publicaciones', texto: 'por revisar' } },
   { href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
+  { href: '/admin/empleados', texto: 'Empleados', icono: 'clientes' },
+  { href: '/admin/actividad', texto: 'Actividad', icono: 'reloj' },
   { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion', incluye: ['/admin/catalogo', '/admin/sitio'] },
 ];
 
@@ -122,7 +125,7 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
         aria-label="Secciones del panel"
         className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-3 [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin]"
       >
-        {SECCIONES.map((seccion) => {
+        {SECCIONES.filter((s) => puedeEntrarARuta(user, s.href)).map((seccion) => {
           const activa = esActiva(ruta, seccion);
           const cantidad = seccion.pendiente ? pendientes[seccion.pendiente.clave] ?? 0 : 0;
           return (

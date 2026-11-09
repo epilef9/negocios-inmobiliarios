@@ -4,7 +4,7 @@ const cobros = require('../services/cobros.service');
 
 // Cobro mensual de alquileres: solo el administrador
 const router = express.Router();
-router.use(authMiddleware, authMiddleware.requireAdmin);
+router.use(authMiddleware, authMiddleware.requirePermiso('cobros'));
 
 const responder = (accion, mensaje) => async (req, res) => {
     try {

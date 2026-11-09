@@ -40,6 +40,11 @@ const validateRegister = (req, res, next) => {
         errors.push('Las contrasenas no coinciden');
     }
 
+    // Hay que aceptar los Términos y la Política de privacidad (se exige también acá, no solo en el formulario)
+    if (req.body.aceptoTerminos !== true) {
+        errors.push('Tenés que aceptar los Términos y la Política de privacidad');
+    }
+
     // Ignorar cualquier intento de autoasignarse rol desde el cliente
     if (req.body && Object.prototype.hasOwnProperty.call(req.body, 'rol')) {
         delete req.body.rol;

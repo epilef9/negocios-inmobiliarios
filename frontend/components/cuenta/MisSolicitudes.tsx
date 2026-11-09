@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState } from "react";
-import { getMisSolicitudes, type EstadoSolicitud, type SolicitudResumen } from "@/services/solicitudes";
+import { useEffect, useId, useRef, useState } from "react";
+import { corregirDocumentacionSolicitud, EVENTO_SOLICITUDES, getMisSolicitudes, type EstadoSolicitud, type SolicitudResumen } from "@/services/solicitudes";
 
 // Mi cuenta: las solicitudes de alquiler o compra del cliente (HU-24), con el mismo diseño que "Tus reservas":
 // filas separadas por una línea, foto chica, estado en una pastilla y qué sigue en cada caso.
@@ -10,6 +10,7 @@ import { getMisSolicitudes, type EstadoSolicitud, type SolicitudResumen } from "
 // Misma paleta que las reservas: crema lleno para lo aprobado, rojo para lo rechazado y contornos para el resto
 const ESTADOS: Record<EstadoSolicitud, { texto: string; clase: string }> = {
   pendiente: { texto: "Pendiente", clase: "bg-[#efe9df]/10 text-[#efe9df] ring-1 ring-inset ring-[#efe9df]/45" },
+  falta_documentacion: { texto: "Falta documentación", clase: "bg-[#f8cf6b]/10 text-[#f8cf6b] ring-1 ring-inset ring-[#f8cf6b]/45" },
   aprobada: { texto: "Aprobada", clase: "bg-[#efe9df] text-[#071733]" },
   rechazada: { texto: "Rechazada", clase: "bg-[#d9382b]/25 text-[#ffc2bc] ring-1 ring-inset ring-[#d9382b]/60" },
   vencida: { texto: "Vencida", clase: "text-[#efe9df]/75 ring-1 ring-inset ring-[#efe9df]/25" },
@@ -19,6 +20,7 @@ const ESTADOS: Record<EstadoSolicitud, { texto: string; clase: string }> = {
 // Qué le pasa al cliente en cada estado, en una frase
 const QUE_SIGUE: Record<EstadoSolicitud, string> = {
   pendiente: "Recibimos tu solicitud y la estamos revisando. Te avisamos por mail cuando haya novedades.",
+  falta_documentacion: "Necesitamos que corrijas algunos documentos para seguir con la revisión de tu solicitud.",
   aprobada: "¡Tu solicitud fue aprobada! Nos vamos a comunicar para seguir con el trámite.",
   rechazada: "No pudimos aprobar tu solicitud. Si tenés dudas, escribinos.",
   vencida: "Venció el plazo sin respuesta. Escribinos si querés que la revisemos.",
@@ -33,6 +35,39 @@ const fechaHora = (valor: string) =>
 // Los mensajes pueden traer palabras o links larguísimos: nunca se salen del renglón
 const textoMensaje = "m-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[15px] leading-relaxed";
 
+const NOMBRES_DOCUMENTOS: Record<string, string> = {
+  dniTitularFrente: "DNI del titular (frente)",
+  dniTitularDorso: "DNI del titular (dorso)",
+  cuilTitular: "Constancia de CUIL/CUIT",
+  domicilio: "Comprobante de domicilio",
+  dniCotitularFrente: "DNI del cotitular (frente)",
+  dniCotitularDorso: "DNI del cotitular (dorso)",
+  recibosIngresos: "Recibo de sueldo",
+  constanciaIngresos: "Constancia de ingresos",
+  escrituraGarantia: "Escritura de la propiedad ofrecida como garantía",
+  reciboGarante: "Recibo de sueldo del garante",
+  documentacionCaucion: "Documentación del seguro de caución",
+};
+
+const nombreDocumentoSolicitado = (id: string) => {
+  const recibo = /^recibosIngresos:(\d+)$/.exec(id);
+  if (recibo) return `Recibo de sueldo (${Number(recibo[1]) + 1} de 3)`;
+  return NOMBRES_DOCUMENTOS[id] ?? "Documento solicitado";
+};
+
+const errorArchivoCorreccion = (archivo: File) => {
+  if (archivo.size <= 0) return `El archivo "${archivo.name}" está vacío.`;
+  if (archivo.type === "application/pdf") {
+    return archivo.size > 4 * 1024 * 1024 ? `El PDF "${archivo.name}" debe pesar hasta 4 MB.` : "";
+  }
+  if (!["image/jpeg", "image/png"].includes(archivo.type)) {
+    return `El archivo "${archivo.name}" debe ser PDF, JPG o PNG.`;
+  }
+  return archivo.size > 20 * 1024 * 1024
+    ? `La imagen "${archivo.name}" debe pesar hasta 20 MB antes de optimizarla.`
+    : "";
+};
+
 function Icono({ estado }: { estado: EstadoSolicitud }) {
   const trazo = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
   return (
@@ -45,6 +80,12 @@ function Icono({ estado }: { estado: EstadoSolicitud }) {
         </>
       )}
       {(estado === "rechazada" || estado === "cerrada") && <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" {...trazo} />}
+      {estado === "falta_documentacion" && (
+        <>
+          <circle cx="8" cy="8" r="5.75" {...trazo} />
+          <path d="M8 5.2v3.2M8 10.8h.01" {...trazo} />
+        </>
+      )}
       {estado === "vencida" && (
         <>
           <circle cx="8" cy="8" r="5.75" {...trazo} />
@@ -112,19 +153,68 @@ function Mensaje({ estado, comentario, fecha, destacado = false }: { estado?: st
 export function TarjetaSolicitud({ solicitud }: { solicitud: SolicitudResumen }) {
   const idHistorial = useId();
   const [historialAbierto, setHistorialAbierto] = useState(false);
-  const estado = ESTADOS[solicitud.estado] ?? ESTADOS.pendiente;
-  const queSigue = QUE_SIGUE[solicitud.estado] ?? "";
+  const [solicitudActual, setSolicitudActual] = useState(solicitud);
+  const [formCorreccionAbierto, setFormCorreccionAbierto] = useState(false);
+  const [archivosCorreccion, setArchivosCorreccion] = useState<Record<string, File>>({});
+  const [errorCorreccion, setErrorCorreccion] = useState("");
+  const [confirmacionCorreccion, setConfirmacionCorreccion] = useState(false);
+  const [enviandoCorreccion, setEnviandoCorreccion] = useState(false);
+  const [mensajeCorreccion, setMensajeCorreccion] = useState("");
+  const claveCorreccion = useRef<string | null>(null);
+  const envioEnCurso = useRef(false);
+  const estado = ESTADOS[solicitudActual.estado] ?? ESTADOS.pendiente;
+  const queSigue = QUE_SIGUE[solicitudActual.estado] ?? "";
   // La API ya filtra los mensajes viejos y los datos internos; acá no se repiten las referencias a mensajes anteriores
-  const mensajes = (solicitud.historialEstados || [])
+  const mensajes = (solicitudActual.historialEstados || [])
     .filter((item) => item.comentario.trim() && item.comentarioReferenciaIndice === undefined)
     .slice()
     .sort((a, b) => Date.parse(b.fecha) - Date.parse(a.fecha));
   // El mensaje automático de cierre ya lo dice la frase del estado
   const ultimo = mensajes[0] && mensajes[0].comentario.trim() !== "La propiedad ya no está disponible" ? mensajes[0] : undefined;
   const anteriores = ultimo ? mensajes.slice(1) : [];
-  const propiedad = solicitud.propiedad;
-  const apagada = solicitud.estado === "vencida" || solicitud.estado === "cerrada" || solicitud.estado === "rechazada";
+  const propiedad = solicitudActual.propiedad;
+  const apagada = solicitudActual.estado === "vencida" || solicitudActual.estado === "cerrada" || solicitudActual.estado === "rechazada";
   const lugar = propiedad?.ciudad;
+  const documentosSolicitados = solicitudActual.estado === "falta_documentacion"
+    ? (solicitudActual.documentosSolicitados ?? [])
+    : [];
+  const todosLosDocumentosAdjuntos = documentosSolicitados.length > 0
+    && documentosSolicitados.every((documento) => archivosCorreccion[documento] !== undefined);
+
+  const enviarCorreccion = async () => {
+    if (envioEnCurso.current || !todosLosDocumentosAdjuntos) return;
+    envioEnCurso.current = true;
+    setEnviandoCorreccion(true);
+    setErrorCorreccion("");
+    try {
+      const resultado = await corregirDocumentacionSolicitud(
+        solicitudActual.id,
+        archivosCorreccion,
+        claveCorreccion.current ?? (claveCorreccion.current = crypto.randomUUID()),
+      );
+      setSolicitudActual((actual) => ({
+        ...actual,
+        ...resultado.solicitud,
+        propiedad: resultado.solicitud.propiedad ?? actual.propiedad,
+      }));
+      setFormCorreccionAbierto(false);
+      setConfirmacionCorreccion(false);
+      setArchivosCorreccion({});
+      claveCorreccion.current = null;
+      window.dispatchEvent(new Event(EVENTO_SOLICITUDES));
+      setMensajeCorreccion(resultado.repetida
+        ? "La documentación ya se había enviado. La solicitud está actualizada."
+        : "La documentación corregida se envió correctamente y la solicitud volvió a estado Pendiente.");
+      if (resultado.notificacion?.estado === "fallida") {
+        setMensajeCorreccion("La documentación se guardó, pero no se pudo enviar el aviso por correo.");
+      }
+    } catch (fallo) {
+      setErrorCorreccion(fallo instanceof Error ? fallo.message : "No pudimos enviar la documentación. Revisá los archivos e intentá nuevamente.");
+    } finally {
+      envioEnCurso.current = false;
+      setEnviandoCorreccion(false);
+    }
+  };
 
   return (
     <li className="grid gap-x-6 gap-y-4 border-b border-[#efe9df]/12 py-7 first:pt-0 sm:grid-cols-[112px_minmax(0,1fr)]">
@@ -146,23 +236,148 @@ export function TarjetaSolicitud({ solicitud }: { solicitud: SolicitudResumen })
               <span className="text-[18px] text-[#efe9df]/75">Propiedad no disponible</span>
             )}
             <span className="text-[14px] text-[#efe9df]/70">
-              {solicitud.operacion === "compra" ? "Compra" : "Alquiler"}
-              {lugar ? ` · ${lugar}` : ""} · Enviada el <time dateTime={solicitud.createdAt}>{fechaCorta(solicitud.createdAt)}</time>
+              {solicitudActual.operacion === "compra" ? "Compra" : "Alquiler"}
+              {lugar ? ` · ${lugar}` : ""} · Enviada el <time dateTime={solicitudActual.createdAt}>{fechaCorta(solicitudActual.createdAt)}</time>
             </span>
           </div>
           <span className={`calma-micro inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] ${estado.clase}`}>
-            <Icono estado={solicitud.estado} />
+            <Icono estado={solicitudActual.estado} />
             {estado.texto}
           </span>
         </div>
 
-        {(solicitud.estado === "pendiente" || solicitud.estado === "aprobada" || solicitud.estado === "rechazada") && (
+        {(solicitudActual.estado === "pendiente" || solicitudActual.estado === "aprobada" || solicitudActual.estado === "rechazada") && (
           <div className="py-1">
-            <Progreso estado={solicitud.estado} enviada={solicitud.createdAt} />
+            <Progreso estado={solicitudActual.estado} enviada={solicitudActual.createdAt} />
           </div>
         )}
 
         {queSigue && <p className="m-0 text-[15px] leading-relaxed text-[#efe9df]/80">{queSigue}</p>}
+
+        {solicitudActual.estado === "falta_documentacion" && (
+          <section aria-label="Documentación que necesitás actualizar" className="flex min-w-0 flex-col gap-3 rounded-xl border border-[#f8cf6b]/25 bg-[#f8cf6b]/[0.04] p-4">
+            <h3 className="m-0 text-[14px] font-medium text-[#efe9df]">Documentación que necesitás actualizar</h3>
+            {documentosSolicitados.length ? (
+              <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-[14px] text-[#efe9df]/75">
+                {documentosSolicitados.map((documento) => <li key={documento}>{nombreDocumentoSolicitado(documento)}</li>)}
+              </ul>
+            ) : (
+              <p role="status" className="m-0 text-[14px] text-[#efe9df]/65">No hay documentos pendientes de actualización registrados para esta solicitud.</p>
+            )}
+
+            {documentosSolicitados.length > 0 && !formCorreccionAbierto && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFormCorreccionAbierto(true);
+                  setMensajeCorreccion("");
+                  setErrorCorreccion("");
+                }}
+                className="calma-micro calma-link mt-1 cursor-pointer self-start rounded-md border border-[#efe9df]/35 px-4 py-2.5 text-[#efe9df]"
+              >
+                Actualizar documentación
+              </button>
+            )}
+
+            {formCorreccionAbierto && (
+              <div className="flex min-w-0 flex-col gap-4 border-t border-[#efe9df]/15 pt-4">
+                <p className="m-0 text-[13px] leading-relaxed text-[#efe9df]/65">
+                  Adjuntá solamente los documentos que te solicitaron. No hace falta completar nuevamente tu solicitud.
+                </p>
+                {documentosSolicitados.map((documento) => (
+                  <label key={documento} className="flex min-w-0 flex-col gap-2 text-[13px] text-[#efe9df]/85">
+                    <span>{nombreDocumentoSolicitado(documento)}</span>
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+                      aria-label={nombreDocumentoSolicitado(documento)}
+                      disabled={enviandoCorreccion}
+                      onChange={(event) => {
+                        const archivo = event.currentTarget.files?.[0];
+                        if (!archivo) return;
+                        const error = errorArchivoCorreccion(archivo);
+                        if (error) {
+                          setErrorCorreccion(error);
+                          setConfirmacionCorreccion(false);
+                          setArchivosCorreccion((actuales) => {
+                            const copia = { ...actuales };
+                            delete copia[documento];
+                            return copia;
+                          });
+                          event.currentTarget.value = "";
+                          return;
+                        }
+                        setErrorCorreccion("");
+                        setConfirmacionCorreccion(false);
+                        setArchivosCorreccion((actuales) => ({ ...actuales, [documento]: archivo }));
+                      }}
+                      className="block w-full min-w-0 rounded-lg border border-[#efe9df]/20 bg-[#071733] px-3 py-2 text-[12px] text-[#efe9df] file:mr-3 file:rounded-md file:border-0 file:bg-[#efe9df] file:px-3 file:py-1.5 file:text-[12px] file:font-medium file:text-[#071733] disabled:opacity-60"
+                    />
+                    {archivosCorreccion[documento] && (
+                      <span className="break-all text-[12px] text-[#efe9df]/55">
+                        Archivo seleccionado: {archivosCorreccion[documento].name}. Elegí otro archivo para reemplazarlo.
+                      </span>
+                    )}
+                  </label>
+                ))}
+
+                {errorCorreccion && <p role="alert" className="m-0 text-[13px] text-[#ff8b80]">{errorCorreccion}</p>}
+                {mensajeCorreccion && <p role="status" className="m-0 text-[13px] text-[#efe9df]">{mensajeCorreccion}</p>}
+
+                {!confirmacionCorreccion ? (
+                  <div className="flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmacionCorreccion(true)}
+                      disabled={!todosLosDocumentosAdjuntos || enviandoCorreccion}
+                      className="calma-micro cursor-pointer rounded-md bg-[#efe9df] px-4 py-2.5 font-medium text-[#071733] disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      Enviar documentación corregida
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormCorreccionAbierto(false);
+                        setConfirmacionCorreccion(false);
+                        setArchivosCorreccion({});
+                        setErrorCorreccion("");
+                      }}
+                      disabled={enviandoCorreccion}
+                      className="calma-micro cursor-pointer px-3 py-2.5 text-[#efe9df]/65 disabled:opacity-50"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                ) : (
+                  <div role="alertdialog" aria-label="Confirmar envío de documentación" className="flex flex-col gap-3 rounded-lg border border-[#efe9df]/20 bg-[#071733]/70 p-3">
+                    <p className="m-0 text-[13px] text-[#efe9df]">¿Confirmás el envío de estos documentos para que revisemos tu solicitud?</p>
+                    <div className="flex flex-wrap gap-3">
+                      <button
+                        type="button"
+                        onClick={() => void enviarCorreccion()}
+                        disabled={!todosLosDocumentosAdjuntos || enviandoCorreccion}
+                        className="calma-micro cursor-pointer rounded-md bg-[#efe9df] px-4 py-2.5 font-medium text-[#071733] disabled:cursor-wait disabled:opacity-60"
+                      >
+                        {enviandoCorreccion ? "Enviando…" : "Confirmar envío"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmacionCorreccion(false)}
+                        disabled={enviandoCorreccion}
+                        className="calma-micro cursor-pointer px-3 py-2.5 text-[#efe9df]/65 disabled:opacity-50"
+                      >
+                        Volver
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
+        )}
+        {mensajeCorreccion && solicitudActual.estado !== "falta_documentacion" && (
+          <p role="status" className="m-0 text-[13px] text-[#efe9df]">{mensajeCorreccion}</p>
+        )}
 
         {ultimo && (
           <div className="mt-1 flex min-w-0 flex-col gap-3">

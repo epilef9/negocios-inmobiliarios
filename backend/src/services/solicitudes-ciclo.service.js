@@ -1,14 +1,25 @@
 const Solicitud = require('../models/solicitud.model');
 const User = require('../models/user.model');
+const Property = require('../models/property.model');
+const mongoose = require('mongoose');
 const email = require('./email.service');
 const { urlFrontend } = require('../config/env');
 const { operacionesAbiertas, operacionDeSolicitud } = require('../utils/operaciones');
+const { nombreDocumentoSolicitud } = require('../utils/solicitud-documentos');
 
 const DIAS_VENCIMIENTO_SOLICITUD = 60;
 const DIAS_VISIBILIDAD_COMENTARIOS = 90;
 const MAXIMO_COMENTARIO = 500;
 const DIA = 86400000;
 const MENSAJE_CIERRE = 'La propiedad ya no está disponible';
+const ETIQUETAS_ESTADO = {
+    pendiente: 'Pendiente',
+    falta_documentacion: 'Falta documentación',
+    aprobada: 'Aprobada',
+    rechazada: 'Rechazada',
+    vencida: 'Vencida',
+    cerrada: 'Cerrada',
+};
 
 const mensajesCliente = (solicitud, ahora = new Date()) => (solicitud.historialEstados || [])
     .filter((cambio) => cambio.comentario?.trim() && !Number.isInteger(cambio.comentarioReferenciaIndice)
@@ -32,16 +43,34 @@ const cambioAutomatico = (solicitud, propiedad, ahora = new Date()) => {
 };
 
 // Se espera el envío también en Vercel. Un fallo del proveedor no revierte el cambio guardado.
-const avisarCambio = async (solicitud) => {
+const avisarCambio = async (solicitud, detalle = {}) => {
     try {
         const usuario = await User.findById(solicitud.usuario).select('email nombre').lean();
-        if (!usuario?.email) return;
+        if (!usuario?.email) {
+            console.warn('[solicitudes] Estado guardado; no hay correo de cliente para enviar el aviso.');
+            return { estado: 'sin_destinatario' };
+        }
         const ultimo = [...(solicitud.historialEstados || [])].reverse().find((item) => item.comentario?.trim());
-        await email.avisarEstadoSolicitud({ para: usuario.email, nombre: usuario.nombre,
-            estado: solicitud.estado, mensaje: ultimo?.comentario || solicitud.comentarioEstado || '',
-            enlace: `${urlFrontend()}/solicitudes` });
+        let propiedad = detalle.propiedad;
+        if (!propiedad && mongoose.isValidObjectId(solicitud.propiedad)) {
+            const registro = await Property.findById(solicitud.propiedad).select('titulo').lean();
+            propiedad = registro?.titulo;
+        }
+        const resultado = await email.avisarEstadoSolicitud({
+            para: usuario.email,
+            nombre: usuario.nombre,
+            estado: ETIQUETAS_ESTADO[solicitud.estado] || 'Pendiente',
+            mensaje: Object.hasOwn(detalle, 'mensaje')
+                ? detalle.mensaje
+                : ultimo?.comentario || solicitud.comentarioEstado || '',
+            propiedad: propiedad || 'Propiedad',
+            documentosSolicitados: (detalle.documentosSolicitados || solicitud.documentosSolicitados || []).map(nombreDocumentoSolicitud),
+            enlace: `${urlFrontend()}/solicitudes`,
+        });
+        return { estado: resultado?.simulado ? 'simulada' : 'enviada' };
     } catch (error) {
-        console.error('[solicitudes] Estado guardado; no se pudo enviar el aviso por mail:', error.name);
+        console.error('[solicitudes] Estado guardado; no se pudo enviar el aviso por mail:', error.name || 'Error');
+        return { estado: 'fallida' };
     }
 };
 

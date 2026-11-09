@@ -8,6 +8,7 @@ import { Boton, BotonLink, Campo, Encabezado, Esqueleto, Tarjeta, areaTexto, con
 import { operacionesDe, precioDe } from "@/components/sitio/operaciones";
 import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 const SelectorUbicacionMapa = dynamic(
   () => import("../../../../components/SelectorUbicacionMapa"),
   {
@@ -104,6 +105,7 @@ export default function NuevaPropiedadPage() {
   const [imagenes, setImagenes] = useState<string[]>([]);
 
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [idEdicion, setIdEdicion] = useState<string | null>(null);
   const [estadoPropiedad, setEstadoPropiedad] = useState<"disponible" | "reservado" | "alquilado" | "vendido">("disponible");
   const [mostrarTodoEdicion, setMostrarTodoEdicion] = useState(true);
   // Al editar, se muestra un esqueleto hasta que llegan los datos de la propiedad
@@ -187,6 +189,7 @@ export default function NuevaPropiedadPage() {
     getPropertyById(id)
       .then((property) => {
         setModoEdicion(true);
+        setIdEdicion(id);
         if (property.estado) {
           setEstadoPropiedad(property.estado);
         }
@@ -842,6 +845,7 @@ export default function NuevaPropiedadPage() {
           ) : undefined
         }
       />
+      {modoEdicion && idEdicion && <ActividadRegistro entidad="propiedad" id={idEdicion} />}
 
       <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
         {/* Pasos (al crear) o índice de secciones (al editar) */}

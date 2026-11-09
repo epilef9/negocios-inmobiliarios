@@ -11,8 +11,8 @@ import PantallaCuenta, { BotonVerPassword, RevisaTuCorreo, YaIngresaste, botonPr
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMO_PASSWORD = 8;
 
-type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confirmPassword';
-type Datos = Record<Campo, string>;
+type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confirmPassword' | 'terminos';
+type Datos = Record<Exclude<Campo, 'terminos'>, string>;
 
 const VACIOS: Datos = { nombre: '', apellido: '', telefono: '', email: '', password: '', confirmPassword: '' };
 
@@ -21,7 +21,7 @@ const BORRADOR = 'borradorRegistro';
 const RECORDADOS = ['nombre', 'apellido', 'telefono', 'email'] as const;
 
 // Revisa los datos antes de mandarlos; devuelve el primer problema con el campo a corregir
-function revisar(datos: Datos): { texto: string; campo: Campo } | null {
+function revisar(datos: Datos, acepta: boolean): { texto: string; campo: Campo } | null {
   if (!datos.nombre.trim()) return { texto: 'Escribí tu nombre.', campo: 'nombre' };
   if (!datos.apellido.trim()) return { texto: 'Escribí tu apellido.', campo: 'apellido' };
   if (!EMAIL_VALIDO.test(datos.email.trim())) return { texto: 'Escribí un email válido, por ejemplo nombre@email.com.', campo: 'email' };
@@ -33,6 +33,7 @@ function revisar(datos: Datos): { texto: string; campo: Campo } | null {
   if (datos.password.length < MINIMO_PASSWORD)
     return { texto: `La contraseña tiene que tener al menos ${MINIMO_PASSWORD} caracteres.`, campo: 'password' };
   if (datos.password !== datos.confirmPassword) return { texto: 'Las contraseñas no coinciden.', campo: 'confirmPassword' };
+  if (!acepta) return { texto: 'Para crear la cuenta tenés que aceptar los Términos y la Política de privacidad.', campo: 'terminos' };
   return null;
 }
 
@@ -46,6 +47,7 @@ function FormularioRegistro() {
   const [captcha, setCaptcha] = useState('');
   const [reinicioCaptcha, setReinicioCaptcha] = useState(0);
   const [verPassword, setVerPassword] = useState(false);
+  const [acepta, setAcepta] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: Campo } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [pendiente, setPendiente] = useState<{ email: string; correoEnviado: boolean; enlaceDev?: string } | null>(null);
@@ -63,14 +65,14 @@ function FormularioRegistro() {
     if (borradorLeido && !pendiente) guardarBorrador(BORRADOR, datos, RECORDADOS);
   }, [datos, pendiente, borradorLeido]);
 
-  const cambiar = (campo: Campo, valor: string) => {
+  const cambiar = (campo: keyof Datos, valor: string) => {
     setDatos((anteriores) => ({ ...anteriores, [campo]: valor }));
     setError(null);
   };
 
   const crear = async (e: FormEvent) => {
     e.preventDefault();
-    const problema = revisar(datos);
+    const problema = revisar(datos, acepta);
     if (problema) {
       setError(problema);
       document.getElementById(`${id}-${problema.campo}`)?.focus();
@@ -92,6 +94,7 @@ function FormularioRegistro() {
         password: datos.password,
         confirmPassword: datos.confirmPassword,
         captchaToken: captcha || undefined,
+        aceptoTerminos: acepta,
       });
       if (volver?.startsWith('/solicitudes/nueva?') && typeof window !== 'undefined') {
         localStorage.setItem('continuarSolicitudTrasVerificacion', volver);
@@ -123,7 +126,7 @@ function FormularioRegistro() {
   }
 
   const campo = (
-    nombre: Campo,
+    nombre: keyof Datos,
     texto: string,
     props: React.InputHTMLAttributes<HTMLInputElement> = {},
     ayuda?: string,
@@ -188,6 +191,34 @@ function FormularioRegistro() {
         </p>
       </div>
       {campo('confirmPassword', 'Repetí la contraseña', { type: verPassword ? 'text' : 'password', autoComplete: 'new-password' })}
+
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start gap-3">
+          <input
+            id={`${id}-terminos`}
+            type="checkbox"
+            checked={acepta}
+            onChange={(e) => {
+              setAcepta(e.target.checked);
+              setError(null);
+            }}
+            required
+            aria-invalid={error?.campo === 'terminos'}
+            className="mt-1 h-5 w-5 shrink-0 accent-[#efe9df]"
+          />
+          <label htmlFor={`${id}-terminos`} className="text-[15px] leading-relaxed text-[#efe9df]/80">
+            Leí y acepto los{' '}
+            <Link href="/terminos" target="_blank" className="calma-link text-[#efe9df]">
+              Términos
+            </Link>{' '}
+            y la{' '}
+            <Link href="/privacidad" target="_blank" className="calma-link text-[#efe9df]">
+              Política de privacidad
+            </Link>
+            .
+          </label>
+        </div>
+      </div>
 
       {error && (
         <p role="alert" className="m-0 text-[15px] leading-relaxed text-[#ff8a7d]">

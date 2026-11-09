@@ -3,6 +3,7 @@ const User = require('../models/user.model');
 const config = require('../config/env');
 const { promisify } = require('util');
 const { extraerToken, csrfValido } = require('./sesion');
+const permisos = require('../utils/permisos');
 
 const verifyToken = promisify(jwt.verify);
 // La clave sale de la configuración central (obligatoria en producción)
@@ -33,6 +34,10 @@ const authMiddleware = async (req, res, next) => {
         if (user.credencialesCambiadasEn && Math.floor(user.credencialesCambiadasEn.getTime() / 1000) > (decoded.iat || 0)) {
             return res.status(401).json({ message: 'Tu sesión venció. Ingresá de nuevo.', code: 'SESION_VENCIDA' });
         }
+        // Un empleado dado de baja no puede usar más la sesión
+        if (user.activo === false) {
+            return res.status(401).json({ message: 'Tu cuenta fue dada de baja.', code: 'CUENTA_DESACTIVADA' });
+        }
         // Una cuenta que todavía no confirmó su email no puede usar la sesión
         if (user.emailVerificado === false) {
             return res.status(401).json({ message: 'Confirmá tu email para ingresar.', code: 'EMAIL_NO_VERIFICADO' });
@@ -53,6 +58,22 @@ const requireAdmin = (req, res, next) => {
         });
     }
 
+    next();
+};
+
+// Cada ruta del panel pide el permiso de su sección: el admin pasa siempre; el empleado, solo si el admin se lo dio
+const requirePermiso = (seccion) => (req, res, next) => {
+    if (!permisos.tienePermiso(req.user, seccion)) {
+        return res.status(403).json({ message: 'No tenés permiso para esta sección.', code: 'SIN_PERMISO' });
+    }
+    next();
+};
+
+// Cualquier integrante del panel (admin o empleado activo), para lo común a todos: Inicio, tema, perfil
+const requirePersonal = (req, res, next) => {
+    if (!permisos.esPersonal(req.user)) {
+        return res.status(403).json({ message: 'Acceso denegado. Se requiere una cuenta del panel.' });
+    }
     next();
 };
 
@@ -84,4 +105,6 @@ const sesionOpcional = async (req, res, next) => {
 module.exports = authMiddleware;
 module.exports.requireAdmin = requireAdmin;
 module.exports.requireClient = requireClient;
+module.exports.requirePermiso = requirePermiso;
+module.exports.requirePersonal = requirePersonal;
 module.exports.sesionOpcional = sesionOpcional;

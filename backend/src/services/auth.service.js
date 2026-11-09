@@ -32,6 +32,7 @@ const datosPublicos = (user) => ({
     telefono: user.telefono,
     email: user.email,
     rol: user.rol,
+    permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
     checklistRequisitos: user.checklistRequisitos || [],
     emailVerificado: user.emailVerificado !== false,
     createdAt: user.createdAt
@@ -65,6 +66,10 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
+        // Sin aceptar los Términos no se crea la cuenta (también se corta antes, en el validador)
+        if (userData.aceptoTerminos !== true) {
+            throw errorHttp('Tenés que aceptar los Términos y la Política de privacidad.', 400, 'TERMINOS_NO_ACEPTADOS');
+        }
         // El teléfono es opcional, pero si viene tiene que ser un número de verdad (no un email ni letras)
         const telefono = typeof userData.telefono === 'string' ? userData.telefono.trim() : '';
         const digitosTelefono = telefono.replace(/\D/g, '').length;
@@ -96,7 +101,8 @@ const authService = {
             email: userData.email.toLowerCase().trim(),
             contrasena: hashedPassword,
             rol: 'cliente',
-            emailVerificado: false
+            emailVerificado: false,
+            aceptoTerminosEn: new Date()
         });
 
         // Si el mail falla la cuenta queda creada: puede pedir el reenvío desde el ingreso
@@ -128,6 +134,11 @@ const authService = {
             const error = new Error('Credenciales invalidas');
             error.statusCode = 401;
             throw error;
+        }
+
+        // Un empleado dado de baja no entra (se avisa después de comprobar la contraseña)
+        if (user.activo === false) {
+            throw errorHttp('Esta cuenta fue dada de baja. Consultá con la inmobiliaria.', 403, 'CUENTA_DESACTIVADA');
         }
 
         // Se avisa recién después de comprobar la contraseña, para no revelar qué correos existen
@@ -248,6 +259,16 @@ const authService = {
             console.error('[email] No se pudo avisar al email anterior:', error.message)
         );
         // Las otras sesiones se cierran; esta queda iniciada con el email nuevo
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
+
+    // Cierra todas las sesiones abiertas de la cuenta (el middleware rechaza las iniciadas antes de esta fecha).
+    // El dispositivo desde el que se pide recibe una sesión nueva para seguir adentro.
+    cerrarSesiones: async (userId) => {
+        const user = await User.findById(userId);
+        if (!user) throw errorHttp('Cuenta no encontrada.', 404);
+        user.credencialesCambiadasEn = new Date();
+        await user.save();
         return { token: firmarSesion(user), user: datosPublicos(user) };
     },
 

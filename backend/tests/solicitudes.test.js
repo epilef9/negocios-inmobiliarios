@@ -52,23 +52,35 @@ test('cliente: oculta mensajes de más de 90 días, referencias duplicadas y dat
     assert.equal(JSON.stringify(resultado).includes('archivadaPor'), false);
     assert.equal(solicitud.historialEstados.length, 3, 'el panel conserva todo el historial');
     assert.equal(solicitudesService.infoCliente({ ...solicitud, historialEstados: [solicitud.historialEstados[0]] }).comentarioEstado, '');
+    assert.deepEqual(solicitudesService.infoCliente({
+        ...solicitud,
+        estado: 'falta_documentacion',
+        documentosSolicitados: ['dniTitularFrente'],
+    }).documentosSolicitados, ['dniTitularFrente']);
+    assert.deepEqual(solicitudesService.infoCliente({
+        ...solicitud,
+        estado: 'pendiente',
+        documentosSolicitados: ['dniTitularFrente'],
+    }).documentosSolicitados, []);
 });
 
-test('controller y modelo rechazan 501 caracteres y aceptan 500, incluidos links largos', async () => {
+test('las acciones administrativas limitan comentarios a 250 caracteres y el historial conserva 500', async () => {
     const id = new mongoose.Types.ObjectId().toString();
-    const largo = 'https://ejemplo.com/' + 'a'.repeat(480);
-    assert.equal(largo.length, 500);
+    const largo = 'https://ejemplo.com/' + 'a'.repeat(230);
+    assert.equal(largo.length, 250);
     const datos = { usuario: id, propiedad: id, operacion: 'compra', datosCifrados: 'cifrado', claveIdempotencia: crypto.randomUUID(), comentarioEstado: largo,
         historialEstados: [{ estado: 'pendiente', comentario: largo, administradoPor: id }] };
     assert.equal(new Solicitud(datos).validateSync(), undefined);
-    assert.ok(new Solicitud({ ...datos, comentarioEstado: largo + 'a' }).validateSync().errors.comentarioEstado);
+    assert.ok(new Solicitud({ ...datos, comentarioEstado: 'a'.repeat(501) }).validateSync().errors.comentarioEstado);
     assert.ok(new Solicitud({ ...datos, historialEstados: [{ estado: 'pendiente', comentario: 'a'.repeat(501) }] }).validateSync());
-    for (const controlador of [solicitudesController.agregarComentario, solicitudesController.actualizarEstado]) {
-        const res = { status(n) { this.codigo = n; return this; }, json(body) { this.body = body; return this; } };
-        await controlador({ params: { id }, body: { estado: 'pendiente', comentario: 'a'.repeat(501) } }, res);
-        assert.equal(res.codigo, 400);
-        assert.match(res.body.message, /500/);
-    }
+    const respuestaAccion = { status(n) { this.codigo = n; return this; }, json(body) { this.body = body; return this; } };
+    await solicitudesController.actualizarEstado({ params: { id }, body: { estado: 'pendiente', comentario: 'a'.repeat(251) } }, respuestaAccion);
+    assert.equal(respuestaAccion.codigo, 400);
+    assert.match(respuestaAccion.body.message, /250/);
+    const respuestaComentario = { status(n) { this.codigo = n; return this; }, json(body) { this.body = body; return this; } };
+    await solicitudesController.agregarComentario({ params: { id }, body: { comentario: 'a'.repeat(501) } }, respuestaComentario);
+    assert.equal(respuestaComentario.codigo, 400);
+    assert.match(respuestaComentario.body.message, /500/);
     await assert.rejects(solicitudesService.agregarComentario({ comentario: 'a'.repeat(501) }), /500/);
 });
 
@@ -161,6 +173,88 @@ test('documentos individuales: no permite asociar un archivo ya reclamado', asyn
     try {
         await assert.rejects(servicio.vincular([{ archivoId: new mongoose.Types.ObjectId(), tipo: 'domicilio' }], { _id: 's', usuario: 'u', claveIdempotencia: 'c' }, {}), /ya se usó/);
     } finally { mongoose.connection.db = originalDb; }
+});
+
+test('documentos individuales: cifra al guardar y aplica límites separados para PDF e imágenes', async () => {
+    const { EventEmitter } = require('node:events');
+    const servicio = require('../src/services/solicitudes-documentos.service');
+    const anteriorClave = process.env.SOLICITUDES_ENCRYPTION_KEY;
+    const originalDb = mongoose.connection.db;
+    const originalBucket = Object.getOwnPropertyDescriptor(mongoose.mongo, 'GridFSBucket');
+    const clave = crypto.randomBytes(32).toString('hex');
+    const archivoId = new mongoose.Types.ObjectId();
+    const contenido = Buffer.from('%PDF-1.7 documento de prueba');
+    let cifrado;
+    let metadataGuardada;
+    process.env.SOLICITUDES_ENCRYPTION_KEY = clave;
+    mongoose.connection.db = {};
+    Object.defineProperty(mongoose.mongo, 'GridFSBucket', { configurable: true, writable: true, value: class {
+        openUploadStream(_nombre, opciones) {
+            metadataGuardada = opciones.metadata;
+            const stream = new EventEmitter();
+            stream.id = archivoId;
+            stream.end = (bytes) => {
+                cifrado = Buffer.from(bytes);
+                queueMicrotask(() => stream.emit('finish'));
+            };
+            return stream;
+        }
+        delete = async () => {};
+    } });
+    try {
+        const resultado = await servicio.guardar({
+            archivo: { buffer: contenido, size: contenido.length, mimetype: 'application/pdf' },
+            usuario: 'cliente',
+            tipo: 'dniTitularFrente',
+            clave: crypto.randomUUID(),
+        });
+        assert.equal(resultado.id, String(archivoId));
+        assert.notDeepEqual(cifrado, contenido);
+        assert.deepEqual(descifrar(cifrado), contenido);
+        assert.equal(metadataGuardada.usuario, 'cliente');
+        assert.equal(metadataGuardada.tipo, 'dniTitularFrente');
+        assert.equal(servicio.MAXIMO_PDF, 4 * 1024 * 1024);
+        assert.equal(servicio.MAXIMO_IMAGEN, 20 * 1024 * 1024);
+        await assert.rejects(servicio.guardar({
+            archivo: { buffer: Buffer.alloc(1), size: servicio.MAXIMO_PDF + 1, mimetype: 'application/pdf' },
+            usuario: 'cliente', tipo: 'dniTitularFrente', clave: crypto.randomUUID(),
+        }), /PDF de hasta 4 MB/);
+        await assert.rejects(servicio.guardar({
+            archivo: { buffer: Buffer.alloc(1), size: servicio.MAXIMO_IMAGEN + 1, mimetype: 'image/png' },
+            usuario: 'cliente', tipo: 'dniTitularFrente', clave: crypto.randomUUID(),
+        }), /imagen JPG\/PNG de hasta 20 MB/);
+    } finally {
+        mongoose.connection.db = originalDb;
+        Object.defineProperty(mongoose.mongo, 'GridFSBucket', originalBucket);
+        if (anteriorClave === undefined) delete process.env.SOLICITUDES_ENCRYPTION_KEY;
+        else process.env.SOLICITUDES_ENCRYPTION_KEY = anteriorClave;
+    }
+});
+
+test('el controlador no almacena archivos con firma distinta del formato declarado', async () => {
+    const documentosService = require('../src/services/solicitudes-documentos.service');
+    const originalGuardar = documentosService.guardar;
+    let guardados = 0;
+    documentosService.guardar = async () => { guardados++; };
+    const respuesta = {
+        codigo: null,
+        cuerpo: null,
+        status(codigo) { this.codigo = codigo; return this; },
+        json(cuerpo) { this.cuerpo = cuerpo; return this; },
+    };
+    try {
+        await solicitudesController.subirDocumento({
+            file: { originalname: 'archivo.png', mimetype: 'image/png', buffer: Buffer.from('no es un PNG'), size: 12 },
+            params: { tipo: 'dniTitularFrente' },
+            user: { _id: 'cliente' },
+            get: () => crypto.randomUUID(),
+        }, respuesta);
+        assert.equal(respuesta.codigo, 400);
+        assert.match(respuesta.cuerpo.message, /no coincide/);
+        assert.equal(guardados, 0);
+    } finally {
+        documentosService.guardar = originalGuardar;
+    }
 });
 
 // Ninguna prueba envía correos ni consulta usuarios reales.
@@ -415,6 +509,463 @@ test('actualiza el estado y conserva el comentario e historial sin tocar la prop
     }
 });
 
+test('el cliente corrige solo los archivos solicitados en una transacción y vuelve a pendiente', async (t) => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const id = new mongoose.Types.ObjectId();
+    const usuario = new mongoose.Types.ObjectId();
+    const propiedadId = new mongoose.Types.ObjectId();
+    const clave = crypto.randomUUID();
+    const datosCifrados = cifrar(Buffer.from(JSON.stringify({
+        titular: { nombre: 'Ana' },
+        incluyeCotitular: false,
+        ingresosTipo: 'recibos',
+        garantia: { tipo: 'caucion' },
+    }))).toString('base64');
+    const solicitud = {
+        _id: id,
+        usuario,
+        propiedad: propiedadId,
+        operacion: 'alquiler',
+        estado: 'falta_documentacion',
+        datosCifrados,
+        documentosSolicitados: ['dniTitularFrente', 'recibosIngresos:1', 'documentacionCaucion'],
+        documentosSolicitadosEn: new Date(),
+        documentos: [
+            { tipo: 'dniTitularFrente', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'image/jpeg' },
+            { tipo: 'dniTitularDorso', archivoId: new mongoose.Types.ObjectId(), tamano: 101, tipoMime: 'image/jpeg' },
+            { tipo: 'cuilTitular', archivoId: new mongoose.Types.ObjectId(), tamano: 102, tipoMime: 'application/pdf' },
+            { tipo: 'recibosIngresos', archivoId: new mongoose.Types.ObjectId(), tamano: 103, tipoMime: 'application/pdf' },
+            { tipo: 'recibosIngresos', archivoId: new mongoose.Types.ObjectId(), tamano: 104, tipoMime: 'application/pdf' },
+            { tipo: 'recibosIngresos', archivoId: new mongoose.Types.ObjectId(), tamano: 105, tipoMime: 'application/pdf' },
+            { tipo: 'domicilio', archivoId: new mongoose.Types.ObjectId(), tamano: 106, tipoMime: 'application/pdf' },
+        ],
+        historialEstados: [{ estado: 'falta_documentacion', comentario: 'Corregí los documentos marcados.', fecha: new Date() }],
+        updatedAt: new Date(),
+    };
+    const idsNuevos = {
+        dniTitularFrente: new mongoose.Types.ObjectId(),
+        recibosIngresos: new mongoose.Types.ObjectId(),
+        documentacionCaucion: new mongoose.Types.ObjectId(),
+    };
+    const referencias = [
+        { id: String(idsNuevos.dniTitularFrente), tipo: 'dniTitularFrente' },
+        { id: String(idsNuevos.recibosIngresos), tipo: 'recibosIngresos', indice: 1 },
+        { id: String(idsNuevos.documentacionCaucion), tipo: 'documentacionCaucion' },
+    ];
+    const servicioDocumentos = require('../src/services/solicitudes-documentos.service');
+    const originalTransaction = mongoose.connection.transaction;
+    let cambiosGuardados;
+    let notificacionGuardada;
+    const session = { transaction: true };
+    mongoose.connection.transaction = (callback) => callback(session);
+    t.mock.method(Solicitud, 'findOne', (filtro) => {
+        const resultado = filtro.ultimaCorreccionIdempotencia ? null : solicitud;
+        return {
+            select() { return this; },
+            session(actual) { assert.equal(actual, session); return this; },
+            lean: async () => resultado,
+        };
+    });
+    t.mock.method(Solicitud, 'findOneAndUpdate', (filtro, cambios, opciones) => {
+        assert.equal(filtro.estado, 'falta_documentacion');
+        assert.deepEqual(filtro.documentosSolicitados, solicitud.documentosSolicitados);
+        assert.equal(opciones.session, session);
+        cambiosGuardados = cambios;
+        return {
+            select() { return this; },
+            lean: async () => ({
+                ...solicitud,
+                ...cambios.$set,
+                historialEstados: [...solicitud.historialEstados, cambios.$push.historialEstados],
+            }),
+        };
+    });
+    t.mock.method(SolicitudNotificacion, 'findOneAndUpdate', async (filtro, cambios, opciones) => {
+        notificacionGuardada = { filtro, cambios, opciones };
+    });
+    t.mock.method(Property, 'findById', () => ({
+        select() { return this; },
+        lean: async () => ({ _id: propiedadId, titulo: 'Departamento de prueba' }),
+    }));
+    t.mock.method(servicioDocumentos, 'resolver', async () => ({
+        dniTitularFrente: [{ fileId: idsNuevos.dniTitularFrente, size: 201, mimetype: 'image/jpeg' }],
+        recibosIngresos: [{ fileId: idsNuevos.recibosIngresos, size: 202, mimetype: 'application/pdf' }],
+        documentacionCaucion: [{ fileId: idsNuevos.documentacionCaucion, size: 203, mimetype: 'application/pdf' }],
+    }));
+    const vincular = t.mock.method(servicioDocumentos, 'vincular', async (_documentos, asociacion, actualSession) => {
+        assert.equal(asociacion.claveIdempotencia, clave);
+        assert.equal(String(asociacion._id), String(id));
+        assert.equal(actualSession, session);
+    });
+    t.mock.method(ciclo, 'avisarCambio', async () => ({ estado: 'simulada' }));
+
+    try {
+        const resultado = await solicitudesService.corregirDocumentacion({ id, usuario, referencias, claveIdempotencia: clave });
+        const documentos = cambiosGuardados.$set.documentos;
+        assert.equal(resultado.solicitud.estado, 'pendiente');
+        assert.deepEqual(resultado.solicitud.documentosSolicitados, []);
+        assert.equal(resultado.repetida, false);
+        assert.equal(String(documentos.find((doc) => doc.tipo === 'dniTitularFrente').archivoId), String(idsNuevos.dniTitularFrente));
+        assert.equal(String(documentos.filter((doc) => doc.tipo === 'recibosIngresos')[0].archivoId), String(solicitud.documentos[3].archivoId));
+        assert.equal(String(documentos.filter((doc) => doc.tipo === 'recibosIngresos')[1].archivoId), String(idsNuevos.recibosIngresos));
+        assert.equal(String(documentos.filter((doc) => doc.tipo === 'recibosIngresos')[2].archivoId), String(solicitud.documentos[5].archivoId));
+        assert.equal(String(documentos.find((doc) => doc.tipo === 'domicilio').archivoId), String(solicitud.documentos[6].archivoId));
+        assert.equal(String(documentos.find((doc) => doc.tipo === 'documentacionCaucion').archivoId), String(idsNuevos.documentacionCaucion));
+        assert.equal(cambiosGuardados.$set.ultimaCorreccionIdempotencia, clave);
+        assert.equal(cambiosGuardados.$push.historialEstados.tipoEvento, 'documentacion_presentada');
+        assert.equal(notificacionGuardada.cambios.$set.leida, false);
+        assert.equal(notificacionGuardada.opciones.session, session);
+        assert.equal(vincular.mock.callCount(), 1);
+        assert.equal(resultado.solicitud.propiedad.titulo, 'Departamento de prueba');
+    } finally {
+        mongoose.connection.transaction = originalTransaction;
+    }
+});
+
+test('rechaza envíos incompletos y correcciones de solicitudes ajenas sin actualizar referencias', async (t) => {
+    const servicioDocumentos = require('../src/services/solicitudes-documentos.service');
+    const usuario = new mongoose.Types.ObjectId();
+    const id = new mongoose.Types.ObjectId();
+    const referencia = { id: String(new mongoose.Types.ObjectId()), tipo: 'dniTitularFrente' };
+    const solicitudPropia = {
+        _id: id,
+        usuario,
+        estado: 'falta_documentacion',
+        documentosSolicitados: ['dniTitularFrente', 'documentacionCaucion'],
+        documentos: [{ tipo: 'dniTitularFrente', archivoId: new mongoose.Types.ObjectId() }],
+    };
+    const originalTransaction = mongoose.connection.transaction;
+    let solicitudConsultada = solicitudPropia;
+    let actualizaciones = 0;
+    let vinculaciones = 0;
+    mongoose.connection.transaction = (callback) => callback({ transaction: true });
+    t.mock.method(Solicitud, 'findOne', (filtro) => ({
+        select() { return this; },
+        session() { return this; },
+        lean: async () => filtro.ultimaCorreccionIdempotencia ? null : solicitudConsultada,
+    }));
+    t.mock.method(Solicitud, 'findOneAndUpdate', async () => {
+        actualizaciones++;
+        return null;
+    });
+    t.mock.method(servicioDocumentos, 'resolver', async () => ({
+        dniTitularFrente: [{ fileId: new mongoose.Types.ObjectId(), size: 12, mimetype: 'image/jpeg' }],
+    }));
+    t.mock.method(servicioDocumentos, 'vincular', async () => { vinculaciones++; });
+    try {
+        await assert.rejects(solicitudesService.corregirDocumentacion({
+            id, usuario, referencias: [referencia], claveIdempotencia: crypto.randomUUID(),
+        }), { statusCode: 400 });
+        assert.equal(actualizaciones, 0);
+        assert.equal(vinculaciones, 0);
+
+        solicitudConsultada = null;
+        await assert.rejects(solicitudesService.corregirDocumentacion({
+            id, usuario: new mongoose.Types.ObjectId(), referencias: [referencia], claveIdempotencia: crypto.randomUUID(),
+        }), { statusCode: 404 });
+        assert.equal(actualizaciones, 0);
+        assert.equal(vinculaciones, 0);
+    } finally {
+        mongoose.connection.transaction = originalTransaction;
+    }
+});
+
+test('un fallo al vincular archivos no cambia el estado ni crea una notificación', async (t) => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const servicioDocumentos = require('../src/services/solicitudes-documentos.service');
+    const id = new mongoose.Types.ObjectId();
+    const usuario = new mongoose.Types.ObjectId();
+    const clave = crypto.randomUUID();
+    const solicitud = {
+        _id: id,
+        usuario,
+        propiedad: new mongoose.Types.ObjectId(),
+        operacion: 'compra',
+        estado: 'falta_documentacion',
+        datosCifrados: cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' }, ingresosTipo: 'constancia' }))).toString('base64'),
+        documentosSolicitados: ['dniTitularFrente'],
+        documentos: [{ tipo: 'dniTitularFrente', archivoId: new mongoose.Types.ObjectId(), tamano: 10, tipoMime: 'image/jpeg' }],
+        historialEstados: [],
+        updatedAt: new Date(),
+    };
+    const originalTransaction = mongoose.connection.transaction;
+    let guardados = 0;
+    let notificaciones = 0;
+    mongoose.connection.transaction = (callback) => callback({});
+    t.mock.method(Solicitud, 'findOne', (filtro) => ({
+        select() { return this; },
+        session() { return this; },
+        lean: async () => filtro.ultimaCorreccionIdempotencia ? null : solicitud,
+    }));
+    t.mock.method(Solicitud, 'findOneAndUpdate', async () => {
+        guardados++;
+        return solicitud;
+    });
+    t.mock.method(SolicitudNotificacion, 'findOneAndUpdate', async () => { notificaciones++; });
+    t.mock.method(servicioDocumentos, 'resolver', async () => ({
+        dniTitularFrente: [{ fileId: new mongoose.Types.ObjectId(), size: 15, mimetype: 'image/jpeg' }],
+    }));
+    t.mock.method(servicioDocumentos, 'vincular', async () => {
+        throw new Error('GridFS no pudo asociar el archivo');
+    });
+    try {
+        await assert.rejects(solicitudesService.corregirDocumentacion({
+            id,
+            usuario,
+            referencias: [{ id: String(new mongoose.Types.ObjectId()), tipo: 'dniTitularFrente' }],
+            claveIdempotencia: clave,
+        }), /GridFS no pudo asociar/);
+        assert.equal(guardados, 0);
+        assert.equal(notificaciones, 0);
+        assert.equal(solicitud.estado, 'falta_documentacion');
+    } finally {
+        mongoose.connection.transaction = originalTransaction;
+    }
+});
+
+test('una repetición idempotente no vuelve a subir, vincular ni notificar documentos', async (t) => {
+    const servicioDocumentos = require('../src/services/solicitudes-documentos.service');
+    const usuario = new mongoose.Types.ObjectId();
+    const id = new mongoose.Types.ObjectId();
+    const clave = crypto.randomUUID();
+    const solicitud = {
+        _id: id,
+        usuario,
+        estado: 'pendiente',
+        ultimaCorreccionIdempotencia: clave,
+        documentosSolicitados: [],
+        historialEstados: [],
+    };
+    t.mock.method(Solicitud, 'findOne', (filtro) => ({
+        select() { return this; },
+        lean: async () => filtro.ultimaCorreccionIdempotencia === clave ? solicitud : null,
+    }));
+    const resolver = t.mock.method(servicioDocumentos, 'resolver', async () => {
+        throw new Error('No debe volver a validar archivos reclamados.');
+    });
+    const resultado = await solicitudesService.corregirDocumentacion({
+        id,
+        usuario,
+        referencias: [{ id: String(new mongoose.Types.ObjectId()), tipo: 'dniTitularFrente' }],
+        claveIdempotencia: clave,
+    });
+    assert.equal(resultado.repetida, true);
+    assert.equal(resultado.solicitud.estado, 'pendiente');
+    assert.equal(resolver.mock.callCount(), 0);
+});
+
+test('el panel administra y descarga el recibo reemplazado usando su índice, sin caché pública', async (t) => {
+    const { Readable } = require('node:stream');
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const id = new mongoose.Types.ObjectId();
+    const usuario = new mongoose.Types.ObjectId();
+    const propiedadId = new mongoose.Types.ObjectId();
+    const archivos = [new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId(), new mongoose.Types.ObjectId()];
+    const datosCifrados = cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' } }))).toString('base64');
+    const solicitud = {
+        _id: id,
+        usuario,
+        propiedad: propiedadId,
+        operacion: 'alquiler',
+        estado: 'pendiente',
+        datosCifrados,
+        documentos: archivos.map((archivoId) => ({ tipo: 'recibosIngresos', archivoId, tamano: 80, tipoMime: 'application/pdf' })),
+        documentosSolicitados: [],
+        historialEstados: [],
+        createdAt: new Date(),
+    };
+    const contenidoCorregido = Buffer.from('%PDF-1.7 recibo actualizado');
+    const archivoCifrado = cifrar(contenidoCorregido);
+    const originalDb = mongoose.connection.db;
+    const originalBucket = Object.getOwnPropertyDescriptor(mongoose.mongo, 'GridFSBucket');
+    const originalFindById = Solicitud.findById;
+    const originalPropertyFindById = Property.findById;
+    let archivoConsultado;
+    mongoose.connection.db = {};
+    Object.defineProperty(mongoose.mongo, 'GridFSBucket', { configurable: true, writable: true, value: class {
+        find(filtro) {
+            archivoConsultado = filtro._id;
+            return { next: async () => ({ metadata: { solicitud: String(id) } }) };
+        }
+        openDownloadStream(archivoId) {
+            archivoConsultado = archivoId;
+            return Readable.from([archivoCifrado]);
+        }
+    } });
+    Solicitud.findById = () => ({
+        select() { return this; },
+        lean: async () => solicitud,
+    });
+    Property.findById = () => ({
+        select() { return this; },
+        lean: async () => ({ _id: propiedadId, titulo: 'Departamento de prueba', ciudad: 'Paraná', estado: 'disponible' }),
+    });
+    try {
+        const detalle = await solicitudesService.obtenerPorId(id, usuario, true);
+        assert.deepEqual(detalle.documentos.map((doc) => doc.url), [
+            `/solicitudes/${id}/documentos/recibosIngresos%3A0`,
+            `/solicitudes/${id}/documentos/recibosIngresos%3A1`,
+            `/solicitudes/${id}/documentos/recibosIngresos%3A2`,
+        ]);
+        assert.match(detalle.documentos[1].nombre, /2 de 3/);
+        const documento = await solicitudesService.obtenerDocumento(id, usuario, true, 'recibosIngresos:1');
+        assert.equal(String(archivoConsultado), String(archivos[1]));
+        assert.deepEqual(documento.contenido, contenidoCorregido);
+        assert.match(documento.nombre, /2 de 3/);
+    } finally {
+        mongoose.connection.db = originalDb;
+        Object.defineProperty(mongoose.mongo, 'GridFSBucket', originalBucket);
+        Solicitud.findById = originalFindById;
+        Property.findById = originalPropertyFindById;
+    }
+});
+
+test('guarda y recupera documentos solicitados, valida alternativas y registra una sola acción', async (t) => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const id = new mongoose.Types.ObjectId();
+    const usuarioId = new mongoose.Types.ObjectId();
+    const propiedadId = new mongoose.Types.ObjectId();
+    const cifrado = cifrar(Buffer.from(JSON.stringify({
+        titular: { nombre: 'Ana' },
+        incluyeCotitular: false,
+        ingresosTipo: 'recibos',
+        garantia: { tipo: 'caucion' },
+    }), 'utf8')).toString('base64');
+    const documentos = [
+        { tipo: 'dniTitularFrente', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'image/jpeg' },
+        { tipo: 'dniTitularDorso', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'image/jpeg' },
+        { tipo: 'cuilTitular', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'application/pdf' },
+        { tipo: 'domicilio', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'application/pdf' },
+        ...[0, 1, 2].map(() => ({ tipo: 'recibosIngresos', archivoId: new mongoose.Types.ObjectId(), tamano: 100, tipoMime: 'application/pdf' })),
+    ];
+    const solicitud = {
+        _id: id,
+        usuario: usuarioId,
+        propiedad: propiedadId,
+        operacion: 'alquiler',
+        estado: 'pendiente',
+        datosCifrados: cifrado,
+        documentos,
+        historialEstados: [],
+        createdAt: new Date(),
+    };
+    const propiedad = {
+        _id: propiedadId,
+        titulo: 'Casa en Paraná',
+        ciudad: 'Paraná',
+        estado: 'disponible',
+        categoriaOperacion: 'alquiler',
+        operaciones: ['alquiler'],
+    };
+    const seleccionados = ['recibosIngresos:1', 'documentacionCaucion'];
+    let guardada = solicitud;
+    let actualizacion;
+    t.mock.method(Solicitud, 'findById', () => ({
+        select() { return this; },
+        lean: async () => guardada,
+    }));
+    t.mock.method(Solicitud, 'findOneAndUpdate', (filtro, cambios) => {
+        actualizacion = { filtro, cambios };
+        guardada = {
+            ...guardada,
+            ...cambios.$set,
+            historialEstados: [...guardada.historialEstados, cambios.$push.historialEstados],
+        };
+        return { select() { return this; }, lean: async () => guardada };
+    });
+    t.mock.method(Property, 'findById', () => ({
+        select() { return this; },
+        lean: async () => propiedad,
+    }));
+
+    await assert.rejects(solicitudesService.actualizarEstado({
+        id: String(id),
+        estado: 'falta_documentacion',
+        comentario: 'Documento no permitido',
+        documentosSolicitados: ['constanciaIngresos'],
+        administradoPor: usuarioId,
+    }), { statusCode: 400 });
+    const resultado = await solicitudesService.actualizarEstado({
+        id: String(id),
+        estado: 'falta_documentacion',
+        comentario: 'Reemplazá el segundo recibo y adjuntá la póliza.',
+        documentosSolicitados: seleccionados,
+        administradoPor: usuarioId,
+    });
+    assert.equal(actualizacion.filtro.estado, 'pendiente');
+    assert.equal(actualizacion.cambios.$set.estado, 'falta_documentacion');
+    assert.deepEqual(actualizacion.cambios.$set.documentosSolicitados, seleccionados);
+    assert.equal(String(actualizacion.cambios.$set.documentosSolicitadosPor), String(usuarioId));
+    assert.ok(actualizacion.cambios.$set.documentosSolicitadosEn instanceof Date);
+    assert.equal(actualizacion.cambios.$push.historialEstados.comentario, 'Reemplazá el segundo recibo y adjuntá la póliza.');
+    assert.equal(guardada.historialEstados.length, 1);
+    assert.equal(resultado.estado, 'falta_documentacion');
+    assert.deepEqual(resultado.documentosSolicitados, seleccionados);
+    assert.equal(resultado.historialEstados.length, 1);
+    assert.equal(resultado.notificacion.estado, 'enviada');
+    const correo = emailService.avisarEstadoSolicitud.mock.calls.at(-1).arguments[0];
+    assert.equal(correo.estado, 'Falta documentación');
+    assert.equal(correo.propiedad, 'Casa en Paraná');
+    assert.deepEqual(correo.documentosSolicitados, ['Recibos de sueldo (2 de 3)', 'Documentación del seguro de caución']);
+
+    const recuperada = await solicitudesService.obtenerPorId(String(id), String(usuarioId), true);
+    assert.deepEqual(recuperada.documentosSolicitados, seleccionados);
+    assert.equal(recuperada.documentosSolicitadosPor, String(usuarioId));
+});
+
+test('mantener pendiente guarda comentario sin crear pedido vacío y bloquea otra acción tras procesar', async (t) => {
+    process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
+    const id = new mongoose.Types.ObjectId();
+    const usuarioId = new mongoose.Types.ObjectId();
+    const propiedadId = new mongoose.Types.ObjectId();
+    const cifrado = cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' }, ingresosTipo: 'constancia' }), 'utf8')).toString('base64');
+    const solicitud = {
+        _id: id, usuario: usuarioId, propiedad: propiedadId, operacion: 'compra', estado: 'pendiente',
+        datosCifrados: cifrado, documentos: [], historialEstados: [], createdAt: new Date(),
+    };
+    const propiedad = { _id: propiedadId, titulo: 'Casa', estado: 'disponible', operaciones: ['venta'] };
+    let guardada = solicitud;
+    let cambios;
+    t.mock.method(Solicitud, 'findById', () => ({ select() { return this; }, lean: async () => guardada }));
+    t.mock.method(Solicitud, 'findOneAndUpdate', (_filtro, actualizacion) => {
+        cambios = actualizacion;
+        guardada = { ...guardada, ...actualizacion.$set, historialEstados: [...guardada.historialEstados, actualizacion.$push.historialEstados] };
+        return { select() { return this; }, lean: async () => guardada };
+    });
+    t.mock.method(Property, 'findById', () => ({ select() { return this; }, lean: async () => propiedad }));
+
+    const resultado = await solicitudesService.actualizarEstado({
+        id: String(id), estado: 'pendiente', comentario: 'Seguimos revisando la documentación.', administradoPor: usuarioId,
+    });
+    assert.equal(cambios.$set.estado, 'pendiente');
+    assert.deepEqual(cambios.$set.documentosSolicitados, []);
+    assert.equal(cambios.$set.documentosSolicitadosEn, null);
+    assert.equal(cambios.$push.historialEstados.comentario, 'Seguimos revisando la documentación.');
+    assert.equal(guardada.historialEstados.length, 1);
+    assert.equal(resultado.notificacion.estado, 'enviada');
+    const aprobada = await solicitudesService.actualizarEstado({
+        id: String(id), estado: 'aprobada', comentario: '', administradoPor: usuarioId,
+    });
+    assert.equal(aprobada.estado, 'aprobada');
+    assert.equal(guardada.historialEstados.length, 2);
+    await assert.rejects(
+        solicitudesService.actualizarEstado({ id: String(id), estado: 'rechazada', comentario: 'No corresponde.', administradoPor: usuarioId }),
+        { statusCode: 409 },
+    );
+    await assert.rejects(
+        solicitudesService.actualizarEstado({ id: String(id), estado: 'aprobada', comentario: '', administradoPor: usuarioId }),
+        { statusCode: 409 },
+    );
+    await assert.rejects(
+        solicitudesService.actualizarEstado({ id: String(id), estado: 'pendiente', comentario: 'x'.repeat(251), administradoPor: usuarioId }),
+        { statusCode: 400 },
+    );
+    await assert.rejects(
+        solicitudesService.actualizarEstado({ id: String(id), estado: 'rechazada', comentario: '   ', administradoPor: usuarioId }),
+        { statusCode: 400 },
+    );
+});
+
 test('reutiliza el último comentario al cambiar estado sin duplicarlo en el historial', async () => {
     process.env.SOLICITUDES_ENCRYPTION_KEY = crypto.randomBytes(32).toString('hex');
     const cifrado = cifrar(Buffer.from(JSON.stringify({ titular: { nombre: 'Ana' } }), 'utf8')).toString('base64');
@@ -426,7 +977,7 @@ test('reutiliza el último comentario al cambiar estado sin duplicarlo en el his
         _id: 'solicitud-valida',
         propiedad: 'propiedad-de-prueba',
         operacion: 'alquiler',
-        estado: 'rechazada',
+        estado: 'pendiente',
         comentarioEstado: 'Documento ilegible.',
         historialEstados: historialAnterior,
         datosCifrados: cifrado,
@@ -482,8 +1033,9 @@ test('reutiliza el último comentario al cambiar estado sin duplicarlo en el his
         assert.equal(resultado.historialEstados.length, 3);
         assert.equal(resultado.historialEstados[2].comentario, '');
         assert.equal(resultado.historialEstados[2].comentarioReferenciaIndice, 1);
-        assert.equal(filtroActualizacion['historialEstados.1.comentario'], 'Documento ilegible.');
-        assert.deepEqual(cambiosAplicados.$set, { estado: 'pendiente', comentarioEstado: 'Documento ilegible.' });
+        assert.deepEqual(filtroActualizacion.historialEstados, historialAnterior);
+        assert.equal(cambiosAplicados.$set.estado, 'pendiente');
+        assert.equal(cambiosAplicados.$set.comentarioEstado, 'Documento ilegible.');
         assert.equal(cambiosAplicados.$push.historialEstados.comentario, '');
         assert.equal(cambiosAplicados.$push.historialEstados.comentarioReferenciaIndice, 1);
     } finally {
@@ -674,12 +1226,62 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
     }
 });
 
-test('protege el archivado y la eliminación con autenticación y rol administrador', () => {
+test('protege las acciones administrativas con permiso de la sección y la corrección documental con el cliente', async () => {
     assert.ok(solicitudesRouter.stack.some((layer) => layer.handle === authMiddleware));
     for (const [path, method] of [['/:id/archivo', 'patch'], ['/:id', 'delete'], ['/:id/comentarios', 'post']]) {
         const ruta = solicitudesRouter.stack.find((layer) => layer.route?.path === path && layer.route.methods[method]);
         assert.ok(ruta, `Debe existir ${method.toUpperCase()} ${path}`);
-        assert.ok(ruta.route.stack.some((layer) => layer.handle === authMiddleware.requireAdmin));
+        // Un cliente (sin permiso de la sección Solicitudes) queda afuera con 403 antes de llegar al controlador
+        let codigo = null;
+        let llegoAlControlador = false;
+        const res = { status(c) { codigo = c; return this; }, json() { return this; } };
+        const capas = ruta.route.stack.map((layer) => layer.handle);
+        for (const capa of capas.slice(0, -1)) {
+            let siguio = false;
+            await capa({ user: { rol: 'cliente' }, headers: {}, params: {}, body: {} }, res, () => { siguio = true; });
+            if (!siguio) break;
+            if (capa === capas[capas.length - 2]) llegoAlControlador = true;
+        }
+        assert.equal(codigo, 403, `${method.toUpperCase()} ${path} tiene que dar 403 a un cliente`);
+        assert.equal(llegoAlControlador, false);
+    }
+    const correccion = solicitudesRouter.stack.find((layer) => layer.route?.path === '/:id/documentacion' && layer.route.methods.post);
+    assert.ok(correccion, 'Debe existir POST /:id/documentacion');
+    assert.ok(correccion.route.stack.some((layer) => layer.handle === authMiddleware.requireClient));
+});
+
+test('el controlador valida las referencias y vincula la corrección con el cliente autenticado', async () => {
+    const originalCorregir = solicitudesService.corregirDocumentacion;
+    let argumentos;
+    solicitudesService.corregirDocumentacion = async (entrada) => {
+        argumentos = entrada;
+        return { solicitud: { id: entrada.id, estado: 'pendiente' }, repetida: false };
+    };
+    const ejecutar = async (documentos) => {
+        const respuesta = {
+            codigo: null,
+            cuerpo: null,
+            status(codigo) { this.codigo = codigo; return this; },
+            json(cuerpo) { this.cuerpo = cuerpo; return this; },
+        };
+        await solicitudesController.corregirDocumentacion({
+            params: { id: '507f1f77bcf86cd799439011' },
+            body: { documentos },
+            user: { _id: 'cliente-autenticado' },
+            get: () => '507f1f77-bcf8-46cd-8994-399439011234',
+        }, respuesta);
+        return respuesta;
+    };
+    try {
+        assert.equal((await ejecutar([{ id: 123, tipo: 'dniTitularFrente' }])).codigo, 400);
+        assert.equal(argumentos, undefined);
+        const respuesta = await ejecutar([{ id: '507f1f77bcf86cd799439012', tipo: 'dniTitularFrente' }]);
+        assert.equal(respuesta.codigo, 200);
+        assert.equal(argumentos.usuario, 'cliente-autenticado');
+        assert.equal(argumentos.claveIdempotencia, '507f1f77-bcf8-46cd-8994-399439011234');
+        assert.deepEqual(argumentos.referencias, [{ id: '507f1f77bcf86cd799439012', tipo: 'dniTitularFrente' }]);
+    } finally {
+        solicitudesService.corregirDocumentacion = originalCorregir;
     }
 });
 
@@ -910,7 +1512,7 @@ test('no elimina archivos compartidos por más de una solicitud', async () => {
     }
 });
 
-test('requiere comentario nuevo o reutilizar uno guardado para pendiente o rechazo', async () => {
+test('requiere un comentario para mantener pendiente o rechazar; solo permite asociar uno anterior al estado pendiente', async () => {
     const estados = ['pendiente', 'rechazada'];
     const originalActualizarEstado = solicitudesService.actualizarEstado;
     let invocaciones = 0;
@@ -946,7 +1548,7 @@ test('requiere comentario nuevo o reutilizar uno guardado para pendiente o recha
         };
         await solicitudesController.actualizarEstado({
             params: { id: '507f1f77bcf86cd799439011' },
-            body: { estado: 'rechazada', comentario: '', reutilizarComentario: true },
+            body: { estado: 'pendiente', comentario: '', reutilizarComentario: true },
             user: { _id: '507f1f77bcf86cd799439012' },
         }, respuestaReutilizada);
         assert.equal(respuestaReutilizada.codigo, 200);
@@ -956,4 +1558,73 @@ test('requiere comentario nuevo o reutilizar uno guardado para pendiente o recha
     } finally {
         solicitudesService.actualizarEstado = originalActualizarEstado;
     }
+});
+
+test('el controlador valida pedido documental y pasa los identificadores al servicio protegido por rol admin', async () => {
+    const originalActualizarEstado = solicitudesService.actualizarEstado;
+    let argumentosServicio;
+    solicitudesService.actualizarEstado = async (argumentos) => {
+        argumentosServicio = argumentos;
+        return { id: argumentos.id, estado: argumentos.estado, documentosSolicitados: argumentos.documentosSolicitados };
+    };
+    const respuesta = () => ({
+        codigo: null,
+        cuerpo: null,
+        status(codigo) { this.codigo = codigo; return this; },
+        json(cuerpo) { this.cuerpo = cuerpo; return this; },
+    });
+    try {
+        const req = {
+            params: { id: '507f1f77bcf86cd799439011' },
+            body: {
+                estado: 'falta_documentacion',
+                comentario: 'Adjuntá el segundo recibo.',
+                documentosSolicitados: ['recibosIngresos:1'],
+            },
+            user: { _id: '507f1f77bcf86cd799439012', rol: 'admin' },
+        };
+        const res = respuesta();
+        await solicitudesController.actualizarEstado(req, res);
+        assert.equal(res.codigo, 200);
+        assert.equal(argumentosServicio.estado, 'falta_documentacion');
+        assert.deepEqual(argumentosServicio.documentosSolicitados, ['recibosIngresos:1']);
+        assert.equal(argumentosServicio.comentario, 'Adjuntá el segundo recibo.');
+        assert.equal(argumentosServicio.administradoPor, req.user._id);
+
+        const invalida = respuesta();
+        await solicitudesController.actualizarEstado({
+            ...req,
+            body: { ...req.body, documentosSolicitados: [{ id: 'recibosIngresos:1' }] },
+        }, invalida);
+        assert.equal(invalida.codigo, 400);
+
+        const sinDocumentos = respuesta();
+        await solicitudesController.actualizarEstado({
+            ...req,
+            body: { estado: 'falta_documentacion', comentario: 'Falta documentación.' },
+        }, sinDocumentos);
+        assert.equal(sinDocumentos.codigo, 400);
+
+        const excedido = respuesta();
+        await solicitudesController.actualizarEstado({
+            ...req,
+            body: { estado: 'rechazada', comentario: 'x'.repeat(251) },
+        }, excedido);
+        assert.equal(excedido.codigo, 400);
+        assert.match(excedido.cuerpo.message, /250/);
+    } finally {
+        solicitudesService.actualizarEstado = originalActualizarEstado;
+    }
+});
+
+test('el fallo del correo se informa sin revertir ni rechazar el cambio guardado', async (t) => {
+    t.mock.method(emailService, 'avisarEstadoSolicitud', async () => { throw new Error('proveedor no disponible'); });
+    const resultado = await ciclo.avisarCambio({
+        usuario: 'usuario',
+        propiedad: 'propiedad',
+        estado: 'rechazada',
+        comentarioEstado: 'No cumple los requisitos.',
+        historialEstados: [{ comentario: 'No cumple los requisitos.' }],
+    });
+    assert.deepEqual(resultado, { estado: 'fallida' });
 });

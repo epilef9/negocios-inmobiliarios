@@ -32,5 +32,7 @@ router.use('/avisos', require('./avisos.routes'));
 router.use('/pagos', require('./pagos.routes'));
 router.use('/panel', require('./panel.routes'));
 router.use('/cobros', require('./cobros.routes'));
+router.use('/empleados', require('./empleados.routes'));
+router.use('/actividad', require('./actividad.routes'));
 
 module.exports = router;

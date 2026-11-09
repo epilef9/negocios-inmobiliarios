@@ -3,12 +3,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '@/services/api';
 import { conSesion } from '@/services/sesion';
-import { EVENTO_SOLICITUDES, actualizarArchivadoSolicitud, actualizarEstadoSolicitud, agregarComentarioSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
+import { EVENTO_SOLICITUDES, actualizarArchivadoSolicitud, actualizarEstadoSolicitud, eliminarSolicitudDefinitivamente, getSolicitudesAdmin, type DocumentoSolicitud, type EstadoSolicitud, type SolicitudAdmin } from '@/services/solicitudes';
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, Dialogo, Encabezado, EstadoVacio, Insignia, Tarjeta, useAviso } from '@/components/panel/ui';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 const estadoTono: Record<string, 'aviso' | 'exito' | 'peligro' | 'neutro'> = {
   pendiente: 'aviso',
+  falta_documentacion: 'aviso',
   aprobada: 'exito',
   rechazada: 'peligro',
   vencida: 'neutro',
@@ -145,7 +147,14 @@ function ImagenPropiedad({ src, alt, className = '' }: { src?: string | null; al
   return <img src={src} alt={alt} onError={() => setUrlFallida(src)} className={className} />;
 }
 
-const etiquetaEstado = (estado: string) => estado === 'aprobada' ? 'Aprobada' : estado === 'rechazada' ? 'Rechazada' : estado === 'vencida' ? 'Vencida' : estado === 'cerrada' ? 'Cerrada' : 'Pendiente';
+const etiquetaEstado = (estado: string) => {
+  if (estado === 'aprobada') return 'Aprobada';
+  if (estado === 'rechazada') return 'Rechazada';
+  if (estado === 'vencida') return 'Vencida';
+  if (estado === 'cerrada') return 'Cerrada';
+  if (estado === 'falta_documentacion') return 'Falta documentación';
+  return 'Pendiente';
+};
 
 const nombreDocumentoPresentado = (documentos: DocumentoSolicitud[], indice: number) => {
   const documento = documentos[indice];
@@ -153,6 +162,69 @@ const nombreDocumentoPresentado = (documentos: DocumentoSolicitud[], indice: num
   if (total < 2) return documento.nombre;
   const numero = documentos.slice(0, indice + 1).filter((item) => item.tipo === documento.tipo).length;
   return `${documento.nombre} (${numero} de ${total})`;
+};
+
+type DocumentoSolicitable = { id: string; nombre: string };
+type GrupoDocumentosSolicitables = { titulo: string; documentos: DocumentoSolicitable[] };
+
+const obtenerDocumentosSolicitables = (solicitud: SolicitudAdmin): GrupoDocumentosSolicitables[] => {
+  const datos = solicitud.datosPersonales ?? {};
+  const garantia = datos.garantia && typeof datos.garantia === 'object'
+    ? datos.garantia as Record<string, unknown>
+    : {};
+  const documentos = solicitud.documentos ?? [];
+  const tiposPresentados = documentos.map((documento) => documento.tipo);
+  const porTipo = (tipo: string) => documentos.find((documento) => documento.tipo === tipo);
+  const opcion = (tipo: string): DocumentoSolicitable | null => {
+    const documento = porTipo(tipo);
+    return documento ? { id: tipo, nombre: documento.nombre } : null;
+  };
+  const titular = ['dniTitularFrente', 'dniTitularDorso', 'cuilTitular', 'domicilio']
+    .map(opcion)
+    .filter((documento): documento is DocumentoSolicitable => documento !== null);
+
+  if (datos.incluyeCotitular === true) {
+    ['dniCotitularFrente', 'dniCotitularDorso'].forEach((tipo) => {
+      const documento = opcion(tipo);
+      if (documento) titular.push(documento);
+    });
+  }
+
+  const tipoIngresos = datos.ingresosTipo === 'recibos' || datos.ingresosTipo === 'constancia'
+    ? datos.ingresosTipo
+    : tiposPresentados.includes('recibosIngresos')
+      ? 'recibos'
+      : tiposPresentados.includes('constanciaIngresos') ? 'constancia' : null;
+  const cantidadRecibos = tiposPresentados.filter((tipo) => tipo === 'recibosIngresos').length;
+  const ingresos: DocumentoSolicitable[] = tipoIngresos === 'recibos'
+    ? Array.from({ length: cantidadRecibos }, (_, indice) => ({
+      id: `recibosIngresos:${indice}`,
+      nombre: `Recibo de sueldo (${indice + 1} de ${cantidadRecibos})`,
+    }))
+    : tipoIngresos === 'constancia'
+      ? [opcion('constanciaIngresos')].filter((documento): documento is DocumentoSolicitable => documento !== null)
+      : [];
+
+  const tipoGarantia = garantia.tipo === 'propietaria' || garantia.tipo === 'caucion'
+    ? garantia.tipo
+    : tiposPresentados.includes('escrituraGarantia') || tiposPresentados.includes('reciboGarante')
+      ? 'propietaria'
+      : tiposPresentados.includes('documentacionCaucion') ? 'caucion' : null;
+  const documentosGarantia: DocumentoSolicitable[] = solicitud.operacion !== 'alquiler'
+    ? []
+    : tipoGarantia === 'propietaria'
+      ? ['escrituraGarantia', 'reciboGarante']
+        .map(opcion)
+        .filter((documento): documento is DocumentoSolicitable => documento !== null)
+      : tipoGarantia === 'caucion'
+        ? [{ id: 'documentacionCaucion', nombre: 'Documentación del seguro de caución' }]
+        : [];
+
+  return [
+    { titulo: 'Documentación del titular', documentos: titular },
+    { titulo: 'Acreditación de ingresos', documentos: ingresos },
+    { titulo: 'Documentación de la garantía', documentos: documentosGarantia },
+  ].filter((grupo) => grupo.documentos.length > 0);
 };
 
 export default function SolicitudesAdminPage() {
@@ -172,16 +244,11 @@ export default function SolicitudesAdminPage() {
   const [archivandoId, setArchivandoId] = useState<string | null>(null);
   const [eliminando, setEliminando] = useState(false);
   const [preview, setPreview] = useState<{ url: string; nombre: string; mime: string } | null>(null);
-  const [comentarioEstado, setComentarioEstado] = useState('');
-  const [estadoEsperandoComentario, setEstadoEsperandoComentario] = useState<EstadoSolicitud | null>(null);
-  const [reutilizarComentarioEstado, setReutilizarComentarioEstado] = useState(false);
-  const [confirmandoAprobacion, setConfirmandoAprobacion] = useState(false);
-  const [confirmandoRechazo, setConfirmandoRechazo] = useState(false);
+  const [accionSeleccionada, setAccionSeleccionada] = useState<'pendiente' | 'rechazada' | null>(null);
+  const [comentarioAccion, setComentarioAccion] = useState('');
+  const [documentosSeleccionados, setDocumentosSeleccionados] = useState<string[]>([]);
+  const [confirmandoAccion, setConfirmandoAccion] = useState<'pendiente' | 'aprobada' | 'rechazada' | null>(null);
   const [actualizandoEstado, setActualizandoEstado] = useState(false);
-  const [guardandoComentario, setGuardandoComentario] = useState(false);
-  const [mensajeAccion, setMensajeAccion] = useState<string | null>(null);
-  const [solicitudAprobada, setSolicitudAprobada] = useState<SolicitudAdmin | null>(null);
-  const [telefonoCopiado, setTelefonoCopiado] = useState(false);
   const { mostrar, aviso } = useAviso();
 
   useEffect(() => {
@@ -201,7 +268,7 @@ export default function SolicitudesAdminPage() {
   }, []);
 
   const solicitudesPestana = useMemo(() => solicitudes.filter((solicitud) => {
-    if (pestana === 'activas') return !solicitud.archivada && solicitud.estado === 'pendiente';
+    if (pestana === 'activas') return !solicitud.archivada && ['pendiente', 'falta_documentacion'].includes(solicitud.estado);
     if (verArchivadas) return solicitud.archivada === true;
     return !solicitud.archivada && ['aprobada', 'rechazada', 'vencida', 'cerrada'].includes(solicitud.estado);
   }), [pestana, solicitudes, verArchivadas]);
@@ -241,82 +308,49 @@ export default function SolicitudesAdminPage() {
 
   const cerrarDetalle = () => {
     setSeleccionada(null);
-    setConfirmandoAprobacion(false);
-    setConfirmandoRechazo(false);
-    setMensajeAccion(null);
-    setSolicitudAprobada(null);
-    setTelefonoCopiado(false);
-    setComentarioEstado('');
+    setAccionSeleccionada(null);
+    setComentarioAccion('');
+    setDocumentosSeleccionados([]);
+    setConfirmandoAccion(null);
     if (preview) {
       URL.revokeObjectURL(preview.url);
       setPreview(null);
     }
   };
 
-  const copiarTelefonoAprobado = async () => {
-    const titular = solicitudAprobada?.datosPersonales?.titular as Record<string, unknown> | undefined;
-    const telefono = normalizarTexto(titular?.telefono);
-    if (!telefono) return;
-
-    try {
-      await navigator.clipboard.writeText(telefono);
-      setTelefonoCopiado(true);
-    } catch {
-      mostrar('No se pudo copiar el teléfono. Podés seleccionarlo y copiarlo manualmente.', 'peligro');
-    }
-  };
-
   const abrirDetalle = (solicitud: SolicitudAdmin) => {
     setSeleccionada(solicitud);
-    setComentarioEstado('');
-    setEstadoEsperandoComentario(null);
-    setReutilizarComentarioEstado(false);
-    setConfirmandoAprobacion(false);
-    setConfirmandoRechazo(false);
-    setMensajeAccion(null);
-    setSolicitudAprobada(null);
-    setTelefonoCopiado(false);
+    setAccionSeleccionada(null);
+    setComentarioAccion('');
+    setDocumentosSeleccionados([]);
+    setConfirmandoAccion(null);
   };
 
-  const ultimoComentarioGuardado = seleccionada?.historialEstados
-    ?.map((cambio, indice) => ({ ...cambio, indice }))
-    .reverse()
-    .find((cambio) => cambio.comentario.trim());
-
-  const iniciarCambioEstado = (nuevoEstado: EstadoSolicitud) => {
-    if (!comentarioEstado.trim()) {
-      if (ultimoComentarioGuardado) {
-        setEstadoEsperandoComentario(nuevoEstado);
-      } else {
-        mostrar('Escribí un comentario nuevo antes de mantener pendiente o rechazar la solicitud.', 'peligro');
-      }
+  const guardarEstado = async () => {
+    if (!seleccionada || !confirmandoAccion || seleccionada.problemaDescifrado || actualizandoEstado) return;
+    if (confirmandoAccion === 'rechazada' && !comentarioAccion.trim()) {
+      setConfirmandoAccion(null);
+      mostrar('Escribí el motivo del rechazo para continuar', 'peligro');
+      return;
+    }
+    if (confirmandoAccion === 'pendiente' && !comentarioAccion.trim()) {
+      setConfirmandoAccion(null);
+      mostrar('Escribí un comentario para continuar', 'peligro');
       return;
     }
 
-    if (nuevoEstado === 'rechazada') {
-      setReutilizarComentarioEstado(false);
-      setConfirmandoRechazo(true);
-      return;
-    }
-
-    void guardarEstado(nuevoEstado);
-  };
-
-  const guardarEstado = async (nuevoEstado: EstadoSolicitud, reutilizarComentario = false) => {
-    if (!seleccionada || seleccionada.problemaDescifrado || actualizandoEstado || guardandoComentario) return;
-    if (['pendiente', 'rechazada'].includes(nuevoEstado) && !comentarioEstado.trim() && !reutilizarComentario) {
-      mostrar('Ingresá un comentario para mantener pendiente o rechazar la solicitud.', 'peligro');
-      return;
-    }
-    const comentarioNuevo = comentarioEstado.trim();
-    if (!reutilizarComentario && ['pendiente', 'rechazada'].includes(nuevoEstado) && comentarioNuevo && seleccionada.historialEstados?.some((cambio) => cambio.comentario.trim() === comentarioNuevo)) {
-      mostrar('Ese comentario ya figura en el historial.', 'info');
-      return;
-    }
+    const nuevoEstado: EstadoSolicitud = confirmandoAccion === 'pendiente' && documentosSeleccionados.length
+      ? 'falta_documentacion'
+      : confirmandoAccion;
+    const comentario = confirmandoAccion === 'aprobada' ? '' : comentarioAccion.trim();
     setActualizandoEstado(true);
     try {
-      const comentario = nuevoEstado === 'aprobada' || reutilizarComentario ? '' : comentarioEstado.trim();
-      const actualizada = await actualizarEstadoSolicitud(seleccionada.id, nuevoEstado, comentario, reutilizarComentario);
+      const actualizada = await actualizarEstadoSolicitud(
+        seleccionada.id,
+        nuevoEstado,
+        comentario,
+        nuevoEstado === 'falta_documentacion' ? documentosSeleccionados : [],
+      );
       const solicitudActualizada: SolicitudAdmin = {
         ...seleccionada,
         ...actualizada,
@@ -325,65 +359,21 @@ export default function SolicitudesAdminPage() {
         problemaDescifrado: seleccionada.problemaDescifrado,
       };
       setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
-      setSeleccionada(solicitudActualizada);
       window.dispatchEvent(new Event(EVENTO_SOLICITUDES));
-      setComentarioEstado('');
-      setEstadoEsperandoComentario(null);
-      setReutilizarComentarioEstado(false);
-      setConfirmandoAprobacion(false);
-      setConfirmandoRechazo(false);
-      if (nuevoEstado === 'aprobada') {
-        setMensajeAccion(null);
-        setTelefonoCopiado(false);
-        setSolicitudAprobada(solicitudActualizada);
-        cambiarPestana('historial');
+      cerrarDetalle();
+      if (actualizada.notificacion?.estado === 'fallida') {
+        mostrar('La solicitud se actualizó, pero no se pudo enviar el correo al cliente.', 'info');
+      } else if (actualizada.notificacion?.estado === 'sin_destinatario') {
+        mostrar('La solicitud se actualizó, pero no hay una dirección de correo registrada para notificar al cliente.', 'info');
+      } else if (actualizada.notificacion?.estado === 'simulada') {
+        mostrar('La solicitud se actualizó. El correo fue simulado en este entorno.', 'info');
       } else {
-        const mensaje = `Estado guardado: ${etiquetaEstado(nuevoEstado)}.`;
-        setMensajeAccion(mensaje);
-        mostrar(mensaje);
-        if (nuevoEstado === 'rechazada') cambiarPestana('historial');
-        if (nuevoEstado === 'pendiente') cambiarPestana('activas');
+        mostrar(`La solicitud se actualizó correctamente. El cliente fue notificado.`);
       }
     } catch (e) {
-      mostrar(e instanceof Error ? e.message : 'No se pudo actualizar el estado de la solicitud.', 'peligro');
+      mostrar(e instanceof Error ? e.message : 'No se pudo guardar el cambio. Intentá nuevamente.', 'peligro');
     } finally {
       setActualizandoEstado(false);
-    }
-  };
-
-  const guardarComentario = async () => {
-    if (!seleccionada || seleccionada.problemaDescifrado || guardandoComentario || actualizandoEstado) return;
-    const comentario = comentarioEstado.trim();
-    if (!comentario) {
-      mostrar('Ingresá un comentario antes de guardarlo.', 'peligro');
-      return;
-    }
-    if (seleccionada.historialEstados?.some((cambio) => cambio.comentario.trim() === comentario)) {
-      mostrar('Ese comentario ya figura en el historial.', 'info');
-      return;
-    }
-
-    setGuardandoComentario(true);
-    try {
-      const actualizada = await agregarComentarioSolicitud(seleccionada.id, comentario);
-      const solicitudActualizada: SolicitudAdmin = {
-        ...seleccionada,
-        ...actualizada,
-        datosPersonales: seleccionada.datosPersonales,
-        documentos: seleccionada.documentos,
-        problemaDescifrado: seleccionada.problemaDescifrado,
-      };
-      setSolicitudes((actuales) => actuales.map((item) => item.id === solicitudActualizada.id ? solicitudActualizada : item));
-      setSeleccionada(solicitudActualizada);
-      window.dispatchEvent(new Event(EVENTO_SOLICITUDES));
-      setComentarioEstado('');
-      setEstadoEsperandoComentario(null);
-      setMensajeAccion(null);
-      mostrar('Comentario agregado al historial.');
-    } catch (e) {
-      mostrar(e instanceof Error ? e.message : 'No se pudo agregar el comentario a la solicitud.', 'peligro');
-    } finally {
-      setGuardandoComentario(false);
     }
   };
 
@@ -463,7 +453,7 @@ export default function SolicitudesAdminPage() {
                 className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-4 py-2 text-[13px] font-medium transition-colors sm:min-h-0 ${pestana === 'activas' ? 'bg-panel-marca text-panel-marca-texto' : 'bg-panel-hundido text-panel-suave hover:text-panel-texto'}`}
               >
                 Activas
-                <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && item.estado === 'pendiente').length}</span>
+                <span className="rounded-full bg-panel-superficie/20 px-2 py-0.5 text-[11px]">{solicitudes.filter((item) => !item.archivada && ['pendiente', 'falta_documentacion'].includes(item.estado)).length}</span>
               </button>
               <button
                 type="button"
@@ -522,6 +512,7 @@ export default function SolicitudesAdminPage() {
                 <select value={estado} onChange={(event) => setEstado(event.target.value as typeof estado)} className="h-10 w-full rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 text-sm text-panel-texto focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave">
                   <option value="todas">Todos</option>
                   {(pestana === 'activas' || verArchivadas) && <option value="pendiente">Pendiente</option>}
+                  {(pestana === 'activas' || verArchivadas) && <option value="falta_documentacion">Falta documentación</option>}
                   {(pestana === 'historial' || verArchivadas) && <option value="aprobada">Aprobada</option>}
                   {(pestana === 'historial' || verArchivadas) && <option value="rechazada">Rechazada</option>}
                   {(pestana === 'historial' || verArchivadas) && <option value="vencida">Vencida</option>}
@@ -632,6 +623,7 @@ export default function SolicitudesAdminPage() {
                           </Boton>
                         </div>
                       </div>
+                      <ActividadRegistro entidad="solicitud" id={solicitud.id} className="mt-3" />
                     </article>
                   );
                 })}
@@ -651,33 +643,36 @@ export default function SolicitudesAdminPage() {
               </Alerta>
             ) : (
               <>
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
-                  <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-hundido/30">
-                    <ImagenPropiedad src={seleccionada.propiedad?.imagen} alt={seleccionada.propiedad?.titulo || 'Propiedad'} className="h-56 w-full object-cover" />
-                  </div>
-                  <div className="flex flex-col gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <h3 className="m-0 text-[20px] font-semibold leading-tight">
-                        {seleccionada.propiedad?.disponible === false ? 'Propiedad vinculada no disponible' : seleccionada.propiedad?.titulo || 'Propiedad no disponible'}
-                      </h3>
-                      <Insignia tono={estadoTono[seleccionada.estado] ?? 'neutro'}>{etiquetaEstado(seleccionada.estado)}</Insignia>
+                <Tarjeta titulo="Información de la propiedad" descripcion="Datos de la propiedad y su disponibilidad actual." relleno={false} className="border-panel-borde bg-panel-hundido/10">
+                  <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
+                    <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-hundido/30">
+                      <ImagenPropiedad src={seleccionada.propiedad?.imagen} alt={seleccionada.propiedad?.titulo || 'Propiedad'} className="h-56 w-full object-cover" />
                     </div>
-                    <p className="m-0 text-[14px] text-panel-suave">
-                      {seleccionada.propiedad?.disponible === false
-                        ? `No se encontró la propiedad asociada${seleccionada.propiedad.id ? ` (referencia ${seleccionada.propiedad.id})` : ''}.`
-                        : seleccionada.propiedad?.direccion || seleccionada.propiedad?.ciudad || 'Dirección no informada'}
-                    </p>
-                    <div className="grid gap-2 pt-2 text-[13px] text-panel-suave sm:grid-cols-2">
-                      <div><span className="font-medium text-panel-texto">Localidad:</span> {seleccionada.propiedad?.ciudad || 'No informada'}</div>
-                      <div><span className="font-medium text-panel-texto">Tipo:</span> {seleccionada.propiedad?.tipoInmueble || 'No informado'}</div>
-                      <div><span className="font-medium text-panel-texto">Operación:</span> {seleccionada.operacion === 'compra' ? 'Compra' : 'Alquiler'}</div>
-                      <div><span className="font-medium text-panel-texto">Precio:</span> {formatoMoneda(seleccionada.propiedad?.precio, seleccionada.propiedad?.moneda)}</div>
-                      <div className="sm:col-span-2"><span className="font-medium text-panel-texto">Estado de la propiedad:</span> {seleccionada.propiedad?.estadoPropiedad || 'No informado'}</div>
+                    <div className="flex flex-col gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="m-0 text-[20px] font-semibold leading-tight">
+                          {seleccionada.propiedad?.disponible === false ? 'Propiedad vinculada no disponible' : seleccionada.propiedad?.titulo || 'Propiedad no disponible'}
+                        </h3>
+                        <Insignia tono={seleccionada.propiedad?.disponible === false ? 'neutro' : 'aviso'}>
+                          {seleccionada.propiedad?.estadoPropiedad || 'Disponibilidad no informada'}
+                        </Insignia>
+                      </div>
+                      <p className="m-0 text-[14px] text-panel-suave">
+                        {seleccionada.propiedad?.disponible === false
+                          ? `No se encontró la propiedad asociada${seleccionada.propiedad.id ? ` (referencia ${seleccionada.propiedad.id})` : ''}.`
+                          : seleccionada.propiedad?.direccion || seleccionada.propiedad?.ciudad || 'Dirección no informada'}
+                      </p>
+                      <div className="grid gap-2 pt-2 text-[13px] text-panel-suave sm:grid-cols-2">
+                        <div><span className="font-medium text-panel-texto">Localidad:</span> {seleccionada.propiedad?.ciudad || 'No informada'}</div>
+                        <div><span className="font-medium text-panel-texto">Tipo:</span> {seleccionada.propiedad?.tipoInmueble || 'No informado'}</div>
+                        <div><span className="font-medium text-panel-texto">Operación:</span> {seleccionada.operacion === 'compra' ? 'Compra' : 'Alquiler'}</div>
+                        <div><span className="font-medium text-panel-texto">Precio:</span> {formatoMoneda(seleccionada.propiedad?.precio, seleccionada.propiedad?.moneda)}</div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                </Tarjeta>
 
-                <Tarjeta titulo="Información personal del solicitante" descripcion="Datos completados por el cliente al enviar la solicitud." relleno={false}>
+                <Tarjeta titulo="Información personal del solicitante" descripcion="Datos completados por el cliente al enviar la solicitud." relleno={false} className="border-panel-borde bg-panel-hundido/10">
                   <div className="grid gap-3 p-5 md:grid-cols-2 xl:grid-cols-3">
                     {camposPersonalesVisibles.length ? (
                       camposPersonalesVisibles.map(({ clave, valor }) => (
@@ -692,7 +687,7 @@ export default function SolicitudesAdminPage() {
                   </div>
                 </Tarjeta>
 
-                <Tarjeta titulo="Documentación presentada" descripcion="Archivos adjuntados y cifrados por el cliente." relleno={false}>
+                <Tarjeta titulo="Documentación presentada" descripcion="Archivos adjuntados y cifrados por el cliente." relleno={false} className="border-panel-borde bg-panel-hundido/10">
                   <div className="flex flex-col gap-4 p-5">
                     {seleccionada.documentos?.length ? (
                       <>
@@ -701,7 +696,7 @@ export default function SolicitudesAdminPage() {
                             <div key={`${seleccionada.id}-${documento.tipo}-${index}`} className="rounded-lg border border-panel-borde bg-panel-hundido/20 p-3">
                           <div className="flex items-start justify-between gap-2">
                             <div className="min-w-0">
-                              <p className="m-0 truncate text-[14px] font-medium text-panel-texto">{nombreDocumentoPresentado(seleccionada.documentos ?? [], index)}</p>
+                              <p className="m-0 whitespace-normal break-words text-[14px] font-medium text-panel-texto">{nombreDocumentoPresentado(seleccionada.documentos ?? [], index)}</p>
                               <p className="m-0 mt-1 text-[12px] text-panel-suave">{documento.tipoMime}</p>
                             </div>
                             <Icono nombre="imagen" className="mt-0.5 h-4 w-4 text-panel-suave" />
@@ -742,153 +737,234 @@ export default function SolicitudesAdminPage() {
                   </div>
                 </Tarjeta>
 
-                <Tarjeta titulo="Gestión del estado" descripcion="Los cambios quedan guardados junto con el comentario y el historial de revisión." relleno={false}>
-                  <div className="flex flex-col gap-4 p-5">
-                    {mensajeAccion && <Alerta tono="exito" titulo="Cambios guardados">{mensajeAccion}</Alerta>}
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[13px] text-panel-suave">Estado actual:</span>
-                      <Insignia tono={estadoTono[seleccionada.estado] ?? 'neutro'}>{etiquetaEstado(seleccionada.estado)}</Insignia>
-                    </div>
-                    <div className="flex flex-col gap-3 rounded-lg border border-panel-borde bg-panel-hundido/20 p-4">
-                      <label className="flex flex-col gap-1.5">
-                        <span className="text-[13px] font-medium text-panel-texto">Nuevo comentario</span>
-                        <textarea
-                          value={comentarioEstado}
-                          onChange={(event) => setComentarioEstado(event.target.value)}
-                          maxLength={500}
-                          rows={3}
-                          placeholder="Escribí el comentario que querés guardar"
-                          aria-describedby="contador-comentario"
-                          className="min-w-0 w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-panel-borde-fuerte bg-panel-superficie px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
-                        />
-                        <span id="contador-comentario" className="block text-right text-[12px] text-panel-tenue">{comentarioEstado.length}/500</span>
-                      </label>
-                      <p className="m-0 text-[12px] text-panel-tenue">
-                        Guardar comentario lo agrega al historial sin cambiar el estado actual. El comentario es obligatorio para mantener pendiente o rechazar.
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        <Boton
-                          onClick={() => void guardarComentario()}
-                          variante="principal"
-                          disabled={!comentarioEstado.trim() || guardandoComentario || actualizandoEstado}
-                          cargando={guardandoComentario}
-                        >
-                          Guardar comentario
-                        </Boton>
-                        <Boton
-                          onClick={() => {
-                            setComentarioEstado('');
-                            setConfirmandoRechazo(false);
-                          }}
-                          disabled={guardandoComentario || actualizandoEstado}
-                        >
-                          Cancelar
-                        </Boton>
+                <Tarjeta
+                  titulo="Estado de la solicitud"
+                  descripcion="Acciones administrativas y registro de las decisiones sobre esta solicitud."
+                  relleno={false}
+                  className="border-panel-acento bg-panel-acento-suave/20 shadow-lg shadow-black/10"
+                >
+                  <div className="flex flex-col gap-5 p-5">
+                    <div className="rounded-xl border border-panel-acento/60 bg-panel-superficie px-4 py-4">
+                      <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.1em] text-panel-tenue">Estado actual</p>
+                      <div className="mt-2 flex flex-wrap items-center gap-3">
+                        <Insignia tono={estadoTono[seleccionada.estado] ?? 'neutro'} className="px-3 py-1 text-[14px]">
+                          {etiquetaEstado(seleccionada.estado)}
+                        </Insignia>
+                        <span className="text-[12px] text-panel-tenue">Estado registrado para esta solicitud.</span>
                       </div>
                     </div>
-                    {estadoEsperandoComentario && ultimoComentarioGuardado && (
-                      <Alerta tono="aviso" titulo="No escribiste un comentario nuevo">
-                        ¿Querés asociar el último comentario guardado a este cambio de estado?
-                        <p className="my-2 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13px] text-panel-texto">
-                          “{ultimoComentarioGuardado.comentario}”
-                        </p>
+
+                    {seleccionada.estado === 'pendiente' ? (
+                      <>
                         <div className="flex flex-wrap gap-2">
                           <Boton
                             onClick={() => {
-                              setEstadoEsperandoComentario(null);
-                              if (estadoEsperandoComentario === 'rechazada') {
-                                setReutilizarComentarioEstado(true);
-                                setConfirmandoRechazo(true);
-                              } else {
-                                void guardarEstado(estadoEsperandoComentario, true);
-                              }
-                            }}
-                            variante="principal"
-                            disabled={actualizandoEstado || guardandoComentario}
-                          >
-                            Usar último comentario
-                          </Boton>
-                          <Boton
-                            onClick={() => {
-                              setEstadoEsperandoComentario(null);
-                              mostrar('Escribí un comentario nuevo y volvé a seleccionar la acción.', 'info');
-                            }}
-                            disabled={actualizandoEstado || guardandoComentario}
-                          >
-                            Escribir uno nuevo
-                          </Boton>
-                        </div>
-                      </Alerta>
-                    )}
-                    {confirmandoAprobacion ? (
-                      <Alerta tono="aviso" titulo="¿Confirmás la aprobación de esta solicitud?">
-                        Se guardará como aprobada y seguirá visible en esta sección.
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Boton onClick={() => guardarEstado('aprobada')} variante="principal" cargando={actualizandoEstado}>Confirmar aprobación</Boton>
-                          <Boton onClick={() => setConfirmandoAprobacion(false)} disabled={actualizandoEstado}>Cancelar</Boton>
-                        </div>
-                      </Alerta>
-                    ) : confirmandoRechazo ? (
-                      <Alerta tono="peligro" titulo="¿Confirmás el rechazo de esta solicitud?">
-                        Se guardará el motivo y la solicitud seguirá disponible en el listado.
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          <Boton onClick={() => guardarEstado('rechazada', reutilizarComentarioEstado)} variante="peligro" cargando={actualizandoEstado}>Confirmar rechazo</Boton>
-                          <Boton
-                            onClick={() => {
-                              setConfirmandoRechazo(false);
-                              setReutilizarComentarioEstado(false);
+                              setAccionSeleccionada('pendiente');
+                              setComentarioAccion('');
+                              setDocumentosSeleccionados([]);
+                              setConfirmandoAccion(null);
                             }}
                             disabled={actualizandoEstado}
                           >
-                            Cancelar
+                            Mantener pendiente
+                          </Boton>
+                          <Boton
+                            onClick={() => {
+                              setAccionSeleccionada(null);
+                              setConfirmandoAccion('aprobada');
+                            }}
+                            variante="principal"
+                            disabled={actualizandoEstado}
+                          >
+                            Aprobar
+                          </Boton>
+                          <Boton
+                            onClick={() => {
+                              setAccionSeleccionada('rechazada');
+                              setComentarioAccion('');
+                              setDocumentosSeleccionados([]);
+                              setConfirmandoAccion(null);
+                            }}
+                            variante="peligro"
+                            disabled={actualizandoEstado}
+                          >
+                            Rechazar
                           </Boton>
                         </div>
-                      </Alerta>
-                    ) : (
-                      <div className="flex flex-wrap gap-2">
-                        <Boton
-                          onClick={() => iniciarCambioEstado('pendiente')}
-                          disabled={actualizandoEstado || guardandoComentario}
-                          cargando={actualizandoEstado}
-                        >
-                          {seleccionada.estado === 'vencida' || seleccionada.estado === 'cerrada' ? 'Reactivar solicitud' : 'Mantener pendiente'}
-                        </Boton>
-                        <Boton onClick={() => setConfirmandoAprobacion(true)} variante="principal" disabled={actualizandoEstado || guardandoComentario || seleccionada.estado === 'aprobada'}>
-                          {seleccionada.estado === 'aprobada' ? 'Ya aprobada' : 'Aprobar'}
-                        </Boton>
-                        <Boton
-                          onClick={() => iniciarCambioEstado('rechazada')}
-                          variante="peligro"
-                          disabled={actualizandoEstado || guardandoComentario}
-                        >
-                          Rechazar
-                        </Boton>
+
+                        {accionSeleccionada === 'pendiente' && (
+                          <div className="flex flex-col gap-4 rounded-xl border border-panel-borde-fuerte bg-panel-superficie p-4">
+                            <h4 className="m-0 text-[14px] font-semibold text-panel-texto">Documentación solicitada o a corregir</h4>
+                            {obtenerDocumentosSolicitables(seleccionada).map((grupo) => (
+                              <fieldset key={grupo.titulo} className="m-0 flex flex-col gap-2 border-0 p-0">
+                                <legend className="mb-2 text-[12px] font-semibold uppercase tracking-[0.08em] text-panel-tenue">{grupo.titulo}</legend>
+                                {grupo.documentos.map((documento) => (
+                                  <label key={documento.id} className="flex cursor-pointer items-start gap-2 rounded-lg border border-panel-borde bg-panel-hundido/20 px-3 py-2.5 text-[13px] text-panel-texto">
+                                    <input
+                                      type="checkbox"
+                                      checked={documentosSeleccionados.includes(documento.id)}
+                                      onChange={(event) => setDocumentosSeleccionados((actuales) => event.target.checked
+                                        ? [...actuales, documento.id]
+                                        : actuales.filter((id) => id !== documento.id))}
+                                      className="mt-0.5 accent-panel-acento"
+                                    />
+                                    <span className="break-words">{documento.nombre}</span>
+                                  </label>
+                                ))}
+                              </fieldset>
+                            ))}
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-[13px] font-medium text-panel-texto">Comentario obligatorio</span>
+                              <textarea
+                                value={comentarioAccion}
+                                onChange={(event) => setComentarioAccion(event.target.value)}
+                                maxLength={250}
+                                rows={3}
+                                placeholder="Explicá qué debe corregir el cliente"
+                                aria-describedby="contador-comentario-solicitud"
+                                className="min-w-0 w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-panel-borde-fuerte bg-panel-hundido px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
+                              />
+                              <span id="contador-comentario-solicitud" className="text-right text-[12px] text-panel-tenue">{comentarioAccion.length}/250</span>
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              <Boton
+                                onClick={() => setConfirmandoAccion('pendiente')}
+                                variante="principal"
+                                disabled={!comentarioAccion.trim() || actualizandoEstado}
+                              >
+                                Continuar
+                              </Boton>
+                              <Boton onClick={() => { setAccionSeleccionada(null); setComentarioAccion(''); setDocumentosSeleccionados([]); }}>
+                                Cancelar
+                              </Boton>
+                            </div>
+                          </div>
+                        )}
+
+                        {accionSeleccionada === 'rechazada' && (
+                          <div className="flex flex-col gap-3 rounded-xl border border-panel-borde-fuerte bg-panel-superficie p-4">
+                            <label className="flex flex-col gap-1.5">
+                              <span className="text-[13px] font-medium text-panel-texto">Motivo del rechazo</span>
+                              <textarea
+                                value={comentarioAccion}
+                                onChange={(event) => setComentarioAccion(event.target.value)}
+                                maxLength={250}
+                                rows={3}
+                                placeholder="Explicá brevemente por qué se rechaza esta solicitud. El cliente podrá ver este motivo."
+                                className="min-w-0 w-full whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-lg border border-panel-borde-fuerte bg-panel-hundido px-3 py-2 text-sm text-panel-texto placeholder:text-panel-tenue focus:border-panel-acento focus:outline-none focus:ring-2 focus:ring-panel-acento-suave"
+                              />
+                              <span className="text-right text-[12px] text-panel-tenue">{comentarioAccion.length}/250</span>
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              <Boton
+                                onClick={() => {
+                                  if (!comentarioAccion.trim()) {
+                                    mostrar('Escribí el motivo del rechazo para continuar', 'peligro');
+                                    return;
+                                  }
+                                  setConfirmandoAccion('rechazada');
+                                }}
+                                variante="peligro"
+                                disabled={actualizandoEstado}
+                              >
+                                Continuar con el rechazo
+                              </Boton>
+                              <Boton onClick={() => { setAccionSeleccionada(null); setComentarioAccion(''); }}>
+                                Cancelar
+                              </Boton>
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : seleccionada.estado === 'falta_documentacion' ? (
+                      <div className="rounded-xl border border-amber-700/40 bg-amber-950/20 p-4">
+                        <Alerta tono="aviso" titulo="Esperando documentación del cliente">
+                          Esta solicitud debe conservar este estado hasta que el cliente presente las correcciones.
+                        </Alerta>
+                        <div className="mt-3 rounded-lg border border-panel-borde bg-panel-superficie p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 className="m-0 text-[13px] font-semibold text-panel-texto">Documentación solicitada</h4>
+                            <span className="text-[12px] text-panel-tenue">Pedido el {formatoFecha(seleccionada.documentosSolicitadosEn ?? undefined)}</span>
+                          </div>
+                          <ul className="m-0 mt-2 flex list-disc flex-col gap-1 pl-5 text-[13px] text-panel-suave">
+                            {(seleccionada.documentosSolicitados ?? []).map((id) => {
+                              const documento = obtenerDocumentosSolicitables(seleccionada)
+                                .flatMap((grupo) => grupo.documentos)
+                                .find((item) => item.id === id);
+                              const nombreRecibo = /^recibosIngresos:(\d+)$/.exec(id);
+                              return <li key={id}>{documento?.nombre || (nombreRecibo ? `Recibo de sueldo (${Number(nombreRecibo[1]) + 1} de 3)` : 'Documento solicitado')}</li>;
+                            })}
+                          </ul>
+                        </div>
                       </div>
+                    ) : (
+                      <p className="m-0 text-[13px] text-panel-suave">Las acciones de revisión están disponibles solamente para solicitudes pendientes.</p>
                     )}
-                    {seleccionada.historialEstados?.length ? (
-                      <div className="border-t border-panel-borde pt-3">
-                        <h4 className="m-0 text-[13px] font-semibold text-panel-texto">Historial</h4>
-                        <ol className="m-0 mt-2 flex list-none flex-col gap-2 p-0">
+
+                    <div className="border-t border-panel-acento/40 pt-4">
+                      <h4 className="m-0 text-[14px] font-semibold text-panel-texto">Historial de estados y comentarios</h4>
+                      {seleccionada.historialEstados?.length ? (
+                        <ol className="m-0 mt-3 flex list-none flex-col gap-2 p-0">
                           {seleccionada.historialEstados.map((cambio, index) => (
-                            <li key={`${seleccionada.id}-${index}`} className="rounded-lg bg-panel-hundido/20 px-3 py-2">
-                              <p className="m-0 text-[13px] font-medium text-panel-texto">
-                                {etiquetaEstado(cambio.estado)} · {formatoFecha(cambio.fecha)}
-                              </p>
-                              {cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13px] text-panel-suave">{cambio.comentario}</p>}
-                              {cambio.comentarioReferenciaIndice !== undefined && (
-                                <p className="m-0 mt-1 text-[13px] text-panel-suave">
-                                  Se reutilizó el comentario guardado el {formatoFecha(seleccionada.historialEstados?.[cambio.comentarioReferenciaIndice]?.fecha)}.
-                                </p>
-                              )}
+                            <li key={`${seleccionada.id}-${index}`} className="rounded-lg border border-panel-borde bg-panel-superficie/80 px-3 py-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                                <p className="m-0 text-[13px] font-medium text-panel-texto">{etiquetaEstado(cambio.estado)}</p>
+                                <time dateTime={cambio.fecha} className="text-[12px] text-panel-tenue">{formatoFecha(cambio.fecha)}</time>
+                              </div>
+                              {cambio.tipoEvento === 'documentacion_presentada'
+                                ? <p className="m-0 mt-1 text-[13px] text-panel-suave">El cliente presentó la documentación solicitada.</p>
+                                : cambio.comentario && <p className="m-0 mt-1 whitespace-pre-wrap break-words [overflow-wrap:anywhere] text-[13px] text-panel-suave">{cambio.comentario}</p>}
                             </li>
                           ))}
                         </ol>
-                      </div>
-                    ) : null}
+                      ) : (
+                        <p className="m-0 mt-2 text-[13px] text-panel-tenue">Todavía no hay cambios ni comentarios registrados.</p>
+                      )}
+                    </div>
                   </div>
                 </Tarjeta>
               </>
             )}
+          </div>
+        )}
+      </Dialogo>
+
+      <Dialogo
+        abierto={Boolean(confirmandoAccion)}
+        alCerrar={() => setConfirmandoAccion(null)}
+        titulo={confirmandoAccion === 'aprobada' ? 'Confirmar aprobación' : confirmandoAccion === 'rechazada' ? 'Confirmar rechazo' : documentosSeleccionados.length ? 'Confirmar solicitud de documentación' : 'Confirmar solicitud pendiente'}
+      >
+        {confirmandoAccion && seleccionada && (
+          <div className="flex flex-col gap-4">
+            <p className="m-0 text-[14px] leading-relaxed text-panel-suave">
+              {confirmandoAccion === 'aprobada'
+                ? '¿Estás seguro de aprobar esta solicitud? El cliente será notificado.'
+                : confirmandoAccion === 'rechazada'
+                  ? '¿Estás seguro de rechazar esta solicitud? El cliente será notificado.'
+                  : documentosSeleccionados.length
+                    ? 'Se solicitarán las siguientes correcciones y el cliente será notificado:'
+                    : 'La solicitud se mantendrá pendiente y el cliente será notificado.'}
+            </p>
+            {confirmandoAccion === 'pendiente' && documentosSeleccionados.length > 0 && (
+              <>
+                <ul className="m-0 flex list-disc flex-col gap-1 pl-5 text-[13px] text-panel-texto">
+                  {obtenerDocumentosSolicitables(seleccionada)
+                    .flatMap((grupo) => grupo.documentos)
+                    .filter((documento) => documentosSeleccionados.includes(documento.id))
+                    .map((documento) => <li key={documento.id}>{documento.nombre}</li>)}
+                </ul>
+              </>
+            )}
+            <div className="flex flex-wrap justify-end gap-2">
+              <Boton onClick={() => setConfirmandoAccion(null)} disabled={actualizandoEstado}>Cancelar</Boton>
+              <Boton
+                onClick={() => void guardarEstado()}
+                variante={confirmandoAccion === 'rechazada' ? 'peligro' : 'principal'}
+                cargando={actualizandoEstado}
+              >
+                {confirmandoAccion === 'aprobada' ? 'Confirmar aprobación' : confirmandoAccion === 'rechazada' ? 'Confirmar rechazo' : documentosSeleccionados.length ? 'Confirmar solicitud' : 'Confirmar pendiente'}
+              </Boton>
+            </div>
           </div>
         )}
       </Dialogo>
@@ -1000,89 +1076,6 @@ export default function SolicitudesAdminPage() {
         })()}
       </Dialogo>
 
-      <Dialogo
-        abierto={Boolean(solicitudAprobada)}
-        alCerrar={() => {
-          setSolicitudAprobada(null);
-          setTelefonoCopiado(false);
-        }}
-        titulo="¡Solicitud aprobada!"
-        descripcion="La documentación fue aprobada. Ya podés contactar al cliente para continuar con el proceso."
-      >
-        {solicitudAprobada && (() => {
-          const titular = solicitudAprobada.datosPersonales?.titular as Record<string, unknown> | undefined;
-          const nombreCliente = `${normalizarTexto(titular?.nombre)} ${normalizarTexto(titular?.apellido)}`.trim();
-          const telefono = normalizarTexto(titular?.telefono);
-          const propiedad = solicitudAprobada.propiedad;
-          const nombrePropiedad = propiedad?.titulo
-            || (propiedad?.disponible === false ? 'Propiedad vinculada no disponible' : 'Propiedad no informada');
-          const operacion = solicitudAprobada.operacion === 'compra' ? 'Compra' : 'Alquiler';
-
-          return (
-            <div className="flex flex-col gap-5">
-              <div className="flex justify-center">
-                <span className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 ring-8 ring-emerald-50">
-                  <Icono nombre="check" className="h-8 w-8" />
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-panel-borde bg-panel-hundido/30 p-4 sm:p-5">
-                <div className="mb-4 flex items-center gap-3">
-                  <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-panel-acento-suave text-panel-acento">
-                    <Icono nombre="clientes" className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="m-0 text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Contacto del cliente</p>
-                    <p className="m-0 mt-0.5 truncate text-[16px] font-semibold text-panel-texto">{nombreCliente || 'Nombre no informado'}</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="min-w-0">
-                    <p className="m-0 text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Teléfono</p>
-                    <p className="m-0 mt-1 break-all text-[15px] font-semibold text-panel-texto">{telefono || 'No informado'}</p>
-                  </div>
-                  <Boton
-                    onClick={copiarTelefonoAprobado}
-                    disabled={!telefono}
-                    icono={telefonoCopiado ? 'check' : 'copiar'}
-                    tamano="sm"
-                  >
-                    {telefonoCopiado ? 'Copiado' : 'Copiar teléfono'}
-                  </Boton>
-                </div>
-
-                <dl className="mb-0 mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                  <div className="min-w-0">
-                    <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Propiedad</dt>
-                    <dd className="m-0 mt-1 break-words text-[13px] font-medium text-panel-texto">{nombrePropiedad}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Operación</dt>
-                    <dd className="m-0 mt-1 text-[13px] font-medium text-panel-texto">{operacion}</dd>
-                  </div>
-                  <div>
-                    <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-panel-tenue">Estado</dt>
-                    <dd className="m-0 mt-1"><Insignia tono="exito">{etiquetaEstado(solicitudAprobada.estado)}</Insignia></dd>
-                  </div>
-                </dl>
-              </div>
-
-              <div className="flex justify-end">
-                <Boton
-                  onClick={() => {
-                    setSolicitudAprobada(null);
-                    setTelefonoCopiado(false);
-                  }}
-                  variante="principal"
-                >
-                  Entendido
-                </Boton>
-              </div>
-            </div>
-          );
-        })()}
-      </Dialogo>
     </>
   );
 }

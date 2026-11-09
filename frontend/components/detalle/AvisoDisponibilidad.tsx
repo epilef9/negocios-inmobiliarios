@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { avisarDisponibilidad, getMisAvisos, quitarAviso } from '@/services/avisos';
 
+import { esPersonal } from '@/lib/permisos';
 // Campanita «Avisame cuando esté disponible» en la ficha de una propiedad alquilada o reservada.
 // Sin sesión lleva a ingresar y vuelve a la ficha.
 export default function AvisoDisponibilidad({ propiedadId }: { propiedadId: string }) {
@@ -29,7 +30,7 @@ export default function AvisoDisponibilidad({ propiedadId }: { propiedadId: stri
     };
   }, [esCliente, propiedadId]);
 
-  if (isLoading || user?.rol === 'admin') return null;
+  if (isLoading || esPersonal(user)) return null;
 
   const alternar = async () => {
     if (!user) {

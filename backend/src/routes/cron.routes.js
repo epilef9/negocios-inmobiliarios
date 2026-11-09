@@ -2,6 +2,8 @@ const express = require('express');
 const crypto = require('node:crypto');
 const authMiddleware = require('../middlewares/auth.middleware');
 const recordatorios = require('../services/recordatorios.service');
+const permisos = require('../utils/permisos');
+const limpiezaDocumentos = require('../services/limpiezaDocumentos.service');
 
 const router = express.Router();
 
@@ -19,7 +21,15 @@ const deVercelCron = (req, res, next) => {
 
 router.get('/recordatorios', deVercelCron, async (_req, res) => {
     try {
-        res.json({ data: await recordatorios.ejecutar() });
+        const data = await recordatorios.ejecutar();
+        // La limpieza de documentos viejos no frena a los recordatorios si falla
+        try {
+            data.documentosBorrados = await limpiezaDocumentos.ejecutar();
+        } catch (error) {
+            console.error('Error al borrar la documentación de solicitudes viejas:', error);
+            data.documentosBorrados = { error: true };
+        }
+        res.json({ data });
     } catch (error) {
         console.error('Error en los recordatorios automáticos:', error);
         res.status(500).json({ message: 'Fallaron los recordatorios' });
@@ -27,9 +37,16 @@ router.get('/recordatorios', deVercelCron, async (_req, res) => {
 });
 
 // Inicio del panel: visitas de mañana y contratos para revisar
-router.get('/panel', authMiddleware, authMiddleware.requireAdmin, async (_req, res) => {
+router.get('/panel', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     try {
-        res.json({ data: await recordatorios.resumenPanel() });
+        const resumen = await recordatorios.resumenPanel();
+        // Cada empleado ve solo lo de las secciones que puede usar
+        if (!permisos.tienePermiso(req.user, 'visitas')) resumen.visitasManana = [];
+        if (!permisos.tienePermiso(req.user, 'contratos')) {
+            resumen.porVencer = [];
+            resumen.actualizan = [];
+        }
+        res.json({ data: resumen });
     } catch (error) {
         console.error('Error al armar los recordatorios del panel:', error);
         res.status(500).json({ message: 'No se pudieron cargar los recordatorios' });

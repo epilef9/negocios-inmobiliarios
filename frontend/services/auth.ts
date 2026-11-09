@@ -15,6 +15,8 @@ export interface User {
   telefono?: string;
   email: string;
   rol: string;
+  // Solo empleados: secciones del panel a las que puede entrar
+  permisos?: string[];
   checklistRequisitos?: string[];
   emailVerificado?: boolean;
   preferencias?: UserPreferences;
@@ -41,6 +43,8 @@ export interface RegisterPayload {
   confirmPassword?: string;
   // 304: token de la verificación «no soy un robot» (si está activada)
   captchaToken?: string;
+  // Aceptó los Términos y la Política de privacidad (el backend no crea la cuenta sin esto)
+  aceptoTerminos: boolean;
 }
 
 export interface LoginPayload {

@@ -6,20 +6,7 @@ const Property = require('../models/property.model');
 const ciclo = require('./solicitudes-ciclo.service');
 const { cifrar, descifrar, obtenerClave } = require('../utils/cifrado-solicitudes');
 const { operacionesDe, operacionesAbiertas, operacionDeSolicitud, precioDe, principalDe } = require('../utils/operaciones');
-
-const TIPOS_DOCUMENTO = {
-    dniTitularFrente: 'DNI del titular (frente)',
-    dniTitularDorso: 'DNI del titular (dorso)',
-    cuilTitular: 'Constancia de CUIL/CUIT',
-    recibosIngresos: 'Recibos de sueldo',
-    constanciaIngresos: 'Constancia de ingresos',
-    domicilio: 'Comprobante de domicilio',
-    dniCotitularFrente: 'DNI del cotitular (frente)',
-    dniCotitularDorso: 'DNI del cotitular (dorso)',
-    escrituraGarantia: 'Escritura de la garantía',
-    reciboGarante: 'Recibo de sueldo del garante',
-    documentacionCaucion: 'Documentación del seguro de caución',
-};
+const { nombreDocumentoSolicitud } = require('../utils/solicitud-documentos');
 
 const bucketDocumentos = () => {
     if (!mongoose.connection.db) throw new Error('La base de datos no está conectada.');
@@ -178,6 +165,8 @@ const crear = async ({ usuario, propiedadId, operacion, datos, archivos, claveId
 
 const camposPropiedadAdmin = 'titulo ciudad ubicacion precio precioARS moneda tipoInmueble estado vendida fotos categoriaOperacion operaciones precios direccionCompleta';
 
+const ESTADOS_SOLICITUD = ['pendiente', 'falta_documentacion', 'aprobada', 'rechazada', 'vencida', 'cerrada'];
+
 const infoPublica = (solicitud) => {
     const propiedadPoblada = solicitud.propiedad && typeof solicitud.propiedad === 'object' && solicitud.propiedad.titulo !== undefined
         ? solicitud.propiedad
@@ -193,12 +182,16 @@ const infoPublica = (solicitud) => {
     operacion: solicitud.operacion,
     estado: solicitud.estado,
     comentarioEstado: solicitud.comentarioEstado || '',
+    documentosSolicitados: Array.isArray(solicitud.documentosSolicitados) ? solicitud.documentosSolicitados : [],
+    documentosSolicitadosEn: solicitud.documentosSolicitadosEn || null,
+    documentosSolicitadosPor: solicitud.documentosSolicitadosPor ? String(solicitud.documentosSolicitadosPor) : null,
     archivada: solicitud.archivada === true,
     archivadaEn: solicitud.archivadaEn || null,
     historialEstados: Array.isArray(solicitud.historialEstados)
-        ? solicitud.historialEstados.map(({ estado, comentario, comentarioReferenciaIndice, fecha }) => ({
+        ? solicitud.historialEstados.map(({ estado, comentario, comentarioReferenciaIndice, tipoEvento, fecha }) => ({
             estado,
             comentario,
+            ...(tipoEvento && tipoEvento !== 'estado' ? { tipoEvento } : {}),
             ...(Number.isInteger(comentarioReferenciaIndice) ? { comentarioReferenciaIndice } : {}),
             fecha,
         }))
@@ -226,17 +219,37 @@ const infoPublica = (solicitud) => {
 const infoCliente = (solicitud) => {
     const mensajes = ciclo.mensajesCliente(solicitud);
     const publica = infoPublica(solicitud);
-    return { id: publica.id, operacion: publica.operacion, estado: publica.estado, createdAt: publica.createdAt, propiedad: publica.propiedad, historialEstados: mensajes, comentarioEstado: mensajes[0]?.comentario || '',
-        comentarioFecha: mensajes[0]?.fecha || null };
+    return {
+        id: publica.id,
+        operacion: publica.operacion,
+        estado: publica.estado,
+        createdAt: publica.createdAt,
+        propiedad: publica.propiedad,
+        historialEstados: mensajes,
+        comentarioEstado: mensajes[0]?.comentario || '',
+        comentarioFecha: mensajes[0]?.fecha || null,
+        documentosSolicitados: solicitud.estado === 'falta_documentacion' && Array.isArray(solicitud.documentosSolicitados)
+            ? solicitud.documentosSolicitados
+            : [],
+    };
 };
 
-const infoDocumentos = (solicitudId, documentos) => (Array.isArray(documentos) ? documentos : []).map(({ tipo, tamano, tipoMime }) => ({
-    tipo,
-    nombre: TIPOS_DOCUMENTO[tipo] || 'Documento',
-    tamano,
-    tipoMime,
-    url: `/solicitudes/${solicitudId}/documentos/${encodeURIComponent(tipo)}`,
-}));
+const infoDocumentos = (solicitudId, documentos) => {
+    const indicesRecibos = new Map();
+    return (Array.isArray(documentos) ? documentos : []).map(({ tipo, tamano, tipoMime }) => {
+        const indice = tipo === 'recibosIngresos' ? (indicesRecibos.get(tipo) || 0) : undefined;
+        if (indice !== undefined) indicesRecibos.set(tipo, indice + 1);
+        const identificador = indice === undefined ? tipo : `${tipo}:${indice}`;
+        return {
+            tipo,
+            ...(indice !== undefined ? { indice } : {}),
+            nombre: nombreDocumentoSolicitud(identificador),
+            tamano,
+            tipoMime,
+            url: `/solicitudes/${solicitudId}/documentos/${encodeURIComponent(identificador)}`,
+        };
+    });
+};
 
 const leerDatos = (solicitud) => JSON.parse(descifrar(Buffer.from(solicitud.datosCifrados, 'base64')).toString('utf8'));
 
@@ -324,69 +337,123 @@ const validarComentario = (comentario) => {
     }
 };
 
-const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario = false, administradoPor }) => {
-    validarComentario(comentario || '');
+const errorSolicitud = (mensaje, statusCode = 400) => Object.assign(new Error(mensaje), { statusCode });
+
+const validarDocumentosSolicitados = ({ solicitud, datos, documentosSolicitados }) => {
+    if (!Array.isArray(documentosSolicitados) || documentosSolicitados.length === 0 || documentosSolicitados.length > 12
+        || documentosSolicitados.some((documento) => typeof documento !== 'string')
+        || new Set(documentosSolicitados).size !== documentosSolicitados.length) {
+        throw errorSolicitud('Seleccioná uno o más documentos válidos para solicitar.');
+    }
+
+    const presentados = (solicitud.documentos || []).map((documento) => documento.tipo);
+    const permitidos = new Set(['dniTitularFrente', 'dniTitularDorso', 'cuilTitular', 'domicilio']
+        .filter((tipo) => presentados.includes(tipo)));
+    if (datos.incluyeCotitular === true) {
+        ['dniCotitularFrente', 'dniCotitularDorso'].filter((tipo) => presentados.includes(tipo))
+            .forEach((tipo) => permitidos.add(tipo));
+    }
+
+    if (datos.ingresosTipo === 'recibos') {
+        const recibos = presentados.filter((tipo) => tipo === 'recibosIngresos').length;
+        if (recibos > 3) throw errorSolicitud('La solicitud contiene una cantidad no válida de recibos de sueldo.', 409);
+        for (let indice = 0; indice < recibos; indice++) permitidos.add(`recibosIngresos:${indice}`);
+    } else if (datos.ingresosTipo === 'constancia' && presentados.includes('constanciaIngresos')) {
+        permitidos.add('constanciaIngresos');
+    }
+
+    const tipoGarantia = datos.garantia?.tipo;
+    if (solicitud.operacion === 'alquiler' && tipoGarantia === 'propietaria') {
+        ['escrituraGarantia', 'reciboGarante'].filter((tipo) => presentados.includes(tipo))
+            .forEach((tipo) => permitidos.add(tipo));
+    } else if (solicitud.operacion === 'alquiler' && tipoGarantia === 'caucion') {
+        permitidos.add('documentacionCaucion');
+    }
+
+    if (documentosSolicitados.some((documento) => !permitidos.has(documento))) {
+        throw errorSolicitud('Uno o más documentos no corresponden a esta solicitud o a la opción elegida.');
+    }
+    return documentosSolicitados;
+};
+
+const actualizarEstado = async ({ id, estado, comentario, documentosSolicitados = [], reutilizarComentario = false, administradoPor }) => {
+    if (!['pendiente', 'falta_documentacion', 'aprobada', 'rechazada'].includes(estado)) {
+        throw errorSolicitud('Elegí una acción válida para esta solicitud.');
+    }
+    if (typeof comentario !== 'string' || comentario.length > 250) {
+        throw errorSolicitud('El comentario debe tener hasta 250 caracteres.');
+    }
+    if (!Array.isArray(documentosSolicitados)) {
+        throw errorSolicitud('La selección de documentos no es válida.');
+    }
+    let comentarioLimpio = comentario.trim();
+    const requiereComentario = ['pendiente', 'falta_documentacion', 'rechazada'].includes(estado);
+    let comentarioReferenciaIndice = -1;
+    if (reutilizarComentario) {
+        if (estado !== 'pendiente' || comentarioLimpio || documentosSolicitados.length) {
+            throw errorSolicitud('No se puede asociar un comentario anterior a esta acción.');
+        }
+    }
+    if (requiereComentario && !comentarioLimpio) {
+        if (!reutilizarComentario) throw errorSolicitud('Escribí un comentario para continuar.');
+    }
+    if (estado === 'falta_documentacion' && !documentosSolicitados.length) {
+        throw errorSolicitud('Seleccioná los documentos que el cliente debe corregir.');
+    }
+    if (estado !== 'falta_documentacion' && documentosSolicitados.length) {
+        throw errorSolicitud('Solo se pueden solicitar documentos al pedir una corrección.');
+    }
     const solicitud = await Solicitud.findById(id).select('+datosCifrados').lean();
     if (!solicitud) {
-        const error = new Error('No encontramos esa solicitud.');
-        error.statusCode = 404;
-        throw error;
+        throw errorSolicitud('No encontramos esa solicitud.', 404);
+    }
+    if (solicitud.estado !== 'pendiente') {
+        throw errorSolicitud('Esta solicitud ya fue atendida y no admite más cambios.', 409);
     }
 
+    let datos;
     try {
-        leerDatos(solicitud);
+        datos = leerDatos(solicitud);
     } catch {
-        const error = new Error('No se puede modificar el estado hasta resolver el problema técnico de descifrado.');
-        error.statusCode = 409;
-        throw error;
+        throw errorSolicitud('No se puede modificar esta solicitud hasta resolver un problema con su información.', 409);
     }
 
-    const historial = Array.isArray(solicitud.historialEstados) ? solicitud.historialEstados : [];
-    let filtro = { _id: id, estado: solicitud.estado, datosCifrados: solicitud.datosCifrados };
-    let cambios;
     if (reutilizarComentario) {
-        let comentarioReferenciaIndice = -1;
+        const historial = Array.isArray(solicitud.historialEstados) ? solicitud.historialEstados : [];
+        comentarioReferenciaIndice = -1;
         for (let indice = historial.length - 1; indice >= 0; indice--) {
             if (historial[indice].comentario?.trim()) {
                 comentarioReferenciaIndice = indice;
                 break;
             }
         }
-        if (comentarioReferenciaIndice < 0 || !['pendiente', 'rechazada'].includes(estado)) {
-            const error = new Error('No hay un comentario guardado disponible para asociar al cambio de estado.');
-            error.statusCode = 400;
-            throw error;
-        }
-        const comentarioReferencia = historial[comentarioReferenciaIndice].comentario.trim();
-        validarComentario(comentarioReferencia);
-        filtro = {
-            ...filtro,
-            [`historialEstados.${comentarioReferenciaIndice}.comentario`]: comentarioReferencia,
-        };
-        cambios = {
-            $set: { estado, comentarioEstado: comentarioReferencia },
-            $push: {
-                historialEstados: {
-                    estado,
-                    comentario: '',
-                    comentarioReferenciaIndice,
-                    administradoPor,
-                    fecha: new Date(),
-                },
-            },
-        };
-    } else {
-        cambios = {
-            $set: { estado, comentarioEstado: comentario },
-            $push: { historialEstados: { estado, comentario, administradoPor, fecha: new Date() } },
-        };
+        if (comentarioReferenciaIndice < 0) throw errorSolicitud('No hay un comentario previo disponible para asociar a esta acción.');
+        comentarioLimpio = historial[comentarioReferenciaIndice].comentario.trim();
     }
 
-    if (['pendiente', 'aprobada'].includes(estado)) {
+    const seleccionados = estado === 'falta_documentacion'
+        ? validarDocumentosSolicitados({ solicitud, datos, documentosSolicitados })
+        : [];
+    const ahora = new Date();
+    const filtro = { _id: id, estado: 'pendiente', datosCifrados: solicitud.datosCifrados };
+    if (solicitud.updatedAt) filtro.updatedAt = solicitud.updatedAt;
+    else filtro.historialEstados = solicitud.historialEstados || [];
+    const registroHistorial = reutilizarComentario
+        ? { estado, comentario: '', comentarioReferenciaIndice, administradoPor, fecha: ahora }
+        : { estado, comentario: comentarioLimpio, administradoPor, fecha: ahora };
+    const cambios = {
+        $set: {
+            estado,
+            comentarioEstado: comentarioLimpio,
+            documentosSolicitados: seleccionados,
+            documentosSolicitadosEn: seleccionados.length ? ahora : null,
+            documentosSolicitadosPor: seleccionados.length ? administradoPor : null,
+        },
+        $push: { historialEstados: registroHistorial },
+    };
+
+    if (['pendiente', 'aprobada', 'falta_documentacion'].includes(estado)) {
         await asegurarPropiedadSolicitable(solicitud.propiedad, solicitud.operacion);
-    }
-    if (estado === 'pendiente' && ['vencida', 'cerrada'].includes(solicitud.estado)) {
-        cambios.$set.reactivadaEn = new Date();
     }
     const actualizada = await Solicitud.findOneAndUpdate(
         filtro,
@@ -394,19 +461,182 @@ const actualizarEstado = async ({ id, estado, comentario, reutilizarComentario =
         { new: true, runValidators: true }
     ).select('+datosCifrados').lean();
     if (!actualizada) {
-        const error = new Error('La solicitud cambió mientras se actualizaba. Recargá e intentá nuevamente.');
-        error.statusCode = 409;
-        throw error;
+        throw errorSolicitud('La solicitud cambió mientras se actualizaba. Recargá e intentá nuevamente.', 409);
     }
 
-    if (solicitud.estado !== actualizada.estado) await ciclo.avisarCambio(actualizada);
-    const propiedad = mongoose.isValidObjectId(actualizada.propiedad)
-        ? await Property.findById(actualizada.propiedad).select(camposPropiedadAdmin).lean()
-        : null;
-    return serializarSolicitudAdmin({
+    let propiedad = null;
+    try {
+        propiedad = mongoose.isValidObjectId(actualizada.propiedad)
+            ? await Property.findById(actualizada.propiedad).select(camposPropiedadAdmin).lean()
+            : null;
+    } catch (error) {
+        console.error('[solicitudes] Estado guardado; no se pudo recuperar el nombre de la propiedad para completar la respuesta:', error.name || 'Error');
+    }
+    const notificacion = await ciclo.avisarCambio(actualizada, {
+        propiedad: propiedad?.titulo || 'Propiedad',
+        documentosSolicitados: seleccionados,
+        mensaje: comentarioLimpio,
+    });
+    return {
+        ...serializarSolicitudAdmin({
         ...actualizada,
         propiedad: propiedad || actualizada.propiedad,
+        }),
+        notificacion,
+    };
+};
+
+const claveDeDocumentoSolicitado = ({ tipo, indice }) => {
+    if (tipo === 'recibosIngresos') {
+        if (!Number.isInteger(indice) || indice < 0 || indice > 2) {
+            throw errorSolicitud('Indicá qué recibo de sueldo estás actualizando.');
+        }
+        return `${tipo}:${indice}`;
+    }
+    if (indice !== undefined) throw errorSolicitud('La referencia de un documento no es válida.');
+    return tipo;
+};
+
+const corregirDocumentacion = async ({ id, usuario, referencias, claveIdempotencia }) => {
+    const documentosService = require('./solicitudes-documentos.service');
+    if (!Array.isArray(referencias) || referencias.length < 1 || referencias.length > 12
+        || referencias.some((referencia) => !referencia || typeof referencia !== 'object'
+            || typeof referencia.id !== 'string' || typeof referencia.tipo !== 'string')
+        || typeof claveIdempotencia !== 'string' || !/^[\da-f-]{36}$/i.test(claveIdempotencia)) {
+        throw errorSolicitud('Revisá los documentos adjuntos e intentá nuevamente.');
+    }
+    const claves = referencias.map(claveDeDocumentoSolicitado);
+    if (new Set(claves).size !== claves.length) throw errorSolicitud('Hay documentos repetidos en el envío.');
+    const recibida = await Solicitud.findOne({ _id: id, usuario, ultimaCorreccionIdempotencia: claveIdempotencia })
+        .select('+ultimaCorreccionIdempotencia')
+        .lean();
+    if (recibida) return { solicitud: infoCliente(recibida), repetida: true };
+
+    const resueltos = await documentosService.resolver(
+        referencias.map(({ id: archivoId, tipo }) => ({ id: archivoId, tipo })),
+        usuario,
+        claveIdempotencia
+    );
+    const indicesPorTipo = new Map();
+    const archivos = referencias.map((referencia, indice) => {
+        const indiceTipo = indicesPorTipo.get(referencia.tipo) || 0;
+        indicesPorTipo.set(referencia.tipo, indiceTipo + 1);
+        const archivo = resueltos[referencia.tipo]?.[indiceTipo];
+        if (!archivo) throw errorSolicitud('No pudimos validar uno de los documentos adjuntos.');
+        return { ...archivo, tipo: referencia.tipo, indice: referencia.indice };
     });
+
+    let guardada;
+    let repetida = false;
+    await mongoose.connection.transaction(async (session) => {
+        const solicitud = await Solicitud.findOne({ _id: id, usuario })
+            .select('+datosCifrados +ultimaCorreccionIdempotencia')
+            .session(session)
+            .lean();
+        if (!solicitud) throw errorSolicitud('No encontramos una solicitud tuya con ese identificador.', 404);
+        if (solicitud.ultimaCorreccionIdempotencia === claveIdempotencia) {
+            guardada = solicitud;
+            repetida = true;
+            return;
+        }
+        if (solicitud.estado !== 'falta_documentacion') {
+            throw errorSolicitud('Esta solicitud no tiene una corrección documental pendiente.', 409);
+        }
+
+        const solicitados = Array.isArray(solicitud.documentosSolicitados) ? solicitud.documentosSolicitados : [];
+        if (!solicitados.length || solicitados.length !== claves.length
+            || solicitados.some((clave) => !claves.includes(clave))) {
+            throw errorSolicitud('El envío debe incluir exactamente los documentos que te solicitaron.');
+        }
+        let datos;
+        try {
+            datos = leerDatos(solicitud);
+        } catch {
+            throw errorSolicitud('No podemos validar esta solicitud en este momento. Contactanos para recibir ayuda.', 409);
+        }
+        validarDocumentosSolicitados({ solicitud, datos, documentosSolicitados: solicitados });
+
+        const documentosActualizados = Array.isArray(solicitud.documentos) ? solicitud.documentos.map((documento) => ({ ...documento })) : [];
+        for (const archivo of archivos) {
+            if (archivo.tipo === 'recibosIngresos') {
+                const posiciones = documentosActualizados
+                    .map((documento, indice) => documento.tipo === archivo.tipo ? indice : -1)
+                    .filter((indice) => indice >= 0);
+                const posicion = posiciones[archivo.indice];
+                if (posicion === undefined) throw errorSolicitud('No encontramos el recibo de sueldo solicitado. Recargá e intentá nuevamente.', 409);
+                documentosActualizados[posicion] = {
+                    tipo: archivo.tipo, archivoId: archivo.fileId, tamano: archivo.size, tipoMime: archivo.mimetype,
+                };
+                continue;
+            }
+            const posicion = documentosActualizados.findIndex((documento) => documento.tipo === archivo.tipo);
+            if (posicion < 0 && archivo.tipo !== 'documentacionCaucion') {
+                throw errorSolicitud('No encontramos el documento solicitado. Recargá e intentá nuevamente.', 409);
+            }
+            const nuevoDocumento = {
+                tipo: archivo.tipo, archivoId: archivo.fileId, tamano: archivo.size, tipoMime: archivo.mimetype,
+            };
+            if (posicion < 0) documentosActualizados.push(nuevoDocumento);
+            else documentosActualizados[posicion] = nuevoDocumento;
+        }
+
+        await documentosService.vincular(
+            archivos.map(({ tipo, fileId }) => ({ tipo, archivoId: fileId })),
+            { _id: solicitud._id, usuario, claveIdempotencia },
+            session
+        );
+
+        const ahora = new Date();
+        const filtro = { _id: id, usuario, estado: 'falta_documentacion', documentosSolicitados: solicitados };
+        if (solicitud.updatedAt) filtro.updatedAt = solicitud.updatedAt;
+        else filtro.historialEstados = solicitud.historialEstados || [];
+        guardada = await Solicitud.findOneAndUpdate(filtro, {
+            $set: {
+                estado: 'pendiente',
+                documentos: documentosActualizados,
+                documentosSolicitados: [],
+                documentosSolicitadosEn: null,
+                documentosSolicitadosPor: null,
+                ultimaCorreccionIdempotencia: claveIdempotencia,
+                comentarioEstado: '',
+            },
+            $push: {
+                historialEstados: {
+                    estado: 'pendiente',
+                    comentario: '',
+                    tipoEvento: 'documentacion_presentada',
+                    fecha: ahora,
+                },
+            },
+        }, { new: true, runValidators: true, session }).select('+datosCifrados').lean();
+        if (!guardada) throw errorSolicitud('La solicitud cambió durante el envío. Recargá e intentá nuevamente.', 409);
+
+        await SolicitudNotificacion.findOneAndUpdate({ solicitud: solicitud._id }, {
+            $set: {
+                mensaje: `Documentación corregida: nueva revisión de ${descripcionSolicitud(solicitud.operacion)}.`,
+                leida: false,
+            },
+            $setOnInsert: { tipo: 'nueva_solicitud' },
+        }, { upsert: true, setDefaultsOnInsert: true, session });
+    });
+
+    let propiedad = null;
+    try {
+        propiedad = mongoose.isValidObjectId(guardada.propiedad)
+            ? await Property.findById(guardada.propiedad).select(camposPropiedadAdmin).lean()
+            : null;
+    } catch (error) {
+        console.error('[solicitudes] Documentación guardada; no se pudo recuperar el nombre de la propiedad para completar la respuesta:', error.name || 'Error');
+    }
+    const notificacion = repetida ? undefined : await ciclo.avisarCambio(guardada, {
+        propiedad: propiedad?.titulo || 'Propiedad',
+        mensaje: 'El cliente presentó la documentación solicitada.',
+    });
+    return {
+        solicitud: infoCliente({ ...guardada, propiedad: propiedad || guardada.propiedad }),
+        notificacion,
+        repetida,
+    };
 };
 
 const agregarComentario = async ({ id, comentario, administradoPor }) => {
@@ -542,11 +772,11 @@ const listarNotificacionesAdmin = async () => {
             select: 'operacion estado createdAt propiedad archivada',
             populate: { path: 'propiedad', select: 'titulo' },
         })
-        .sort({ createdAt: -1 })
+        .sort({ updatedAt: -1 })
         .limit(20)
         .lean();
     return notificaciones
-        .filter((notificacion) => notificacion.solicitud && notificacion.solicitud.estado === 'pendiente' && !notificacion.solicitud.archivada && !notificacion.leida)
+        .filter((notificacion) => notificacion.solicitud && ['pendiente', 'falta_documentacion'].includes(notificacion.solicitud.estado) && !notificacion.solicitud.archivada && !notificacion.leida)
         .map((notificacion) => ({
             id: String(notificacion._id),
             mensaje: notificacion.mensaje,
@@ -560,12 +790,12 @@ const listarNotificacionesAdmin = async () => {
 };
 
 const contarPendientes = async () => {
-    const pendientes = await Solicitud.find({ estado: 'pendiente', archivada: { $ne: true } })
+    const pendientes = await Solicitud.find({ estado: { $in: ['pendiente', 'falta_documentacion'] }, archivada: { $ne: true } })
         .populate('propiedad', 'titulo estado vendida operaciones categoriaOperacion').lean();
     let cantidad = 0;
     for (const solicitud of pendientes) {
         const actual = await ciclo.sincronizarSolicitud(solicitud, solicitud.propiedad);
-        if (actual.estado === 'pendiente') cantidad++;
+        if (['pendiente', 'falta_documentacion'].includes(actual.estado)) cantidad++;
     }
     return cantidad;
 };
@@ -576,14 +806,18 @@ const obtenerDocumento = async (solicitudId, usuario, esAdmin, tipo) => {
     const solicitud = await query.lean();
     if (!solicitud) return null;
 
-    const documento = (Array.isArray(solicitud.documentos) ? solicitud.documentos : []).find((item) => item.tipo === tipo);
+    const recibo = /^recibosIngresos:(\d+)$/.exec(tipo);
+    const documentos = Array.isArray(solicitud.documentos) ? solicitud.documentos : [];
+    const documento = recibo
+        ? documentos.filter((item) => item.tipo === 'recibosIngresos')[Number(recibo[1])]
+        : documentos.find((item) => item.tipo === tipo);
     if (!documento) return null;
 
     const bucket = bucketDocumentos();
     const file = await bucket.find({ _id: documento.archivoId }).next();
     if (!file || file.metadata?.solicitud !== String(solicitud._id)) return null;
     const contenido = descifrar(await leerBuffer(bucket.openDownloadStream(documento.archivoId)));
-    return { contenido, mimeType: documento.tipoMime, nombre: TIPOS_DOCUMENTO[tipo] || 'Documento' };
+    return { contenido, mimeType: documento.tipoMime, nombre: nombreDocumentoSolicitud(tipo) };
 };
 
 module.exports = {
@@ -594,6 +828,7 @@ module.exports = {
     listarAdmin,
     obtenerPorId,
     actualizarEstado,
+    corregirDocumentacion,
     agregarComentario,
     actualizarArchivado,
     eliminarDefinitivamente,

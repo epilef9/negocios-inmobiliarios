@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tienePermiso } = require('../utils/permisos');
 const { validarSolicitud } = require('../validators/solicitud.validator');
 const solicitudesService = require('../services/solicitudes.service');
 const documentosService = require('../services/solicitudes-documentos.service');
@@ -119,6 +120,33 @@ exports.listarMias = async (req, res) => {
     }
 };
 
+exports.corregirDocumentacion = async (req, res) => {
+    if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
+    const referencias = req.body?.documentos;
+    if (!Array.isArray(referencias) || referencias.some((referencia) => !referencia || typeof referencia !== 'object'
+        || typeof referencia.id !== 'string' || typeof referencia.tipo !== 'string')) {
+        return res.status(400).json({ message: 'Revisá los documentos adjuntos e intentá nuevamente.' });
+    }
+    try {
+        const resultado = await solicitudesService.corregirDocumentacion({
+            id: req.params.id,
+            usuario: req.user._id,
+            referencias,
+            claveIdempotencia: req.get('Idempotency-Key'),
+        });
+        return res.status(200).json({
+            data: resultado,
+            message: resultado.repetida
+                ? 'La documentación ya se había enviado correctamente.'
+                : 'La documentación corregida se envió para revisión.',
+        });
+    } catch (error) {
+        if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
+        console.error('[solicitudes] No se pudo guardar la documentación corregida:', error.name || 'Error');
+        return res.status(500).json({ message: 'No pudimos enviar la documentación. Conservamos los archivos seleccionados para que vuelvas a intentarlo.' });
+    }
+};
+
 exports.listarAdmin = async (_req, res) => {
     try {
         return res.status(200).json({ data: await solicitudesService.listarAdmin() });
@@ -131,7 +159,7 @@ exports.listarAdmin = async (_req, res) => {
 exports.obtener = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
     try {
-        const solicitud = await solicitudesService.obtenerPorId(req.params.id, req.user._id, req.user.rol === 'admin');
+        const solicitud = await solicitudesService.obtenerPorId(req.params.id, req.user._id, tienePermiso(req.user, 'solicitudes'));
         if (!solicitud) return res.status(404).json({ message: 'No encontramos esa solicitud.' });
         return res.status(200).json({ data: solicitud });
     } catch (error) {
@@ -142,25 +170,35 @@ exports.obtener = async (req, res) => {
 
 exports.actualizarEstado = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
-    const { estado, comentario, reutilizarComentario } = req.body || {};
-    if (!['pendiente', 'aprobada', 'rechazada'].includes(estado)) {
+    const { estado, comentario, documentosSolicitados, reutilizarComentario } = req.body || {};
+    if (!['pendiente', 'falta_documentacion', 'aprobada', 'rechazada'].includes(estado)) {
         return res.status(400).json({ message: 'Elegí un estado válido para la solicitud.' });
     }
-    if (comentario !== undefined && typeof comentario !== 'string') {
+    if (typeof comentario !== 'string') {
         return res.status(400).json({ message: 'El comentario debe ser texto.' });
     }
     if (reutilizarComentario !== undefined && typeof reutilizarComentario !== 'boolean') {
-        return res.status(400).json({ message: 'La opción para reutilizar el comentario no es válida.' });
+        return res.status(400).json({ message: 'La opción de comentario no es válida.' });
     }
-    const comentarioLimpio = typeof comentario === 'string' ? comentario.trim() : '';
-    if (comentarioLimpio.length > 500) {
-        return res.status(400).json({ message: 'El comentario no puede superar los 500 caracteres.' });
+    const comentarioLimpio = comentario.trim();
+    if (comentarioLimpio.length > 250) {
+        return res.status(400).json({ message: 'El comentario no puede superar los 250 caracteres.' });
     }
-    if (reutilizarComentario && (!['pendiente', 'rechazada'].includes(estado) || comentarioLimpio)) {
-        return res.status(400).json({ message: 'El comentario guardado solo puede reutilizarse en un cambio pendiente o rechazado.' });
+    if (reutilizarComentario && (estado !== 'pendiente' || comentarioLimpio || documentosSolicitados?.length)) {
+        return res.status(400).json({ message: 'Solo podés asociar un comentario anterior al mantener pendiente.' });
     }
-    if (['pendiente', 'rechazada'].includes(estado) && !comentarioLimpio && !reutilizarComentario) {
-        return res.status(400).json({ message: 'Ingresá un comentario para mantener pendiente o rechazar la solicitud.' });
+    if (['pendiente', 'falta_documentacion', 'rechazada'].includes(estado) && !comentarioLimpio && !reutilizarComentario) {
+        return res.status(400).json({ message: 'Escribí un comentario para continuar.' });
+    }
+    if (documentosSolicitados !== undefined && (!Array.isArray(documentosSolicitados)
+        || documentosSolicitados.some((documento) => typeof documento !== 'string'))) {
+        return res.status(400).json({ message: 'La selección de documentos no es válida.' });
+    }
+    if (estado === 'falta_documentacion' && !documentosSolicitados?.length) {
+        return res.status(400).json({ message: 'Seleccioná los documentos que el cliente debe corregir.' });
+    }
+    if (estado !== 'falta_documentacion' && documentosSolicitados?.length) {
+        return res.status(400).json({ message: 'La selección de documentos solo corresponde a una solicitud de corrección.' });
     }
 
     try {
@@ -168,14 +206,15 @@ exports.actualizarEstado = async (req, res) => {
             id: req.params.id,
             estado,
             comentario: comentarioLimpio,
+            documentosSolicitados: documentosSolicitados || [],
             reutilizarComentario: reutilizarComentario === true,
             administradoPor: req.user._id,
         });
-        return res.status(200).json({ data: solicitud, message: 'Estado de la solicitud actualizado.' });
+        return res.status(200).json({ data: solicitud, message: 'La solicitud se actualizó correctamente.' });
     } catch (error) {
         if (error.statusCode) return res.status(error.statusCode).json({ message: error.message });
         console.error('[solicitudes] No se pudo actualizar el estado de una solicitud administrativa:', error.name || 'Error');
-        return res.status(500).json({ message: 'No se pudo actualizar el estado de la solicitud.' });
+        return res.status(500).json({ message: 'No se pudo guardar el cambio. Intentá nuevamente.' });
     }
 };
 
@@ -258,7 +297,7 @@ exports.documento = async (req, res) => {
         const documento = await solicitudesService.obtenerDocumento(
             req.params.id,
             req.user._id,
-            req.user.rol === 'admin',
+            tienePermiso(req.user, 'solicitudes'),
             req.params.tipo
         );
         if (!documento) return res.status(404).json({ message: 'No encontramos ese documento.' });

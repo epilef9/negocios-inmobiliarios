@@ -28,3 +28,6 @@ backend/uploads/
 # Herramientas de diseño locales (no son parte de las funcionalidades)
 .impeccable/
 PRODUCT.md
+
+# Copias de seguridad de la base (contienen datos personales)
+backend/respaldos/

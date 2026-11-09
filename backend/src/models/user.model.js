@@ -34,8 +34,18 @@ const userSchema = new mongoose.Schema({
     },
     rol: {
         type: String,
-        enum: ['admin', 'cliente', 'user'],
+        enum: ['admin', 'empleado', 'cliente', 'user'],
         default: 'cliente'
+    },
+    // Empleados del panel: secciones a las que puede entrar (claves de utils/permisos). El admin tiene todas.
+    permisos: {
+        type: [String],
+        default: []
+    },
+    // false = empleado dado de baja: no puede iniciar sesión ni usar el panel (se conserva para el registro de actividad)
+    activo: {
+        type: Boolean,
+        default: true
     },
     // Las cuentas que ya existían quedan como verificadas; el registro público las crea en false
     emailVerificado: {
@@ -77,6 +87,10 @@ const userSchema = new mongoose.Schema({
     },
     // Cuándo cambió la contraseña o el email por última vez: las sesiones iniciadas antes dejan de valer
     credencialesCambiadasEn: {
+        type: Date
+    },
+    // Cuándo aceptó los Términos y la Política de privacidad al crear la cuenta
+    aceptoTerminosEn: {
         type: Date
     },
     checklistRequisitos: {

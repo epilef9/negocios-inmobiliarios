@@ -5,7 +5,7 @@ const { frenos } = require('../middlewares/seguridad');
 const pagos = require('../services/pagos.service');
 
 const router = express.Router();
-const soloAdmin = [authMiddleware, authMiddleware.requireAdmin];
+const soloAdmin = [authMiddleware, authMiddleware.requirePermiso('reservas')];
 const soloCliente = [authMiddleware, authMiddleware.requireClient];
 
 // El comprobante queda en memoria solo para validarlo y guardarlo (Vercel no acepta pedidos de más de ~4,5 MB)

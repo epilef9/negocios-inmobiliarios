@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
+import { puedeVer } from '@/lib/permisos';
 export default function EditarPropiedadRedirect() {
   const params = useParams();
   const router = useRouter();
@@ -19,7 +20,7 @@ export default function EditarPropiedadRedirect() {
       return;
     }
 
-    if (user.rol !== "admin") {
+    if (!puedeVer(user, 'propiedades')) {
       // Solo los administradores pueden acceder a la edición
       router.replace("/");
       return;

@@ -105,6 +105,7 @@ exports.me = async (req, res) => {
             telefono: user.telefono,
             email: user.email,
             rol: user.rol,
+            permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
             emailVerificado: user.emailVerificado !== false,
             checklistRequisitos: user.checklistRequisitos || [],
             favoritos: Array.isArray(user.favoritos) ? user.favoritos.filter(Boolean).map(String) : [],
@@ -244,6 +245,21 @@ exports.quitarFavorito = async (req, res) => {
     } catch (error) {
         console.error('[favoritos] Error al quitar:', error);
         res.status(500).json({ message: 'No se pudo quitar el favorito', errors: [detalleError(error)].filter(Boolean) });
+    }
+};
+
+// Cierra la sesión en todos los dispositivos y deja una sesión nueva en el actual
+exports.cerrarSesiones = async (req, res) => {
+    try {
+        const { token, ...resultado } = await authService.cerrarSesiones(req.user._id);
+        establecerSesion(res, token);
+        res.status(200).json({ message: 'Cerramos la sesión en todos tus dispositivos.', data: resultado, user: resultado.user });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[sesiones] No se pudieron cerrar:', error.message);
+        res.status(status).json({
+            message: status === 500 ? 'No pudimos cerrar las sesiones. Probá de nuevo.' : error.message
+        });
     }
 };
 

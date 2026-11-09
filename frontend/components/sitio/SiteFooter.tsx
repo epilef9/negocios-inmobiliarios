@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import Revelar from './Revelar';
 import { useContacto } from './useAjustes';
 import { CONTACTO_PREDETERMINADO, enlacesContacto } from '@/services/ajustes';
@@ -21,6 +22,20 @@ const pegarCortas = (texto: string) => texto.trim().replace(/(^|\s)(\S{1,3})\s+/
 
 const lineaFinal ='Negocios Inmobiliarios, Villa Libertador San Martín, Entre Ríos';
 
+// Enlaces legales: van en los dos pies (el completo y el simple)
+function EnlacesLegales() {
+  return (
+    <nav aria-label="Información legal" className="flex gap-5">
+      <Link href="/terminos" className="calma-link">
+        Términos
+      </Link>
+      <Link href="/privacidad" className="calma-link">
+        Privacidad
+      </Link>
+    </nav>
+  );
+}
+
 // Pie del sitio con la dirección, el horario y los contactos de la oficina.
 // En las páginas que ya muestran esos datos (contacto) va solo la línea final.
 export default function SiteFooter({ simple = false }: { simple?: boolean }) {
@@ -30,7 +45,10 @@ export default function SiteFooter({ simple = false }: { simple?: boolean }) {
   if (simple) {
     return (
       <footer className="px-5 pb-10 sm:px-10">
-        <p className="calma-micro m-0 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">{lineaFinal}</p>
+        <div className="calma-micro flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
+          <p className="m-0">{lineaFinal}</p>
+          <EnlacesLegales />
+        </div>
       </footer>
     );
   }
@@ -67,9 +85,10 @@ export default function SiteFooter({ simple = false }: { simple?: boolean }) {
             </a>
           </div>
         </div>
-        <p className="calma-micro col-span-full mt-10 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
-          {lineaFinal}
-        </p>
+        <div className="calma-micro col-span-full mt-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
+          <p className="m-0">{lineaFinal}</p>
+          <EnlacesLegales />
+        </div>
       </footer>
     </Revelar>
   );

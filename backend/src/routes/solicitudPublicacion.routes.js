@@ -5,8 +5,10 @@ const path = require('node:path');
 const fs = require('node:fs');
 const solicitudPublicacionController = require('../controllers/solicitudPublicacion.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
+const { registra } = require('../middlewares/actividad');
+const capitalizar = (t) => (typeof t === 'string' && t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Cambió de estado');
 const { usaCloudinary, subirACloudinary } = require('../services/imagenes.service');
-const { requireAdmin } = authMiddleware;
+const { requirePermiso } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 const documentosPublicacion = require('../services/documentosPublicacion.service');
 
@@ -123,9 +125,9 @@ router.post('/', authMiddleware, solicitudPublicacionController.crear);
 router.get('/mis-solicitudes', authMiddleware, solicitudPublicacionController.listarMisSolicitudes);
 
 // Rutas de administración
-router.get('/', authMiddleware, requireAdmin, solicitudPublicacionController.listarAdmin);
+router.get('/', authMiddleware, requirePermiso('publicaciones'), solicitudPublicacionController.listarAdmin);
 router.get('/:id', authMiddleware, solicitudPublicacionController.obtenerPorId);
-router.put('/:id/aprobar', authMiddleware, requireAdmin, solicitudPublicacionController.aprobar);
-router.put('/:id/rechazar', authMiddleware, requireAdmin, solicitudPublicacionController.rechazar);
+router.put('/:id/aprobar', authMiddleware, requirePermiso('publicaciones'), registra('publicacion', 'Aprobada'), solicitudPublicacionController.aprobar);
+router.put('/:id/rechazar', authMiddleware, requirePermiso('publicaciones'), registra('publicacion', 'Rechazada'), solicitudPublicacionController.rechazar);
 
 module.exports = router;

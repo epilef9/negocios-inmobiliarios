@@ -17,7 +17,7 @@ router.post('/evento', frenos.estadisticas, async (req, res) => {
 });
 
 // Resumen para el panel
-router.get('/', authMiddleware, authMiddleware.requireAdmin, async (req, res) => {
+router.get('/', authMiddleware, authMiddleware.requirePermiso('estadisticas'), async (req, res) => {
     try {
         res.json({ data: await estadisticas.resumen(req.query.dias) });
     } catch (error) {

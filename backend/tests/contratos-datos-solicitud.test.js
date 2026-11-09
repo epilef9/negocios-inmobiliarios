@@ -22,6 +22,7 @@ authStub.requireAdmin = (req, res, next) => {
     }
     next();
 };
+authStub.requirePermiso = () => authStub.requireAdmin;
 require.cache[authPath] = { id: authPath, filename: authPath, loaded: true, exports: authStub };
 
 const DATOS = {

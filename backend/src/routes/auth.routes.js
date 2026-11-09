@@ -3,7 +3,7 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { validateRegister, validateLogin, validateEmailOnly } = require('../validators/auth.validator');
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin } = authMiddleware;
+const { requirePersonal } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 
 // Endpoint para registro de nuevo usuario (HU-05)
@@ -27,8 +27,8 @@ router.post('/login', frenos.loginIp, frenos.login, validateLogin, authControlle
 router.get('/me', authMiddleware, authController.me);
 
 // Endpoints para persistencia de preferencias visuales del usuario
-router.get('/preferences', authMiddleware, requireAdmin, authController.getPreferences);
-router.put('/preferences', authMiddleware, requireAdmin, authController.updatePreferences);
+router.get('/preferences', authMiddleware, requirePersonal, authController.getPreferences);
+router.put('/preferences', authMiddleware, requirePersonal, authController.updatePreferences);
 
 // Endpoints para persistencia del checklist de requisitos del usuario
 router.get('/checklist', authMiddleware, authController.getChecklist);
@@ -38,6 +38,9 @@ router.put('/checklist', authMiddleware, authController.updateChecklist);
 router.get('/favoritos', authMiddleware, authController.getFavoritos);
 router.put('/favoritos/:propertyId', authMiddleware, authController.agregarFavorito);
 router.delete('/favoritos/:propertyId', authMiddleware, authController.quitarFavorito);
+
+// Cierra la sesión en todos los dispositivos (requiere sesión)
+router.post('/cerrar-sesiones', frenos.tokens, authMiddleware, authController.cerrarSesiones);
 
 // Endpoint para cierre de sesion
 router.post('/logout', authController.logout);
