@@ -193,3 +193,9 @@ MONGODB_URI_TEST=mongodb://localhost:27017/inmobiliaria_test npm run restaurar -
 Se cancela si falta `MONGODB_URI_TEST`, si es la base real o si el nombre no incluye "test".
 
 **Importante:** los documentos de las solicitudes están cifrados con `SOLICITUDES_ENCRYPTION_KEY`. Esa clave no va en la copia: guardala aparte, o los documentos restaurados no se podrán leer.
+Usá el mismo valor en todos los entornos que deban leer los documentos existentes. Guardalo en el gestor de secretos del hosting y no lo compartas ni lo cambies sin un plan de recifrado. Los archivos no se sirven desde `/uploads` ni se exponen con URLs públicas. Se admiten PDF, JPG/JPEG y PNG de hasta 5 MB por archivo.
+## Borrado automático de documentación vieja
+
+El cron diario (`/api/cron/recordatorios`) también borra de GridFS los archivos de las solicitudes `rechazada`, `vencida` o `cerrada` con más de 90 días en ese estado (`DIAS_CONSERVACION` en `src/services/limpiezaDocumentos.service.js`; tiene que coincidir con la Política de privacidad). La solicitud queda, sin los documentos y con la fecha en `documentosBorradosEn`. Nunca toca las pendientes ni las aprobadas.
+
+Test: `MONGODB_URI_TEST=... node --test tests/limpieza-documentos.test.js` (base de prueba con «test» en el nombre). Avisar a Araceli antes de activarlo en producción.

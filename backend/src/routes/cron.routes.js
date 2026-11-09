@@ -3,6 +3,7 @@ const crypto = require('node:crypto');
 const authMiddleware = require('../middlewares/auth.middleware');
 const recordatorios = require('../services/recordatorios.service');
 const permisos = require('../utils/permisos');
+const limpiezaDocumentos = require('../services/limpiezaDocumentos.service');
 
 const router = express.Router();
 
@@ -20,7 +21,15 @@ const deVercelCron = (req, res, next) => {
 
 router.get('/recordatorios', deVercelCron, async (_req, res) => {
     try {
-        res.json({ data: await recordatorios.ejecutar() });
+        const data = await recordatorios.ejecutar();
+        // La limpieza de documentos viejos no frena a los recordatorios si falla
+        try {
+            data.documentosBorrados = await limpiezaDocumentos.ejecutar();
+        } catch (error) {
+            console.error('Error al borrar la documentación de solicitudes viejas:', error);
+            data.documentosBorrados = { error: true };
+        }
+        res.json({ data });
     } catch (error) {
         console.error('Error en los recordatorios automáticos:', error);
         res.status(500).json({ message: 'Fallaron los recordatorios' });
