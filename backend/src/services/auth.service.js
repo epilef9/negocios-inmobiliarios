@@ -28,9 +28,11 @@ const datosPublicos = (user) => ({
     id: user._id,
     nombre: user.nombre,
     apellido: user.apellido,
+    dni: user.dni || '',
     telefono: user.telefono,
     email: user.email,
-    role: user.role,
+    rol: user.rol,
+    permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
     checklistRequisitos: user.checklistRequisitos || [],
     emailVerificado: user.emailVerificado !== false,
     createdAt: user.createdAt
@@ -38,7 +40,7 @@ const datosPublicos = (user) => ({
 
 const firmarSesion = (user) =>
     jwt.sign(
-        { id: user._id, email: user.email, role: user.role, nombre: user.nombre, apellido: user.apellido },
+        { id: user._id, email: user.email, rol: user.rol, nombre: user.nombre, apellido: user.apellido },
         getJwtSecret(),
         { expiresIn: '24h' }
     );
@@ -64,6 +66,19 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
+        // Sin aceptar los Términos no se crea la cuenta (también se corta antes, en el validador)
+        if (userData.aceptoTerminos !== true) {
+            throw errorHttp('Tenés que aceptar los Términos y la Política de privacidad.', 400, 'TERMINOS_NO_ACEPTADOS');
+        }
+        // El teléfono es opcional, pero si viene tiene que ser un número de verdad (no un email ni letras)
+        const telefono = typeof userData.telefono === 'string' ? userData.telefono.trim() : '';
+        const digitosTelefono = telefono.replace(/\D/g, '').length;
+        if (telefono && (!/^[\d\s+().-]+$/.test(telefono) || digitosTelefono < 8 || digitosTelefono > 15)) {
+            const error = new Error('Revisá el teléfono: solo números, con característica (entre 8 y 15 números).');
+            error.statusCode = 400;
+            throw error;
+        }
+
         // Verificar si el correo ya existe
         const existingUser = await userRepository.findByEmail(userData.email);
         if (existingUser) {
@@ -76,17 +91,18 @@ const authService = {
         const hashedPassword = await bcrypt.hash(userData.password, 10);
 
         // Crear usuario en base de datos mediante el repositorio.
-        // El registro publico siempre crea clientes; nunca aceptar role del request (escalada de privilegios).
+        // El registro publico siempre crea clientes; nunca aceptar rol del request (escalada de privilegios).
         // Queda sin verificar: no puede ingresar hasta confirmar el enlace que se le manda por mail.
         const newUser = await userRepository.createUser({
             nombre: userData.nombre ? userData.nombre.trim() : '',
             apellido: userData.apellido ? userData.apellido.trim() : '',
-            telefono: userData.telefono ? userData.telefono.trim() : '',
-            username: userData.username || userData.email.toLowerCase().trim(),
+            telefono,
+            nombreUsuario: userData.username || userData.email.toLowerCase().trim(),
             email: userData.email.toLowerCase().trim(),
-            password: hashedPassword,
-            role: 'cliente',
-            emailVerificado: false
+            contrasena: hashedPassword,
+            rol: 'cliente',
+            emailVerificado: false,
+            aceptoTerminosEn: new Date()
         });
 
         // Si el mail falla la cuenta queda creada: puede pedir el reenvío desde el ingreso
@@ -113,11 +129,16 @@ const authService = {
         }
 
         // Comparar contrasena hasheada
-        const isMatch = await bcrypt.compare(password, user.password);
+        const isMatch = await bcrypt.compare(password, user.contrasena);
         if (!isMatch) {
             const error = new Error('Credenciales invalidas');
             error.statusCode = 401;
             throw error;
+        }
+
+        // Un empleado dado de baja no entra (se avisa después de comprobar la contraseña)
+        if (user.activo === false) {
+            throw errorHttp('Esta cuenta fue dada de baja. Consultá con la inmobiliaria.', 403, 'CUENTA_DESACTIVADA');
         }
 
         // Se avisa recién después de comprobar la contraseña, para no revelar qué correos existen
@@ -192,11 +213,11 @@ const authService = {
         if (!user || !user.restablecimientoExpira || user.restablecimientoExpira < new Date()) {
             throw errorHttp('El enlace venció o ya se usó. Pedí uno nuevo.', 400, 'ENLACE_INVALIDO');
         }
-        if (await bcrypt.compare(password, user.password)) {
+        if (await bcrypt.compare(password, user.contrasena)) {
             throw errorHttp('La contraseña nueva tiene que ser distinta de la anterior.', 400, 'PASSWORD_REPETIDA');
         }
 
-        user.password = await bcrypt.hash(password, 10);
+        user.contrasena = await bcrypt.hash(password, 10);
         user.restablecimientoHash = undefined;
         user.restablecimientoExpira = undefined;
         user.credencialesCambiadasEn = new Date();
@@ -226,7 +247,7 @@ const authService = {
 
         const anterior = user.email;
         user.email = user.emailPendiente;
-        if (!user.username || user.username === anterior) user.username = user.email;
+        if (!user.nombreUsuario || user.nombreUsuario === anterior) user.nombreUsuario = user.email;
         user.emailPendiente = undefined;
         user.cambioEmailHash = undefined;
         user.cambioEmailExpira = undefined;
@@ -238,6 +259,16 @@ const authService = {
             console.error('[email] No se pudo avisar al email anterior:', error.message)
         );
         // Las otras sesiones se cierran; esta queda iniciada con el email nuevo
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
+
+    // Cierra todas las sesiones abiertas de la cuenta (el middleware rechaza las iniciadas antes de esta fecha).
+    // El dispositivo desde el que se pide recibe una sesión nueva para seguir adentro.
+    cerrarSesiones: async (userId) => {
+        const user = await User.findById(userId);
+        if (!user) throw errorHttp('Cuenta no encontrada.', 404);
+        user.credencialesCambiadasEn = new Date();
+        await user.save();
         return { token: firmarSesion(user), user: datosPublicos(user) };
     },
 

@@ -25,7 +25,7 @@ const TIPOS = [
 
 // HTML fijo: SplitText reorganiza estos nodos y React no debe volver a tocarlos
 const TITULO_HERO =
-  '<span class="block">Lugares</span><span class="block pl-[1.1em]">para vivir</span><span class="block pl-[2.2em]">sin apuro.</span>';
+  '<span class="block">Tu lugar</span><span class="block pl-[0.4em] sm:pl-[1.1em]">en el centro</span><span class="block pl-[0.8em] sm:pl-[2.2em]">de Entre&nbsp;Ríos.</span>';
 
 const campo = 'flex flex-col gap-2.5 border-[#efe9df]/25 py-5';
 const select =
@@ -114,7 +114,7 @@ export default function HeroCalma() {
           <h1
             data-hero-titulo
             data-motion-hide
-            className="font-display m-0 text-[clamp(60px,9.4vw,152px)] font-normal leading-[0.94] tracking-[-0.02em]"
+            className="font-display m-0 text-[clamp(50px,9.4vw,152px)] font-normal leading-[0.94] tracking-[-0.02em]"
             dangerouslySetInnerHTML={{ __html: TITULO_HERO }}
           />
           <div data-hero-aparece data-motion-hide className="hidden flex-col gap-2.5 pb-3 sm:flex">

@@ -1,27 +1,39 @@
 'use client';
 
-import { Suspense, useId, useState, type FormEvent } from 'react';
+import { Suspense, useEffect, useId, useState, type FormEvent } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import PantallaCuenta, { RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
+import { borrarBorrador, guardarBorrador, leerBorrador } from '@/components/sitio/borrador';
+import Captcha, { CLAVE_CAPTCHA } from '@/components/sitio/Captcha';
+import PantallaCuenta, { BotonVerPassword, RevisaTuCorreo, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MINIMO_PASSWORD = 8;
 
-type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confirmPassword';
-type Datos = Record<Campo, string>;
+type Campo = 'nombre' | 'apellido' | 'telefono' | 'email' | 'password' | 'confirmPassword' | 'terminos';
+type Datos = Record<Exclude<Campo, 'terminos'>, string>;
 
 const VACIOS: Datos = { nombre: '', apellido: '', telefono: '', email: '', password: '', confirmPassword: '' };
 
+// Lo que se recuerda si se recarga la página. Las contraseñas NUNCA se guardan.
+const BORRADOR = 'borradorRegistro';
+const RECORDADOS = ['nombre', 'apellido', 'telefono', 'email'] as const;
+
 // Revisa los datos antes de mandarlos; devuelve el primer problema con el campo a corregir
-function revisar(datos: Datos): { texto: string; campo: Campo } | null {
+function revisar(datos: Datos, acepta: boolean): { texto: string; campo: Campo } | null {
   if (!datos.nombre.trim()) return { texto: 'Escribí tu nombre.', campo: 'nombre' };
   if (!datos.apellido.trim()) return { texto: 'Escribí tu apellido.', campo: 'apellido' };
   if (!EMAIL_VALIDO.test(datos.email.trim())) return { texto: 'Escribí un email válido, por ejemplo nombre@email.com.', campo: 'email' };
+  // El teléfono es opcional; si se escribe, tiene que ser un número (con característica)
+  const telefono = datos.telefono.trim();
+  const digitos = telefono.replace(/\D/g, '').length;
+  if (telefono && (!/^[\d\s+().-]+$/.test(telefono) || digitos < 8 || digitos > 15))
+    return { texto: 'Revisá el teléfono: solo números, con característica. Por ejemplo 343 444 4444.', campo: 'telefono' };
   if (datos.password.length < MINIMO_PASSWORD)
     return { texto: `La contraseña tiene que tener al menos ${MINIMO_PASSWORD} caracteres.`, campo: 'password' };
   if (datos.password !== datos.confirmPassword) return { texto: 'Las contraseñas no coinciden.', campo: 'confirmPassword' };
+  if (!acepta) return { texto: 'Para crear la cuenta tenés que aceptar los Términos y la Política de privacidad.', campo: 'terminos' };
   return null;
 }
 
@@ -31,22 +43,43 @@ function FormularioRegistro() {
   const { user, isLoading, register, logout } = useAuth();
 
   const [datos, setDatos] = useState<Datos>(VACIOS);
+  const [borradorLeido, setBorradorLeido] = useState(false);
+  const [captcha, setCaptcha] = useState('');
+  const [reinicioCaptcha, setReinicioCaptcha] = useState(0);
   const [verPassword, setVerPassword] = useState(false);
+  const [acepta, setAcepta] = useState(false);
   const [error, setError] = useState<{ texto: string; campo?: Campo } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [pendiente, setPendiente] = useState<{ email: string; correoEnviado: boolean; enlaceDev?: string } | null>(null);
 
-  const cambiar = (campo: Campo, valor: string) => {
+  // Al abrir, se recupera lo que se había escrito antes de recargar (se lee después de montar para que el
+  // HTML del servidor y el del navegador coincidan). Desde ahí, cada cambio se guarda.
+  useEffect(() => {
+    const borrador = leerBorrador<Datos>(BORRADOR, RECORDADOS);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sessionStorage solo existe en el navegador
+    if (Object.keys(borrador).length) setDatos((d) => ({ ...d, ...borrador }));
+    setBorradorLeido(true);
+  }, []);
+
+  useEffect(() => {
+    if (borradorLeido && !pendiente) guardarBorrador(BORRADOR, datos, RECORDADOS);
+  }, [datos, pendiente, borradorLeido]);
+
+  const cambiar = (campo: keyof Datos, valor: string) => {
     setDatos((anteriores) => ({ ...anteriores, [campo]: valor }));
     setError(null);
   };
 
   const crear = async (e: FormEvent) => {
     e.preventDefault();
-    const problema = revisar(datos);
+    const problema = revisar(datos, acepta);
     if (problema) {
       setError(problema);
       document.getElementById(`${id}-${problema.campo}`)?.focus();
+      return;
+    }
+    if (CLAVE_CAPTCHA && !captcha) {
+      setError({ texto: 'Completá la verificación «no soy un robot».' });
       return;
     }
     setError(null);
@@ -60,11 +93,19 @@ function FormularioRegistro() {
         email: datos.email.trim(),
         password: datos.password,
         confirmPassword: datos.confirmPassword,
+        captchaToken: captcha || undefined,
+        aceptoTerminos: acepta,
       });
+      if (volver?.startsWith('/solicitudes/nueva?') && typeof window !== 'undefined') {
+        localStorage.setItem('continuarSolicitudTrasVerificacion', volver);
+      }
+      borrarBorrador(BORRADOR);
       setPendiente({ email: datos.email.trim(), correoEnviado: resultado.correoEnviado, enlaceDev: resultado.enlaceDev });
       setEnviando(false);
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
+      // El token ya se usó: hace falta uno nuevo para reintentar
+      setReinicioCaptcha((n) => n + 1);
       if (/registrado|existe/i.test(mensaje)) {
         setError({ texto: 'Ya hay una cuenta con ese email. Probá ingresar con él.', campo: 'email' });
       } else if (/fetch|network|conectar/i.test(mensaje)) {
@@ -85,7 +126,7 @@ function FormularioRegistro() {
   }
 
   const campo = (
-    nombre: Campo,
+    nombre: keyof Datos,
     texto: string,
     props: React.InputHTMLAttributes<HTMLInputElement> = {},
     ayuda?: string,
@@ -126,29 +167,23 @@ function FormularioRegistro() {
       )}
 
       <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between gap-4">
-          <label htmlFor={`${id}-password`} className={etiqueta}>
-            Contraseña
-          </label>
-          <button
-            type="button"
-            onClick={() => setVerPassword((v) => !v)}
-            aria-pressed={verPassword}
-            className="calma-micro min-h-8 text-[#efe9df]/70 hover:text-[#efe9df]"
-          >
-            {verPassword ? 'Ocultar' : 'Mostrar'}
-          </button>
+        <label htmlFor={`${id}-password`} className={etiqueta}>
+          Contraseña
+        </label>
+        {/* El ojo va dentro del renglón de la contraseña, a la altura de lo que se escribe */}
+        <div className="relative">
+          <input
+            id={`${id}-password`}
+            type={verPassword ? 'text' : 'password'}
+            autoComplete="new-password"
+            value={datos.password}
+            onChange={(e) => cambiar('password', e.target.value)}
+            aria-invalid={error?.campo === 'password'}
+            aria-describedby={`${id}-password-ayuda`}
+            className={`${control} pr-12`}
+          />
+          <BotonVerPassword visible={verPassword} alCambiar={() => setVerPassword((v) => !v)} className="absolute bottom-1.5 right-0" />
         </div>
-        <input
-          id={`${id}-password`}
-          type={verPassword ? 'text' : 'password'}
-          autoComplete="new-password"
-          value={datos.password}
-          onChange={(e) => cambiar('password', e.target.value)}
-          aria-invalid={error?.campo === 'password'}
-          aria-describedby={`${id}-password-ayuda`}
-          className={control}
-        />
         <p id={`${id}-password-ayuda`} className="m-0 text-[13px] text-[#efe9df]/55">
           {datos.password.length >= MINIMO_PASSWORD
             ? 'Largo correcto.'
@@ -157,11 +192,41 @@ function FormularioRegistro() {
       </div>
       {campo('confirmPassword', 'Repetí la contraseña', { type: verPassword ? 'text' : 'password', autoComplete: 'new-password' })}
 
+      <div className="flex flex-col gap-2">
+        <div className="flex items-start gap-3">
+          <input
+            id={`${id}-terminos`}
+            type="checkbox"
+            checked={acepta}
+            onChange={(e) => {
+              setAcepta(e.target.checked);
+              setError(null);
+            }}
+            required
+            aria-invalid={error?.campo === 'terminos'}
+            className="mt-1 h-5 w-5 shrink-0 accent-[#efe9df]"
+          />
+          <label htmlFor={`${id}-terminos`} className="text-[15px] leading-relaxed text-[#efe9df]/80">
+            Leí y acepto los{' '}
+            <Link href="/terminos" target="_blank" className="calma-link text-[#efe9df]">
+              Términos
+            </Link>{' '}
+            y la{' '}
+            <Link href="/privacidad" target="_blank" className="calma-link text-[#efe9df]">
+              Política de privacidad
+            </Link>
+            .
+          </label>
+        </div>
+      </div>
+
       {error && (
         <p role="alert" className="m-0 text-[15px] leading-relaxed text-[#ff8a7d]">
           {error.texto}
         </p>
       )}
+
+      <Captcha alResolver={setCaptcha} reinicio={reinicioCaptcha} />
 
       <div className="flex flex-col gap-6">
         <button type="submit" disabled={enviando} className={botonPrincipal}>

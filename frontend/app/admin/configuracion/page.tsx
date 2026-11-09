@@ -3,7 +3,7 @@
 import { useAuth } from '@/context/AuthContext';
 import { useTheme, type PaletteId, type ThemeMode } from '@/context/ThemeContext';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
-import { Encabezado, Tarjeta } from '@/components/panel/ui';
+import { BotonLink, Encabezado, Tarjeta } from '@/components/panel/ui';
 
 const MODOS: { id: ThemeMode; titulo: string; texto: string; icono: NombreIcono }[] = [
   { id: 'light', titulo: 'Claro', texto: 'Fondo claro, ideal de día.', icono: 'sol' },
@@ -38,10 +38,34 @@ export default function ConfiguracionPage() {
     <>
       <Encabezado
         titulo="Configuración"
-        descripcion={`Cómo se ve el panel para ${user?.nombre || 'vos'}. Se guarda en tu cuenta, así que se mantiene en cualquier compu.`}
+        descripcion={`Lo que ven los clientes en el sitio y cómo se ve el panel para ${user?.nombre || 'vos'}.`}
       />
 
       <div className="flex max-w-4xl flex-col gap-6">
+        <Tarjeta
+          titulo="Datos del sitio"
+          descripcion="Contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferencias."
+          acciones={
+            <BotonLink href="/admin/sitio" variante="principal" icono="editar">
+              Editar los datos
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Teléfono, WhatsApp, email, dirección y horario se ven en la barra, el pie y la página Contacto.</p>
+        </Tarjeta>
+
+        <Tarjeta
+          titulo="Orden del catálogo"
+          descripcion="Qué propiedad aparece primero en el catálogo y en el inicio del sitio."
+          acciones={
+            <BotonLink href="/admin/catalogo" variante="principal" icono="catalogo">
+              Ordenar el catálogo
+            </BotonLink>
+          }
+        >
+          <p className="m-0 text-[13.5px] text-panel-suave">Arrastrá las propiedades o usá las flechas; el sitio cambia cuando guardás.</p>
+        </Tarjeta>
+
         <Tarjeta titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">
           <div role="radiogroup" aria-label="Apariencia" className="grid gap-3 sm:grid-cols-2">
             {MODOS.map((modo) => {

@@ -1,12 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useId, useState, type FormEvent } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import SitioBase from "@/components/sitio/SitioBase";
 import { EnlaceDeDesarrollo } from "@/components/cuenta/PantallaCuenta";
+import ApartadosCuenta from "@/components/cuenta/ApartadosCuenta";
+import InvitacionIngresar from "@/components/cuenta/InvitacionIngresar";
 import { useAuth } from "@/context/AuthContext";
-import { ErrorPerfil, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
+import { useConfirmarSalida } from "@/components/sitio/ConfirmarSalida";
+import { ErrorPerfil, cerrarSesionesEnTodos, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
 
+import { esPersonal } from '@/lib/permisos';
 // Estilos del formulario, iguales a los de ingreso y registro
 const etiqueta = "calma-micro text-[#efe9df]/70";
 const control =
@@ -15,7 +19,7 @@ const botonPrincipal =
 	"calma-micro inline-flex items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60";
 const enlaceCuenta = "calma-link calma-link-sutil text-[15px] text-[#efe9df]/80 hover:text-[#efe9df]";
 
-const VACIO: DatosPerfil = { nombre: "", apellido: "", email: "", telefono: "" };
+const VACIO: DatosPerfil = { nombre: "", apellido: "", dni: "", email: "", telefono: "" };
 const DESDE = new Intl.DateTimeFormat("es-AR", { month: "long", year: "numeric" });
 
 type Aviso = { tono: "bien" | "mal"; texto: string } | null;
@@ -50,7 +54,8 @@ function Campo({ id, texto, error, ayuda, children }: { id: string; texto: strin
 // Mi cuenta: datos de contacto (email obligatorio) y contraseña. Sirve para clientes y para la administración.
 export default function PerfilPage() {
 	const id = useId();
-	const { user, isLoading, logout, actualizarUsuario } = useAuth();
+	const { user, isLoading, actualizarUsuario } = useAuth();
+	const { pedirSalida, dialogoSalida } = useConfirmarSalida();
 	const [datos, setDatos] = useState<DatosPerfil>(VACIO);
 	const [emailGuardado, setEmailGuardado] = useState("");
 	const [miembroDesde, setMiembroDesde] = useState<string | null>(null);
@@ -67,19 +72,32 @@ export default function PerfilPage() {
 	const [avisoClave, setAvisoClave] = useState<Aviso>(null);
 	const [enlaceDevClave, setEnlaceDevClave] = useState<string | null>(null);
 
+	const [confirmandoSesiones, setConfirmandoSesiones] = useState(false);
+	const [cerrandoSesiones, setCerrandoSesiones] = useState(false);
+	const [avisoSesiones, setAvisoSesiones] = useState<Aviso>(null);
+	const dialogoSesiones = useRef<HTMLDialogElement>(null);
+
+	useEffect(() => {
+		const d = dialogoSesiones.current;
+		if (!d) return;
+		if (confirmandoSesiones && !d.open) d.showModal();
+		if (!confirmandoSesiones && d.open) d.close();
+	}, [confirmandoSesiones]);
+
 	useEffect(() => {
 		if (isLoading || !user) return;
 		let activo = true;
 		getPerfil()
 			.then((perfil) => {
 				if (!activo) return;
-				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
+				setDatos({ nombre: perfil.nombre ?? "", apellido: perfil.apellido ?? "", dni: perfil.dni ?? "", email: perfil.email ?? "", telefono: perfil.telefono ?? "" });
 				setEmailGuardado(perfil.email ?? "");
 				setEmailPendiente(perfil.emailPendiente ?? null);
 				setMiembroDesde(perfil.createdAt ? DESDE.format(new Date(perfil.createdAt)) : null);
 			})
 			.catch((e: Error) => activo && setErrorCarga(e.message))
 			.finally(() => activo && setCargando(false));
+
 		return () => {
 			activo = false;
 		};
@@ -98,6 +116,8 @@ export default function PerfilPage() {
 		const e: Record<string, string> = {};
 		if (!datos.nombre.trim()) e.nombre = "Escribí tu nombre.";
 		if (!datos.apellido.trim()) e.apellido = "Escribí tu apellido.";
+		if (!datos.dni.trim()) e.dni = "El DNI es obligatorio.";
+		else if (!/^\d{7,8}$/.test(datos.dni.trim())) e.dni = "El DNI debe tener 7 u 8 dígitos numéricos.";
 		if (!datos.email.trim()) e.email = "El email es obligatorio.";
 		else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(datos.email.trim())) e.email = "Ese email no parece válido.";
 		const digitos = datos.telefono.replace(/\D/g, "");
@@ -151,15 +171,29 @@ export default function PerfilPage() {
 		}
 	};
 
-	const enlaceBoton = "calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white";
+	// Las otras sesiones quedan afuera; esta sigue iniciada (el backend la renueva)
+	const cerrarEnTodos = async () => {
+		setCerrandoSesiones(true);
+		setAvisoSesiones(null);
+		try {
+			const resultado = await cerrarSesionesEnTodos();
+			if (resultado.user && user) actualizarUsuario({ ...user, ...resultado.user });
+			setAvisoSesiones({ tono: "bien", texto: resultado.mensaje || "Cerramos la sesión en todos tus dispositivos." });
+		} catch (error) {
+			setAvisoSesiones({ tono: "mal", texto: error instanceof Error ? error.message : "No pudimos cerrar las sesiones." });
+		} finally {
+			setCerrandoSesiones(false);
+			setConfirmandoSesiones(false);
+		}
+	};
 
 	return (
 		<SitioBase pieSimple>
-			<header className="px-5 pb-12 pt-32 sm:px-10 lg:pt-40">
+			<header className="encabezado-color encabezado-azul px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 				<h1 className="font-display m-0 text-[clamp(56px,8vw,128px)] font-normal leading-[0.9] tracking-[-0.02em]">Mi cuenta</h1>
 				{user && (
 					<p className="m-0 mt-4 text-[15px] text-[#efe9df]/70">
-						{user.role === "admin" ? "Cuenta de administración" : "Cuenta de cliente"}
+						{user.rol === "admin" ? "Cuenta de administración" : user.rol === "empleado" ? "Cuenta de empleado" : "Cuenta de cliente"}
 						{miembroDesde ? ` · desde ${miembroDesde}` : ""}
 					</p>
 				)}
@@ -167,17 +201,13 @@ export default function PerfilPage() {
 
 			{!isLoading && !user ? (
 				<section className="px-5 pb-24 sm:px-10">
-					<div className="flex flex-col items-start gap-6 border-y border-[#efe9df]/15 py-14">
-						<p className="font-display m-0 max-w-2xl text-[clamp(28px,3vw,40px)] leading-tight">Ingresá para ver y editar tus datos.</p>
-						<Link href="/login?volver=/perfil" className={enlaceBoton}>
-							<span className="calma-dot" aria-hidden="true" />
-							Ingresar
-						</Link>
-					</div>
+					<InvitacionIngresar ruta="/perfil" />
 				</section>
 			) : (
 				<div className="grid gap-16 px-5 pb-24 sm:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(0,22rem)] lg:gap-24">
 					<div className="flex flex-col gap-16">
+						{user && !esPersonal(user) && <ApartadosCuenta />}
+
 						<section aria-labelledby={`${id}-datos-titulo`} className="border-t border-[#efe9df]/15 pt-10">
 							<h2 id={`${id}-datos-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
 								Tus datos
@@ -195,6 +225,9 @@ export default function PerfilPage() {
 									</Campo>
 									<Campo id={`${id}-apellido`} texto="Apellido *" error={errores.apellido}>
 										<input id={`${id}-apellido`} type="text" autoComplete="family-name" disabled={cargando} value={datos.apellido} aria-invalid={Boolean(errores.apellido)} onChange={(e) => cambiar("apellido", e.target.value)} className={control} />
+									</Campo>
+									<Campo id={`${id}-dni`} texto="DNI *" error={errores.dni} ayuda="Solo números, sin puntos.">
+										<input id={`${id}-dni`} type="text" inputMode="numeric" disabled={cargando} value={datos.dni} aria-invalid={Boolean(errores.dni)} onChange={(e) => cambiar("dni", e.target.value)} className={control} />
 									</Campo>
 									<Campo id={`${id}-email`} texto="Email *" error={errores.email} ayuda="Es con el que ingresás. Si lo cambiás, te mandamos un mail para confirmarlo.">
 										<input id={`${id}-email`} type="email" autoComplete="email" required disabled={cargando} value={datos.email} aria-invalid={Boolean(errores.email)} onChange={(e) => cambiar("email", e.target.value)} className={control} />
@@ -244,18 +277,79 @@ export default function PerfilPage() {
 							</div>
 							{enlaceDevClave && <EnlaceDeDesarrollo enlace={enlaceDevClave} para="elegir la contraseña nueva" accion="Elegir contraseña nueva" />}
 						</section>
+
+						<section aria-labelledby={`${id}-sesiones-titulo`} className="border-t border-[#efe9df]/15 pt-10">
+							<h2 id={`${id}-sesiones-titulo`} className="font-display m-0 text-[clamp(30px,3vw,42px)] font-normal leading-none">
+								Sesiones abiertas
+							</h2>
+							<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">
+								Si ingresaste desde una compu o un celular que no es tuyo, o no reconocés un ingreso, podés cerrar la sesión en todos los dispositivos. Este queda iniciado.
+							</p>
+							<div className="mt-8 flex flex-wrap items-center gap-6">
+								<button type="button" onClick={() => setConfirmandoSesiones(true)} disabled={cerrandoSesiones || cargando || Boolean(errorCarga)} className={botonPrincipal}>
+									Cerrar sesión en todos los dispositivos
+								</button>
+								<Mensaje aviso={avisoSesiones} />
+							</div>
+							<dialog
+								ref={dialogoSesiones}
+								aria-labelledby={`${id}-sesiones-confirmar`}
+								onClose={() => setConfirmandoSesiones(false)}
+								onClick={(e) => e.target === e.currentTarget && setConfirmandoSesiones(false)}
+								className="m-auto w-[min(92vw,420px)] rounded-2xl border border-[#efe9df]/15 bg-[#0b1f40] p-0 text-left text-[15px] font-normal normal-case tracking-normal text-[#efe9df] shadow-2xl backdrop:bg-[#071733]/70 backdrop:backdrop-blur-sm"
+							>
+								<div className="flex flex-col gap-6 p-7">
+									<div className="flex flex-col gap-2">
+										<h2 id={`${id}-sesiones-confirmar`} className="font-display m-0 text-[30px] font-normal leading-none">
+											¿Cerrar todas las sesiones?
+										</h2>
+										<p className="m-0 text-[15px] leading-relaxed text-[#efe9df]/70">En los demás dispositivos vas a tener que ingresar de nuevo. En este seguís adentro.</p>
+									</div>
+									<div className="flex flex-wrap items-center justify-end gap-3">
+										<button type="button" autoFocus onClick={() => setConfirmandoSesiones(false)} className="calma-micro rounded-full px-5 py-3 text-[12px] text-[#efe9df]/80 ring-1 ring-inset ring-[#efe9df]/30 transition-colors hover:text-[#efe9df] hover:ring-[#efe9df]/60">
+											Cancelar
+										</button>
+										<button type="button" onClick={cerrarEnTodos} disabled={cerrandoSesiones} className="calma-micro rounded-full bg-[#efe9df] px-5 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white disabled:cursor-wait disabled:opacity-60">
+											{cerrandoSesiones ? "Cerrando…" : "Cerrar en todos"}
+										</button>
+									</div>
+								</div>
+							</dialog>
+						</section>
 					</div>
 
 					<aside aria-label="Accesos de tu cuenta" className="flex flex-col gap-8 border-t border-[#efe9df]/15 pt-10 lg:self-start">
 						<p className="calma-micro m-0 text-[#efe9df]/55">Tu cuenta</p>
 						<nav className="flex flex-col items-start gap-4">
-							{user?.role === "admin" && (
+							{esPersonal(user) && (
 								<Link href="/admin" className={enlaceCuenta}>
-									Ir al panel de administración
+									{user?.rol === "empleado" ? "Ir al panel" : "Ir al panel de administración"}
 								</Link>
 							)}
+							{!esPersonal(user) && (
+								<>
+									<Link href="/reservas" className={enlaceCuenta}>
+										Tus reservas
+									</Link>
+									<Link href="/visitas" className={enlaceCuenta}>
+										Tus visitas
+									</Link>
+									<Link href="/solicitudes" className={enlaceCuenta}>
+										Tus solicitudes
+									</Link>
+									<Link href="/mis-publicaciones" className={enlaceCuenta}>
+										Tus publicaciones
+									</Link>
+									<Link href="/avisos" className={enlaceCuenta}>
+										Tus avisos
+									</Link>
+								</>
+							)}
 							<Link href="/favoritos" className={enlaceCuenta}>
-								Mis favoritos
+								Tus favoritos
+							</Link>
+							<Link href="/publicar" className={enlaceCuenta}>
+								Publicar mi propiedad
 							</Link>
 							<Link href="/requisitos" className={enlaceCuenta}>
 								Mis requisitos para alquilar o comprar
@@ -264,9 +358,10 @@ export default function PerfilPage() {
 								Ver propiedades
 							</Link>
 						</nav>
-						<button type="button" onClick={logout} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
+						<button type="button" onClick={pedirSalida} className="calma-micro self-start text-[#efe9df]/60 transition-colors hover:text-[#efe9df]">
 							Cerrar sesión
 						</button>
+						{dialogoSalida}
 					</aside>
 				</div>
 			)}

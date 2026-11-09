@@ -147,4 +147,82 @@ const avisarPasswordCambiada = ({ para, nombre }) =>
         html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>La contraseña de tu cuenta en Negocios Inmobiliarios se cambió recién y se cerraron las sesiones abiertas.</p><p style="color:#666;font-size:13px">Si no fuiste vos, pedí un enlace nuevo desde «¿La olvidaste?» en el ingreso y escribinos.</p>`,
     });
 
-module.exports = { enviar, enviarVerificacion, enviarConsulta, enviarRestablecimiento, enviarCambioEmail, avisarEmailCambiado, avisarPasswordCambiada };
+const avisarSolicitudPublicacionAprobada = ({ para, nombre, direccion }) =>
+    enviar({
+        para,
+        asunto: '¡Tu solicitud de publicación fue aprobada!',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, te informamos que tu pedido de publicación para la propiedad en ${direccion} fue aprobado por el equipo de Araceli Balbuena Negocios Inmobiliarios. Ya se encuentra dada de alta en nuestro catálogo.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Te informamos que tu pedido de publicación para la propiedad en <b>${escapar(direccion)}</b> fue <b>aprobado</b> por nuestro equipo.</p><p>Ya se encuentra dada de alta en nuestro catálogo de propiedades con vos como propietario/a.</p><p style="color:#666;font-size:13px">Cualquier consulta no dudes en comunicarte con nosotros.</p>`,
+    });
+
+const avisarSolicitudPublicacionRechazada = ({ para, nombre, direccion, motivo }) =>
+    enviar({
+        para,
+        asunto: 'Actualización sobre tu solicitud de publicación',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, te informamos que tu pedido de publicación para la propiedad en ${direccion} no pudo ser aprobado. Motivo: ${motivo || 'No cumple con los criterios de publicación'}.`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Te informamos sobre tu pedido de publicación para la propiedad en <b>${escapar(direccion)}</b>.</p><p>Motivo: <i>${escapar(motivo || 'No cumple con los criterios de publicación')}</i>.</p><p style="color:#666;font-size:13px">Si tenés dudas o querés corregir la información, podés contactarnos por WhatsApp o teléfono.</p>`,
+    });
+
+const avisarEstadoSolicitud = ({ para, nombre, estado, mensaje, propiedad, documentosSolicitados = [], enlace }) => {
+    const propiedadTexto = propiedad ? ` para ${propiedad}` : '';
+    const documentosTexto = documentosSolicitados.length
+        ? `\n\nDocumentación solicitada:\n${documentosSolicitados.map((documento) => `• ${documento}`).join('\n')}`
+        : '';
+    const documentosHtml = documentosSolicitados.length
+        ? `<p>Documentación solicitada:</p><ul>${documentosSolicitados.map((documento) => `<li>${escapar(documento)}</li>`).join('')}</ul>`
+        : '';
+    return enviar({
+        para,
+        asunto: 'Novedades sobre tu solicitud · Negocios Inmobiliarios',
+        texto: `Hola${nombre ? ` ${nombre}` : ''}, tu solicitud${propiedadTexto} ahora está ${estado}.${documentosTexto}${mensaje ? `\n\nComentario: ${mensaje}` : ''}\n\nConsultá tus solicitudes: ${enlace}`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p><p>Tu solicitud${propiedad ? ` para <b>${escapar(propiedad)}</b>` : ''} ahora está <b>${escapar(estado)}</b>.</p>${documentosHtml}${mensaje ? `<p>Comentario:</p><p style="white-space:pre-wrap;overflow-wrap:anywhere">${escapar(mensaje)}</p>` : ''}<p><a href="${escapar(enlace)}">Consultá Mis solicitudes</a></p>`,
+    });
+};
+
+// Aviso interno a la inmobiliaria (al mismo correo que recibe las consultas): un título, filas de datos y
+// un enlace opcional al panel
+const avisarInmobiliaria = ({ asunto, intro, filas = [], enlace, boton = 'Abrir el panel' }) => {
+    const para = config.mailConfig().contactoPara;
+    if (!para && config.enProduccion()) throw new Error('Falta CONTACT_TO (el correo de la inmobiliaria)');
+    return enviar({
+        para: para || 'consultas@localhost',
+        asunto,
+        texto: `${intro}\n\n${filas.map(([k, v]) => `${k}: ${v}`).join('\n')}${enlace ? `\n\n${enlace}` : ''}`,
+        html: `<p>${escapar(intro)}</p><table>${filas.map(([k, v]) => `<tr><td><b>${escapar(k)}</b></td><td>${escapar(v)}</td></tr>`).join('')}</table>${
+            enlace ? `<p><a href="${escapar(enlace)}">${escapar(boton)}</a></p>` : ''
+        }`,
+    });
+};
+
+// Mail simple a un cliente: saludo, párrafos y un botón opcional (o varios con `botones: [{ texto, enlace }]`;
+// el primero se destaca)
+const avisarCliente = ({ para, nombre, asunto, parrafos, boton, enlace, botones, pie }) => {
+    const lista = botones || (enlace ? [{ texto: boton || 'Abrir', enlace }] : []);
+    const estilo = (i) =>
+        i === 0
+            ? 'display:inline-block;margin:0 8px 8px 0;padding:12px 22px;background:#1a1a1a;color:#fff;text-decoration:none;border-radius:6px'
+            : 'display:inline-block;margin:0 8px 8px 0;padding:11px 21px;border:1px solid #1a1a1a;color:#1a1a1a;text-decoration:none;border-radius:6px';
+    return enviar({
+        para,
+        asunto,
+        texto: `Hola${nombre ? ` ${nombre}` : ''},\n\n${parrafos.join('\n\n')}${lista.map((b) => `\n\n${b.texto}: ${b.enlace}`).join('')}${pie ? `\n\n${pie}` : ''}`,
+        html: `<p>Hola${nombre ? ` ${escapar(nombre)}` : ''},</p>${parrafos.map((p) => `<p style="white-space:pre-wrap">${escapar(p)}</p>`).join('')}${
+            lista.length ? `<p>${lista.map((b, i) => `<a href="${escapar(b.enlace)}" style="${estilo(i)}">${escapar(b.texto)}</a>`).join('')}</p>` : ''
+        }${pie ? `<p style="color:#666;font-size:13px">${escapar(pie)}</p>` : ''}`,
+    });
+};
+
+module.exports = {
+    avisarInmobiliaria,
+    avisarCliente,
+    avisarEstadoSolicitud,
+    enviar,
+    enviarVerificacion,
+    enviarConsulta,
+    enviarRestablecimiento,
+    enviarCambioEmail,
+    avisarEmailCambiado,
+    avisarPasswordCambiada,
+    avisarSolicitudPublicacionAprobada,
+    avisarSolicitudPublicacionRechazada,
+};

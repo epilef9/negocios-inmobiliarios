@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/user.model');
 const config = require('../config/env');
 const { promisify } = require('util');
+const { extraerToken, csrfValido } = require('./sesion');
+const permisos = require('../utils/permisos');
 
 const verifyToken = promisify(jwt.verify);
 // La clave sale de la configuración central (obligatoria en producción)
@@ -13,9 +15,13 @@ const getJwtSecret = () => {
 
 const authMiddleware = async (req, res, next) => {
     try {
-        const token = req.headers.authorization?.split(' ')[1];
+        const sesion = extraerToken(req);
+        const token = sesion.token;
         if (!token) {
             return res.status(401).json({ message: 'No token provided' });
+        }
+        if (!csrfValido(req, sesion)) {
+            return res.status(403).json({ message: 'No pudimos validar el pedido. Recargá la página e intentá de nuevo.', code: 'CSRF' });
         }
 
         // Solo se acepta el algoritmo con el que firmamos (evita tokens armados con otro algoritmo)
@@ -27,6 +33,10 @@ const authMiddleware = async (req, res, next) => {
         // Si cambió la contraseña o el email después de iniciar esta sesión, la sesión ya no vale
         if (user.credencialesCambiadasEn && Math.floor(user.credencialesCambiadasEn.getTime() / 1000) > (decoded.iat || 0)) {
             return res.status(401).json({ message: 'Tu sesión venció. Ingresá de nuevo.', code: 'SESION_VENCIDA' });
+        }
+        // Un empleado dado de baja no puede usar más la sesión
+        if (user.activo === false) {
+            return res.status(401).json({ message: 'Tu cuenta fue dada de baja.', code: 'CUENTA_DESACTIVADA' });
         }
         // Una cuenta que todavía no confirmó su email no puede usar la sesión
         if (user.emailVerificado === false) {
@@ -42,7 +52,7 @@ const authMiddleware = async (req, res, next) => {
 
 // Restringe operaciones de administracion al rol admin (RF-09 / RNF-05)
 const requireAdmin = (req, res, next) => {
-    if (!req.user || req.user.role !== 'admin') {
+    if (!req.user || req.user.rol !== 'admin') {
         return res.status(403).json({
             message: 'Acceso denegado. Se requiere rol de administrador.'
         });
@@ -51,5 +61,50 @@ const requireAdmin = (req, res, next) => {
     next();
 };
 
+// Cada ruta del panel pide el permiso de su sección: el admin pasa siempre; el empleado, solo si el admin se lo dio
+const requirePermiso = (seccion) => (req, res, next) => {
+    if (!permisos.tienePermiso(req.user, seccion)) {
+        return res.status(403).json({ message: 'No tenés permiso para esta sección.', code: 'SIN_PERMISO' });
+    }
+    next();
+};
+
+// Cualquier integrante del panel (admin o empleado activo), para lo común a todos: Inicio, tema, perfil
+const requirePersonal = (req, res, next) => {
+    if (!permisos.esPersonal(req.user)) {
+        return res.status(403).json({ message: 'Acceso denegado. Se requiere una cuenta del panel.' });
+    }
+    next();
+};
+
+const requireClient = (req, res, next) => {
+    if (!req.user || req.user.rol !== 'cliente') {
+        return res.status(403).json({ message: 'Esta acción está disponible únicamente para cuentas de cliente.' });
+    }
+    next();
+};
+
+// Para rutas públicas que se comportan distinto con sesión (por ejemplo, el administrador agenda fuera de horario).
+// Si no hay token, o no es válido, sigue igual que un visitante.
+const sesionOpcional = async (req, res, next) => {
+    try {
+        const sesion = extraerToken(req);
+        const token = sesion.token;
+        // Con la cookie y sin el encabezado csrf en un pedido que cambia datos, se trata como visitante
+        if (token && csrfValido(req, sesion)) {
+            const decoded = await verifyToken(token, getJwtSecret(), { algorithms: ['HS256'] });
+            const user = await User.findById(decoded.id);
+            if (user && user.emailVerificado !== false) req.user = user;
+        }
+    } catch {
+        // Token vencido o inválido: se trata como visitante
+    }
+    next();
+};
+
 module.exports = authMiddleware;
 module.exports.requireAdmin = requireAdmin;
+module.exports.requireClient = requireClient;
+module.exports.requirePermiso = requirePermiso;
+module.exports.requirePersonal = requirePersonal;
+module.exports.sesionOpcional = sesionOpcional;

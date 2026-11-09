@@ -26,6 +26,9 @@ export function animarRevelados(raiz: HTMLElement) {
     raiz.querySelectorAll<HTMLElement>('[data-reveal="lineas"]').forEach((el) => {
       SplitText.create(el, {
         type: 'lines',
+        // Solo se parte en renglones: el texto queda entero y se lee igual. Sin esto le pone aria-label al
+        // elemento, que no está permitido en un <p>
+        aria: 'none',
         mask: 'lines',
         autoSplit: true,
         onSplit(self) {

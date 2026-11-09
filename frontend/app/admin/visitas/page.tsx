@@ -6,20 +6,28 @@ import { createVisita, deleteVisita, getVisitas, resetVisitasToDefault, updateVi
 import { getProperties, type ApiProperty } from '@/services/api';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso, useConfirmar } from '@/components/panel/ui';
-import { ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
+import { ASISTENCIA_VISITA, ESTADO_VISITA, cuandoEs, estadoDe, fechaDeVisita } from '@/components/panel/estados';
 import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/OpcionesPropiedad';
+import { operacionesDe, precioDe, tieneOperacion } from '@/components/sitio/operaciones';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 // Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
 const hoyIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 const miles = (n: number) => Math.round(n).toLocaleString('es-AR');
-// Precio tal como se publica (por noche, por mes o total)
+// Precio tal como se publica (por noche, por mes o total); con venta y alquiler, los dos (HU-25)
 const precioTexto = (p: ApiProperty) => {
-  if (p.categoria_operacion === 'temporario' && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
-  const sufijo = p.categoria_operacion === 'alquiler' ? ' por mes' : '';
-  return p.moneda === 'ARS' ? `ARS ${miles(p.priceARS ?? p.price)}${sufijo}` : `USD ${miles(p.price)}${sufijo}`;
+  if (tieneOperacion(p, 'temporario') && p.precioPorNocheUSD) return `USD ${miles(p.precioPorNocheUSD)} por noche`;
+  const operaciones = operacionesDe(p).length ? operacionesDe(p) : (['venta'] as const);
+  return operaciones
+    .map((o) => {
+      const precio = precioDe(p, o) ?? { precio: p.precio, moneda: p.moneda, precioARS: p.precioARS };
+      const sufijo = o === 'alquiler' ? ' por mes' : '';
+      return precio.moneda === 'ARS' ? `ARS ${miles(precio.precioARS ?? precio.precio)}${sufijo}` : `USD ${miles(precio.precio)}${sufijo}`;
+    })
+    .join(' · ');
 };
 
 type Pestana = 'pendientes' | 'confirmadas' | 'rechazadas' | 'todas';
@@ -51,7 +59,7 @@ function enlaceWhatsApp(visita: Visita) {
 }
 
 function Accion({ icono, texto, onClick, href, tono }: { icono: NombreIcono; texto: string; onClick?: () => void; href?: string | null; tono?: 'exito' | 'peligro' }) {
-  const clases = `rounded-md p-2 text-panel-tenue transition-colors hover:bg-panel-hundido ${
+  const clases = `rounded-md p-[13px] text-panel-tenue sm:p-2 transition-colors hover:bg-panel-hundido ${
     tono === 'exito' ? 'hover:text-emerald-700 dark:hover:text-emerald-400' : tono === 'peligro' ? 'hover:text-red-600 dark:hover:text-red-400' : 'hover:text-panel-texto'
   }`;
   if (href !== undefined) {
@@ -67,6 +75,14 @@ function Accion({ icono, texto, onClick, href, tono }: { icono: NombreIcono; tex
       <Icono nombre={icono} className="h-[18px] w-[18px]" />
     </button>
   );
+}
+
+// Lo que respondió el cliente a los botones del recordatorio del día anterior (nada si no respondió)
+function InsigniaAsistencia({ visita }: { visita: Visita }) {
+  const respuesta = visita.asistencia?.respuesta;
+  if (!respuesta) return null;
+  const { texto, tono } = ASISTENCIA_VISITA[respuesta];
+  return <Insignia tono={tono}>{texto}</Insignia>;
 }
 
 export default function VisitasAdminPage() {
@@ -185,8 +201,8 @@ export default function VisitasAdminPage() {
         },
         propiedad: {
           id: propiedad?._id || '',
-          titulo: propiedad?.title || nueva.propiedad,
-          direccion: propiedad?.location || '',
+          titulo: propiedad?.titulo || nueva.propiedad,
+          direccion: propiedad?.ubicacion || '',
           precio: propiedad ? precioTexto(propiedad) : '',
         },
         fecha: fechaParaGuardar(nueva.fecha),
@@ -223,7 +239,7 @@ export default function VisitasAdminPage() {
   const cuenta = {
     pendientes: lista.filter((v) => v.estado === 'pendiente').length,
     confirmadas: lista.filter((v) => v.estado === 'confirmada' || v.estado === 'reprogramada').length,
-    rechazadas: lista.filter((v) => v.estado === 'rechazada').length,
+    rechazadas: lista.filter((v) => v.estado === 'rechazada' || v.estado === 'cancelada').length,
     todas: lista.length,
   };
 
@@ -236,7 +252,7 @@ export default function VisitasAdminPage() {
   const visibles = lista
     .filter((v) => {
       const enPestana =
-        pestana === 'pendientes' ? v.estado === 'pendiente' : pestana === 'confirmadas' ? v.estado === 'confirmada' || v.estado === 'reprogramada' : pestana === 'rechazadas' ? v.estado === 'rechazada' : true;
+        pestana === 'pendientes' ? v.estado === 'pendiente' : pestana === 'confirmadas' ? v.estado === 'confirmada' || v.estado === 'reprogramada' : pestana === 'rechazadas' ? v.estado === 'rechazada' || v.estado === 'cancelada' : true;
       const enTexto = !texto || [v.cliente.nombre, v.cliente.telefono, v.propiedad.titulo].some((c) => c?.toLowerCase().includes(texto));
       return enPestana && enTexto && (!fecha || v.fecha === fecha);
     })
@@ -246,7 +262,7 @@ export default function VisitasAdminPage() {
   const PESTANAS: { id: Pestana; texto: string }[] = [
     { id: 'pendientes', texto: 'Por confirmar' },
     { id: 'confirmadas', texto: 'Confirmadas' },
-    { id: 'rechazadas', texto: 'Rechazadas' },
+    { id: 'rechazadas', texto: 'Rechazadas y canceladas' },
     { id: 'todas', texto: 'Todas' },
   ];
 
@@ -258,8 +274,8 @@ export default function VisitasAdminPage() {
   const acciones = (v: Visita) => (
     <>
       {v.estado === 'pendiente' && <Accion icono="check" texto={`Confirmar la visita de ${v.cliente.nombre}`} onClick={() => confirmarVisita(v)} tono="exito" />}
-      {v.estado !== 'rechazada' && <Accion icono="reloj" texto={`Reprogramar la visita de ${v.cliente.nombre}`} onClick={() => abrirReprogramar(v)} />}
-      {v.estado !== 'rechazada' && <Accion icono="cerrar" texto={`Rechazar la visita de ${v.cliente.nombre}`} onClick={() => { setMotivo(MOTIVOS_RECHAZO[0]); setARechazar(v); }} tono="peligro" />}
+      {v.estado !== 'rechazada' && v.estado !== 'cancelada' && <Accion icono="reloj" texto={`Reprogramar la visita de ${v.cliente.nombre}`} onClick={() => abrirReprogramar(v)} />}
+      {v.estado !== 'rechazada' && v.estado !== 'cancelada' && <Accion icono="cerrar" texto={`Rechazar la visita de ${v.cliente.nombre}`} onClick={() => { setMotivo(MOTIVOS_RECHAZO[0]); setARechazar(v); }} tono="peligro" />}
       <Accion icono="telefono" texto={`Escribirle a ${v.cliente.nombre} por WhatsApp`} href={enlaceWhatsApp(v)} />
       <Accion icono="ojo" texto={`Ver el detalle de la visita de ${v.cliente.nombre}`} onClick={() => setDetalle(v)} />
     </>
@@ -296,7 +312,7 @@ export default function VisitasAdminPage() {
                   role="tab"
                   aria-selected={activa}
                   onClick={() => setPestana(p.id)}
-                  className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
+                  className={`flex shrink-0 min-h-11 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] sm:min-h-0 transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
                 >
                   {p.texto}
                   <span className={`tabular rounded px-1.5 text-[12px] ${p.id === 'pendientes' && cuenta.pendientes ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'text-panel-tenue'}`}>{cuenta[p.id]}</span>
@@ -360,10 +376,12 @@ export default function VisitasAdminPage() {
                       <span className="tabular block truncate text-[13px] text-panel-suave">{v.cliente.telefono || 'Sin teléfono'}</span>
                     </button>
                     <span className="min-w-0 truncate text-[13.5px] text-panel-suave">{v.propiedad.titulo || 'Propiedad sin título'}</span>
-                    <span>
+                    <span className="flex flex-wrap gap-1.5">
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
+                      <InsigniaAsistencia visita={v} />
                     </span>
                     <div className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
+                    <ActividadRegistro entidad="visita" id={v.id} className="md:col-span-full" />
                   </li>
                 );
               })}
@@ -377,14 +395,21 @@ export default function VisitasAdminPage() {
         abierto={Boolean(detalle)}
         alCerrar={() => setDetalle(null)}
         titulo={detalle ? `Visita de ${detalle.cliente.nombre}` : ''}
-        descripcion={detalle && <Insignia tono={estadoDe(ESTADO_VISITA, detalle.estado).tono}>{estadoDe(ESTADO_VISITA, detalle.estado).texto}</Insignia>}
+        descripcion={
+          detalle && (
+            <span className="flex flex-wrap gap-1.5">
+              <Insignia tono={estadoDe(ESTADO_VISITA, detalle.estado).tono}>{estadoDe(ESTADO_VISITA, detalle.estado).texto}</Insignia>
+              <InsigniaAsistencia visita={detalle} />
+            </span>
+          )
+        }
         acciones={
           detalle && (
             <>
               <Boton variante="fantasma" icono="borrar" onClick={() => borrar(detalle)} className="mr-auto text-red-700 dark:text-red-400">
                 Borrar
               </Boton>
-              {detalle.estado !== 'rechazada' && (
+              {detalle.estado !== 'rechazada' && detalle.estado !== 'cancelada' && (
                 <Boton icono="reloj" onClick={() => abrirReprogramar(detalle)}>
                   Reprogramar
                 </Boton>

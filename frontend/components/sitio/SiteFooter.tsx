@@ -1,49 +1,71 @@
+'use client';
+
+import Link from 'next/link';
 import Revelar from './Revelar';
+import { useContacto } from './useAjustes';
+import { CONTACTO_PREDETERMINADO, enlacesContacto } from '@/services/ajustes';
 
-export const WHATSAPP_URL = 'https://wa.me/543434469522';
-export const EMAIL = 'puiggarinegociosinmobiliarios@hotmail.com';
-export const DIRECCION = '25 de Mayo 726, Villa Libertador San Martín';
-export const MAPS_URL = 'https://www.google.com/maps/search/?api=1&query=25+de+Mayo+726+Villa+Libertador+San+Mart%C3%ADn+Entre+R%C3%ADos';
+// Respaldo para lo que todavía arma enlaces sin el hook (los datos reales los carga el administrador)
+export const WHATSAPP_URL = enlacesContacto(CONTACTO_PREDETERMINADO).whatsappUrl;
 
-// Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
-const textoOficina = `Pasá por ${DIRECCION}.`;
-
-export const HORARIOS = [
-  { dias: 'Lunes a jueves', horas: '9 a 13 y 17 a 19 h' },
-  { dias: 'Viernes', horas: '9 a 13 h' },
-  { dias: 'Fin de semana', horas: 'Cerrado' },
-];
+const escaparHtml = (texto: string) => texto.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c] as string);
 
 const botonClaro =
   'calma-micro group flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white';
 const botonLinea =
   'calma-micro rounded-full border border-[#efe9df]/40 px-6 py-4 text-[12px] transition-colors duration-500 hover:border-[#efe9df] hover:bg-[#efe9df]/5';
 
-const lineaFinal = 'Negocios Inmobiliarios, Villa Libertador San Martín, Entre Ríos';
+// Espacios que no cortan renglón: la calle va entera («25 de Mayo 726») y en la localidad las palabras
+// cortas se pegan a la siguiente («San Martín»), así ningún pedazo queda suelto en un renglón
+const sinCortar = (texto: string) => texto.trim().replace(/\s+/g, ' ');
+const pegarCortas = (texto: string) => texto.trim().replace(/(^|\s)(\S{1,3})\s+/g, '$1$2 ');
+
+const lineaFinal ='Negocios Inmobiliarios, Villa Libertador San Martín, Entre Ríos';
+
+// Enlaces legales: van en los dos pies (el completo y el simple)
+function EnlacesLegales() {
+  return (
+    <nav aria-label="Información legal" className="flex gap-5">
+      <Link href="/terminos" className="calma-link">
+        Términos
+      </Link>
+      <Link href="/privacidad" className="calma-link">
+        Privacidad
+      </Link>
+    </nav>
+  );
+}
 
 // Pie del sitio con la dirección, el horario y los contactos de la oficina.
 // En las páginas que ya muestran esos datos (contacto) va solo la línea final.
 export default function SiteFooter({ simple = false }: { simple?: boolean }) {
+  const contacto = useContacto();
+  // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
+  const textoOficina = `Pasá por ${escaparHtml(sinCortar(contacto.direccion))}, ${escaparHtml(pegarCortas(contacto.localidad))}.`;
   if (simple) {
     return (
       <footer className="px-5 pb-10 sm:px-10">
-        <p className="calma-micro m-0 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">{lineaFinal}</p>
+        <div className="calma-micro flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
+          <p className="m-0">{lineaFinal}</p>
+          <EnlacesLegales />
+        </div>
       </footer>
     );
   }
 
   return (
-    <Revelar>
+    // Si cambia la dirección se vuelve a montar, así la animación divide el texto nuevo
+    <Revelar key={contacto.direccionCompleta}>
       <footer className="grid gap-10 px-5 pb-10 pt-16 sm:px-10 lg:grid-cols-12 lg:gap-6 lg:pt-20">
         <p
           data-reveal="lineas"
           data-motion-hide
-          className="font-display m-0 text-[clamp(44px,5.6vw,88px)] leading-none lg:col-span-7"
+          className="font-display m-0 text-[clamp(30px,5.6vw,88px)] leading-none [text-wrap:balance] lg:col-span-7"
           dangerouslySetInnerHTML={{ __html: textoOficina }}
         />
         <div className="flex flex-col gap-7 lg:col-span-4 lg:col-start-9">
           <dl className="m-0 grid grid-cols-[auto_1fr] gap-x-6 gap-y-2.5 text-[15px]">
-            {HORARIOS.map((horario) => (
+            {contacto.horarios.map((horario) => (
               <div key={horario.dias} className="contents">
                 <dt className="text-[#efe9df]/70">{horario.dias}</dt>
                 <dd className="m-0">{horario.horas}</dd>
@@ -51,21 +73,22 @@ export default function SiteFooter({ simple = false }: { simple?: boolean }) {
             ))}
           </dl>
           <div className="flex flex-wrap gap-3">
-            <a href={WHATSAPP_URL} target="_blank" rel="noreferrer" className={botonClaro}>
+            <a href={contacto.whatsappUrl} target="_blank" rel="noreferrer" className={botonClaro}>
               <span className="calma-dot" aria-hidden="true" />
               WhatsApp
             </a>
-            <a href={`mailto:${EMAIL}`} className={botonLinea}>
+            <a href={`mailto:${contacto.email}`} className={botonLinea}>
               Email
             </a>
-            <a href={MAPS_URL} target="_blank" rel="noreferrer" className={botonLinea}>
+            <a href={contacto.mapsUrl} target="_blank" rel="noreferrer" className={botonLinea}>
               Cómo llegar
             </a>
           </div>
         </div>
-        <p className="calma-micro col-span-full mt-10 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
-          {lineaFinal}
-        </p>
+        <div className="calma-micro col-span-full mt-10 flex flex-wrap items-center justify-between gap-x-8 gap-y-3 border-t border-[#efe9df]/15 pt-6 text-[#efe9df]/60">
+          <p className="m-0">{lineaFinal}</p>
+          <EnlacesLegales />
+        </div>
       </footer>
     </Revelar>
   );

@@ -34,11 +34,11 @@ async function migrar() {
     const faltantes = new Set();
     let propiedadesCambiadas = 0;
 
-    const propiedades = await Property.find({ 'images.0': { $exists: true } }).select('title images').lean();
+    const propiedades = await Property.find({ 'fotos.0': { $exists: true } }).select('titulo fotos').lean();
     for (const propiedad of propiedades) {
         let cambio = false;
         const nuevas = [];
-        for (const url of propiedad.images) {
+        for (const url of propiedad.fotos) {
             const archivo = archivoLocal(url);
             if (!archivo) {
                 nuevas.push(url);
@@ -46,7 +46,7 @@ async function migrar() {
             }
             const ruta = path.join(CARPETA_UPLOADS, archivo);
             if (!fs.existsSync(ruta)) {
-                faltantes.add(`${archivo} (de "${propiedad.title}")`);
+                faltantes.add(`${archivo} (de "${propiedad.titulo}")`);
                 nuevas.push(url);
                 continue;
             }
@@ -64,7 +64,7 @@ async function migrar() {
         }
         if (cambio) {
             propiedadesCambiadas += 1;
-            if (!SOLO_PROBAR) await Property.updateOne({ _id: propiedad._id }, { $set: { images: nuevas } });
+            if (!SOLO_PROBAR) await Property.updateOne({ _id: propiedad._id }, { $set: { fotos: nuevas } });
         }
     }
 

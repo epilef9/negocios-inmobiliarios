@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { fotoDeAncho, propsFoto } from '@/components/sitio/foto';
 
 type Props = { imagenes: string[]; titulo: string };
 
@@ -9,6 +10,18 @@ export default function Galeria({ imagenes, titulo }: Props) {
   const [actual, setActual] = useState(0);
   const total = imagenes.length;
   const mover = (paso: number) => setActual((i) => (i + paso + total) % total);
+  // Deslizar con el dedo en el celular: más de 40 px de costado (y más de costado que de arriba a abajo)
+  const toque = useRef<{ x: number; y: number } | null>(null);
+  const alEmpezarToque = (e: React.TouchEvent) => {
+    toque.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const alTerminarToque = (e: React.TouchEvent) => {
+    if (!toque.current || total < 2) return;
+    const dx = e.changedTouches[0].clientX - toque.current.x;
+    const dy = e.changedTouches[0].clientY - toque.current.y;
+    toque.current = null;
+    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) mover(dx < 0 ? 1 : -1);
+  };
 
   if (total === 0) {
     return (
@@ -21,7 +34,9 @@ export default function Galeria({ imagenes, titulo }: Props) {
   return (
     <div className="flex flex-col gap-3">
       <div
-        className="relative aspect-[16/9] max-h-[78vh] w-full overflow-hidden bg-[#0e2652]"
+        className="relative aspect-[4/3] max-h-[78vh] w-full touch-pan-y overflow-hidden bg-[#0e2652] sm:aspect-[16/9]"
+        onTouchStart={alEmpezarToque}
+        onTouchEnd={alTerminarToque}
         role="group"
         aria-roledescription="galería"
         aria-label={`Fotos de ${titulo}`}
@@ -35,7 +50,7 @@ export default function Galeria({ imagenes, titulo }: Props) {
           // eslint-disable-next-line @next/next/no-img-element -- las imágenes vienen del backend con dominio variable
           <img
             key={src + i}
-            src={src}
+            {...propsFoto(src, "(min-width: 1024px) 66vw, 100vw", 1280)}
             alt={`${titulo}, foto ${i + 1} de ${total}`}
             aria-hidden={i !== actual}
             loading={i === 0 ? 'eager' : 'lazy'}
@@ -80,7 +95,7 @@ export default function Galeria({ imagenes, titulo }: Props) {
               className={`h-16 w-24 shrink-0 overflow-hidden transition-opacity sm:h-20 sm:w-32 ${i === actual ? 'opacity-100 ring-1 ring-[#efe9df]' : 'opacity-50 hover:opacity-90'}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- miniatura de una imagen del backend */}
-              <img src={src} alt="" className="h-full w-full object-cover" />
+              <img src={fotoDeAncho(src, 256)} alt="" loading="lazy" className="h-full w-full object-cover" />
             </button>
           ))}
         </div>

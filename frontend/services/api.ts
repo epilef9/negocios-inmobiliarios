@@ -1,50 +1,65 @@
+import { conSesion } from "./sesion";
+
 export const API_URL =
 	process.env.NEXT_PUBLIC_API_URL ??
 	(process.env.NODE_ENV === "production" ? "/api" : "http://localhost:4000/api");
 
 // Función base para comunicarse con la API
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-	const token = typeof window !== "undefined" ? localStorage.getItem("token") : null;
 	const isFormData = options.body instanceof FormData;
 	const response = await fetch(`${API_URL}${path}`, {
 		...options,
-		headers: {
+		...conSesion(options, {
 			...(isFormData ? {} : { "Content-Type": "application/json" }),
-			...(token ? { Authorization: `Bearer ${token}` } : {}),
-			...options.headers,
-		},
+			...(options.headers as Record<string, string> | undefined),
+		}),
 	});
 	const body = await response.json().catch(() => ({}));
 	if (!response.ok) {
-		const details = Array.isArray(body.errors) ? `: ${body.errors.join("; ")}` : "";
-		throw new Error(`${body.message ?? "No se pudo completar la operación"}${details}`);
+		const errores = Array.isArray(body.errores) ? body.errores : body.errors;
+		const details = Array.isArray(errores) ? `: ${errores.join("; ")}` : "";
+		// `code` (si el servidor lo manda) permite reaccionar a un error puntual, por ejemplo HORARIO_NO_DISPONIBLE
+		throw Object.assign(new Error(`${body.message ?? "No se pudo completar la operación"}${details}`), { code: body.code as string | undefined });
 	}
 	return body.data as T;
 }
 
+export type Operacion = "venta" | "alquiler" | "temporario";
+// precio va en dólares; moneda es la moneda en que se cargó y precioARS el valor en pesos
+export type PrecioOperacion = { precio?: number; moneda?: "USD" | "ARS"; precioARS?: number };
+
 export type ApiProperty = {
 	_id: string;
-	title: string;
+	titulo: string;
 	codigoInterno?: string;
-	description: string;
-	price: number;
+	descripcion: string;
+	precio: number;
 	moneda?: "USD" | "ARS";
-	priceARS?: number;
+	precioARS?: number;
 	cotizacionDolar?: number;
-	location: string;
+	ubicacion: string;
 	ciudad?: string;
 	provincia?: string;
 	direccionCompleta?: string;
 	referenciasUbicacion?: string;
-	bedrooms: number;
-	bathrooms: number;
+	dormitorios: number;
+	banos: number;
 	area: number;
 	cochera?: string;
 	pisoUnidad?: string;
-	images?: string[];
-	categoria_operacion?: "venta" | "alquiler" | "temporario";
-	tipo_inmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
-	cantidad_ambientes?: number;
+	fotos?: string[];
+	// HU-25 / RF-03: operaciones en las que se publica y el precio de cada una (ver components/sitio/operaciones.ts).
+	// categoriaOperacion y precio/moneda/precioARS son la copia de la operación principal.
+	operaciones?: Operacion[];
+	precios?: { venta?: PrecioOperacion; alquiler?: PrecioOperacion };
+	categoriaOperacion?: Operacion;
+	// Ya no se usa (las solicitudes siguen a operaciones); queda en las propiedades viejas
+	operacionesSolicitud?: ("venta" | "alquiler")[];
+	// Ya se vendió aunque después figure alquilada (HU-28)
+	vendida?: boolean;
+	permitirSolicitudes?: boolean;
+	tipoInmueble?: "departamento" | "local" | "casa" | "monoambiente" | "terreno";
+	ambientes?: number;
 	comodidades?: string[];
 	otrasComodidades?: string;
 	expensas?: string;
@@ -67,6 +82,11 @@ export type ApiProperty = {
 	checkOutHasta?: string;
 	checkInFlexible?: string;
 	estado?: "disponible" | "reservado" | "alquilado" | "vendido";
+	// HU-13: hasta cuándo dura la reserva con seña
+	reservadaHasta?: string | null;
+	// HU-12
+	descuento?: { porcentaje: number; hasta?: string | null; motivo?: string } | null;
+	financiacion?: { disponible: boolean; anticipoPorcentaje?: number; cuotas?: number; tasa?: string; detalle?: string } | null;
 	orden?: number;
 	operation?: string;
 	category?: string;

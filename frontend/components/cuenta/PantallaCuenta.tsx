@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { AuthRequestError, resendVerification } from '@/services/auth';
 import Revelar from '@/components/sitio/Revelar';
+import LogoEmpresa from '@/components/sitio/LogoEmpresa';
+import TransicionPagina from '@/components/sitio/TransicionPagina';
 
 // Estilos compartidos por los formularios de ingreso y registro
 export const etiqueta = 'calma-micro text-[#efe9df]/70';
@@ -11,11 +13,40 @@ export const control =
   'w-full rounded-none border-0 border-b border-[#efe9df]/30 bg-transparent py-3 text-[18px] text-[#efe9df] placeholder:text-[#efe9df]/35 transition-colors duration-500 focus:border-[#efe9df] focus:outline-none aria-[invalid=true]:border-[#d9382b]';
 export const botonPrincipal =
   'calma-micro flex w-full items-center justify-center gap-2.5 rounded-full bg-[#efe9df] px-7 py-4 text-[12px] text-[#071733] transition-colors duration-500 hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#efe9df] disabled:cursor-wait disabled:opacity-60';
+// El mismo botón, del ancho de su texto. Sumarle "w-auto" a botonPrincipal no alcanza: en el CSS gana w-full.
+export const botonCompacto = botonPrincipal.replace('w-full', 'w-auto');
 
 // Solo se aceptan rutas internas para volver después de ingresar
 // (los navegadores tratan "/\otro.com" igual que "//otro.com", así que también se rechaza la barra invertida)
 export const destinoSeguro = (volver: string | null) =>
   volver && volver.startsWith('/') && !volver.startsWith('//') && !volver.includes('\\') && !/[\u0000-\u001f]/.test(volver) ? volver : null;
+
+// Botón para ver u ocultar la contraseña: un ojo abierto o tachado. El texto queda para lectores de pantalla.
+export function BotonVerPassword({ visible, alCambiar, className = '' }: { visible: boolean; alCambiar: () => void; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={alCambiar}
+      aria-pressed={visible}
+      aria-label={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      title={visible ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+      className={`flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-[#efe9df]/70 transition-colors duration-300 hover:bg-[#efe9df]/10 hover:text-[#efe9df] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#efe9df] ${className}`}
+    >
+      <svg viewBox="0 0 24 24" aria-hidden="true" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M2.5 12s3.5-6.5 9.5-6.5 9.5 6.5 9.5 6.5-3.5 6.5-9.5 6.5S2.5 12 2.5 12Z" />
+        <circle cx="12" cy="12" r="3" className={`origin-center transition-transform duration-300 ${visible ? 'scale-100' : 'scale-90'}`} />
+        {/* Raya que tacha el ojo cuando la contraseña está oculta; se dibuja o se borra al tocar */}
+        <path
+          d="M4 4l16 16"
+          pathLength={1}
+          strokeDasharray={1}
+          strokeDashoffset={visible ? 1 : 0}
+          className="transition-[stroke-dashoffset] duration-300 motion-reduce:transition-none"
+        />
+      </svg>
+    </button>
+  );
+}
 
 const beneficios = [
   'Guardá tus propiedades favoritas y encontralas desde cualquier dispositivo.',
@@ -32,6 +63,7 @@ type Props = {
 // Pantalla de cuenta: foto con lo que permite la cuenta a un lado y el formulario al otro
 export default function PantallaCuenta({ titulo, bajada, children }: Props) {
   return (
+    <TransicionPagina>
     <main className="home-calma-raiz grid min-h-dvh bg-[#071733] font-sans text-[#efe9df] selection:bg-[#d9382b] selection:text-white lg:grid-cols-2">
       <Revelar>
         <div data-reveal="imagen" className="relative hidden h-full min-h-dvh overflow-hidden bg-[#0b2048] lg:block">
@@ -54,13 +86,9 @@ export default function PantallaCuenta({ titulo, bajada, children }: Props) {
 
       <div className="flex min-h-dvh flex-col px-5 py-6 sm:px-10">
         <div className="calma-micro flex items-center justify-between gap-4">
-          <Link href="/" className="flex items-center gap-2.5 text-[13px] tracking-[0.3em]">
-            <svg width="26" height="22" viewBox="0 0 40 34" aria-hidden="true">
-              <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-              <rect x="15" y="17" width="10" height="10" fill="#d9382b" />
-              <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-            </svg>
-            Negocios
+          <Link href="/" aria-label="Ir al inicio" className="flex items-center">
+            <LogoEmpresa className="h-11 w-auto sm:hidden" prioridad />
+            <LogoEmpresa version="linea" className="hidden h-10 w-auto sm:block" prioridad />
           </Link>
           <Link href="/propiedades" className="calma-link calma-link-sutil">
             Ver propiedades
@@ -83,6 +111,7 @@ export default function PantallaCuenta({ titulo, bajada, children }: Props) {
         </div>
       </div>
     </main>
+    </TransicionPagina>
   );
 }
 
@@ -94,7 +123,7 @@ export function YaIngresaste({ nombre, onSalir }: { nombre: string; onSalir: () 
         Ya ingresaste como <strong className="font-semibold">{nombre}</strong>.
       </p>
       <div className="flex flex-wrap gap-3">
-        <Link href="/favoritos" className={`${botonPrincipal} w-auto`}>
+        <Link href="/favoritos" className={botonCompacto}>
           Ir a mis favoritos
         </Link>
         <button

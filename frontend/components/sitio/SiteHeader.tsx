@@ -4,18 +4,28 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useConfirmarSalida } from './ConfirmarSalida';
+import AvisoSalida from './AvisoSalida';
+import LogoEmpresa from './LogoEmpresa';
 
-const WHATSAPP = 'https://wa.me/543434469522';
 
+import { esPersonal } from '@/lib/permisos';
+// Inicio va primero: no todos saben que el logo lleva a la portada. Contacto va a la derecha, con el punto rojo.
 const enlaces = [
+  { href: '/', texto: 'Inicio' },
   { href: '/propiedades', texto: 'Propiedades' },
+  { href: '/publicar', texto: 'Publicar' },
   { href: '/requisitos', texto: 'Requisitos' },
-  { href: '/contacto', texto: 'Contacto' },
 ];
 
-// Barra del sitio: se esconde al bajar, vuelve al subir y toma fondo al dejar el inicio de la página
+const esActual = (ruta: string | null, href: string) => (href === '/' ? ruta === '/' : Boolean(ruta && (ruta === href || ruta.startsWith(`${href}/`))));
+
+// Barra del sitio de vidrio esmerilado: transparente y desenfocada, deja ver la foto de atrás; el logo
+// lleva un halo fino para leerse con sus colores. Al bajar se desliza hacia arriba y se desvanece; al subir
+// vuelve igual de suave (las transiciones están en .barra-vidrio, en globals.css).
 export default function SiteHeader() {
-  const { user, isLoading, logout } = useAuth();
+  const { user, isLoading } = useAuth();
+  const { pedirSalida, dialogoSalida } = useConfirmarSalida();
   const ruta = usePathname();
   const ingresar = ruta && ruta !== '/' ? `/login?volver=${encodeURIComponent(ruta)}` : '/login';
   const [oculta, setOculta] = useState(false);
@@ -43,12 +53,12 @@ export default function SiteHeader() {
       <Link href="/perfil" className="calma-link calma-link-sutil">
         Mi cuenta
       </Link>
-      {user.role === 'admin' && (
+      {esPersonal(user) && (
         <Link href="/admin" className="calma-link calma-link-sutil">
           Panel
         </Link>
       )}
-      <button type="button" onClick={logout} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
+      <button type="button" onClick={pedirSalida} className="calma-link calma-link-sutil uppercase tracking-[0.16em]">
         Salir
       </button>
     </>
@@ -60,14 +70,16 @@ export default function SiteHeader() {
 
   return (
     <header
-      className={`calma-micro fixed inset-x-0 top-0 z-50 text-[#efe9df] transition-[transform,background-color] duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none ${
-        oculta && !menuAbierto ? '-translate-y-full' : 'translate-y-0'
-      } ${conFondo || menuAbierto ? 'bg-[#071733]/92 backdrop-blur-md' : 'bg-transparent'}`}
+      className={`barra-vidrio calma-micro fixed inset-x-0 top-0 z-50 text-[#efe9df] ${oculta && !menuAbierto ? 'es-oculta' : ''} ${
+        conFondo || menuAbierto ? 'con-fondo' : ''
+      }`}
     >
-      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-5 sm:px-10">
+      {dialogoSalida}
+      <AvisoSalida />
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4 px-5 py-2.5 sm:px-10">
         <nav aria-label="Principal" className="hidden gap-7 lg:flex">
           {enlaces.map((enlace) => (
-            <Link key={enlace.href} href={enlace.href} className="calma-link calma-link-sutil">
+            <Link key={enlace.href} href={enlace.href} aria-current={esActual(ruta, enlace.href) ? 'page' : undefined} className="calma-link calma-link-sutil">
               {enlace.texto}
             </Link>
           ))}
@@ -82,29 +94,31 @@ export default function SiteHeader() {
           {menuAbierto ? 'Cerrar' : 'Menú'}
         </button>
 
-        <Link href="/" className="flex items-center gap-2.5 text-[13px] tracking-[0.3em] lg:text-[14px] lg:tracking-[0.32em]">
-          <svg width="26" height="22" viewBox="0 0 40 34" aria-hidden="true">
-            <path d="M4 18 20 4l16 14" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinejoin="round" />
-            <rect x="15" y="17" width="10" height="10" fill="#d9382b" />
-            <path d="M2 32h36" stroke="currentColor" strokeWidth="3" />
-          </svg>
-          <span className="hidden lg:inline">Negocios Inmobiliarios</span>
-          <span className="lg:hidden">Negocios</span>
+        <Link href="/" aria-label="Ir al inicio" className="flex items-start self-start sm:-mb-6 lg:-mb-12">
+          {/* Logo original: ARACELI BALBUENA arriba, línea azul y NEGOCIOS INMOBILIARIOS abajo.
+              En pantallas grandes sobresale por debajo de la barra (margen negativo), sin agrandarla. */}
+          <LogoEmpresa className="barra-logo h-12 w-auto sm:h-[72px] lg:h-24" prioridad />
         </Link>
 
         <div className="flex items-center justify-self-end gap-7">
-          <a href={WHATSAPP} target="_blank" rel="noreferrer" className="flex items-center gap-2">
+          <Link href="/contacto" aria-current={esActual(ruta, '/contacto') ? 'page' : undefined} className="flex min-h-11 items-center gap-2">
             <span className="calma-dot" aria-hidden="true" />
-            <span className="calma-link calma-link-sutil">Escribinos</span>
-          </a>
+            <span className="calma-link calma-link-sutil">Contacto</span>
+          </Link>
           <div className="hidden items-center gap-7 lg:flex">{sesion}</div>
         </div>
       </div>
 
       {menuAbierto && (
-        <nav id="menu-movil" aria-label="Menú" className="flex flex-col gap-6 border-t border-[#efe9df]/15 px-5 pb-8 pt-6 lg:hidden">
+        <nav id="menu-movil" aria-label="Menú" className="flex flex-col gap-6 border-t border-white/15 px-5 pb-8 pt-6 lg:hidden">
           {enlaces.map((enlace) => (
-            <Link key={enlace.href} href={enlace.href} onClick={() => setMenuAbierto(false)} className="font-display text-3xl normal-case tracking-normal">
+            <Link
+              key={enlace.href}
+              href={enlace.href}
+              onClick={() => setMenuAbierto(false)}
+              aria-current={esActual(ruta, enlace.href) ? 'page' : undefined}
+              className="font-display text-3xl normal-case tracking-normal"
+            >
               {enlace.texto}
             </Link>
           ))}

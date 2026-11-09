@@ -13,11 +13,15 @@ const userSchema = new mongoose.Schema({
         type: String,
         trim: true
     },
-    username: {
+    dni: {
         type: String,
         trim: true
     },
-    password: {
+    nombreUsuario: {
+        type: String,
+        trim: true
+    },
+    contrasena: {
         type: String,
         required: true
     },
@@ -28,10 +32,20 @@ const userSchema = new mongoose.Schema({
         trim: true,
         lowercase: true
     },
-    role: {
+    rol: {
         type: String,
-        enum: ['admin', 'cliente', 'user'],
+        enum: ['admin', 'empleado', 'cliente', 'user'],
         default: 'cliente'
+    },
+    // Empleados del panel: secciones a las que puede entrar (claves de utils/permisos). El admin tiene todas.
+    permisos: {
+        type: [String],
+        default: []
+    },
+    // false = empleado dado de baja: no puede iniciar sesión ni usar el panel (se conserva para el registro de actividad)
+    activo: {
+        type: Boolean,
+        default: true
     },
     // Las cuentas que ya existían quedan como verificadas; el registro público las crea en false
     emailVerificado: {
@@ -75,9 +89,20 @@ const userSchema = new mongoose.Schema({
     credencialesCambiadasEn: {
         type: Date
     },
+    // Cuándo aceptó los Términos y la Política de privacidad al crear la cuenta
+    aceptoTerminosEn: {
+        type: Date
+    },
     checklistRequisitos: {
         type: [String],
         default: []
+    },
+    // 224: navegadores desde los que ya ingresó (huella de una cookie, nunca el valor). Un ingreso desde uno
+    // nuevo manda un mail de aviso.
+    dispositivosConocidos: {
+        type: [{ huella: String, visto: Date, _id: false }],
+        default: undefined,
+        select: false
     },
     // Propiedades que el usuario guardó como favoritas
     favoritos: {
@@ -93,6 +118,11 @@ const userSchema = new mongoose.Schema({
         paleta: {
             type: String,
             default: 'corporativo'
+        },
+        // Accesos rápidos del inicio del panel, en el orden elegido. Sin valor = los de siempre.
+        accesos: {
+            type: [String],
+            default: undefined
         }
     },
     createdAt: {
@@ -105,10 +135,10 @@ const userSchema = new mongoose.Schema({
     }
 });
 
-// Middleware para asignar username por defecto y actualizar fecha
+// Middleware para asignar nombreUsuario por defecto y actualizar fecha
 userSchema.pre('save', function() {
-    if (!this.username && this.email) {
-        this.username = this.email;
+    if (!this.nombreUsuario && this.email) {
+        this.nombreUsuario = this.email;
     }
     this.updatedAt = Date.now();
 });

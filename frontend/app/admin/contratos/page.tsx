@@ -7,13 +7,14 @@ import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
 
-type Pestana = 'activos' | 'por_vencer' | 'borradores' | 'cerrados' | 'todos';
+type Pestana = 'activos' | 'por_vencer' | 'firmados' | 'borradores' | 'cerrados' | 'todos';
 
 const PESTANAS: { id: Pestana; texto: string; incluye: (e: string) => boolean }[] = [
   { id: 'activos', texto: 'Activos', incluye: (e) => e === 'activo' },
   { id: 'por_vencer', texto: 'Por vencer', incluye: (e) => e === 'por_vencer' },
+  { id: 'firmados', texto: 'Firmados', incluye: (e) => e === 'firmado' },
   { id: 'borradores', texto: 'Borradores', incluye: (e) => e === 'borrador' },
-  { id: 'cerrados', texto: 'Finalizados y cancelados', incluye: (e) => e === 'finalizado' || e === 'cancelado' },
+  { id: 'cerrados', texto: 'Vencidos y cancelados', incluye: (e) => e === 'finalizado' || e === 'cancelado' || e === 'vencido' },
   { id: 'todos', texto: 'Todos', incluye: () => true },
 ];
 
@@ -45,9 +46,9 @@ function Vencimiento({ contrato }: { contrato: Contrato }) {
   // Una compraventa no vence: su fecha es la de posesión
   if (contrato.tipoContrato === 'Compraventa') return null;
   const dias = diasHasta(contrato.fechaFin);
-  if (dias === null || !['activo', 'por_vencer'].includes(contrato.estado)) return null;
+  if (dias === null || !['activo', 'firmado', 'por_vencer'].includes(contrato.estado)) return null;
   if (dias < 0) return <span className="text-[12.5px] text-red-600 dark:text-red-400">Venció hace {-dias} {dias === -1 ? 'día' : 'días'}</span>;
-  if (dias <= 60) return <span className="text-[12.5px] text-amber-700 dark:text-amber-400">Vence en {dias} {dias === 1 ? 'día' : 'días'}</span>;
+  if (dias <= 30) return <span className="text-[12.5px] text-amber-700 dark:text-amber-400">Vence en {dias} {dias === 1 ? 'día' : 'días'}</span>;
   return null;
 }
 
@@ -149,7 +150,7 @@ export default function ContratosAdminPage() {
                   role="tab"
                   aria-selected={activa}
                   onClick={() => setPestana(p.id)}
-                  className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
+                  className={`flex shrink-0 min-h-11 items-center gap-2 rounded-md px-3 py-1.5 text-[13.5px] sm:min-h-0 transition-colors ${activa ? 'bg-panel-superficie font-medium shadow-sm ring-1 ring-panel-borde' : 'text-panel-suave hover:text-panel-texto'}`}
                 >
                   {p.texto}
                   <span className={`tabular rounded px-1.5 text-[12px] ${p.id === 'por_vencer' && cantidad ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300' : 'text-panel-tenue'}`}>{cantidad}</span>
@@ -229,13 +230,13 @@ export default function ContratosAdminPage() {
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
                     </span>
                     <div className="-ml-2 flex items-center lg:ml-0 lg:justify-end">
-                      <button type="button" onClick={() => setDetalle(c)} title="Ver detalle" aria-label={`Ver el contrato ${c.numeroContrato}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                      <button type="button" onClick={() => setDetalle(c)} title="Ver detalle" aria-label={`Ver el contrato ${c.numeroContrato}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                         <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                       </button>
-                      <Link href={`/admin/contratos/generar?id=${c._id}`} title="Editar" aria-label={`Editar el contrato ${c.numeroContrato}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                      <Link href={`/admin/contratos/generar?id=${c._id}`} title="Editar" aria-label={`Editar el contrato ${c.numeroContrato}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                         <Icono nombre="editar" className="h-[18px] w-[18px]" />
                       </Link>
-                      <button type="button" onClick={() => borrar(c)} title="Borrar" aria-label={`Borrar el contrato ${c.numeroContrato}`} className="rounded-md p-2 text-panel-tenue hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                      <button type="button" onClick={() => borrar(c)} title="Borrar" aria-label={`Borrar el contrato ${c.numeroContrato}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
                         <Icono nombre="borrar" className="h-[18px] w-[18px]" />
                       </button>
                     </div>

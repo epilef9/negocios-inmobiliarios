@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import Icono from "@/components/panel/Icono";
 import { Boton, BotonLink, Campo, Encabezado, Esqueleto, Tarjeta, areaTexto, control } from "@/components/panel/ui";
+import { operacionesDe, precioDe } from "@/components/sitio/operaciones";
 import { createProperty, getDolarBlueQuote, getLocalidades, getPropertyById, resolveMapsLink, updateProperty, uploadPropertyImages } from "../../../../services/api";
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 const SelectorUbicacionMapa = dynamic(
   () => import("../../../../components/SelectorUbicacionMapa"),
   {
@@ -18,6 +20,19 @@ const SelectorUbicacionMapa = dynamic(
     ),
   }
 );
+
+// HU-25 / RF-03: venta y alquiler se pueden combinar (cada una con su precio); el alquiler por días va solo
+type OperacionForm = "venta" | "alquiler" | "temporario";
+type PrecioForm = { moneda: "USD" | "ARS"; monto: string };
+const PRECIO_VACIO: PrecioForm = { moneda: "USD", monto: "" };
+const NOMBRE_OPERACION: Record<OperacionForm, string> = { venta: "Venta", alquiler: "Alquiler", temporario: "Alquiler por días" };
+const precioParaFormulario = (precio: { precio?: number; moneda?: "USD" | "ARS"; precioARS?: number } | null): PrecioForm =>
+  precio && typeof precio.precio === "number"
+    ? { moneda: precio.moneda === "ARS" ? "ARS" : "USD", monto: String(precio.moneda === "ARS" ? precio.precioARS ?? precio.precio : precio.precio) }
+    : { ...PRECIO_VACIO };
+
+// Límites aproximados de Entre Ríos (con margen): el backend controla lo mismo
+const dentroDeEntreRios = (lat: number, lng: number) => Number.isFinite(lat) && Number.isFinite(lng) && lat >= -34.3 && lat <= -29.9 && lng >= -61 && lng <= -57.4;
 
 export default function NuevaPropiedadPage() {
   const router = useRouter();
@@ -32,14 +47,13 @@ export default function NuevaPropiedadPage() {
     titulo: "",
     codigoInterno: "",
     tipoInmueble: "",
-    categoriaOperacion: "",
+    operaciones: [] as OperacionForm[],
     ciudadZonaBarrio: "",
     provincia: "entre_rios",
     direccionCompleta: "",
     referenciasUbicacion: "",
-    precioUSD: "",
-    moneda: "USD",
-    precioARS: "",
+    // Precio de cada operación (en la moneda elegida); el de temporario es el precio de referencia general
+    precios: { venta: { ...PRECIO_VACIO }, alquiler: { ...PRECIO_VACIO }, temporario: { ...PRECIO_VACIO } } as Record<OperacionForm, PrecioForm>,
     cotizacionDolar: "",
     expensas: "",
     montoExpensas: "",
@@ -59,6 +73,7 @@ export default function NuevaPropiedadPage() {
     permitirVisita: true,
     permitirWhatsApp: true,
     permitirEmail: true,
+    permitirSolicitudes: true,
     horarioAtencion: "",
     telefonoWhatsApp: "",
 
@@ -72,6 +87,16 @@ export default function NuevaPropiedadPage() {
     checkInDesde: "",
     checkOutHasta: "",
     checkInFlexible: "",
+
+    // HU-12: descuento y financiación
+    descuentoPorcentaje: "",
+    descuentoHasta: "",
+    descuentoMotivo: "",
+    financiacionDisponible: false,
+    anticipoPorcentaje: "",
+    cuotas: "",
+    tasa: "",
+    financiacionDetalle: "",
   });
 
   const [comodidadesSeleccionadas, setComodidadesSeleccionadas] = useState<string[]>([]);
@@ -80,6 +105,7 @@ export default function NuevaPropiedadPage() {
   const [imagenes, setImagenes] = useState<string[]>([]);
 
   const [modoEdicion, setModoEdicion] = useState(false);
+  const [idEdicion, setIdEdicion] = useState<string | null>(null);
   const [estadoPropiedad, setEstadoPropiedad] = useState<"disponible" | "reservado" | "alquilado" | "vendido">("disponible");
   const [mostrarTodoEdicion, setMostrarTodoEdicion] = useState(true);
   // Al editar, se muestra un esqueleto hasta que llegan los datos de la propiedad
@@ -107,6 +133,25 @@ export default function NuevaPropiedadPage() {
   const esVivienda = formData.tipoInmueble === "casa" || formData.tipoInmueble === "departamento";
   const esTerreno = formData.tipoInmueble === "terreno";
   const permiteAlquilerTemporario = esVivienda;
+  const esTemporario = formData.operaciones.includes("temporario");
+  const enVenta = formData.operaciones.includes("venta");
+  const enAlquiler = formData.operaciones.includes("alquiler");
+
+  // Marca o desmarca una operación: venta y alquiler se combinan; el alquiler por días reemplaza a las otras
+  const alternarOperacion = (operacion: OperacionForm) => {
+    limpiarErrorCampo("operaciones");
+    setFormData((actual) => {
+      const marcada = actual.operaciones.includes(operacion);
+      if (operacion === "temporario") return { ...actual, operaciones: marcada ? [] : ["temporario"] };
+      const sinTemporario = actual.operaciones.filter((o) => o !== "temporario");
+      const lista: OperacionForm[] = marcada ? sinTemporario.filter((o) => o !== operacion) : [...sinTemporario, operacion];
+      return { ...actual, operaciones: (["venta", "alquiler"] as OperacionForm[]).filter((o) => lista.includes(o)) };
+    });
+  };
+  const cambiarPrecio = (operacion: OperacionForm, cambio: Partial<PrecioForm>) => {
+    limpiarErrorCampo(`precio-${operacion}`);
+    setFormData((actual) => ({ ...actual, precios: { ...actual.precios, [operacion]: { ...actual.precios[operacion], ...cambio } } }));
+  };
 
   // Obtener coordenadas desde un enlace de Google Maps
   const completarCoordenadasDesdeLink = async (link: string) => {
@@ -144,41 +189,45 @@ export default function NuevaPropiedadPage() {
     getPropertyById(id)
       .then((property) => {
         setModoEdicion(true);
+        setIdEdicion(id);
         if (property.estado) {
           setEstadoPropiedad(property.estado);
         }
+        const operacionesTemporariaInvalida = operacionesDe(property).includes("temporario") && !["casa", "departamento"].includes(property.tipoInmueble ?? "");
         setFormData((current) => ({
           ...current,
-          titulo: property.title ?? "",
+          titulo: property.titulo ?? "",
           codigoInterno: property.codigoInterno ?? "",
-          tipoInmueble: property.tipo_inmueble === "monoambiente" ? "departamento" : property.tipo_inmueble ?? current.tipoInmueble,
-          categoriaOperacion: property.categoria_operacion === "temporario" && !["casa", "departamento"].includes(property.tipo_inmueble ?? "")
-            ? "venta"
-            : property.categoria_operacion ?? current.categoriaOperacion,
+          tipoInmueble: property.tipoInmueble === "monoambiente" ? "departamento" : property.tipoInmueble ?? current.tipoInmueble,
+          // Una temporaria vieja que no es casa ni departamento pasa a venta (el alquiler por días es solo para viviendas)
+          operaciones: operacionesTemporariaInvalida ? ["venta"] : operacionesDe(property),
           ciudadZonaBarrio: property.ciudad ?? "",
           provincia: property.provincia === "entre_rios" ? property.provincia : "entre_rios",
-          direccionCompleta: property.direccionCompleta ?? property.location ?? "",
+          direccionCompleta: property.direccionCompleta ?? property.ubicacion ?? "",
           referenciasUbicacion: property.referenciasUbicacion ?? "",
-          precioUSD: String(property.price ?? ""),
-          moneda: property.moneda ?? "USD",
-          precioARS: String(property.priceARS ?? ""),
+          precios: {
+            venta: precioParaFormulario(operacionesTemporariaInvalida ? { precio: property.precio, moneda: property.moneda, precioARS: property.precioARS } : precioDe(property, "venta")),
+            alquiler: precioParaFormulario(precioDe(property, "alquiler")),
+            temporario: precioParaFormulario(operacionesDe(property).includes("temporario") ? { precio: property.precio, moneda: property.moneda, precioARS: property.precioARS } : null),
+          },
           cotizacionDolar: String(property.cotizacionDolar ?? current.cotizacionDolar),
           expensas: property.expensas ?? current.expensas,
           montoExpensas: String(property.montoExpensas ?? ""),
           superficieTotal: String(property.area ?? ""),
-          cantidadAmbientes: String(property.cantidad_ambientes ?? ""),
-          dormitorios: String(property.bedrooms ?? ""),
-          banos: String(property.bathrooms ?? ""),
+          cantidadAmbientes: String(property.ambientes ?? ""),
+          dormitorios: String(property.dormitorios ?? ""),
+          banos: String(property.banos ?? ""),
           cochera: property.cochera ?? "no",
           pisoUnidad: property.pisoUnidad ?? "",
           otrasComodidades: property.otrasComodidades ?? "",
-          descripcion: property.description ?? "",
+          descripcion: property.descripcion ?? "",
           linkGoogleMaps: property.linkGoogleMaps ?? "",
           latitud: property.latitud ?? "",
           longitud: property.longitud ?? "",
           permitirVisita: property.permitirVisita ?? true,
           permitirWhatsApp: property.permitirWhatsApp ?? true,
           permitirEmail: property.permitirEmail ?? true,
+          permitirSolicitudes: property.permitirSolicitudes ?? true,
           horarioAtencion: property.horarioAtencion ?? current.horarioAtencion,
           telefonoWhatsApp: property.telefonoWhatsApp ?? "",
           precioPorNocheUSD: String(property.precioPorNocheUSD ?? ""),
@@ -194,9 +243,17 @@ export default function NuevaPropiedadPage() {
           checkInDesde: property.checkInDesde ?? "",
           checkOutHasta: property.checkOutHasta ?? "",
           checkInFlexible: property.checkInFlexible ?? "si",
+          descuentoPorcentaje: property.descuento?.porcentaje ? String(property.descuento.porcentaje) : "",
+          descuentoHasta: property.descuento?.hasta ? String(property.descuento.hasta).slice(0, 10) : "",
+          descuentoMotivo: property.descuento?.motivo ?? "",
+          financiacionDisponible: Boolean(property.financiacion?.disponible),
+          anticipoPorcentaje: property.financiacion?.anticipoPorcentaje ? String(property.financiacion.anticipoPorcentaje) : "",
+          cuotas: property.financiacion?.cuotas ? String(property.financiacion.cuotas) : "",
+          tasa: property.financiacion?.tasa ?? "",
+          financiacionDetalle: property.financiacion?.detalle ?? "",
         }));
         setComodidadesSeleccionadas(property.comodidades ?? []);
-        setImagenes(property.images ?? []);
+        setImagenes(property.fotos ?? []);
         if (property.linkGoogleMaps && (!property.latitud || !property.longitud)) {
           void completarCoordenadasDesdeLink(property.linkGoogleMaps);
         }
@@ -321,8 +378,8 @@ export default function NuevaPropiedadPage() {
       if (!formData.tipoInmueble) {
         return { valid: false, error: "Seleccioná el tipo de inmueble", field: "tipoInmueble" };
       }
-      if (!formData.categoriaOperacion) {
-        return { valid: false, error: "Seleccioná la categoría u operación", field: "categoriaOperacion" };
+      if (!formData.operaciones.length) {
+        return { valid: false, error: "Elegí al menos una operación: venta, alquiler o alquiler por días", field: "operaciones" };
       }
       if (!formData.ciudadZonaBarrio.trim()) {
         return { valid: false, error: "Seleccioná la localidad", field: "ciudadZonaBarrio" };
@@ -334,19 +391,34 @@ export default function NuevaPropiedadPage() {
     }
 
     if (paso === 2) {
-      const precioStr = formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD;
-      if (!precioStr || !precioStr.trim()) {
-        return { valid: false, error: `El precio en ${formData.moneda} es obligatorio`, field: "precio" };
-      }
-      const precioNum = Number(precioStr);
-      if (!Number.isFinite(precioNum) || precioNum <= 0) {
-        return { valid: false, error: "El precio debe ser un número mayor a 0", field: "precio" };
+      // Cada operación elegida necesita su precio (HU-25)
+      for (const operacion of formData.operaciones) {
+        const { monto, moneda } = formData.precios[operacion];
+        const de = operacion === "venta" ? " de venta" : operacion === "alquiler" ? " de alquiler" : "";
+        if (!monto.trim()) {
+          return { valid: false, error: `El precio${de} en ${moneda} es obligatorio`, field: `precio-${operacion}` };
+        }
+        if (!Number.isFinite(Number(monto)) || Number(monto) <= 0) {
+          return { valid: false, error: `El precio${de} debe ser un número mayor a 0`, field: `precio-${operacion}` };
+        }
       }
       if (formData.cotizacionDolar && (Number(formData.cotizacionDolar) <= 0 || !Number.isFinite(Number(formData.cotizacionDolar)))) {
         return { valid: false, error: "La cotización del dólar debe ser mayor a 0", field: "cotizacionDolar" };
       }
       if (formData.montoExpensas && (Number(formData.montoExpensas) < 0 || !Number.isFinite(Number(formData.montoExpensas)))) {
         return { valid: false, error: "El monto de expensas no puede ser negativo", field: "montoExpensas" };
+      }
+      if (formData.descuentoPorcentaje && !(Number(formData.descuentoPorcentaje) > 0 && Number(formData.descuentoPorcentaje) <= 90)) {
+        return { valid: false, error: "El descuento tiene que ser un porcentaje entre 1 y 90", field: "descuentoPorcentaje" };
+      }
+      if (formData.financiacionDisponible) {
+        const cuotas = Number(formData.cuotas);
+        if (!Number.isInteger(cuotas) || cuotas < 1 || cuotas > 360) {
+          return { valid: false, error: "Indicá en cuántas cuotas se financia (de 1 a 360)", field: "cuotas" };
+        }
+        if (formData.anticipoPorcentaje && Number(formData.anticipoPorcentaje) > 100) {
+          return { valid: false, error: "El anticipo no puede superar el 100 %", field: "anticipoPorcentaje" };
+        }
       }
       return { valid: true };
     }
@@ -390,6 +462,13 @@ export default function NuevaPropiedadPage() {
       if (formData.descripcion && formData.descripcion.length > 3000) {
         return { valid: false, error: "La descripción no puede superar los 3.000 caracteres", field: "descripcion" };
       }
+      // Sin punto la propiedad no aparece en el mapa de la portada: la ubicación es obligatoria
+      if (!formData.latitud.trim() || !formData.longitud.trim()) {
+        return { valid: false, error: "Marcá la ubicación: pegá el link de Google Maps, buscá la dirección o tocá el punto en el mapa", field: "latitud" };
+      }
+      if (!dentroDeEntreRios(Number(formData.latitud), Number(formData.longitud))) {
+        return { valid: false, error: "El punto quedó fuera de Entre Ríos. Revisá la ubicación en el mapa", field: "latitud" };
+      }
       if (formData.latitud && (isNaN(Number(formData.latitud)) || Number(formData.latitud) < -90 || Number(formData.latitud) > 90)) {
         return { valid: false, error: "La latitud debe ser un valor válido entre -90 y 90", field: "latitud" };
       }
@@ -403,14 +482,16 @@ export default function NuevaPropiedadPage() {
       if (imagenes.length > 20) {
         return { valid: false, error: "No podés subir más de 20 imágenes", field: "imagenes" };
       }
-      if (!formData.permitirVisita && !formData.permitirWhatsApp && !formData.permitirEmail) {
-        return { valid: false, error: "Debés habilitar al menos una opción de contacto (visita, WhatsApp o email)", field: "contacto" };
+      // Las solicitudes se admiten para las operaciones elegidas (no en alquiler por días)
+      const admiteSolicitud = formData.permitirSolicitudes && !esTemporario && formData.operaciones.length > 0;
+      if (!formData.permitirVisita && !formData.permitirWhatsApp && !formData.permitirEmail && !admiteSolicitud) {
+        return { valid: false, error: "Debés habilitar al menos una opción de contacto o una solicitud de compra/alquiler", field: "contacto" };
       }
       return { valid: true };
     }
 
     if (paso === 7) {
-      if (formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario) {
+      if (esTemporario && permiteAlquilerTemporario) {
         if (!formData.precioPorNocheUSD || !formData.precioPorNocheUSD.trim()) {
           return { valid: false, error: "El precio por noche es obligatorio", field: "precioPorNocheUSD" };
         }
@@ -433,7 +514,7 @@ export default function NuevaPropiedadPage() {
           return { valid: false, error: "El costo de limpieza no puede ser negativo", field: "costoLimpiezaUSD" };
         }
       }
-      if (formData.categoriaOperacion === "alquiler") {
+      if (enAlquiler) {
         if (formData.unidadDuracionAlquiler === "meses" && Number(formData.duracionAlquilerMeses) > 11) {
           return { valid: false, error: "La duración en meses no puede superar los 11 meses", field: "duracionAlquilerMeses" };
         }
@@ -527,15 +608,14 @@ export default function NuevaPropiedadPage() {
     return true;
   };
 
-  // Datos auxiliares para la conversión entre monedas
-  const precioUSD = Number(formData.precioUSD);
-  const precioARS = Number(formData.precioARS);
-  const valorReferencialARS = cotizacionBlue && Number.isFinite(precioUSD) && precioUSD > 0
-    ? precioUSD * cotizacionBlue
-    : null;
-  const valorReferencialUSD = cotizacionBlue && Number.isFinite(precioARS) && precioARS > 0
-    ? precioARS / cotizacionBlue
-    : null;
+  // Referencia en la otra moneda con el dólar blue (para el precio de cada operación)
+  const referenciaPrecio = ({ moneda, monto }: PrecioForm) => {
+    const valor = Number(monto);
+    if (!cotizacionBlue || !Number.isFinite(valor) || valor <= 0) return null;
+    return moneda === "USD"
+      ? `≈ ARS ${(valor * cotizacionBlue).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`
+      : `≈ USD ${(valor / cotizacionBlue).toLocaleString("es-AR", { maximumFractionDigits: 0 })}`;
+  };
   const fechaCotizacionFormateada = fechaCotizacionBlue && !Number.isNaN(Date.parse(fechaCotizacionBlue))
     ? new Intl.DateTimeFormat("es-AR", { dateStyle: "short", timeStyle: "short" }).format(new Date(fechaCotizacionBlue))
     : null;
@@ -555,13 +635,13 @@ export default function NuevaPropiedadPage() {
     try {
       const propertyId = new URLSearchParams(window.location.search).get("editar");
       const numericFields = [
-        ["precio", formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD],
+        ...formData.operaciones.map((operacion) => [`precio de ${NOMBRE_OPERACION[operacion].toLowerCase()}`, formData.precios[operacion].monto] as const),
         ["cotización del dólar", formData.cotizacionDolar],
         ["monto de expensas", formData.montoExpensas],
         ["superficie total", formData.superficieTotal],
         ...(esTerreno ? [] : [["cantidad de ambientes", formData.cantidadAmbientes]]),
         ...(esVivienda ? [["dormitorios", formData.dormitorios], ["baños", formData.banos]] : []),
-        ...(formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario
+        ...(esTemporario && permiteAlquilerTemporario
           ? [
             ["precio por noche", formData.precioPorNocheUSD],
             ["mínimo de noches", formData.minimoNoches],
@@ -579,38 +659,47 @@ export default function NuevaPropiedadPage() {
       }
 
       const cotizacionDolar = Number(formData.cotizacionDolar) || 1370;
-      const precioIngresado = Number(formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD);
-      const precioUSD = formData.moneda === "ARS"
-        ? precioIngresado / cotizacionDolar
-        : precioIngresado;
-      const precioARS = formData.moneda === "ARS"
-        ? precioIngresado
-        : precioIngresado * cotizacionDolar;
+      // Precio de una operación en el formato de la API: precio en dólares, moneda y precioARS
+      const aPrecio = (operacion: OperacionForm) => {
+        const { moneda, monto } = formData.precios[operacion];
+        const valor = Number(monto);
+        return moneda === "ARS"
+          ? { moneda, precioARS: valor, precio: Number((valor / cotizacionDolar).toFixed(2)) }
+          : { moneda, precio: valor, precioARS: Number((valor * cotizacionDolar).toFixed(2)) };
+      };
+      const operaciones = formData.operaciones;
+      // El backend vuelve a calcular la copia de la principal; se manda igual por compatibilidad
+      const principal = aPrecio(operaciones[0]);
+      const precios = esTemporario
+        ? {}
+        : Object.fromEntries(operaciones.map((operacion) => [operacion, aPrecio(operacion)]));
 
       // Armar el objeto con el formato que espera la API
       const propertyData = {
-        title: formData.titulo,
+        titulo: formData.titulo,
         codigoInterno: formData.codigoInterno,
-        description: formData.descripcion,
-        price: Number(precioUSD.toFixed(2)),
-        moneda: formData.moneda as "USD" | "ARS",
-        priceARS: Number(precioARS.toFixed(2)),
+        descripcion: formData.descripcion,
+        precio: principal.precio,
+        moneda: principal.moneda,
+        precioARS: principal.precioARS,
+        operaciones,
+        precios,
         cotizacionDolar,
-        location: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`,
+        ubicacion: formData.direccionCompleta || `${formData.ciudadZonaBarrio}, Entre Ríos`,
         ciudad: formData.ciudadZonaBarrio,
         provincia: formData.provincia,
         direccionCompleta: formData.direccionCompleta,
         referenciasUbicacion: formData.referenciasUbicacion,
-        categoria_operacion: formData.categoriaOperacion as "venta" | "alquiler" | "temporario",
-        tipo_inmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
-        cantidad_ambientes: Number(formData.cantidadAmbientes),
+        categoriaOperacion: operaciones[0],
+        tipoInmueble: formData.tipoInmueble as "departamento" | "local" | "casa" | "terreno",
+        ambientes: Number(formData.cantidadAmbientes),
         comodidades: esTerreno ? [] : comodidadesSeleccionadas,
         otrasComodidades: esTerreno ? "" : formData.otrasComodidades,
         expensas: formData.expensas,
         montoExpensas: Number(formData.montoExpensas) || 0,
         estado: modoEdicion ? estadoPropiedad : ("disponible" as const),
-        bedrooms: Number(formData.dormitorios),
-        bathrooms: Number(formData.banos),
+        dormitorios: Number(formData.dormitorios),
+        banos: Number(formData.banos),
         area: Number(formData.superficieTotal),
         cochera: formData.cochera,
         pisoUnidad: formData.pisoUnidad,
@@ -620,6 +709,7 @@ export default function NuevaPropiedadPage() {
         permitirVisita: formData.permitirVisita,
         permitirWhatsApp: formData.permitirWhatsApp,
         permitirEmail: formData.permitirEmail,
+        permitirSolicitudes: formData.permitirSolicitudes,
         horarioAtencion: formData.horarioAtencion,
         telefonoWhatsApp: formData.telefonoWhatsApp,
         precioPorNocheUSD: Number(formData.precioPorNocheUSD) || 0,
@@ -631,7 +721,21 @@ export default function NuevaPropiedadPage() {
         checkInDesde: formData.checkInDesde,
         checkOutHasta: formData.checkOutHasta,
         checkInFlexible: formData.checkInFlexible,
-        images: imagenes,
+        fotos: imagenes,
+        descuento: {
+          porcentaje: Number(formData.descuentoPorcentaje) || 0,
+          hasta: formData.descuentoPorcentaje && formData.descuentoHasta ? formData.descuentoHasta : null,
+          motivo: formData.descuentoPorcentaje ? formData.descuentoMotivo.trim().slice(0, 120) : "",
+        },
+        financiacion: formData.financiacionDisponible
+          ? {
+              disponible: true,
+              anticipoPorcentaje: Number(formData.anticipoPorcentaje) || 0,
+              cuotas: Number(formData.cuotas),
+              tasa: formData.tasa.trim().slice(0, 60),
+              detalle: formData.financiacionDetalle.trim().slice(0, 500),
+            }
+          : { disponible: false },
       };
 
       if (propertyId) {
@@ -676,7 +780,7 @@ export default function NuevaPropiedadPage() {
     </label>
   );
 
-  const casilla = (campo: "permitirVisita" | "permitirWhatsApp" | "permitirEmail", titulo: string, texto: string) => (
+  const casilla = (campo: "permitirVisita" | "permitirWhatsApp" | "permitirEmail" | "permitirSolicitudes", titulo: string, texto: string) => (
     <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-panel-borde p-3 transition-colors hover:bg-panel-hundido">
       <input
         type="checkbox"
@@ -741,8 +845,9 @@ export default function NuevaPropiedadPage() {
           ) : undefined
         }
       />
+      {modoEdicion && idEdicion && <ActividadRegistro entidad="propiedad" id={idEdicion} />}
 
-      <div className="grid gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
+      <div className="grid grid-cols-[minmax(0,1fr)] gap-6 xl:grid-cols-[240px_minmax(0,1fr)]">
         {/* Pasos (al crear) o índice de secciones (al editar) */}
         <nav aria-label={modoEdicion ? "Secciones" : "Pasos"} className="xl:sticky xl:top-8 xl:self-start">
           {!modoEdicion && (
@@ -780,7 +885,7 @@ export default function NuevaPropiedadPage() {
                       onClick={() => seleccionarParte(paso.n as typeof pasoActual)}
                       disabled={!habilitado}
                       aria-current={activo ? "step" : undefined}
-                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${activo ? "bg-panel-superficie ring-1 ring-panel-borde" : "hover:bg-panel-hundido"}`}
+                      className={`flex w-full items-start gap-3 rounded-lg px-3 py-2.5 xl:py-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${activo ? "bg-panel-superficie ring-1 ring-panel-borde" : "hover:bg-panel-hundido"}`}
                     >
                       {contenido}
                     </button>
@@ -817,9 +922,10 @@ export default function NuevaPropiedadPage() {
                         setFormData({
                           ...formData,
                           tipoInmueble,
-                          categoriaOperacion: tipoInmueble === "casa" || tipoInmueble === "departamento"
-                            ? formData.categoriaOperacion
-                            : formData.categoriaOperacion === "temporario" ? "venta" : formData.categoriaOperacion,
+                          // El alquiler por días es solo para casas y departamentos
+                          operaciones: tipoInmueble === "casa" || tipoInmueble === "departamento"
+                            ? formData.operaciones
+                            : formData.operaciones.filter((o) => o !== "temporario"),
                         });
                       }}
                       className={control}
@@ -831,14 +937,29 @@ export default function NuevaPropiedadPage() {
                       <option value="terreno">Terreno</option>
                     </select>
                   </Campo>
-                  <Campo etiqueta="Operación *" htmlFor="campo-operacion" error={error("categoriaOperacion")} ayuda={!permiteAlquilerTemporario && formData.tipoInmueble ? "El alquiler por días es solo para casas y departamentos." : undefined}>
-                    <select id="campo-operacion" value={formData.categoriaOperacion} aria-invalid={conError("categoriaOperacion")} onChange={(e) => { limpiarErrorCampo("categoriaOperacion"); setFormData({ ...formData, categoriaOperacion: e.target.value }); }} className={control}>
-                      <option value="">Elegí una operación</option>
-                      <option value="venta">Venta</option>
-                      <option value="alquiler">Alquiler</option>
-                      {permiteAlquilerTemporario && <option value="temporario">Alquiler por días</option>}
-                    </select>
-                  </Campo>
+                  <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" aria-invalid={conError("operaciones")} aria-describedby="ayuda-operaciones">
+                    <legend className="mb-1.5 p-0 text-[13px] font-medium text-panel-suave">Operación *</legend>
+                    <div className="flex flex-wrap gap-2">
+                      {(["venta", "alquiler", ...(permiteAlquilerTemporario ? ["temporario"] : [])] as OperacionForm[]).map((operacion) => {
+                        const marcada = formData.operaciones.includes(operacion);
+                        return (
+                          <label
+                            key={operacion}
+                            className={`inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border px-3.5 text-sm transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-panel-acento ${marcada ? "border-panel-marca bg-panel-marca text-panel-marca-texto" : conError("operaciones") ? "border-red-500 bg-panel-superficie text-panel-texto" : "border-panel-borde-fuerte bg-panel-superficie text-panel-suave hover:bg-panel-hundido"}`}
+                          >
+                            <input type="checkbox" checked={marcada} onChange={() => alternarOperacion(operacion)} className="sr-only" />
+                            {marcada && <Icono nombre="check" className="h-4 w-4" />}
+                            {NOMBRE_OPERACION[operacion]}
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p id="ayuda-operaciones" className={`m-0 text-[12.5px] ${conError("operaciones") ? "text-red-600 dark:text-red-400" : "text-panel-tenue"}`}>
+                      {error("operaciones") ?? (permiteAlquilerTemporario || !formData.tipoInmueble
+                        ? "Podés marcar venta y alquiler a la vez. El alquiler por días va solo."
+                        : "Podés marcar venta y alquiler a la vez. El alquiler por días es solo para casas y departamentos.")}
+                    </p>
+                  </fieldset>
                   <Campo etiqueta="Localidad *" htmlFor="campo-localidad" error={error("ciudadZonaBarrio")} ayuda="Provincia de Entre Ríos.">
                     <select id="campo-localidad" value={formData.ciudadZonaBarrio} aria-invalid={conError("ciudadZonaBarrio")} onChange={(e) => { limpiarErrorCampo("ciudadZonaBarrio"); actualizarUbicacionTexto("ciudadZonaBarrio", e.target.value); }} className={control}>
                       <option value="">Elegí la localidad</option>
@@ -861,27 +982,44 @@ export default function NuevaPropiedadPage() {
 
           {mostrarParte(2) && (
             <div id="parte-2" className="scroll-mt-6">
-              <Tarjeta titulo="Precio" descripcion="Se guarda en la moneda que elijas y se muestra la referencia en la otra con el dólar blue.">
+              <Tarjeta
+                titulo={enVenta && enAlquiler ? "Precios" : "Precio"}
+                descripcion={enVenta && enAlquiler
+                  ? "Uno por operación, cada uno en la moneda que elijas. Se muestra la referencia en la otra moneda con el dólar blue."
+                  : "Se guarda en la moneda que elijas y se muestra la referencia en la otra con el dólar blue."}
+              >
                 <div className="grid gap-5 sm:grid-cols-2">
-                  <Campo etiqueta="Moneda" htmlFor="campo-moneda">
-                    <select id="campo-moneda" value={formData.moneda} onChange={(e) => setFormData({ ...formData, moneda: e.target.value })} className={control}>
-                      <option value="USD">Dólares (USD)</option>
-                      <option value="ARS">Pesos (ARS)</option>
-                    </select>
-                  </Campo>
-                  <Campo etiqueta={`${formData.categoriaOperacion === "alquiler" ? "Precio mensual" : "Precio"} en ${formData.moneda} *`} htmlFor="campo-precio" error={error("precio")}>
-                    <input
-                      id="campo-precio"
-                      type="number"
-                      min="0"
-                      inputMode="decimal"
-                      placeholder={formData.moneda === "ARS" ? "Ej.: 98640000" : "Ej.: 72000"}
-                      value={formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD}
-                      aria-invalid={conError("precio")}
-                      onChange={(e) => { limpiarErrorCampo("precio"); handleNonNegativeNumberChange(formData.moneda === "ARS" ? "precioARS" : "precioUSD", e.target.value); }}
-                      className={`${control} tabular`}
-                    />
-                  </Campo>
+                  {formData.operaciones.length === 0 && (
+                    <p className="m-0 rounded-lg bg-panel-hundido px-4 py-3 text-[13.5px] text-panel-suave sm:col-span-2">Elegí la operación en el paso 1 para cargar el precio.</p>
+                  )}
+                  {formData.operaciones.map((operacion) => {
+                    const precio = formData.precios[operacion];
+                    const referencia = referenciaPrecio(precio);
+                    const titulo = operacion === "venta" ? "Precio de venta" : operacion === "alquiler" ? "Precio mensual de alquiler" : "Precio";
+                    return (
+                      <div key={operacion} className="grid gap-3 rounded-lg border border-panel-borde p-4 sm:col-span-2 sm:grid-cols-[150px_minmax(0,1fr)]">
+                        <Campo etiqueta="Moneda" htmlFor={`campo-moneda-${operacion}`}>
+                          <select id={`campo-moneda-${operacion}`} value={precio.moneda} onChange={(e) => cambiarPrecio(operacion, { moneda: e.target.value as "USD" | "ARS" })} className={control}>
+                            <option value="USD">Dólares (USD)</option>
+                            <option value="ARS">Pesos (ARS)</option>
+                          </select>
+                        </Campo>
+                        <Campo etiqueta={`${titulo} en ${precio.moneda} *`} htmlFor={`campo-precio-${operacion}`} error={error(`precio-${operacion}`)} ayuda={referencia ?? undefined}>
+                          <input
+                            id={`campo-precio-${operacion}`}
+                            type="number"
+                            min="0"
+                            inputMode="decimal"
+                            placeholder={operacion === "alquiler" ? (precio.moneda === "ARS" ? "Ej.: 450000" : "Ej.: 350") : precio.moneda === "ARS" ? "Ej.: 98640000" : "Ej.: 72000"}
+                            value={precio.monto}
+                            aria-invalid={conError(`precio-${operacion}`)}
+                            onChange={(e) => { if (e.target.value === "" || Number(e.target.value) >= 0) cambiarPrecio(operacion, { monto: e.target.value }); }}
+                            className={`${control} tabular`}
+                          />
+                        </Campo>
+                      </div>
+                    );
+                  })}
                   <div className="sm:col-span-2">
                     {estadoCotizacionBlue === "disponible" && cotizacionBlue ? (
                       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-panel-hundido px-4 py-3 text-[13.5px]">
@@ -889,12 +1027,6 @@ export default function NuevaPropiedadPage() {
                           Dólar blue: <span className="tabular font-medium text-panel-texto">${cotizacionBlue.toLocaleString("es-AR")}</span>
                           {fechaCotizacionFormateada && <span className="text-panel-tenue"> · actualizado {fechaCotizacionFormateada}</span>}
                         </span>
-                        {formData.moneda === "USD" && valorReferencialARS !== null && (
-                          <span className="tabular font-medium">≈ ARS {valorReferencialARS.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
-                        )}
-                        {formData.moneda === "ARS" && valorReferencialUSD !== null && (
-                          <span className="tabular font-medium">≈ USD {valorReferencialUSD.toLocaleString("es-AR", { maximumFractionDigits: 0 })}</span>
-                        )}
                       </div>
                     ) : (
                       <p className="m-0 rounded-lg bg-panel-hundido px-4 py-3 text-[13.5px] text-panel-suave">
@@ -927,6 +1059,48 @@ export default function NuevaPropiedadPage() {
                   </Campo>
                 </div>
               </Tarjeta>
+              {!esTemporario && (
+                <div className="mt-6">
+                  <Tarjeta titulo="Descuento y financiación" descripcion="Opcional. El descuento se muestra con el precio anterior tachado; la financiación, debajo del precio.">
+                    <div className="grid gap-5 sm:grid-cols-3">
+                      <Campo etiqueta="Descuento (%)" htmlFor="campo-descuento" error={error("descuentoPorcentaje")} ayuda="Vacío: sin descuento.">
+                        <input id="campo-descuento" type="number" min="0" max="90" inputMode="decimal" value={formData.descuentoPorcentaje} aria-invalid={conError("descuentoPorcentaje")} onChange={(e) => { limpiarErrorCampo("descuentoPorcentaje"); handleNonNegativeNumberChange("descuentoPorcentaje", e.target.value); }} placeholder="Ej.: 10" className={`${control} tabular`} />
+                      </Campo>
+                      <Campo etiqueta="Vale hasta" htmlFor="campo-descuento-hasta" ayuda="Vacío: hasta que lo saques.">
+                        <input id="campo-descuento-hasta" type="date" value={formData.descuentoHasta} disabled={!formData.descuentoPorcentaje} onChange={(e) => setFormData({ ...formData, descuentoHasta: e.target.value })} className={control} />
+                      </Campo>
+                      <Campo etiqueta="Motivo (se muestra)" htmlFor="campo-descuento-motivo">
+                        <input id="campo-descuento-motivo" type="text" maxLength={120} value={formData.descuentoMotivo} disabled={!formData.descuentoPorcentaje} onChange={(e) => setFormData({ ...formData, descuentoMotivo: e.target.value })} placeholder="Ej.: Precio especial pago contado" className={control} />
+                      </Campo>
+                    </div>
+                    <label className="mt-6 flex cursor-pointer items-start gap-3 rounded-lg border border-panel-borde p-3 transition-colors hover:bg-panel-hundido">
+                      <input type="checkbox" checked={formData.financiacionDisponible} onChange={(e) => { limpiarErrorCampo("cuotas"); setFormData({ ...formData, financiacionDisponible: e.target.checked }); }} className="mt-0.5 h-4 w-4 accent-[var(--p-acento)]" />
+                      <span>
+                        <span className="block text-sm font-medium">Ofrece financiación</span>
+                        <span className="block text-[13px] text-panel-suave">Por ejemplo, anticipo y cuotas directas con el dueño.</span>
+                      </span>
+                    </label>
+                    {formData.financiacionDisponible && (
+                      <div className="mt-5 grid gap-5 sm:grid-cols-3">
+                        <Campo etiqueta="Anticipo (%)" htmlFor="campo-anticipo" error={error("anticipoPorcentaje")}>
+                          <input id="campo-anticipo" type="number" min="0" max="100" value={formData.anticipoPorcentaje} onChange={(e) => handleNonNegativeNumberChange("anticipoPorcentaje", e.target.value)} placeholder="Ej.: 40" className={`${control} tabular`} />
+                        </Campo>
+                        <Campo etiqueta="Cuotas *" htmlFor="campo-cuotas" error={error("cuotas")}>
+                          <input id="campo-cuotas" type="number" min="1" max="360" step="1" value={formData.cuotas} aria-invalid={conError("cuotas")} onChange={(e) => { limpiarErrorCampo("cuotas"); handleNonNegativeNumberChange("cuotas", e.target.value); }} placeholder="Ej.: 24" className={`${control} tabular`} />
+                        </Campo>
+                        <Campo etiqueta="Interés" htmlFor="campo-tasa">
+                          <input id="campo-tasa" type="text" maxLength={60} value={formData.tasa} onChange={(e) => setFormData({ ...formData, tasa: e.target.value })} placeholder="Ej.: Sin interés, en dólares" className={control} />
+                        </Campo>
+                        <div className="sm:col-span-3">
+                          <Campo etiqueta="Detalle" htmlFor="campo-financiacion-detalle" ayuda={`${formData.financiacionDetalle.length} de 500 caracteres`}>
+                            <textarea id="campo-financiacion-detalle" rows={3} maxLength={500} value={formData.financiacionDetalle} onChange={(e) => setFormData({ ...formData, financiacionDetalle: e.target.value })} placeholder="Ej.: Cuotas fijas en dólares; se firma boleto con el anticipo." className={areaTexto} />
+                          </Campo>
+                        </div>
+                      </div>
+                    )}
+                  </Tarjeta>
+                </div>
+              )}
             </div>
           )}
 
@@ -1080,6 +1254,17 @@ export default function NuevaPropiedadPage() {
                   {casilla("permitirVisita", "Agendar una visita", "El cliente pide día y horario desde la publicación.")}
                   {casilla("permitirWhatsApp", "WhatsApp", "Botón para escribir con el mensaje listo.")}
                   {casilla("permitirEmail", "Email", "Enlace para mandar una consulta por correo.")}
+                  {!esTemporario && (
+                    <>
+                      {casilla(
+                        "permitirSolicitudes",
+                        "Recibir solicitudes",
+                        enVenta && enAlquiler
+                          ? "Habilita solicitudes formales de compra y de alquiler."
+                          : enAlquiler ? "Habilita solicitudes formales de alquiler." : "Habilita solicitudes formales de compra.",
+                      )}
+                    </>
+                  )}
                   {error("contacto") && <p className="m-0 text-[12.5px] text-red-600 dark:text-red-400">{error("contacto")}</p>}
                 </div>
                 <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -1101,7 +1286,7 @@ export default function NuevaPropiedadPage() {
 
           {mostrarParte(7) && (
             <div id="parte-7" className="scroll-mt-6">
-              {formData.categoriaOperacion === "temporario" && permiteAlquilerTemporario ? (
+              {esTemporario && permiteAlquilerTemporario ? (
                 <Tarjeta titulo="Alquiler por días" descripcion="Precio por noche y reglas de la estadía.">
                   <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_260px]">
                     <div className="grid gap-5 sm:grid-cols-2">
@@ -1149,14 +1334,16 @@ export default function NuevaPropiedadPage() {
                   </div>
                 </Tarjeta>
               ) : (
-                <Tarjeta titulo={formData.categoriaOperacion === "venta" ? "Condiciones de venta" : "Condiciones de alquiler"} descripcion="Revisá el resumen antes de publicar.">
+                <Tarjeta titulo={enVenta && enAlquiler ? "Condiciones de venta y alquiler" : enVenta ? "Condiciones de venta" : "Condiciones de alquiler"} descripcion="Revisá el resumen antes de publicar.">
                   <dl className="m-0 grid gap-4 sm:grid-cols-2">
-                    <div className="rounded-lg bg-panel-hundido px-4 py-3">
-                      <dt className="text-[13px] text-panel-suave">{formData.categoriaOperacion === "venta" ? "Precio de venta" : "Precio mensual"}</dt>
-                      <dd className="tabular m-0 mt-0.5 text-[17px] font-semibold">
-                        {formData.moneda} {Number((formData.moneda === "ARS" ? formData.precioARS : formData.precioUSD) || 0).toLocaleString("es-AR")}
-                      </dd>
-                    </div>
+                    {formData.operaciones.map((operacion) => (
+                      <div key={operacion} className="rounded-lg bg-panel-hundido px-4 py-3">
+                        <dt className="text-[13px] text-panel-suave">{operacion === "venta" ? "Precio de venta" : "Precio mensual de alquiler"}</dt>
+                        <dd className="tabular m-0 mt-0.5 text-[17px] font-semibold">
+                          {formData.precios[operacion].moneda} {Number(formData.precios[operacion].monto || 0).toLocaleString("es-AR")}
+                        </dd>
+                      </div>
+                    ))}
                     <div className="rounded-lg bg-panel-hundido px-4 py-3">
                       <dt className="text-[13px] text-panel-suave">Expensas</dt>
                       <dd className="tabular m-0 mt-0.5 text-[17px] font-semibold">
@@ -1164,7 +1351,7 @@ export default function NuevaPropiedadPage() {
                       </dd>
                     </div>
                   </dl>
-                  {formData.categoriaOperacion === "alquiler" && (
+                  {enAlquiler && (
                     <Campo etiqueta="Duración del contrato" htmlFor="campo-duracion" error={error("duracionAlquilerMeses")} ayuda="En meses, hasta 11; para más, elegí años." className="mt-5 max-w-sm">
                       <div className="flex gap-2">
                         <input

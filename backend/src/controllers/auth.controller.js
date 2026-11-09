@@ -3,6 +3,7 @@
 
 const mongoose = require('mongoose');
 const authService = require('../services/auth.service');
+const { establecerSesion, borrarSesion } = require('../middlewares/sesion');
 const User = require('../models/user.model');
 const Property = require('../models/property.model');
 
@@ -32,11 +33,11 @@ exports.register = async (req, res) => {
 // Confirma el email con el enlace recibido y deja la sesión iniciada
 exports.verifyEmail = async (req, res) => {
     try {
-        const result = await authService.verifyEmail(req.body && req.body.token);
+        const { token, ...result } = await authService.verifyEmail(req.body && req.body.token);
+        establecerSesion(res, token);
         res.status(200).json({
             message: 'Email confirmado',
             data: result,
-            token: result.token,
             user: result.user
         });
     } catch (error) {
@@ -72,11 +73,14 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
 
     try {
-        const result = await authService.login(email, password);
+        const { token, ...result } = await authService.login(email, password);
+        establecerSesion(res, token);
+        // 224: aviso por mail si es un navegador nuevo (pone su cookie antes de responder; el mail no frena el ingreso)
+        const avisoIngreso = require('../services/avisoIngreso.service').revisarIngreso(req, res, result.user?.id || result.user?._id);
+        await Promise.race([avisoIngreso, new Promise((listo) => setTimeout(listo, 1500))]);
         res.status(200).json({
             message: 'Inicio de sesion exitoso',
             data: result,
-            token: result.token,
             user: result.user
         });
     } catch (error) {
@@ -97,9 +101,11 @@ exports.me = async (req, res) => {
             id: user._id,
             nombre: user.nombre,
             apellido: user.apellido,
+            dni: user.dni || '',
             telefono: user.telefono,
             email: user.email,
-            role: user.role,
+            rol: user.rol,
+            permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
             emailVerificado: user.emailVerificado !== false,
             checklistRequisitos: user.checklistRequisitos || [],
             favoritos: Array.isArray(user.favoritos) ? user.favoritos.filter(Boolean).map(String) : [],
@@ -214,9 +220,13 @@ exports.agregarFavorito = async (req, res) => {
         if (!existe) {
             return res.status(404).json({ message: 'Propiedad no encontrada' });
         }
-        const ids = await guardarFavoritos(req.user._id, (actuales) =>
-            actuales.includes(propertyId) ? actuales : [...actuales, propertyId]
-        );
+        let nuevo = false;
+        const ids = await guardarFavoritos(req.user._id, (actuales) => {
+            nuevo = !actuales.includes(propertyId);
+            return nuevo ? [...actuales, propertyId] : actuales;
+        });
+        // Se espera antes de responder: en Vercel la función puede congelarse apenas sale la respuesta
+        if (nuevo) await require('../services/estadisticas.service').sumar(propertyId, 'favoritos');
         res.status(200).json({ data: ids });
     } catch (error) {
         console.error('[favoritos] Error al guardar:', error);
@@ -238,8 +248,24 @@ exports.quitarFavorito = async (req, res) => {
     }
 };
 
+// Cierra la sesión en todos los dispositivos y deja una sesión nueva en el actual
+exports.cerrarSesiones = async (req, res) => {
+    try {
+        const { token, ...resultado } = await authService.cerrarSesiones(req.user._id);
+        establecerSesion(res, token);
+        res.status(200).json({ message: 'Cerramos la sesión en todos tus dispositivos.', data: resultado, user: resultado.user });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[sesiones] No se pudieron cerrar:', error.message);
+        res.status(status).json({
+            message: status === 500 ? 'No pudimos cerrar las sesiones. Probá de nuevo.' : error.message
+        });
+    }
+};
+
 // Cierre de sesion
 exports.logout = (req, res) => {
+    borrarSesion(res);
     res.status(200).json({ message: 'Cierre de sesion exitoso' });
 };
 
@@ -305,8 +331,9 @@ exports.restablecerPassword = async (req, res) => {
 // Confirmar el email nuevo con el enlace que llegó a esa casilla
 exports.confirmarCambioEmail = async (req, res) => {
     try {
-        const resultado = await authService.confirmarCambioEmail(req.body && req.body.token);
-        res.status(200).json({ message: 'Email actualizado', data: resultado, token: resultado.token, user: resultado.user });
+        const { token, ...resultado } = await authService.confirmarCambioEmail(req.body && req.body.token);
+        establecerSesion(res, token);
+        res.status(200).json({ message: 'Email actualizado', data: resultado, user: resultado.user });
     } catch (error) {
         const status = error.statusCode || 500;
         if (status === 500) console.error('[email] Error al confirmar el cambio:', error.message);

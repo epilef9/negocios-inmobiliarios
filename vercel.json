@@ -11,6 +11,12 @@
       "framework": "nextjs"
     }
   },
+  "crons": [
+    {
+      "path": "/api/cron/recordatorios",
+      "schedule": "17 11 * * *"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",

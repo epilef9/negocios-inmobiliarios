@@ -3,8 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { deleteProperty, getProperties, updateProperty, type ApiProperty } from '@/services/api';
-import { etiquetaTipo, precioDePropiedad } from '@/components/sitio/precio';
-import { etiquetaOperacion } from '@/components/sitio/datos';
+import { etiquetaTipo, precioDePropiedad, preciosDePropiedad } from '@/components/sitio/precio';
+import { etiquetaOperaciones, operacionesDe, tieneOperacion } from '@/components/sitio/operaciones';
+
+// HU-25: con venta y alquiler, los dos precios (uno debajo del otro)
+const textoPrecios = (p: ApiProperty) => {
+  const precios = preciosDePropiedad(p, null);
+  return precios.length ? precios.map((x) => x.principal) : [precioDePropiedad(p, null).principal];
+};
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Encabezado, Esqueleto, EstadoVacio, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
@@ -12,7 +18,7 @@ import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
 type Filtros = { texto: string; tipo: string; operacion: string; estado: string };
 const SIN_FILTROS: Filtros = { texto: '', tipo: '', operacion: '', estado: '' };
 
-const ESTADOS = Object.entries(ESTADO_PROPIEDAD).map(([valor, { texto }]) => ({ valor, texto }));
+const ESTADOS = Object.entries(ESTADO_PROPIEDAD).map(([valor, { texto, tono }]) => ({ valor, texto, tono }));
 
 const TONO_SELECT: Record<string, string> = {
   exito: 'text-emerald-700 dark:text-emerald-300',
@@ -41,11 +47,12 @@ function SelectorEstado({ propiedad, alCambiar }: { propiedad: ApiProperty; alCa
     <select
       value={propiedad.estado || 'disponible'}
       onChange={(e) => alCambiar(e.target.value)}
-      aria-label={`Estado de ${propiedad.title}`}
+      aria-label={`Estado de ${propiedad.titulo}`}
       className={`h-8 cursor-pointer rounded-md border border-panel-borde bg-panel-superficie pl-2 pr-7 text-[13px] font-medium hover:border-panel-borde-fuerte focus:border-panel-acento focus:outline-none ${TONO_SELECT[actual.tono] ?? ''}`}
     >
       {ESTADOS.map((e) => (
-        <option key={e.valor} value={e.valor}>
+        // Cada opción con su color, también en la lista que se despliega (si no, todas toman el del estado actual)
+        <option key={e.valor} value={e.valor} className={`bg-panel-superficie font-medium ${TONO_SELECT[e.tono] ?? ''}`}>
           {e.texto}
         </option>
       ))}
@@ -84,7 +91,7 @@ export default function PropiedadesAdminPage() {
     setPropiedades((lista) => lista?.map((p) => (p._id === propiedad._id ? { ...p, estado: estado as ApiProperty['estado'] } : p)) ?? null);
     try {
       await updateProperty(propiedad._id, { estado: estado as ApiProperty['estado'] });
-      mostrar(`"${propiedad.title}" ahora figura como ${estadoDe(ESTADO_PROPIEDAD, estado).texto.toLowerCase()}.`);
+      mostrar(`"${propiedad.titulo}" ahora figura como ${estadoDe(ESTADO_PROPIEDAD, estado).texto.toLowerCase()}.`);
     } catch (e) {
       setPropiedades((lista) => lista?.map((p) => (p._id === propiedad._id ? { ...p, estado: anterior } : p)) ?? null);
       mostrar(e instanceof Error ? e.message : 'No se pudo cambiar el estado', 'peligro');
@@ -92,7 +99,7 @@ export default function PropiedadesAdminPage() {
   };
 
   const borrar = async (propiedad: ApiProperty) => {
-    const ok = await confirmar(`¿Borrar "${propiedad.title}"?`, {
+    const ok = await confirmar(`¿Borrar "${propiedad.titulo}"?`, {
       texto: 'Deja de verse en el sitio y no se puede recuperar. Si solo dejó de estar disponible, cambiale el estado.',
       accion: 'Borrar propiedad',
     });
@@ -100,7 +107,7 @@ export default function PropiedadesAdminPage() {
     try {
       await deleteProperty(propiedad._id);
       setPropiedades((lista) => lista?.filter((p) => p._id !== propiedad._id) ?? null);
-      mostrar(`Se borró "${propiedad.title}".`);
+      mostrar(`Se borró "${propiedad.titulo}".`);
     } catch (e) {
       mostrar(e instanceof Error ? e.message : 'No se pudo borrar la propiedad', 'peligro');
     }
@@ -113,9 +120,9 @@ export default function PropiedadesAdminPage() {
   const lista = propiedades ?? [];
   const visibles = lista.filter(
     (p) =>
-      (!texto || [p.title, p.location, p.ciudad, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto))) &&
-      (!filtros.tipo || p.tipo_inmueble === filtros.tipo) &&
-      (!filtros.operacion || (p.categoria_operacion || 'venta') === filtros.operacion) &&
+      (!texto || [p.titulo, p.ubicacion, p.ciudad, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto))) &&
+      (!filtros.tipo || p.tipoInmueble === filtros.tipo) &&
+      (!filtros.operacion || tieneOperacion(p, filtros.operacion) || (!operacionesDe(p).length && filtros.operacion === 'venta')) &&
       (!filtros.estado || (p.estado || 'disponible') === filtros.estado)
   );
   const disponibles = lista.filter((p) => !p.estado || p.estado === 'disponible').length;
@@ -227,31 +234,36 @@ export default function PropiedadesAdminPage() {
                     <tr key={p._id} className="transition-colors hover:bg-panel-hundido/60">
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
-                          <Miniatura src={p.images?.[0]} alt={p.title} />
+                          <Miniatura src={p.fotos?.[0]} alt={p.titulo} />
                           <div className="min-w-0">
                             <Link href={`/admin/propiedades/nueva?editar=${p._id}`} className="block truncate text-[14px] font-medium hover:underline">
-                              {p.title}
+                              {p.titulo}
                             </Link>
                             <span className="block truncate text-[13px] text-panel-suave">
-                              {[etiquetaTipo[p.tipo_inmueble || ''], p.ciudad || p.location].filter(Boolean).join(' · ')}
+                              {[etiquetaTipo[p.tipoInmueble || ''], p.ciudad || p.ubicacion].filter(Boolean).join(' · ')}
                             </span>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-[13.5px] text-panel-suave">{etiquetaOperacion[p.categoria_operacion || 'venta'] ?? 'Venta'}</td>
-                      <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</td>
+                      <td className="px-4 py-3 text-[13.5px] text-panel-suave">{etiquetaOperaciones(p, 'Venta')}</td>
+                      <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">
+                        {textoPrecios(p).map((texto) => <span key={texto} className="block">{texto}</span>)}
+                      </td>
                       <td className="px-4 py-3">
                         <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex justify-end gap-1">
-                          <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.title} en el sitio`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                          <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.titulo} en el sitio`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                           </Link>
-                          <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-panel-hundido hover:text-panel-texto">
+                          <Link href={`/propiedades/${p._id}/imprimir`} target="_blank" title="Imprimir ficha" aria-label={`Imprimir la ficha de ${p.titulo}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
+                            <Icono nombre="imprimir" className="h-[18px] w-[18px]" />
+                          </Link>
+                          <Link href={`/admin/propiedades/nueva?editar=${p._id}`} title="Editar" aria-label={`Editar ${p.titulo}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="editar" className="h-[18px] w-[18px]" />
                           </Link>
-                          <button type="button" onClick={() => borrar(p)} title="Borrar" aria-label={`Borrar ${p.title}`} className="rounded-md p-2 text-panel-tenue hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
+                          <button type="button" onClick={() => borrar(p)} title="Borrar" aria-label={`Borrar ${p.titulo}`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-400">
                             <Icono nombre="borrar" className="h-[18px] w-[18px]" />
                           </button>
                         </div>
@@ -266,24 +278,25 @@ export default function PropiedadesAdminPage() {
                 {visibles.map((p) => (
                   <li key={p._id} className="flex flex-col gap-3 p-4">
                     <div className="flex items-start gap-3">
-                      <Miniatura src={p.images?.[0]} alt={p.title} />
+                      <Miniatura src={p.fotos?.[0]} alt={p.titulo} />
                       <div className="min-w-0 flex-1">
                         <Link href={`/admin/propiedades/nueva?editar=${p._id}`} className="block text-[14px] font-medium">
-                          {p.title}
+                          {p.titulo}
                         </Link>
                         <span className="block text-[13px] text-panel-suave">
-                          {[etiquetaOperacion[p.categoria_operacion || 'venta'], p.ciudad || p.location].filter(Boolean).join(' · ')}
+                          {[etiquetaOperaciones(p, 'Venta'), p.ciudad || p.ubicacion].filter(Boolean).join(' · ')}
                         </span>
-                        <span className="tabular block text-[13.5px] font-medium">{precioDePropiedad(p, null).principal}</span>
+                        <span className="tabular block text-[13.5px] font-medium">{textoPrecios(p).join(' · ')}</span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between gap-2">
                       <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
                       <div className="flex gap-1">
+                        <BotonLink href={`/propiedades/${p._id}/imprimir`} target="_blank" tamano="sm" variante="fantasma" icono="imprimir" aria-label={`Imprimir la ficha de ${p.titulo}`}>{null}</BotonLink>
                         <BotonLink href={`/admin/propiedades/nueva?editar=${p._id}`} tamano="sm" icono="editar">
                           Editar
                         </BotonLink>
-                        <Boton tamano="sm" variante="fantasma" icono="borrar" onClick={() => borrar(p)} aria-label={`Borrar ${p.title}`} />
+                        <Boton tamano="sm" variante="fantasma" icono="borrar" onClick={() => borrar(p)} aria-label={`Borrar ${p.titulo}`} />
                       </div>
                     </div>
                   </li>

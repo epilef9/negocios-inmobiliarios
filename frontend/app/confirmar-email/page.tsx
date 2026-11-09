@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { confirmarCambioEmail } from '@/services/auth';
-import PantallaCuenta, { botonPrincipal } from '@/components/cuenta/PantallaCuenta';
+import PantallaCuenta, { botonCompacto } from '@/components/cuenta/PantallaCuenta';
 
 // Destino del enlace que llega al email nuevo: lo confirma y deja la sesión iniciada con ese email
 function Confirmacion() {
@@ -46,7 +46,7 @@ function Confirmacion() {
         <p className="m-0 text-[17px] leading-relaxed">
           Listo, desde ahora ingresás con <strong className="font-semibold">{email}</strong>. Cerramos las sesiones que tenías abiertas en otros dispositivos.
         </p>
-        <Link href="/perfil" className={`${botonPrincipal} w-auto self-start`}>
+        <Link href="/perfil" className={`${botonCompacto} self-start`}>
           Ir a mi cuenta
         </Link>
       </div>
@@ -56,7 +56,7 @@ function Confirmacion() {
   return (
     <div role="alert" className="flex flex-col gap-6 border-t border-[#efe9df]/20 pt-8">
       <p className="m-0 text-[17px] leading-relaxed text-[#ff8a7d]">{mensaje}</p>
-      <Link href="/perfil" className={`${botonPrincipal} w-auto self-start`}>
+      <Link href="/perfil" className={`${botonCompacto} self-start`}>
         Ir a mi cuenta
       </Link>
     </div>

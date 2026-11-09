@@ -1,6 +1,7 @@
 import { request } from './api';
+import { avisarPendientes } from './panel';
 
-export type EstadoVisita = 'pendiente' | 'confirmada' | 'reprogramada' | 'rechazada';
+export type EstadoVisita = 'pendiente' | 'confirmada' | 'reprogramada' | 'rechazada' | 'cancelada';
 
 export interface Visita {
   id: string;
@@ -22,6 +23,10 @@ export interface Visita {
   estado: EstadoVisita;
   notaAdicional?: string;
   motivoRechazo?: string;
+  // Solo en "Mis visitas": si el cliente todavía la puede cancelar
+  cancelable?: boolean;
+  // Respuesta a los botones del recordatorio del día anterior
+  asistencia?: { respuesta: 'confirmo' | 'no_voy' | null; respondidaEn?: string | null };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -32,7 +37,9 @@ export interface VisitaFiltros {
   search?: string;
 }
 
-function normalizeVisita(raw: any): Visita {
+type VisitaCruda = Omit<Partial<Visita>, 'cliente' | 'propiedad'> & { cliente?: Partial<Visita['cliente']>; propiedad?: Partial<Visita['propiedad']> };
+
+function normalizeVisita(raw: VisitaCruda): Visita {
   const id = raw.id || raw._id || '';
   const iniciales =
     raw.cliente?.iniciales ||
@@ -64,6 +71,8 @@ function normalizeVisita(raw: any): Visita {
     estado: (raw.estado as EstadoVisita) || 'pendiente',
     notaAdicional: raw.notaAdicional || '',
     motivoRechazo: raw.motivoRechazo || '',
+    cancelable: Boolean(raw.cancelable),
+    asistencia: { respuesta: raw.asistencia?.respuesta ?? null, respondidaEn: raw.asistencia?.respondidaEn ?? null },
     createdAt: raw.createdAt,
     updatedAt: raw.updatedAt,
   };
@@ -86,7 +95,7 @@ export async function getVisitas(filtros: VisitaFiltros = {}): Promise<Visita[]>
 
   const query = params.toString() ? `?${params.toString()}` : '';
   try {
-    const data = await request<any[]>(`/visitas${query}`);
+    const data = await request<VisitaCruda[]>(`/visitas${query}`);
     return Array.isArray(data) ? data.map(normalizeVisita) : [];
   } catch (error) {
     if (error instanceof Error && error.message === 'Not Found') {
@@ -100,7 +109,7 @@ export async function getVisitas(filtros: VisitaFiltros = {}): Promise<Visita[]>
  * Obtiene una visita específica por su ID
  */
 export async function getVisitaById(id: string): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}`);
+  const data = await request<VisitaCruda>(`/visitas/${id}`);
   return normalizeVisita(data);
 }
 
@@ -108,7 +117,7 @@ export async function getVisitaById(id: string): Promise<Visita> {
  * Crea una nueva visita en la base de datos
  */
 export async function createVisita(nueva: Omit<Visita, 'id' | '_id' | 'createdAt' | 'updatedAt'>): Promise<Visita> {
-  const data = await request<any>('/visitas', {
+  const data = await request<VisitaCruda>('/visitas', {
     method: 'POST',
     body: JSON.stringify(nueva),
   });
@@ -119,7 +128,7 @@ export async function createVisita(nueva: Omit<Visita, 'id' | '_id' | 'createdAt
  * Actualiza una visita existente
  */
 export async function updateVisita(id: string, actualizacion: Partial<Visita>): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}`, {
+  const data = await request<VisitaCruda>(`/visitas/${id}`, {
     method: 'PUT',
     body: JSON.stringify(actualizacion),
   });
@@ -134,7 +143,7 @@ export async function updateVisitaEstado(
   estado: EstadoVisita,
   extra?: { nuevaFecha?: string; nuevoHorario?: string; motivo?: string }
 ): Promise<Visita> {
-  const data = await request<any>(`/visitas/${id}/estado`, {
+  const data = await request<VisitaCruda>(`/visitas/${id}/estado`, {
     method: 'PATCH',
     body: JSON.stringify({
       estado,
@@ -143,6 +152,7 @@ export async function updateVisitaEstado(
       ...(extra?.motivo !== undefined ? { motivo: extra.motivo } : {}),
     }),
   });
+  avisarPendientes();
   return normalizeVisita(data);
 }
 
@@ -153,18 +163,64 @@ export async function deleteVisita(id: string): Promise<void> {
   await request<void>(`/visitas/${id}`, {
     method: 'DELETE',
   });
+  avisarPendientes();
 }
 
 /**
  * Restablece las visitas en la base de datos con los datos de ejemplo iniciales
  */
 export async function resetVisitasToDefault(): Promise<Visita[]> {
-  const data = await request<any[]>('/visitas/reset', {
+  const data = await request<VisitaCruda[]>('/visitas/reset', {
     method: 'POST',
   });
   return Array.isArray(data) ? data.map(normalizeVisita) : [];
 }
 
+// HU-34: las visitas que pidió el cliente con su cuenta, y cancelar una que todavía no pasó
+export async function getMisVisitas(): Promise<Visita[]> {
+  const data = await request<VisitaCruda[]>('/visitas/mias');
+  return Array.isArray(data) ? data.map(normalizeVisita) : [];
+}
+
+export async function cancelarVisita(id: string): Promise<Visita> {
+  return normalizeVisita(await request<VisitaCruda>(`/visitas/${id}/cancelar`, { method: 'PATCH', body: JSON.stringify({}) }));
+}
+
 // Aliases para compatibilidad
 export const addVisita = createVisita;
 export const getStoredVisitas = getVisitas;
+
+// Agenda pública para el calendario de "Agendar una visita": estado de cada día y horarios libres
+// `cierre`: el día cae en un feriado o vacaciones cargados en el panel (el texto es el motivo, puede ser vacío)
+export type DiaAgenda = { fecha: string; estado: 'disponible' | 'completo' | 'cerrado'; turnos: string[]; cierre?: string };
+export type Agenda = { dias: DiaAgenda[]; horario: string; hoy: string; hasta: string };
+
+export const getDisponibilidad = (desde: string, hasta: string) =>
+  request<Agenda>(`/visitas/disponibilidad?desde=${encodeURIComponent(desde)}&hasta=${encodeURIComponent(hasta)}`);
+
+// Gestionar la visita desde el enlace del mail, sin cuenta. El token va en el cuerpo, nunca en la URL de la API.
+export interface VisitaGestion {
+  nombre: string;
+  propiedad: { id: string; titulo: string; direccion: string };
+  fecha: string | null; // "YYYY-MM-DD"
+  horario: string | null; // "10:30"
+  estado: EstadoVisita;
+  cancelable: boolean;
+}
+// `token`: al pedir otro horario llega un enlace nuevo que reemplaza al anterior
+type RespuestaGestion = { visita: VisitaGestion; token?: string };
+
+const gestionar = (accion: 'ver' | 'cancelar' | 'reprogramar', datos: Record<string, string>) =>
+  request<RespuestaGestion>(`/visitas/gestion/${accion}`, { method: 'POST', body: JSON.stringify(datos) });
+
+export const verVisitaPorEnlace = (token: string) => gestionar('ver', { token });
+export const cancelarVisitaPorEnlace = (token: string, motivo: string) => gestionar('cancelar', { token, motivo });
+export const reprogramarVisitaPorEnlace = (token: string, fecha: string, horario: string) =>
+  gestionar('reprogramar', { token, fecha, horario });
+
+// Botones "Confirmo" / "No voy a poder" del recordatorio del día anterior (enlace de un solo uso)
+export type RespuestaAsistencia = 'confirmo' | 'no_voy';
+export const verAsistenciaPorEnlace = (token: string) =>
+  request<RespuestaGestion>('/visitas/asistencia/ver', { method: 'POST', body: JSON.stringify({ token }) });
+export const responderAsistenciaPorEnlace = (token: string, respuesta: RespuestaAsistencia) =>
+  request<RespuestaGestion>('/visitas/asistencia/responder', { method: 'POST', body: JSON.stringify({ token, respuesta }) });

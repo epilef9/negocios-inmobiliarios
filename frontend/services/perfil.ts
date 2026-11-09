@@ -1,6 +1,7 @@
 // Servicio del perfil propio: datos de la cuenta. La contraseña y el email se cambian con un enlace por mail.
 import { API_URL } from './api';
 import type { User } from './auth';
+import { conSesion } from './sesion';
 
 // Error con el detalle por campo que devuelve el backend, para marcar cada campo del formulario
 export class ErrorPerfil extends Error {
@@ -16,12 +17,11 @@ export class ErrorPerfil extends Error {
 }
 
 async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<{ data: T; message: string }> {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
   let respuesta: Response;
   try {
     respuesta = await fetch(`${API_URL}${ruta}`, {
       ...opciones,
-      headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      ...conSesion(opciones, { 'Content-Type': 'application/json' }),
     });
   } catch {
     throw new ErrorPerfil('No pudimos conectarnos con el servidor. Probá de nuevo en un momento.');
@@ -34,6 +34,7 @@ async function pedir<T>(ruta: string, opciones: RequestInit = {}): Promise<{ dat
 export type DatosPerfil = {
   nombre: string;
   apellido: string;
+  dni: string;
   email: string;
   telefono: string;
   passwordActual?: string;
@@ -56,4 +57,10 @@ export async function guardarPerfil(datos: DatosPerfil) {
 export async function pedirCambioPassword() {
   const { data, message } = await pedir<{ enlaceDev?: string }>('/users/me/password', { method: 'POST' });
   return { enlaceDev: data?.enlaceDev, mensaje: message };
+}
+
+// Cierra la sesión en todos los dispositivos. El actual queda con una sesión nueva (el backend cambia la cookie).
+export async function cerrarSesionesEnTodos() {
+  const { data, message } = await pedir<{ user: Perfil }>('/auth/cerrar-sesiones', { method: 'POST' });
+  return { user: data?.user, mensaje: message };
 }

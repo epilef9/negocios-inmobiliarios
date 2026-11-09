@@ -1,14 +1,18 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin } = authMiddleware;
+const { requirePermiso } = authMiddleware;
 
 // Contratos: solo el administrador (RF-09 / RNF-05)
-router.use(authMiddleware, requireAdmin);
+router.use(authMiddleware, requirePermiso('contratos'));
 const contratosController = require('../controllers/contratos.controller');
 
-// Obtener todos los contratos (acepta ?estado=activo|finalizado|cancelado|por_vencer|borrador)
+// Obtener todos los contratos (acepta ?estado=activo|firmado|finalizado|cancelado|por_vencer|vencido|borrador)
 router.get('/', contratosController.getAllContratos);
+
+// Datos para precargar un contrato desde una solicitud (van antes de /:id)
+router.get('/solicitudes', contratosController.getSolicitudesParaContrato);
+router.get('/datos-de-solicitud/:id', contratosController.getDatosDeSolicitud);
 
 // Obtener un contrato específico
 router.get('/:id', contratosController.getContratoById);

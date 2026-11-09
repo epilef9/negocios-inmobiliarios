@@ -7,12 +7,17 @@ import SitioBase from "@/components/sitio/SitioBase";
 import Revelar from "@/components/sitio/Revelar";
 import TarjetaPropiedad from "@/components/sitio/TarjetaPropiedad";
 import { useDolarBlue } from "@/components/sitio/precio";
+import { precioEnDolares, tieneOperacion } from "@/components/sitio/operaciones";
 import { LOCALIDADES_RESPALDO, normalizar, obtenerLocalidades } from "@/components/sitio/datos";
-import { WHATSAPP_URL } from "@/components/sitio/SiteFooter";
-import FiltrosCatalogo, { FILTROS_VACIOS, OPERACIONES, TIPOS, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
+import { useContacto } from "@/components/sitio/useAjustes";
+import VistasRecientes from "@/components/sitio/VistasRecientes";
+import GuardarBusqueda from "@/components/catalogo/GuardarBusqueda";
+import BarraComparar from "@/components/sitio/BarraComparar";
+import FiltrosCatalogo, { ESTADOS, FILTROS_VACIOS, OPERACIONES, TIPOS, elegidasDe, listaComodidades, separar, type FiltrosPropiedades } from "@/components/catalogo/FiltrosCatalogo";
 import { getProperties, reorderProperties, type ApiProperty } from "@/services/api";
 import { useAuth } from "@/context/AuthContext";
 
+import { puedeVer } from '@/lib/permisos';
 const POR_PAGINA = 9;
 
 type Orden = "destacadas" | "recientes" | "menor" | "mayor";
@@ -29,34 +34,51 @@ const TITULO = "Propiedades";
 
 // Filtros que llegan en la dirección desde otra página (por ejemplo, el buscador del Home)
 const filtrosDeLaDireccion = (params: URLSearchParams): FiltrosPropiedades => {
-	const operation = params.get("operacion") || "";
-	const propertyType = params.get("tipo") || "";
+	// Operación, tipo y ubicación pueden traer varias opciones separadas por coma
 	return {
 		...FILTROS_VACIOS,
-		operation: OPERACIONES.some((o) => o.value === operation) ? operation : "",
-		propertyType: TIPOS.some((t) => t.value === propertyType) ? propertyType : "",
-		location: (params.get("ubicacion") || "").slice(0, 100),
+		operation: elegidasDe(OPERACIONES, params.get("operacion") || "").join(","),
+		propertyType: elegidasDe(TIPOS, params.get("tipo") || "").join(","),
+		location: separar((params.get("ubicacion") || "").slice(0, 300)).join(","),
+		// Desde una búsqueda guardada (Mi cuenta → Tus avisos) llegan también precio, ambientes y comodidades
+		minPrice: /^\d+$/.test(params.get("minimo") || "") ? (params.get("minimo") as string) : "",
+		maxPrice: /^\d+$/.test(params.get("maximo") || "") ? (params.get("maximo") as string) : "",
+		rooms: /^\d+$/.test(params.get("ambientes") || "") ? (params.get("ambientes") as string) : "",
+		// Una o varias comodidades separadas por coma («pileta,wifi»)
+		amenities: listaComodidades(params.get("comodidad") || "").join(","),
 	};
 };
 
 // Un monoambiente es un departamento de 1 ambiente (así se carga en el panel); los viejos se buscan como departamento
 const tipoGeneral = (tipo: string) => (normalizar(tipo) === "monoambiente" ? "departamento" : normalizar(tipo));
 
+// Precios en dólares que cuentan para filtrar y ordenar. HU-25: una propiedad en venta y alquiler aparece en las dos
+// operaciones; se usan los precios de las operaciones marcadas que tenga (sin ninguna marcada, el de la principal).
+const preciosParaFiltrar = (p: ApiProperty, f: FiltrosPropiedades) => {
+	const marcadas = elegidasDe(OPERACIONES, f.operation).filter((o) => tieneOperacion(p, o));
+	return (marcadas.length ? marcadas : [undefined]).map((o) => precioEnDolares(p, o) ?? p.precio);
+};
+
+// En operación, ubicación, tipo y estado alcanza con cumplir una de las opciones marcadas; las comodidades, todas
 const cumpleFiltros = (p: ApiProperty, f: FiltrosPropiedades) => {
-	const operacion = p.categoria_operacion || p.operation || p.category || "";
-	const tipo = p.tipo_inmueble || p.propertyType || "";
+	const tipo = p.tipoInmueble || p.propertyType || "";
 	const estado = p.estado || p.status || "";
 	const comodidades = p.comodidades || p.amenities || [];
-	const ambientes = p.cantidad_ambientes ?? p.bedrooms;
+	const ambientes = p.ambientes ?? p.dormitorios;
+	const operaciones = elegidasDe(OPERACIONES, f.operation);
+	const lugares = separar(f.location).map(normalizar);
+	const tipos = elegidasDe(TIPOS, f.propertyType);
+	const estados = elegidasDe(ESTADOS, f.status);
+	const enRango = (precio: number) => (!f.minPrice || precio >= Number(f.minPrice)) && (!f.maxPrice || precio <= Number(f.maxPrice));
 	return (
-		(!f.operation || normalizar(operacion) === f.operation) &&
-		(!f.location || normalizar(p.ciudad) === normalizar(f.location)) &&
-		(!f.propertyType || tipoGeneral(tipo) === f.propertyType) &&
-		(!f.minPrice || p.price >= Number(f.minPrice)) &&
-		(!f.maxPrice || p.price <= Number(f.maxPrice)) &&
+		(!operaciones.length || operaciones.some((o) => tieneOperacion(p, o))) &&
+		(!lugares.length || lugares.includes(normalizar(p.ciudad))) &&
+		(!tipos.length || tipos.includes(tipoGeneral(tipo))) &&
+		preciosParaFiltrar(p, f).some(enRango) &&
 		(!f.rooms || (ambientes !== undefined && ambientes >= Number(f.rooms))) &&
-		(!f.amenities || comodidades.includes(f.amenities)) &&
-		(!f.status || normalizar(estado) === f.status)
+		// Con varias comodidades marcadas, tiene que tener todas
+		listaComodidades(f.amenities).every((c) => comodidades.includes(c)) &&
+		(!estados.length || estados.includes(normalizar(estado)))
 	);
 };
 
@@ -78,8 +100,9 @@ function PropiedadesConFiltros() {
 }
 
 function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }) {
+	const { whatsappUrl } = useContacto();
 	const { user } = useAuth();
-	const esAdmin = user?.role === "admin";
+	const esAdmin = puedeVer(user, 'propiedades');
 	const blue = useDolarBlue();
 
 	const [propiedades, setPropiedades] = useState<ApiProperty[]>([]);
@@ -135,8 +158,9 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 		const lista = propiedades.filter((p) => cumpleFiltros(p, filtros));
 		const fecha = (p: ApiProperty) => (p.createdAt ? Date.parse(p.createdAt) : 0);
 		if (orden === "recientes") return [...lista].sort((a, b) => fecha(b) - fecha(a));
-		if (orden === "menor") return [...lista].sort((a, b) => a.price - b.price);
-		if (orden === "mayor") return [...lista].sort((a, b) => b.price - a.price);
+		const valor = (p: ApiProperty) => Math.min(...preciosParaFiltrar(p, filtros));
+		if (orden === "menor") return [...lista].sort((a, b) => valor(a) - valor(b));
+		if (orden === "mayor") return [...lista].sort((a, b) => valor(b) - valor(a));
 		return lista;
 	}, [propiedades, filtros, orden, reordenando]);
 
@@ -175,12 +199,13 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 		}
 	};
 
-	const consultaWhatsApp = `${WHATSAPP_URL}?text=${encodeURIComponent("Hola, estoy buscando una propiedad y no encontré lo que necesito en la web. ¿Me pueden ayudar?")}`;
+	const consultaWhatsApp = `${whatsappUrl}?text=${encodeURIComponent("Hola, estoy buscando una propiedad y no encontré lo que necesito en la web. ¿Me pueden ayudar?")}`;
 
 	return (
 		<SitioBase>
 			<Revelar>
-				<header className="flex flex-col gap-10 px-5 pb-10 pt-32 sm:px-10 lg:pt-40">
+				{/* relative z-20: el desplegable de comodidades se abre por encima de los resultados */}
+				<header className="encabezado-color encabezado-azul relative z-20 flex flex-col gap-10 px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 					<div className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4">
 						<h1
 							data-reveal="lineas"
@@ -240,15 +265,18 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 			<section aria-label="Resultados" className="px-5 pb-20 sm:px-10">
 				{estado === "listo" && propiedades.length > 0 && !reordenando && (
 					<div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-						<p aria-live="polite" className="m-0 text-[15px] text-[#efe9df]/80">
-							{resultado.length === 1 ? "1 propiedad" : `${resultado.length} propiedades`}
-						</p>
+						<div className="flex flex-col gap-2">
+							<p aria-live="polite" className="m-0 text-[15px] text-[#efe9df]/80">
+								{resultado.length === 1 ? "1 propiedad" : `${resultado.length} propiedades`}
+							</p>
+							<GuardarBusqueda filtros={filtros} />
+						</div>
 						<label className="flex items-center gap-3 text-[14px] text-[#efe9df]/70">
 							Ordenar por
 							<select
 								value={orden}
 								onChange={(e) => setOrden(e.target.value as Orden)}
-								className="font-display cursor-pointer border-0 border-b border-[#efe9df]/30 bg-transparent pb-1 text-[20px] text-[#efe9df] [&>option]:text-[#071733]"
+								className="font-display min-h-11 cursor-pointer border-0 border-b border-[#efe9df]/30 bg-transparent pb-1 text-[20px] text-[#efe9df] [&>option]:text-[#071733]"
 							>
 								{ORDENES.map((o) => (
 									<option key={o.value} value={o.value}>
@@ -327,7 +355,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 													type="button"
 													onClick={() => mover(propiedad._id, destino)}
 													disabled={(destino === "inicio" || destino === "arriba") ? indice === 0 : indice === mostradas.length - 1}
-													aria-label={`${texto}: ${propiedad.title}`}
+													aria-label={`${texto}: ${propiedad.titulo}`}
 													title={texto}
 													className="flex h-11 w-11 items-center justify-center rounded-lg text-[#efe9df] transition-colors hover:bg-[#efe9df]/10 disabled:opacity-30"
 												>
@@ -339,7 +367,7 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 										</span>
 									</div>
 								)}
-								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} />
+								<TarjetaPropiedad propiedad={propiedad} blue={blue} tamano="compacta" revelar={false} operacion={elegidasDe(OPERACIONES, filtros.operation).length === 1 ? filtros.operation : undefined} />
 							</li>
 						))}
 					</ul>
@@ -357,6 +385,9 @@ function Catalogo({ filtrosIniciales }: { filtrosIniciales: FiltrosPropiedades }
 					</div>
 				)}
 			</section>
+
+			{estado === "listo" && !reordenando && <VistasRecientes propiedades={propiedades} blue={blue} />}
+			{!reordenando && <BarraComparar />}
 
 			{aviso && (
 				<div

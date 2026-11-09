@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getProperties, reorderProperties, type ApiProperty } from '@/services/api';
 import { precioDePropiedad } from '@/components/sitio/precio';
-import { etiquetaOperacion } from '@/components/sitio/datos';
+import { etiquetaOperaciones } from '@/components/sitio/operaciones';
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Encabezado, Esqueleto, EstadoVacio, control, useAviso } from '@/components/panel/ui';
 
@@ -25,7 +25,7 @@ function Miniatura({ src }: { src?: string }) {
 
 function BotonMover({ icono, texto, onClick, disabled }: { icono: 'arriba' | 'abajo' | 'atras' | 'flecha'; texto: string; onClick: () => void; disabled: boolean }) {
   return (
-    <button type="button" onClick={onClick} disabled={disabled} title={texto} aria-label={texto} className="rounded-md p-2 text-panel-suave hover:bg-panel-hundido hover:text-panel-texto disabled:pointer-events-none disabled:opacity-30">
+    <button type="button" onClick={onClick} disabled={disabled} title={texto} aria-label={texto} className="rounded-md p-[13px] text-panel-suave hover:bg-panel-hundido sm:p-2 hover:text-panel-texto disabled:pointer-events-none disabled:opacity-30">
       <Icono nombre={icono} className={`h-[18px] w-[18px] ${icono === 'atras' ? 'rotate-90' : icono === 'flecha' ? 'rotate-90' : ''}`} />
     </button>
   );
@@ -97,11 +97,12 @@ export default function OrdenCatalogoPage() {
   const filtrando = Boolean(texto);
   const visibles = lista
     .map((p, indice) => ({ p, indice }))
-    .filter(({ p }) => !texto || [p.title, p.ciudad, p.location, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto)));
+    .filter(({ p }) => !texto || [p.titulo, p.ciudad, p.ubicacion, p.codigoInterno].some((v) => v?.toLowerCase().includes(texto)));
 
   return (
     <>
       <Encabezado
+        volver={{ href: '/admin/configuracion', texto: 'Configuración' }}
         titulo="Orden del catálogo"
         descripcion="Así se ordenan las propiedades en el sitio. Arrastralas o usá las flechas y después guardá."
         acciones={
@@ -173,7 +174,7 @@ export default function OrdenCatalogoPage() {
                     </span>
                   )}
                   <label className="shrink-0">
-                    <span className="sr-only">Posición de {p.title}</span>
+                    <span className="sr-only">Posición de {p.titulo}</span>
                     <input
                       key={`${p._id}-${indice}`}
                       type="number"
@@ -187,18 +188,18 @@ export default function OrdenCatalogoPage() {
                       className="tabular h-9 w-14 rounded-md border border-panel-borde bg-panel-superficie text-center text-sm font-semibold focus:border-panel-acento focus:outline-none"
                     />
                   </label>
-                  <Miniatura src={p.images?.[0]} />
+                  <Miniatura src={p.fotos?.[0]} />
                   <div className="min-w-0 flex-1">
-                    <span className="block truncate text-[14px] font-medium">{p.title}</span>
+                    <span className="block truncate text-[14px] font-medium">{p.titulo}</span>
                     <span className="block truncate text-[13px] text-panel-suave">
-                      {[etiquetaOperacion[p.categoria_operacion || 'venta'], p.ciudad || p.location, precioDePropiedad(p, null).principal].filter(Boolean).join(' · ')}
+                      {[etiquetaOperaciones(p, 'Venta'), p.ciudad || p.ubicacion, precioDePropiedad(p, null).principal].filter(Boolean).join(' · ')}
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center">
-                    <BotonMover icono="atras" texto={`Llevar ${p.title} al principio`} onClick={() => mover(indice, 0)} disabled={indice === 0} />
-                    <BotonMover icono="arriba" texto={`Subir ${p.title}`} onClick={() => mover(indice, indice - 1)} disabled={indice === 0} />
-                    <BotonMover icono="abajo" texto={`Bajar ${p.title}`} onClick={() => mover(indice, indice + 1)} disabled={indice === lista.length - 1} />
-                    <BotonMover icono="flecha" texto={`Llevar ${p.title} al final`} onClick={() => mover(indice, lista.length - 1)} disabled={indice === lista.length - 1} />
+                    <BotonMover icono="atras" texto={`Llevar ${p.titulo} al principio`} onClick={() => mover(indice, 0)} disabled={indice === 0} />
+                    <BotonMover icono="arriba" texto={`Subir ${p.titulo}`} onClick={() => mover(indice, indice - 1)} disabled={indice === 0} />
+                    <BotonMover icono="abajo" texto={`Bajar ${p.titulo}`} onClick={() => mover(indice, indice + 1)} disabled={indice === lista.length - 1} />
+                    <BotonMover icono="flecha" texto={`Llevar ${p.titulo} al final`} onClick={() => mover(indice, lista.length - 1)} disabled={indice === lista.length - 1} />
                   </div>
                 </li>
               ))}

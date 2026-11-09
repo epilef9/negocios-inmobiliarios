@@ -1,13 +1,14 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import SitioBase from '@/components/sitio/SitioBase';
 import Revelar from '@/components/sitio/Revelar';
-import { WHATSAPP_URL } from '@/components/sitio/SiteFooter';
+import { useContacto } from '@/components/sitio/useAjustes';
 import { GUIAS, esOperacion, type Operacion } from '@/components/requisitos/datos';
 import { useChecklist, type EstadoGuardado } from '@/components/requisitos/useChecklist';
+import { getRequisitos, type Requisito } from '@/services/requisitos';
 
 // Texto que se anima renglón por renglón: va como HTML fijo para que React no reconcilie los nodos que divide GSAP
 const TITULO = 'Requisitos';
@@ -42,15 +43,40 @@ function TextoGuardado({ estado, nombre }: { estado: EstadoGuardado; nombre: str
 }
 
 function Requisitos({ inicial }: { inicial: Operacion }) {
+  const { whatsappUrl } = useContacto();
   const [activa, setActiva] = useState<Operacion>(inicial);
+  const [guias, setGuias] = useState(GUIAS);
   const { marcas, alternar, desmarcar, estado, nombre } = useChecklist();
 
-  const guia = GUIAS.find((g) => g.id === activa) ?? GUIAS[0];
-  const idsDe = (id: Operacion) => (GUIAS.find((g) => g.id === id)?.secciones ?? []).flatMap((s) => s.items.map((i) => i.id));
+  useEffect(() => {
+    getRequisitos()
+      .then((items) => {
+        const actualizadas = GUIAS.map((guia) => {
+          const deOperacion = items.filter((item: Requisito) => item.operacion === guia.id);
+          let indice = 0;
+          const secciones = [...new Set(deOperacion.map((item) => item.seccion))].map((titulo) => ({
+            titulo,
+            items: deOperacion.filter((item) => item.seccion === titulo).map((item) => ({
+              // Se conserva el id histórico de la guía fija para no perder checks ya guardados.
+              id: guia.secciones.flatMap((seccion) => seccion.items)[indice++]?.id ?? item._id,
+              texto: item.texto,
+            })),
+          }));
+          return secciones.length ? { ...guia, secciones } : guia;
+        });
+        setGuias(actualizadas);
+      })
+      .catch(() => {
+        // La guía fija queda disponible si la API todavía no está levantada.
+      });
+  }, []);
+
+  const guia = guias.find((g) => g.id === activa) ?? guias[0];
+  const idsDe = (id: Operacion) => (guias.find((g) => g.id === id)?.secciones ?? []).flatMap((s) => s.items.map((i) => i.id));
   const ids = idsDe(guia.id);
   const listos = ids.filter((id) => marcas[id]).length;
   const completo = listos === ids.length;
-  const consulta = `${WHATSAPP_URL}?text=${encodeURIComponent(guia.consulta)}`;
+  const consulta = `${whatsappUrl}?text=${encodeURIComponent(guia.consulta)}`;
 
   const elegir = (id: Operacion) => {
     setActiva(id);
@@ -61,7 +87,7 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
   return (
     <SitioBase>
       <Revelar>
-        <header className="grid gap-8 px-5 pb-12 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-16 lg:pt-40">
+        <header className="encabezado-color encabezado-azul grid gap-8 px-5 pb-14 pt-32 sm:px-10 lg:grid-cols-12 lg:items-end lg:gap-6 lg:pb-20 lg:pt-40">
           <h1
             data-reveal="lineas"
             data-motion-hide
@@ -75,7 +101,7 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
 
         <div data-reveal="suave" className="px-5 sm:px-10">
           <div role="group" aria-label="Elegí una guía" className="flex flex-wrap gap-x-8 gap-y-3 border-y border-[#efe9df]/20 py-5">
-            {GUIAS.map((g) => {
+            {guias.map((g) => {
               const elegida = g.id === activa;
               const delGrupo = idsDe(g.id);
               const hechos = delGrupo.filter((id) => marcas[id]).length;
@@ -138,13 +164,32 @@ function Requisitos({ inicial }: { inicial: Operacion }) {
             </div>
 
             <div className="flex flex-col gap-3">
-              <a href={consulta} target="_blank" rel="noreferrer" className={`${botonClaro} self-start`}>
-                <span className="calma-dot" aria-hidden="true" />
-                {guia.accion}
-              </a>
-              <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
-                ¿Te falta algún papel o tenés un caso distinto? Escribinos y lo vemos juntos.
-              </p>
+              {guia.id === 'publicar' ? (
+                // Publicar tiene su propio formulario: el botón lleva ahí, no a WhatsApp
+                <>
+                  <Link href="/publicar" className={`${botonClaro} self-start`}>
+                    <span className="calma-dot" aria-hidden="true" />
+                    {guia.accion}
+                  </Link>
+                  <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
+                    Completás los datos, las fotos y la documentación en el formulario. ¿Tenés un caso distinto?{' '}
+                    <a href={consulta} target="_blank" rel="noreferrer" className="calma-link text-[#efe9df]">
+                      Escribinos por WhatsApp
+                    </a>
+                    .
+                  </p>
+                </>
+              ) : (
+                <>
+                  <a href={consulta} target="_blank" rel="noreferrer" className={`${botonClaro} self-start`}>
+                    <span className="calma-dot" aria-hidden="true" />
+                    {guia.accion}
+                  </a>
+                  <p className="m-0 max-w-xs text-[14px] text-[#efe9df]/60">
+                    ¿Te falta algún papel o tenés un caso distinto? Escribinos y lo vemos juntos.
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </aside>

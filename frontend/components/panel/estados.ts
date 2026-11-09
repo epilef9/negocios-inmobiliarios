@@ -7,11 +7,28 @@ export const ESTADO_VISITA: Record<string, { texto: string; tono: Tono }> = {
   confirmada: { texto: 'Confirmada', tono: 'exito' },
   reprogramada: { texto: 'Reprogramada', tono: 'info' },
   rechazada: { texto: 'Rechazada', tono: 'neutro' },
+  cancelada: { texto: 'Cancelada por el cliente', tono: 'neutro' },
+};
+
+// Respuesta del cliente a los botones del recordatorio del día anterior
+export const ASISTENCIA_VISITA: Record<string, { texto: string; tono: Tono }> = {
+  confirmo: { texto: 'Confirmó asistencia', tono: 'exito' },
+  no_voy: { texto: 'Avisó que no va', tono: 'peligro' },
+};
+
+export const ESTADO_RESERVA: Record<string, { texto: string; tono: Tono }> = {
+  pendiente: { texto: 'Por confirmar', tono: 'aviso' },
+  confirmada: { texto: 'Confirmada', tono: 'exito' },
+  vencida: { texto: 'Vencida', tono: 'neutro' },
+  rechazada: { texto: 'Rechazada', tono: 'peligro' },
+  cancelada: { texto: 'Cancelada', tono: 'neutro' },
 };
 
 export const ESTADO_CONTRATO: Record<string, { texto: string; tono: Tono }> = {
   activo: { texto: 'Activo', tono: 'exito' },
+  firmado: { texto: 'Firmado', tono: 'exito' },
   por_vencer: { texto: 'Por vencer', tono: 'aviso' },
+  vencido: { texto: 'Vencido', tono: 'peligro' },
   borrador: { texto: 'Borrador', tono: 'neutro' },
   finalizado: { texto: 'Finalizado', tono: 'neutro' },
   cancelado: { texto: 'Cancelado', tono: 'peligro' },

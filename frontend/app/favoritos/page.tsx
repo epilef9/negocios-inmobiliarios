@@ -40,7 +40,7 @@ export default function FavoritosPage() {
 
 	return (
 		<SitioBase>
-			<header className="flex flex-wrap items-end justify-between gap-x-10 gap-y-4 px-5 pb-12 pt-32 sm:px-10 lg:pt-40">
+			<header className="encabezado-color encabezado-rojo flex flex-wrap items-end justify-between gap-x-10 gap-y-4 px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
 				<h1 className="font-display m-0 text-[clamp(56px,8vw,128px)] font-normal leading-[0.9] tracking-[-0.02em]">Mis favoritos</h1>
 				{user && estado === "listo" && visibles.length > 0 && (
 					<p className="m-0 pb-3 text-[15px] text-[#efe9df]/70">
