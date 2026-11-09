@@ -32,6 +32,7 @@ const datosPublicos = (user) => ({
     telefono: user.telefono,
     email: user.email,
     rol: user.rol,
+    permisos: user.rol === 'empleado' ? (user.permisos || []) : undefined,
     checklistRequisitos: user.checklistRequisitos || [],
     emailVerificado: user.emailVerificado !== false,
     createdAt: user.createdAt
@@ -128,6 +129,11 @@ const authService = {
             const error = new Error('Credenciales invalidas');
             error.statusCode = 401;
             throw error;
+        }
+
+        // Un empleado dado de baja no entra (se avisa después de comprobar la contraseña)
+        if (user.activo === false) {
+            throw errorHttp('Esta cuenta fue dada de baja. Consultá con la inmobiliaria.', 403, 'CUENTA_DESACTIVADA');
         }
 
         // Se avisa recién después de comprobar la contraseña, para no revelar qué correos existen

@@ -1,11 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin, requireClient, sesionOpcional } = authMiddleware;
+const { registra } = require('../middlewares/actividad');
+const capitalizar = (t) => (typeof t === 'string' && t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Cambió de estado');
+const { requirePermiso, requireClient, sesionOpcional } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 
 // Pedir una visita es público (botón "Agendar una visita"); verlas y gestionarlas, solo el administrador
-const soloAdmin = [authMiddleware, requireAdmin];
+const soloAdmin = [authMiddleware, requirePermiso('visitas')];
 const visitasController = require('../controllers/visitas.controller');
 const {
     validateVisita,
@@ -43,12 +45,12 @@ router.get('/:id', soloAdmin, validateVisitaId, visitasController.getVisitaById)
 router.post('/', frenos.visitas, sesionOpcional, validateVisita, visitasController.createVisita);
 
 // Actualizar una visita existente
-router.put('/:id', soloAdmin, validateVisitaId, validateVisita, visitasController.updateVisita);
+router.put('/:id', soloAdmin, registra('visita', 'Modificada'), validateVisitaId, validateVisita, visitasController.updateVisita);
 
 // Actualizar únicamente el estado de una visita (confirmar, reprogramar, rechazar)
-router.patch('/:id/estado', soloAdmin, validateVisitaId, validateEstadoUpdate, visitasController.updateEstadoVisita);
+router.patch('/:id/estado', soloAdmin, registra('visita', (req) => capitalizar(req.body?.estado)), validateVisitaId, validateEstadoUpdate, visitasController.updateEstadoVisita);
 
 // Eliminar una visita
-router.delete('/:id', soloAdmin, validateVisitaId, visitasController.deleteVisita);
+router.delete('/:id', soloAdmin, registra('visita', 'Eliminada'), validateVisitaId, visitasController.deleteVisita);
 
 module.exports = router;

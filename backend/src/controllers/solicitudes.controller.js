@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tienePermiso } = require('../utils/permisos');
 const { validarSolicitud } = require('../validators/solicitud.validator');
 const solicitudesService = require('../services/solicitudes.service');
 const documentosService = require('../services/solicitudes-documentos.service');
@@ -131,7 +132,7 @@ exports.listarAdmin = async (_req, res) => {
 exports.obtener = async (req, res) => {
     if (!mongoose.isValidObjectId(req.params.id)) return res.status(400).json({ message: 'El id de la solicitud no es válido.' });
     try {
-        const solicitud = await solicitudesService.obtenerPorId(req.params.id, req.user._id, req.user.rol === 'admin');
+        const solicitud = await solicitudesService.obtenerPorId(req.params.id, req.user._id, tienePermiso(req.user, 'solicitudes'));
         if (!solicitud) return res.status(404).json({ message: 'No encontramos esa solicitud.' });
         return res.status(200).json({ data: solicitud });
     } catch (error) {
@@ -258,7 +259,7 @@ exports.documento = async (req, res) => {
         const documento = await solicitudesService.obtenerDocumento(
             req.params.id,
             req.user._id,
-            req.user.rol === 'admin',
+            tienePermiso(req.user, 'solicitudes'),
             req.params.tipo
         );
         if (!documento) return res.status(404).json({ message: 'No encontramos ese documento.' });

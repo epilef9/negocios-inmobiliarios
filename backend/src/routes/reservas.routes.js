@@ -1,15 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const authMiddleware = require('../middlewares/auth.middleware');
-const { requireAdmin } = authMiddleware;
+const { registra } = require('../middlewares/actividad');
+const capitalizar = (t) => (typeof t === 'string' && t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Cambió de estado');
+const { requirePermiso } = authMiddleware;
 const { frenos } = require('../middlewares/seguridad');
 const reservasController = require('../controllers/reservas.controller');
 
 // Reservar es solo para clientes con sesión; verlas todas, confirmarlas y rechazarlas, solo el administrador
-const soloAdmin = [authMiddleware, requireAdmin];
+const soloAdmin = [authMiddleware, requirePermiso('reservas')];
 // El administrador carga las estadías desde el panel (Disponibilidad), no reservando desde el sitio
 const soloClientes = (req, res, next) => {
-    if (req.user?.rol === 'admin') {
+    if (require('../utils/permisos').esPersonal(req.user)) {
         return res.status(403).json({ message: 'Con la cuenta de administrador las estadías se cargan desde el panel.' });
     }
     next();
@@ -27,8 +29,8 @@ router.get('/', soloAdmin, reservasController.listar);
 // Pedir una estadía
 router.post('/', frenos.reservas, authMiddleware, soloClientes, reservasController.crear);
 
-router.patch('/:id/confirmar', soloAdmin, reservasController.confirmar);
-router.patch('/:id/rechazar', soloAdmin, reservasController.rechazar);
+router.patch('/:id/confirmar', soloAdmin, registra('reserva', 'Confirmada'), reservasController.confirmar);
+router.patch('/:id/rechazar', soloAdmin, registra('reserva', 'Rechazada'), reservasController.rechazar);
 
 // El cliente cancela una suya que todavía está pendiente
 router.patch('/:id/cancelar', authMiddleware, reservasController.cancelar);

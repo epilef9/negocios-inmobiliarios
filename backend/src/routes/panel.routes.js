@@ -6,6 +6,7 @@ const ReservaPropiedad = require('../models/reservaPropiedad.model');
 const Pago = require('../models/pago.model');
 const agenda = require('../services/agenda.service');
 const User = require('../models/user.model');
+const permisos = require('../utils/permisos');
 
 const router = express.Router();
 
@@ -31,7 +32,7 @@ const contratosParaRevisar = async () => {
 
 // Números del menú del panel: lo que la administradora tiene que revisar o confirmar en cada sección.
 // Cada cuenta va por su lado: si una falla, esa sección se muestra sin número.
-router.get('/pendientes', authMiddleware, authMiddleware.requireAdmin, async (_req, res) => {
+router.get('/pendientes', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     const tareas = {
         visitas: visitasPorConfirmar,
         reservas: async () =>
@@ -42,7 +43,8 @@ router.get('/pendientes', authMiddleware, authMiddleware.requireAdmin, async (_r
         contratos: contratosParaRevisar,
         cobros: () => require('../services/cobros.service').contarAtrasados(),
     };
-    const claves = Object.keys(tareas);
+    // Cada empleado ve solo los números de las secciones que puede usar
+    const claves = Object.keys(tareas).filter((c) => permisos.tienePermiso(req.user, c));
     const resultados = await Promise.allSettled(claves.map((c) => tareas[c]()));
     const data = {};
     resultados.forEach((r, i) => {
@@ -151,9 +153,16 @@ const armarResumen = async () => {
     return ordenarPendientes(items).map(({ orden, ...item }) => item);
 };
 
-router.get('/resumen', authMiddleware, authMiddleware.requireAdmin, async (_req, res) => {
+// Un ítem del resumen se muestra solo si la persona tiene permiso para la sección a la que lleva (/admin/<sección>).
+// Lo que lleva a páginas que no son una sección con permiso (por ejemplo, Datos del sitio) es solo del administrador.
+const permitidoEnResumen = (user, item) => {
+    const seccion = String(item.href || '').replace(/^\/admin\//, '').split('/')[0];
+    return permisos.CLAVES.includes(seccion) ? permisos.tienePermiso(user, seccion) : permisos.esAdmin(user);
+};
+
+router.get('/resumen', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     try {
-        res.json({ data: await armarResumen() });
+        res.json({ data: (await armarResumen()).filter((item) => permitidoEnResumen(req.user, item)) });
     } catch (error) {
         console.error('[panel] Error al armar el resumen:', error);
         res.status(500).json({ message: 'No se pudo armar el resumen' });
@@ -172,12 +181,12 @@ const limpiarAccesos = (lista) => {
     return [...vistos];
 };
 
-router.get('/accesos', authMiddleware, authMiddleware.requireAdmin, (req, res) => {
+router.get('/accesos', authMiddleware, authMiddleware.requirePersonal, (req, res) => {
     const accesos = req.user.preferencias?.accesos;
     res.status(200).json({ data: Array.isArray(accesos) ? accesos : null });
 });
 
-router.put('/accesos', authMiddleware, authMiddleware.requireAdmin, async (req, res) => {
+router.put('/accesos', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     const accesos = limpiarAccesos(req.body?.accesos);
     if (!accesos) return res.status(400).json({ message: 'Los accesos rápidos no son válidos' });
     try {
@@ -191,3 +200,4 @@ router.put('/accesos', authMiddleware, authMiddleware.requireAdmin, async (req, 
 module.exports = router;
 module.exports.ordenarPendientes = ordenarPendientes;
 module.exports.limpiarAccesos = limpiarAccesos;
+module.exports.permitidoEnResumen = permitidoEnResumen;

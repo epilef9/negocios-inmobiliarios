@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { tienePermiso } = require('../utils/permisos');
 const visitasService = require('../services/visitas.service');
 const Property = require('../models/property.model');
 const agenda = require('../services/agenda.service');
@@ -81,7 +82,7 @@ exports.createVisita = async (req, res) => {
                 return res.status(409).json({ message: 'Esta propiedad ya no está disponible para visitas' });
             }
             // Solo se frena si el administrador la desactivó a propósito (vacía cuenta como sí)
-            if (real.permitirVisita === false && !(req.user && req.user.rol === 'admin')) {
+            if (real.permitirVisita === false && !tienePermiso(req.user, 'visitas')) {
                 return res.status(409).json({ message: 'Esta propiedad no recibe pedidos de visita. Escribinos por WhatsApp.' });
             }
             datos.propiedad.id = String(real._id);
@@ -91,7 +92,7 @@ exports.createVisita = async (req, res) => {
 
         // Que el horario esté libre (y, para el público, dentro del horario de atención). Se controla y se guarda
         // dentro del candado de la agenda: dos pedidos al mismo tiempo no pueden quedarse con el mismo turno.
-        const esAdmin = req.user && req.user.rol === 'admin';
+        const esAdmin = tienePermiso(req.user, 'visitas');
         // Si la pide un cliente con la sesión iniciada, queda en su cuenta (HU-34: Mis visitas)
         if (req.user && !esAdmin) datos.usuario = req.user._id;
         const { motivo, visita: newVisita } = await agenda.reservar(datos, { controlarHorario: !esAdmin }, (conDuracion, session) =>

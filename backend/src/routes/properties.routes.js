@@ -5,8 +5,10 @@ const fs = require('node:fs');
 const propertiesController = require('../controllers/properties.controller');
 const { validateProperty, validatePropertyId } = require('../validators/property.validator');
 const authMiddleware = require('../middlewares/auth.middleware');
+const { registra } = require('../middlewares/actividad');
+const capitalizar = (t) => (typeof t === 'string' && t ? t.charAt(0).toUpperCase() + t.slice(1) : 'Cambió de estado');
 const { usaCloudinary, subirACloudinary } = require('../services/imagenes.service');
-const requireAdmin = authMiddleware.requireAdmin;
+const requirePermisoSeccion = authMiddleware.requirePermiso;
 
 const router = express.Router();
 
@@ -41,7 +43,7 @@ const upload = multer({
 	},
 });
 
-router.post('/images', authMiddleware, requireAdmin, (req, res, next) => {
+router.post('/images', authMiddleware, requirePermisoSeccion('propiedades'), (req, res, next) => {
 	upload.array('images', 20)(req, res, async (error) => {
 		if (error) {
 			if (error.code === 'LIMIT_FILE_SIZE') {
@@ -81,24 +83,24 @@ router.post('/images', authMiddleware, requireAdmin, (req, res, next) => {
 });
 
 // Leer coordenadas de un link de Google Maps: lo usa el formulario del panel
-router.get('/maps/resolve', authMiddleware, requireAdmin, propertiesController.resolveMapsLink);
+router.get('/maps/resolve', authMiddleware, requirePermisoSeccion('propiedades'), propertiesController.resolveMapsLink);
 
 // Obtener todas las propiedades
 router.get('/', propertiesController.getAllProperties);
 
 // Reordenar propiedades (solo administrador)
-router.patch('/reorder', authMiddleware, requireAdmin, propertiesController.reorderProperties);
+router.patch('/reorder', authMiddleware, requirePermisoSeccion('propiedades'), propertiesController.reorderProperties);
 
 // Obtener una propiedad específica
 router.get('/:id', validatePropertyId, propertiesController.getPropertyById);
 
 // Crear una nueva propiedad (solo administrador)
-router.post('/', authMiddleware, requireAdmin, validateProperty, propertiesController.createProperty);
+router.post('/', authMiddleware, requirePermisoSeccion('propiedades'), registra('propiedad', 'Creada', { detalle: (req) => req.body?.titulo }), validateProperty, propertiesController.createProperty);
 
 // Actualizar una propiedad existente (solo administrador)
-router.put('/:id', authMiddleware, requireAdmin, validatePropertyId, validateProperty, propertiesController.updateProperty);
+router.put('/:id', authMiddleware, requirePermisoSeccion('propiedades'), registra('propiedad', 'Modificada', { detalle: (req) => req.body?.titulo }), validatePropertyId, validateProperty, propertiesController.updateProperty);
 
 // Eliminar una propiedad (solo administrador)
-router.delete('/:id', authMiddleware, requireAdmin, validatePropertyId, propertiesController.deleteProperty);
+router.delete('/:id', authMiddleware, requirePermisoSeccion('propiedades'), registra('propiedad', 'Eliminada'), validatePropertyId, propertiesController.deleteProperty);
 
 module.exports = router;

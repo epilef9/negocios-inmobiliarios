@@ -674,12 +674,24 @@ test('archiva y restaura una solicitud sin cambiar estado, comentario ni histori
     }
 });
 
-test('protege el archivado y la eliminación con autenticación y rol administrador', () => {
+test('protege el archivado y la eliminación con autenticación y permiso de la sección', async () => {
     assert.ok(solicitudesRouter.stack.some((layer) => layer.handle === authMiddleware));
     for (const [path, method] of [['/:id/archivo', 'patch'], ['/:id', 'delete'], ['/:id/comentarios', 'post']]) {
         const ruta = solicitudesRouter.stack.find((layer) => layer.route?.path === path && layer.route.methods[method]);
         assert.ok(ruta, `Debe existir ${method.toUpperCase()} ${path}`);
-        assert.ok(ruta.route.stack.some((layer) => layer.handle === authMiddleware.requireAdmin));
+        // Un cliente (sin permiso de la sección Solicitudes) queda afuera con 403 antes de llegar al controlador
+        let codigo = null;
+        let llegoAlControlador = false;
+        const res = { status(c) { codigo = c; return this; }, json() { return this; } };
+        const capas = ruta.route.stack.map((layer) => layer.handle);
+        for (const capa of capas.slice(0, -1)) {
+            let siguio = false;
+            await capa({ user: { rol: 'cliente' }, headers: {}, params: {}, body: {} }, res, () => { siguio = true; });
+            if (!siguio) break;
+            if (capa === capas[capas.length - 2]) llegoAlControlador = true;
+        }
+        assert.equal(codigo, 403, `${method.toUpperCase()} ${path} tiene que dar 403 a un cliente`);
+        assert.equal(llegoAlControlador, false);
     }
 });
 
