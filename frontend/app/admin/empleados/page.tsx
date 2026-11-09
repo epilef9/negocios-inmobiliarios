@@ -97,6 +97,7 @@ export default function AdminEmpleadosPage() {
   return (
     <div className="flex flex-col gap-6">
       <Encabezado
+        guia="empleados"
         titulo="Empleados"
         descripcion="Cuentas del panel con permisos por sección. Cada empleado ve y usa solo lo que le marcás; el resto le da error aunque escriba la dirección."
         acciones={<Boton variante="principal" icono="mas" onClick={abrirNuevo}>Nuevo empleado</Boton>}
@@ -109,7 +110,7 @@ export default function AdminEmpleadosPage() {
       ) : lista.length === 0 ? (
         <EstadoVacio icono="clientes" titulo="Todavía no hay empleados" texto="Creá una cuenta y marcale las secciones que puede usar." />
       ) : (
-        <div className="flex flex-col gap-3">
+        <div data-guia="lista" className="flex flex-col gap-3">
           {lista.map((e) => (
             <Tarjeta key={e.id}>
               <div className="flex flex-wrap items-start justify-between gap-3">

@@ -89,3 +89,43 @@ test('un terreno se guarda sin ambientes ni baños', async () => {
     assert.equal(solicitud.ambientes, 0);
     assert.equal(solicitud.banos, 0);
 });
+
+test('venta y alquiler («ambas»): pide el precio del alquiler y lo guarda en pesos si no se aclara', async () => {
+    await rechaza({ ...base(), operacion: 'ambas' }, /alquiler mensual/);
+    const solicitud = await servicio.crear(CLIENTE, { ...base(), operacion: 'ambas', precioAlquiler: { monto: 450000 } });
+    assert.equal(solicitud.operacion, 'ambas');
+    assert.deepEqual({ ...solicitud.precioAlquiler.toObject() }, { monto: 450000, moneda: 'ARS' });
+    assert.match(solicitud.titulo, /venta y alquiler/);
+});
+
+test('las demás operaciones no guardan precio de alquiler aparte', async () => {
+    const solicitud = await servicio.crear(CLIENTE, { ...base(), operacion: 'venta', precioAlquiler: { monto: 1 } });
+    assert.equal(solicitud.precioAlquiler, undefined);
+});
+
+test('al aprobar «ambas» la propiedad queda en venta y en alquiler, cada una con su precio', async () => {
+    const Property = require('../src/models/property.model');
+    const emailService = require('../src/services/email.service');
+    const original = { findById: SolicitudPublicacion.findById, save: Property.prototype.save, mail: emailService.avisarSolicitudPublicacionAprobada };
+    let creada = null;
+    const solicitud = new SolicitudPublicacion({
+        cliente: CLIENTE, contacto: { nombre: 'Ana' }, tipoPropiedad: 'casa', operacion: 'ambas', direccion: 'San Martín 123', ciudad: 'Crespo',
+        precioPretendido: { monto: 85000, moneda: 'USD' }, precioAlquiler: { monto: 450000, moneda: 'ARS' }, estado: 'pendiente',
+    });
+    SolicitudPublicacion.findById = () => ({ populate: async () => solicitud });
+    Property.prototype.save = async function guardar() { creada = this; return this; };
+    emailService.avisarSolicitudPublicacionAprobada = async () => {};
+    try {
+        await servicio.aprobar(solicitud._id);
+        assert.deepEqual([...creada.operaciones], ['venta', 'alquiler']);
+        assert.equal(creada.precios.venta.precio, 85000);
+        assert.equal(creada.precios.venta.moneda, 'USD');
+        assert.equal(creada.precios.alquiler.precioARS, 450000);
+        assert.equal(creada.precios.alquiler.moneda, 'ARS');
+        assert.equal(solicitud.estado, 'aprobada');
+    } finally {
+        SolicitudPublicacion.findById = original.findById;
+        Property.prototype.save = original.save;
+        emailService.avisarSolicitudPublicacionAprobada = original.mail;
+    }
+});

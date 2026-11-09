@@ -62,8 +62,10 @@ const requireAdmin = (req, res, next) => {
 };
 
 // Cada ruta del panel pide el permiso de su sección: el admin pasa siempre; el empleado, solo si el admin se lo dio
+// Una sección, o varias (alcanza con tener permiso en cualquiera de ellas)
 const requirePermiso = (seccion) => (req, res, next) => {
-    if (!permisos.tienePermiso(req.user, seccion)) {
+    const secciones = Array.isArray(seccion) ? seccion : [seccion];
+    if (!secciones.some((s) => permisos.tienePermiso(req.user, s))) {
         return res.status(403).json({ message: 'No tenés permiso para esta sección.', code: 'SIN_PERMISO' });
     }
     next();

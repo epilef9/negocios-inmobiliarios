@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Boton, Campo, Encabezado, EstadoVacio, Insignia, Tarjeta, control, useAviso } from '@/components/panel/ui';
+import { useAuth } from '@/context/AuthContext';
+import { esAdmin } from '@/lib/permisos';
 import { createRequisito, deleteRequisito, getRequisitosAdmin, updateRequisito, type OperacionRequisito, type Requisito } from '@/services/requisitos';
 
 const OPERACIONES: { id: OperacionRequisito; texto: string }[] = [
@@ -18,6 +20,7 @@ export default function AdminRequisitosPage() {
   const [editando, setEditando] = useState<string | null>(null);
   const [cargando, setCargando] = useState(true);
   const { mostrar, aviso } = useAviso();
+  const { user } = useAuth();
 
   useEffect(() => {
     let vigente = true;
@@ -78,8 +81,14 @@ export default function AdminRequisitosPage() {
 
   return (
     <>
-      <Encabezado titulo="Requisitos" descripcion="Administrá las listas que aparecen en la página pública." />
-      <Tarjeta titulo={editando ? 'Editar requisito' : 'Agregar requisito'} acciones={editando ? <Boton tamano="sm" onClick={limpiar}>Cancelar</Boton> : undefined}>
+      <Encabezado
+        guia="requisitos"
+        // Para el administrador está dentro de Configuración; el empleado con permiso entra desde su menú
+        volver={esAdmin(user) ? { href: '/admin/configuracion', texto: 'Configuración' } : undefined}
+        titulo="Requisitos"
+        descripcion="Administrá las listas que aparecen en la página pública."
+      />
+      <Tarjeta guia="formulario" titulo={editando ? 'Editar requisito' : 'Agregar requisito'} acciones={editando ? <Boton tamano="sm" onClick={limpiar}>Cancelar</Boton> : undefined}>
         <div className="grid gap-4 md:grid-cols-[180px_1fr_2fr_auto] md:items-end">
           <Campo etiqueta="Operación" htmlFor="requisito-operacion">
             <select id="requisito-operacion" className={control} value={operacion} onChange={(event) => setOperacion(event.target.value as OperacionRequisito)}>
@@ -96,7 +105,7 @@ export default function AdminRequisitosPage() {
         </div>
       </Tarjeta>
 
-      <Tarjeta className="mt-5" titulo={`${lista.length} requisitos`}>
+      <Tarjeta guia="lista" className="mt-5" titulo={`${lista.length} requisitos`}>
         {cargando ? <p className="m-0 text-sm text-panel-suave">Cargando…</p> : lista.length === 0 ? <EstadoVacio titulo="No hay requisitos" /> : (
           <div className="divide-y divide-panel-borde">
             {lista.map((item) => (

@@ -5,6 +5,7 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, LoginPayload, RegisterPayload, RegisterResult, loginUser, registerUser, verifyEmail, getCurrentUser, logoutUser } from '../services/auth';
+import { AVISO_INGRESO, marcarAviso } from '../components/sitio/avisosSesion';
 
 interface AuthContextType {
   user: User | null;
@@ -68,6 +69,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const response = await loginUser(data);
+      // Al ingresar se saluda («Hola de nuevo») y se descarta un «Cerraste sesión» que haya quedado pendiente
+      marcarAviso(AVISO_INGRESO, response.user?.nombre);
       setUser(response.user);
       return response.user;
     } finally {

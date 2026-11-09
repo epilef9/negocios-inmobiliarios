@@ -51,3 +51,52 @@ describe('Accesos rápidos del inicio', () => {
         assert.equal(limpiarAccesos('visitas'), null);
     });
 });
+
+describe('Menú del panel', () => {
+    const panelRoutes = require('../src/routes/panel.routes');
+    const User = require('../src/models/user.model');
+    const { limpiarMenu } = panelRoutes;
+    // Último paso de PUT /menu (después de los controles de sesión)
+    const guardar = panelRoutes.stack.find((capa) => capa.route?.path === '/menu' && capa.route.methods.put).route.stack.at(-1).handle;
+    const pedir = async (body) => {
+        const res = { codigo: null, cuerpo: null, status(c) { this.codigo = c; return this; }, json(c) { this.cuerpo = c; return this; } };
+        await guardar({ user: { _id: 'u1' }, body }, res);
+        return res;
+    };
+
+    it('limpia las claves y corta en 30', () => {
+        assert.deepEqual(limpiarMenu(['visitas', 'visitas', 'Mal Clave', null, 'cobros']), ['visitas', 'cobros']);
+        assert.equal(limpiarMenu(Array.from({ length: 40 }, (_, i) => `s${i}`)).length, 30);
+        assert.equal(limpiarMenu({ visitas: true }), null);
+    });
+
+    it('guarda la lista en la cuenta, null vuelve al de siempre y rechaza lo que no es lista', async () => {
+        const original = User.updateOne;
+        const cambios = [];
+        User.updateOne = async (filtro, cambio) => cambios.push([filtro, cambio]);
+        try {
+            const ok = await pedir({ menu: ['visitas', 'cobros'] });
+            assert.equal(ok.codigo, 200);
+            assert.deepEqual(ok.cuerpo.data, ['visitas', 'cobros']);
+            assert.deepEqual(cambios[0][1].$set['preferencias.menu'], ['visitas', 'cobros']);
+
+            const deSiempre = await pedir({ menu: null });
+            assert.equal(deSiempre.codigo, 200);
+            assert.deepEqual(cambios[1][1].$unset, { 'preferencias.menu': 1 });
+
+            const mal = await pedir({ menu: 'visitas' });
+            assert.equal(mal.codigo, 400);
+            assert.equal(cambios.length, 2, 'lo inválido no se guarda');
+        } finally {
+            User.updateOne = original;
+        }
+    });
+
+    it('las rutas del menú piden sesión del personal del panel', () => {
+        const auth = require('../src/middlewares/auth.middleware');
+        for (const metodo of ['get', 'put']) {
+            const ruta = panelRoutes.stack.find((capa) => capa.route?.path === '/menu' && capa.route.methods[metodo]);
+            assert.ok(ruta.route.stack.some((capa) => capa.handle === auth.requirePersonal), `${metodo.toUpperCase()} /menu`);
+        }
+    });
+});

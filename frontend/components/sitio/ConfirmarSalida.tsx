@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { AVISO_SALIDA, marcarAviso } from './avisosSesion';
 
 // Páginas que solo tienen sentido con la sesión iniciada: al salir desde una de ellas se vuelve al inicio
 const PRIVADAS = ['/perfil', '/reservas', '/visitas', '/solicitudes', '/mis-publicaciones', '/avisos', '/favoritos', '/admin', '/publicar'];
-export const AVISO_SALIDA = 'sesion_cerrada';
 
 // HU-32: antes de cerrar la sesión se pregunta, para que un toque sin querer no saque al usuario de su cuenta.
 // Uso: const { pedirSalida, dialogoSalida } = useConfirmarSalida();  →  onClick={pedirSalida} y {dialogoSalida}
@@ -29,11 +29,7 @@ export function useConfirmarSalida() {
   const confirmar = () => {
     setAbierto(false);
     // El inicio muestra «Cerraste sesión» un momento (ver AvisoSalida)
-    try {
-      sessionStorage.setItem(AVISO_SALIDA, '1');
-    } catch {
-      // sin almacenamiento: no se muestra el aviso
-    }
+    marcarAviso(AVISO_SALIDA);
     if (PRIVADAS.some((p) => ruta === p || ruta.startsWith(`${p}/`))) router.replace('/');
     logout();
   };
@@ -49,7 +45,7 @@ export function useConfirmarSalida() {
       <div className="flex flex-col gap-6 p-7">
         <div className="flex flex-col gap-2">
           <h2 id="confirmar-salida-titulo" className="font-display m-0 text-[30px] font-normal leading-none">
-            ¿Cerrar sesión?
+            ¿Seguro que querés salir de tu cuenta?
           </h2>
           <p className="m-0 text-[15px] leading-relaxed text-[#efe9df]/70">Para ver tus reservas, visitas y solicitudes vas a tener que ingresar de nuevo.</p>
         </div>
@@ -60,14 +56,14 @@ export function useConfirmarSalida() {
             onClick={() => setAbierto(false)}
             className="calma-micro rounded-full px-5 py-3 text-[12px] text-[#efe9df]/80 ring-1 ring-inset ring-[#efe9df]/30 transition-colors hover:text-[#efe9df] hover:ring-[#efe9df]/60"
           >
-            Seguir en mi cuenta
+            Cancelar
           </button>
           <button
             type="button"
             onClick={confirmar}
             className="calma-micro rounded-full bg-[#efe9df] px-5 py-3 text-[12px] text-[#071733] transition-colors hover:bg-white"
           >
-            Cerrar sesión
+            Salir
           </button>
         </div>
       </div>

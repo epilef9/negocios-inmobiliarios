@@ -103,6 +103,8 @@ exports.createVisita = async (req, res) => {
         // Mail de confirmación con el enlace para gestionarla. Se espera antes de responder: en Vercel lo que
         // queda corriendo después de la respuesta puede cortarse. Si falla, la visita queda agendada igual.
         await visitasService.avisarGestion(newVisita, 'agendada');
+        // La pidió alguien desde el sitio (no la cargó el personal): se avisa a la inmobiliaria
+        if (!esAdmin) await visitasService.avisarPedido(newVisita);
 
         return res.status(201).json({ data: newVisita, message: 'Visita agendada correctamente' });
     } catch (error) {

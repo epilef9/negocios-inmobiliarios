@@ -29,9 +29,11 @@ const solicitudPublicacionSchema = new mongoose.Schema({
         default: 'casa',
         required: true,
     },
+    // «ambas»: la propiedad se ofrece en venta y en alquiler (HU-25); el precio de venta va en precioPretendido
+    // y el del alquiler mensual en precioAlquiler
     operacion: {
         type: String,
-        enum: ['venta', 'alquiler', 'temporario'],
+        enum: ['venta', 'alquiler', 'temporario', 'ambas'],
         default: 'venta',
         required: true,
     },
@@ -83,6 +85,10 @@ const solicitudPublicacionSchema = new mongoose.Schema({
     precioPretendido: {
         type: precioSchema,
         required: true,
+    },
+    precioAlquiler: {
+        type: precioSchema,
+        default: undefined,
     },
     descripcion: {
         type: String,

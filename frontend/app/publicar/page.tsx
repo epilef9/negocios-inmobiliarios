@@ -28,6 +28,7 @@ const tituloSeccion = 'font-display m-0 text-[26px] font-normal text-[#efe9df]';
 const OPERACIONES = [
   ['venta', 'Venta'],
   ['alquiler', 'Alquiler'],
+  ['ambas', 'Venta y alquiler (ambas)'],
   ['temporario', 'Alquiler temporario / por día'],
 ] as const;
 const TIPOS = [
@@ -89,6 +90,10 @@ export default function PublicarPropiedadPage() {
   const [superficieCubierta, setSuperficieCubierta] = useState('');
   const [monto, setMonto] = useState('');
   const [moneda, setMoneda] = useState<'USD' | 'ARS'>('USD');
+  // Venta y alquiler: el precio del alquiler mensual va aparte (suele ser en pesos)
+  const [montoAlquiler, setMontoAlquiler] = useState('');
+  const [monedaAlquiler, setMonedaAlquiler] = useState<'USD' | 'ARS'>('ARS');
+  const esAmbas = operacion === 'ambas';
   const [descripcion, setDescripcion] = useState('');
   const [expensas, setExpensas] = useState<'' | 'si' | 'no'>('');
   const [montoExpensas, setMontoExpensas] = useState('');
@@ -242,7 +247,9 @@ export default function PublicarPropiedadPage() {
     }
 
     const montoNum = parseFloat(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return mostrarError('Ingresá un precio pretendido mayor a cero.', 'monto');
+    if (isNaN(montoNum) || montoNum <= 0) return mostrarError(esAmbas ? 'Ingresá el precio de venta, mayor a cero.' : 'Ingresá un precio pretendido mayor a cero.', 'monto');
+    const montoAlquilerNum = parseFloat(montoAlquiler);
+    if (esAmbas && (isNaN(montoAlquilerNum) || montoAlquilerNum <= 0)) return mostrarError('Ingresá el precio del alquiler mensual, mayor a cero.', 'montoAlquiler');
 
     if (!descripcion.trim() || descripcion.trim().length < 20) {
       return mostrarError('Agregá una descripción de al menos 20 caracteres.', 'descripcion');
@@ -292,6 +299,7 @@ export default function PublicarPropiedadPage() {
         superficieTotal: parseFloat(superficieTotal) || 0,
         superficieCubierta: esTerreno ? 0 : parseFloat(superficieCubierta) || 0,
         precioPretendido: { monto: montoNum, moneda },
+        ...(esAmbas ? { precioAlquiler: { monto: montoAlquilerNum, moneda: monedaAlquiler } } : {}),
         descripcion: descripcion.trim(),
         fotos: [...urlsSubidas, ...urlsExtra],
         documentos: Object.fromEntries(adjuntos.map((doc, indice) => [doc.clave, documentosSubidos[indice]])) as CrearSolicitudPayload['documentos'],
@@ -580,18 +588,34 @@ export default function PublicarPropiedadPage() {
               {/* 5. Precio */}
               <section className="border-t border-[#efe9df]/15 pt-8">
                 <h2 className={tituloSeccion}>5. Precio pretendido</h2>
+                {esAmbas && <p className="m-0 mt-2 text-[15px] text-[#efe9df]/70">Como la ofrecés en venta y en alquiler, cargá los dos precios.</p>}
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
-                    <label htmlFor={`${id}-moneda`} className={etiqueta}>Moneda *</label>
+                    <label htmlFor={`${id}-moneda`} className={etiqueta}>{esAmbas ? 'Moneda de la venta *' : 'Moneda *'}</label>
                     <select id={`${id}-moneda`} value={moneda} onChange={(e) => setMoneda(e.target.value as 'USD' | 'ARS')} className={selector}>
                       <option value="USD">Dólares (USD)</option>
                       <option value="ARS">Pesos (ARS)</option>
                     </select>
                   </div>
                   <div className="flex flex-col gap-2">
-                    <label htmlFor={`${id}-monto`} className={etiqueta}>Monto pretendido *</label>
+                    <label htmlFor={`${id}-monto`} className={etiqueta}>{esAmbas ? 'Precio de venta *' : 'Monto pretendido *'}</label>
                     <input id={`${id}-monto`} type="number" min="1" step="any" value={monto} onChange={(e) => setMonto(e.target.value)} placeholder="Ej: 85000" className={control} aria-invalid={invalido('monto')} required />
                   </div>
+                  {esAmbas && (
+                    <>
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor={`${id}-monedaAlquiler`} className={etiqueta}>Moneda del alquiler *</label>
+                        <select id={`${id}-monedaAlquiler`} value={monedaAlquiler} onChange={(e) => setMonedaAlquiler(e.target.value as 'USD' | 'ARS')} className={selector}>
+                          <option value="ARS">Pesos (ARS)</option>
+                          <option value="USD">Dólares (USD)</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-2">
+                        <label htmlFor={`${id}-montoAlquiler`} className={etiqueta}>Alquiler mensual *</label>
+                        <input id={`${id}-montoAlquiler`} type="number" min="1" step="any" value={montoAlquiler} onChange={(e) => setMontoAlquiler(e.target.value)} placeholder="Ej: 450000" className={control} aria-invalid={invalido('montoAlquiler')} required />
+                      </div>
+                    </>
+                  )}
                 </div>
               </section>
 

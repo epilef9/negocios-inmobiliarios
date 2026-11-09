@@ -57,6 +57,7 @@ function ParaAtender() {
 
   return (
     <Tarjeta
+      guia="para-atender"
       titulo="Para atender"
       descripcion={
         !items ? 'Revisando…' : items.length === 0 ? 'Nada pendiente.' : urgentes ? `${items.length} temas; ${urgentes} para hoy.` : `${items.length} temas, ninguno urgente.`
@@ -148,6 +149,7 @@ export default function AdminInicioPage() {
   return (
     <>
       <Encabezado
+        guia="inicio"
         titulo={nombre ? `Hola, ${nombre}.` : 'Hola.'}
         descripcion={<span className="first-letter:uppercase">{fecha}</span>}
         acciones={
@@ -167,6 +169,7 @@ export default function AdminInicioPage() {
         <AccesosRapidos pendientes={pendientesPanel} />
 
         <section
+          data-guia="resumen"
           aria-label="Resumen"
           className="grid grid-cols-2 overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie lg:grid-cols-4 [&>*]:border-panel-borde max-lg:[&>*:nth-child(-n+2)]:border-b [&>*:nth-child(odd)]:border-r lg:[&>*:not(:last-child)]:border-r"
         >
@@ -198,6 +201,7 @@ export default function AdminInicioPage() {
           <div className="flex min-w-0 flex-col gap-6">
             <ParaAtender />
             <Tarjeta
+              guia="proximas-visitas"
               titulo="Próximas visitas"
               descripcion="Pendientes y confirmadas, de la más cercana a la más lejana."
               acciones={

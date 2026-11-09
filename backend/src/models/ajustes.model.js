@@ -5,7 +5,18 @@ const mongoose = require('mongoose');
 //  - costos (calculadora «cuánto necesito para entrar»): porcentajes que define la inmobiliaria
 //  - banco (pago por transferencia): datos que ve el cliente al pagar una reserva
 // Lugares de referencia para «a cuántas cuadras queda» en la ficha (Universidad, Sanatorio, centro…)
+//  - preguntas: las preguntas frecuentes que responde el asistente de Contacto
 const lugarSchema = new mongoose.Schema({ nombre: String, localidad: String, latitud: Number, longitud: Number }, { _id: false });
+
+const preguntaSchema = new mongoose.Schema(
+    {
+        pregunta: { type: String, trim: true },
+        respuesta: { type: String, trim: true },
+        palabras: { type: [String], default: undefined },
+        enlace: { texto: { type: String, trim: true }, href: { type: String, trim: true } },
+    },
+    { _id: false }
+);
 
 const horarioSchema = new mongoose.Schema({ dias: { type: String, trim: true }, horas: { type: String, trim: true } }, { _id: false });
 
@@ -35,7 +46,12 @@ const ajustesSchema = new mongoose.Schema(
             },
             aclaracion: { type: String, trim: true },
         },
+        // Pago de estadías (alquiler temporario): qué porcentaje del total se paga como seña para reservar
+        estadias: {
+            senaPorcentaje: { type: Number, min: 0, max: 100 },
+        },
         lugares: { type: [lugarSchema], default: undefined },
+        preguntas: { type: [preguntaSchema], default: undefined },
         banco: {
             titular: { type: String, trim: true },
             banco: { type: String, trim: true },

@@ -459,6 +459,27 @@ class VisitasService {
     // Cancela (el turno queda libre al dejar de estar pendiente/confirmada/reprogramada), anula los enlaces
     // de los mails y avisa a la inmobiliaria. `origen` dice desde dónde: "Mi cuenta", "el enlace del mail"...
     // `extra`: otros campos a guardar en el mismo cambio.
+    // HU-06: cuando alguien pide una visita desde el sitio, la inmobiliaria recibe un mail además del aviso del panel.
+    // Si el mail falla, la visita queda agendada igual.
+    async avisarPedido(visita) {
+        await emailService
+            .avisarInmobiliaria({
+                asunto: `Nueva visita para confirmar · ${visita.propiedad?.titulo || 'Propiedad'}`,
+                intro: 'Pidieron una visita desde el sitio. Confirmala o proponé otro horario desde el panel.',
+                filas: [
+                    ['Cliente', visita.cliente?.nombre || ''],
+                    ['Teléfono', visita.cliente?.telefono || ''],
+                    ...(visita.cliente?.email ? [['Email', visita.cliente.email]] : []),
+                    ['Propiedad', visita.propiedad?.titulo || ''],
+                    ['Día y hora', `${visita.fecha} · ${visita.horario}`],
+                    ...(visita.notaAdicional ? [['Nota', visita.notaAdicional]] : []),
+                ],
+                enlace: `${config.urlFrontend()}/admin/visitas`,
+                boton: 'Ver las visitas',
+            })
+            .catch((error) => console.error('No se pudo avisar la visita nueva a la inmobiliaria:', error.message));
+    }
+
     async cancelar(visita, motivo, origen, extra = {}) {
         const actualizada = await visitasRepository.updateVisita(visita._id, {
             ...extra,
