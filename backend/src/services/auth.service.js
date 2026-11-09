@@ -65,6 +65,10 @@ const getJwtSecret = () => {
 
 const authService = {
     register: async (userData) => {
+        // Sin aceptar los Términos no se crea la cuenta (también se corta antes, en el validador)
+        if (userData.aceptoTerminos !== true) {
+            throw errorHttp('Tenés que aceptar los Términos y la Política de privacidad.', 400, 'TERMINOS_NO_ACEPTADOS');
+        }
         // El teléfono es opcional, pero si viene tiene que ser un número de verdad (no un email ni letras)
         const telefono = typeof userData.telefono === 'string' ? userData.telefono.trim() : '';
         const digitosTelefono = telefono.replace(/\D/g, '').length;
@@ -96,7 +100,8 @@ const authService = {
             email: userData.email.toLowerCase().trim(),
             contrasena: hashedPassword,
             rol: 'cliente',
-            emailVerificado: false
+            emailVerificado: false,
+            aceptoTerminosEn: new Date()
         });
 
         // Si el mail falla la cuenta queda creada: puede pedir el reenvío desde el ingreso

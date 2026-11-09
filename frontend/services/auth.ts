@@ -41,6 +41,8 @@ export interface RegisterPayload {
   confirmPassword?: string;
   // 304: token de la verificación «no soy un robot» (si está activada)
   captchaToken?: string;
+  // Aceptó los Términos y la Política de privacidad (el backend no crea la cuenta sin esto)
+  aceptoTerminos: boolean;
 }
 
 export interface LoginPayload {

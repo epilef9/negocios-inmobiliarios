@@ -79,6 +79,10 @@ const userSchema = new mongoose.Schema({
     credencialesCambiadasEn: {
         type: Date
     },
+    // Cuándo aceptó los Términos y la Política de privacidad al crear la cuenta
+    aceptoTerminosEn: {
+        type: Date
+    },
     checklistRequisitos: {
         type: [String],
         default: []
