@@ -169,17 +169,19 @@ router.get('/resumen', authMiddleware, authMiddleware.requirePersonal, async (re
     }
 });
 
-// Accesos rápidos del inicio: lista de claves cortas (las conoce el frontend). Se limpian repetidos y basura.
-const MAX_ACCESOS = 12;
-const limpiarAccesos = (lista) => {
+// Accesos rápidos del inicio y secciones del menú: listas de claves cortas (las conoce el frontend).
+// Se limpian repetidos y basura.
+const limpiarClaves = (lista, maximo) => {
     if (!Array.isArray(lista)) return null;
     const vistos = new Set();
     for (const clave of lista) {
         if (typeof clave === 'string' && /^[a-z0-9-]{1,40}$/.test(clave)) vistos.add(clave);
-        if (vistos.size >= MAX_ACCESOS) break;
+        if (vistos.size >= maximo) break;
     }
     return [...vistos];
 };
+const limpiarAccesos = (lista) => limpiarClaves(lista, 12);
+const limpiarMenu = (lista) => limpiarClaves(lista, 30);
 
 router.get('/accesos', authMiddleware, authMiddleware.requirePersonal, (req, res) => {
     const accesos = req.user.preferencias?.accesos;
@@ -197,7 +199,30 @@ router.put('/accesos', authMiddleware, authMiddleware.requirePersonal, async (re
     }
 });
 
+// Menú del panel: qué secciones van en el menú principal (el resto, en «Más opciones»). Cada persona del panel
+// tiene el suyo; lo que no puede ver por permisos el frontend no lo muestra igual.
+router.get('/menu', authMiddleware, authMiddleware.requirePersonal, (req, res) => {
+    const menu = req.user.preferencias?.menu;
+    res.status(200).json({ data: Array.isArray(menu) ? menu : null });
+});
+
+router.put('/menu', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
+    // null vuelve al menú de siempre
+    const menu = req.body?.menu === null ? null : limpiarMenu(req.body?.menu);
+    if (menu === null && req.body?.menu !== null) return res.status(400).json({ message: 'El menú no es válido' });
+    try {
+        await User.updateOne(
+            { _id: req.user._id },
+            menu === null ? { $unset: { 'preferencias.menu': 1 }, $set: { updatedAt: Date.now() } } : { $set: { 'preferencias.menu': menu, updatedAt: Date.now() } }
+        );
+        res.status(200).json({ data: menu });
+    } catch {
+        res.status(500).json({ message: 'No se pudo guardar el menú' });
+    }
+});
+
 module.exports = router;
 module.exports.ordenarPendientes = ordenarPendientes;
 module.exports.limpiarAccesos = limpiarAccesos;
+module.exports.limpiarMenu = limpiarMenu;
 module.exports.permitidoEnResumen = permitidoEnResumen;

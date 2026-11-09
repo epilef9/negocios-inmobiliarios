@@ -6,39 +6,14 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { useConfirmarSalida } from '@/components/sitio/ConfirmarSalida';
 import { useTheme } from '@/context/ThemeContext';
-import Icono, { type NombreIcono } from './Icono';
+import Icono from './Icono';
 import LogoEmpresa from '@/components/sitio/LogoEmpresa';
 import { EVENTO_SOLICITUDES } from '@/services/solicitudes';
 import { EVENTO_RESERVAS } from '@/services/reservas';
 import { EVENTO_PENDIENTES, getPendientesPanel, type PendientesPanel } from '@/services/panel';
 
 import { puedeEntrarARuta } from '@/lib/permisos';
-// `incluye`: otras rutas que marcan la sección como activa (el orden del catálogo se abre desde Configuración)
-// `pendiente`: qué número del servidor se muestra al lado (lo que hay para revisar o confirmar) y cómo se lee
-type Pendiente = { clave: keyof PendientesPanel; texto: string };
-const SECCIONES: { href: string; texto: string; icono: NombreIcono; exacta?: boolean; incluye?: string[]; pendiente?: Pendiente }[] = [
-  { href: '/admin', texto: 'Inicio', icono: 'inicio', exacta: true },
-  { href: '/admin/propiedades', texto: 'Propiedades', icono: 'propiedades' },
-  { href: '/admin/estadisticas', texto: 'Estadísticas', icono: 'estrella' },
-  { href: '/admin/visitas', texto: 'Visitas', icono: 'visitas', pendiente: { clave: 'visitas', texto: 'por confirmar' } },
-  { href: '/admin/horario', texto: 'Horario de visitas', icono: 'reloj' },
-  { href: '/admin/reservas', texto: 'Reservas', icono: 'maleta', pendiente: { clave: 'reservas', texto: 'por confirmar (reservas o pagos)' } },
-  { href: '/admin/disponibilidad', texto: 'Disponibilidad', icono: 'calendario' },
-  { href: '/admin/senas', texto: 'Reservas con seña', icono: 'candado', pendiente: { clave: 'senas', texto: 'por vencer' } },
-  { href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: { clave: 'solicitudes', texto: 'por revisar' } },
-  { href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
-  { href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: { clave: 'contratos', texto: 'para revisar (vencen o actualizan precio)' } },
-  { href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { clave: 'cobros', texto: 'alquileres atrasados' } },
-  { href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { clave: 'publicaciones', texto: 'por revisar' } },
-  { href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist' },
-  { href: '/admin/empleados', texto: 'Empleados', icono: 'clientes' },
-  { href: '/admin/actividad', texto: 'Actividad', icono: 'reloj' },
-  { href: '/admin/configuracion', texto: 'Configuración', icono: 'configuracion', incluye: ['/admin/catalogo', '/admin/sitio'] },
-];
-
-const enRuta = (ruta: string, href: string) => ruta === href || ruta.startsWith(`${href}/`);
-const esActiva = (ruta: string, s: (typeof SECCIONES)[number]) =>
-  s.exacta ? ruta === s.href : enRuta(ruta, s.href) || Boolean(s.incluye?.some((otra) => enRuta(ruta, otra)));
+import { SECCIONES, esActiva, repartir, useMenuPanel, type SeccionMenu } from './menuPanel';
 
 // El menú oculto se recuerda en este navegador (si no hay almacenamiento, arranca visible)
 const CLAVE_OCULTO = 'panel_menu_oculto';
@@ -56,6 +31,48 @@ const guardarOculto = (oculto: boolean) => {
     // sin almacenamiento: no se recuerda
   }
 };
+
+// «Más opciones» abierto o cerrado también se recuerda en este navegador
+const CLAVE_MAS = 'panel_menu_mas_abierto';
+const leerMas = () => {
+  try {
+    return localStorage.getItem(CLAVE_MAS) === '1';
+  } catch {
+    return false;
+  }
+};
+const guardarMas = (abierto: boolean) => {
+  try {
+    localStorage.setItem(CLAVE_MAS, abierto ? '1' : '0');
+  } catch {
+    // sin almacenamiento: no se recuerda
+  }
+};
+
+// Un renglón del menú. Los de «Más opciones» van un poco más chicos y corridos, colgando de la flecha.
+function ItemMenu({ seccion, activa, cantidad, alElegir, sub = false }: { seccion: SeccionMenu; activa: boolean; cantidad: number; alElegir?: () => void; sub?: boolean }) {
+  return (
+    <Link
+      href={seccion.href}
+      onClick={alElegir}
+      aria-current={activa ? 'page' : undefined}
+      className={`flex shrink-0 items-center gap-3 rounded-lg px-3 ${sub ? 'py-2.5 lg:py-2 text-[13.5px]' : 'py-3 lg:py-2.5 text-[14px]'} transition-colors ${
+        activa ? 'bg-white/12 font-medium text-white' : 'text-white/70 hover:bg-white/6 hover:text-white'
+      }`}
+    >
+      <Icono nombre={seccion.icono} className={`${sub ? 'h-4 w-4' : 'h-[18px] w-[18px]'} ${activa ? 'text-white' : 'text-white/60'}`} />
+      {seccion.texto}
+      {cantidad > 0 ? (
+        <span className="tabular ml-auto min-w-5 rounded-full bg-[var(--p-acento)] px-1.5 text-center text-[11.5px] font-semibold leading-5 text-white">
+          {cantidad}
+          <span className="sr-only"> {seccion.pendiente?.texto}</span>
+        </span>
+      ) : (
+        activa && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--p-acento)]" />
+      )}
+    </Link>
+  );
+}
 
 function Logo() {
   return (
@@ -96,9 +113,33 @@ export function usePendientes(ruta: string) {
   return pendientes;
 }
 
-function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOcultar?: () => void; pendientes: PendientesPanel }) {
+function Menu({ alElegir, alOcultar, pendientes, principal }: { alElegir?: () => void; alOcultar?: () => void; pendientes: PendientesPanel; principal: string[] }) {
   const ruta = usePathname() ?? '';
   const { user } = useAuth();
+  const { arriba, mas } = repartir(
+    SECCIONES.filter((s) => puedeEntrarARuta(user, s.href)),
+    principal
+  );
+  const cantidadDe = (s: SeccionMenu) => (s.pendiente ? pendientes[s.pendiente.clave] ?? 0 : 0);
+  // Configuración va al final, después de «Más opciones»
+  const configuracion = arriba.find((s) => s.clave === 'configuracion');
+  const principales = arriba.filter((s) => s !== configuracion);
+  const activaEnMas = mas.some((s) => esActiva(ruta, s));
+  const pendientesEnMas = mas.reduce((suma, s) => suma + cantidadDe(s), 0);
+  const [masAbierto, setMasAbierto] = useState(() => leerMas() || activaEnMas);
+  // Al entrar a una sección de «Más opciones», se abre para que se vea dónde estás (se ajusta al cambiar de página,
+  // sin efecto: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes)
+  const [rutaVista, setRutaVista] = useState(ruta);
+  if (ruta !== rutaVista) {
+    setRutaVista(ruta);
+    if (activaEnMas && !masAbierto) setMasAbierto(true);
+  }
+  const alternarMas = () => {
+    setMasAbierto((abierto) => {
+      guardarMas(!abierto);
+      return !abierto;
+    });
+  };
   const { pedirSalida, dialogoSalida } = useConfirmarSalida();
   const { theme, setTheme } = useTheme();
   const nombre = user ? `${user.nombre ?? ''} ${user.apellido ?? ''}`.trim() || user.email : '';
@@ -125,32 +166,44 @@ function Menu({ alElegir, alOcultar, pendientes }: { alElegir?: () => void; alOc
         aria-label="Secciones del panel"
         className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain px-3 [scrollbar-color:rgba(255,255,255,0.25)_transparent] [scrollbar-width:thin]"
       >
-        {SECCIONES.filter((s) => puedeEntrarARuta(user, s.href)).map((seccion) => {
-          const activa = esActiva(ruta, seccion);
-          const cantidad = seccion.pendiente ? pendientes[seccion.pendiente.clave] ?? 0 : 0;
-          return (
-            <Link
-              key={seccion.href}
-              href={seccion.href}
-              onClick={alElegir}
-              aria-current={activa ? 'page' : undefined}
-              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-3 lg:py-2.5 text-[14px] transition-colors ${
-                activa ? 'bg-white/12 font-medium text-white' : 'text-white/70 hover:bg-white/6 hover:text-white'
+        {principales.map((seccion) => (
+          <ItemMenu key={seccion.href} seccion={seccion} activa={esActiva(ruta, seccion)} cantidad={cantidadDe(seccion)} alElegir={alElegir} />
+        ))}
+
+        {mas.length > 0 && (
+          <>
+            <button
+              type="button"
+              onClick={alternarMas}
+              aria-expanded={masAbierto}
+              aria-controls="menu-mas-opciones"
+              className={`flex shrink-0 items-center gap-3 rounded-lg px-3 py-3 lg:py-2.5 text-left text-[14px] transition-colors hover:bg-white/6 hover:text-white ${
+                activaEnMas && !masAbierto ? 'text-white' : 'text-white/70'
               }`}
             >
-              <Icono nombre={seccion.icono} className={`h-[18px] w-[18px] ${activa ? 'text-white' : 'text-white/60'}`} />
-              {seccion.texto}
-              {cantidad > 0 ? (
+              <Icono
+                nombre="flecha"
+                className={`h-[18px] w-[18px] text-white/60 transition-transform duration-200 motion-reduce:transition-none ${masAbierto ? 'rotate-90' : ''}`}
+              />
+              Más opciones
+              {!masAbierto && pendientesEnMas > 0 && (
                 <span className="tabular ml-auto min-w-5 rounded-full bg-[var(--p-acento)] px-1.5 text-center text-[11.5px] font-semibold leading-5 text-white">
-                  {cantidad}
-                  <span className="sr-only"> {seccion.pendiente?.texto}</span>
+                  {pendientesEnMas}
+                  <span className="sr-only"> pendientes en otras secciones</span>
                 </span>
-              ) : (
-                activa && <span aria-hidden="true" className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--p-acento)]" />
               )}
-            </Link>
-          );
-        })}
+            </button>
+            {masAbierto && (
+              <div id="menu-mas-opciones" className="ml-[21px] flex shrink-0 flex-col gap-0.5 border-l border-white/12 pl-2">
+                {mas.map((seccion) => (
+                  <ItemMenu key={seccion.href} seccion={seccion} activa={esActiva(ruta, seccion)} cantidad={cantidadDe(seccion)} alElegir={alElegir} sub />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {configuracion && <ItemMenu seccion={configuracion} activa={esActiva(ruta, configuracion)} cantidad={0} alElegir={alElegir} />}
       </nav>
 
       <div className="mx-3 flex shrink-0 flex-col gap-1 border-t border-white/10 pt-4">
@@ -212,6 +265,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
   };
   const ruta = usePathname();
   const pendientes = usePendientes(ruta ?? '');
+  const { principal } = useMenuPanel();
   const totalPendientes = Object.values(pendientes).reduce<number>((suma, n) => suma + (n ?? 0), 0);
   const avisoPendientes = totalPendientes ? ` (${totalPendientes} ${totalPendientes === 1 ? 'cosa' : 'cosas'} para revisar)` : '';
 
@@ -229,7 +283,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
     <div className={`panel min-h-dvh font-sans lg:grid ${oculto ? 'lg:grid-cols-1' : 'lg:grid-cols-[248px_1fr]'}`}>
       {!oculto && (
         <aside className="sticky top-0 hidden h-dvh lg:block">
-          <Menu pendientes={pendientes} alOcultar={() => cambiarOculto(true)} />
+          <Menu pendientes={pendientes} principal={principal} alOcultar={() => cambiarOculto(true)} />
         </aside>
       )}
 
@@ -273,7 +327,7 @@ export default function PanelMarco({ children }: { children: React.ReactNode }) 
             <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar menú" className="absolute right-1.5 top-2.5 z-10 rounded-md p-3 text-white/70 hover:bg-white/10 hover:text-white">
               <Icono nombre="cerrar" />
             </button>
-            <Menu alElegir={() => setAbierto(false)} pendientes={pendientes} />
+            <Menu alElegir={() => setAbierto(false)} pendientes={pendientes} principal={principal} />
           </div>
         </div>
       )}

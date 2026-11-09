@@ -123,6 +123,11 @@ const userSchema = new mongoose.Schema({
         accesos: {
             type: [String],
             default: undefined
+        },
+        // Secciones que van en el menú principal del panel (el resto queda en «Más opciones»). Sin valor = las de siempre.
+        menu: {
+            type: [String],
+            default: undefined
         }
     },
     createdAt: {
