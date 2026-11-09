@@ -1,0 +1,50 @@
+# Copia de seguridad semanal de la base de MongoDB Atlas (el plan gratis no hace copias automáticas).
+# Guarda la copia CIFRADA como artefacto privado de GitHub Actions (90 días). Solo lee la base.
+#
+# Secretos que hay que cargar en GitHub (Settings -> Secrets and variables -> Actions):
+#   MONGODB_URI    la dirección de la base a copiar
+#   RESPALDO_CLAVE una contraseña larga al azar para cifrar la copia (guardala también en un lugar seguro)
+# Aparte, guardá SOLICITUDES_ENCRYPTION_KEY: sin ella los documentos de las solicitudes no se pueden leer.
+#
+# Para descifrar una copia descargada:
+#   openssl enc -d -aes-256-cbc -pbkdf2 -in respaldo.tar.gz.enc -out respaldo.tar.gz -pass env:RESPALDO_CLAVE
+#   tar xzf respaldo.tar.gz
+name: Respaldo semanal de la base
+
+on:
+  schedule:
+    - cron: '0 6 * * 0' # domingos 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  respaldo:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - name: Instalar dependencias
+        working-directory: backend
+        run: npm ci
+      - name: Exportar la base
+        working-directory: backend
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        run: node scripts/respaldo.js --salida "$RUNNER_TEMP/respaldo"
+      - name: Comprimir y cifrar
+        env:
+          RESPALDO_CLAVE: ${{ secrets.RESPALDO_CLAVE }}
+        run: |
+          tar czf "$RUNNER_TEMP/respaldo.tar.gz" -C "$RUNNER_TEMP/respaldo" .
+          openssl enc -aes-256-cbc -pbkdf2 -salt -in "$RUNNER_TEMP/respaldo.tar.gz" -out "$RUNNER_TEMP/respaldo.tar.gz.enc" -pass env:RESPALDO_CLAVE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: respaldo-${{ github.run_id }}
+          path: ${{ runner.temp }}/respaldo.tar.gz.enc
+          retention-days: 90

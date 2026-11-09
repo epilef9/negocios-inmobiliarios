@@ -156,3 +156,29 @@ node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
 ```
 
 Usá el mismo valor en todos los entornos que deban leer los documentos existentes. Guardalo en el gestor de secretos del hosting y no lo compartas ni lo cambies sin un plan de recifrado. Los archivos no se sirven desde `/uploads` ni se exponen con URLs públicas. Se admiten PDF, JPG/JPEG y PNG de hasta 5 MB por archivo.
+## Copia de seguridad de la base de datos
+
+El plan gratis de MongoDB Atlas no hace copias automáticas, así que las hacemos nosotros.
+
+**Hacer una copia** (desde `backend/`; solo lee la base de `MONGODB_URI`, no modifica nada):
+
+```bash
+npm run respaldo                       # guarda en backend/respaldos/AAAA-MM-DD_HHMM/
+node scripts/respaldo.js --salida D:\copias
+```
+
+Exporta todas las colecciones, incluidos los documentos de GridFS (`*.files` y `*.chunks`), con un archivo por colección y un `manifest.json`. La carpeta `backend/respaldos/` no se sube a Git. La copia tiene datos personales: guardala fuera de Atlas, en un lugar privado.
+
+**Copia automática semanal:** el workflow `.github/workflows/respaldo-semanal.yml` la hace los domingos y la guarda cifrada como artefacto de GitHub Actions (90 días). Requiere los secretos `MONGODB_URI` y `RESPALDO_CLAVE` en GitHub; las instrucciones para descifrar están en el encabezado del archivo.
+
+**Restaurar** (solo en una base de prueba, con el mismo control que los tests):
+
+```bash
+# MONGODB_URI_TEST tiene que ser una base cuyo nombre incluya "test"
+MONGODB_URI_TEST=mongodb://localhost:27017/inmobiliaria_test npm run restaurar -- respaldos/2026-11-09_1030
+# --reemplazar vacía antes las colecciones que ya existan en esa base de prueba
+```
+
+Se cancela si falta `MONGODB_URI_TEST`, si es la base real o si el nombre no incluye "test".
+
+**Importante:** los documentos de las solicitudes están cifrados con `SOLICITUDES_ENCRYPTION_KEY`. Esa clave no va en la copia: guardala aparte, o los documentos restaurados no se podrán leer.
