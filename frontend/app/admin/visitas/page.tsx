@@ -284,6 +284,7 @@ export default function VisitasAdminPage() {
   return (
     <>
       <Encabezado
+        guia="visitas"
         titulo="Visitas"
         descripcion={visitas ? (cuenta.pendientes ? `${cuenta.pendientes} por confirmar · ${cuenta.todas} en total` : `Todas respondidas · ${cuenta.todas} en total`) : 'Pedidos de visita del sitio y los que agendás a mano.'}
         acciones={
@@ -302,7 +303,7 @@ export default function VisitasAdminPage() {
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div role="tablist" aria-label="Estado de las visitas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="tablist" data-guia="pestanas" aria-label="Estado de las visitas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PESTANAS.map((p) => {
               const activa = pestana === p.id;
               return (
@@ -320,7 +321,7 @@ export default function VisitasAdminPage() {
               );
             })}
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div data-guia="filtros" className="flex flex-col gap-2 sm:flex-row">
             <label className="relative sm:w-64">
               <span className="sr-only">Buscar</span>
               <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
@@ -361,7 +362,7 @@ export default function VisitasAdminPage() {
               texto={lista.length === 0 ? 'Cuando alguien pida una visita desde el sitio, aparece acá.' : undefined}
             />
           ) : visitas ? (
-            <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+            <ul data-guia="lista" className="m-0 list-none divide-y divide-panel-borde p-0">
               {visibles.map(({ v, cuando }) => {
                 const estado = estadoDe(ESTADO_VISITA, v.estado);
                 const pasada = cuando ? cuando < hoy : false;
@@ -371,7 +372,7 @@ export default function VisitasAdminPage() {
                       <span className="tabular whitespace-nowrap text-[13.5px] font-medium">{cuandoEs(cuando, v.horario)}</span>
                       {pasada && <span className="text-[12px] text-panel-tenue">Ya pasó</span>}
                     </span>
-                    <button type="button" onClick={() => setDetalle(v)} className="min-w-0 text-left">
+                    <button type="button" data-guia="detalle" onClick={() => setDetalle(v)} className="min-w-0 text-left">
                       <span className="block truncate text-[14px] font-medium hover:underline">{v.cliente.nombre || 'Sin nombre'}</span>
                       <span className="tabular block truncate text-[13px] text-panel-suave">{v.cliente.telefono || 'Sin teléfono'}</span>
                     </button>
@@ -380,7 +381,7 @@ export default function VisitasAdminPage() {
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
                       <InsigniaAsistencia visita={v} />
                     </span>
-                    <div className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
+                    <div data-guia="acciones-fila" className="-ml-2 flex items-center md:ml-0 md:justify-end">{acciones(v)}</div>
                     <ActividadRegistro entidad="visita" id={v.id} className="md:col-span-full" />
                   </li>
                 );

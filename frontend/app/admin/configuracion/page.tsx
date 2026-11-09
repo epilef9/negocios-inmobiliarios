@@ -54,6 +54,7 @@ function MenuDelPanel() {
 
   return (
     <Tarjeta
+      guia="menu"
       titulo="Menú del panel"
       descripcion="Elegí qué secciones van en el menú principal. Las demás quedan en «Más opciones», que se abre con la flecha."
       acciones={
@@ -114,12 +115,14 @@ export default function ConfiguracionPage() {
   return (
     <>
       <Encabezado
+        guia="configuracion"
         titulo="Configuración"
         descripcion={`Lo que ven los clientes en el sitio y cómo se ve el panel para ${user?.nombre || 'vos'}.`}
       />
 
       <div className="flex max-w-4xl flex-col gap-6">
         <Tarjeta
+          guia="datos-sitio"
           titulo="Datos del sitio"
           descripcion="Contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferencias."
           acciones={
@@ -132,6 +135,7 @@ export default function ConfiguracionPage() {
         </Tarjeta>
 
         <Tarjeta
+          guia="orden-catalogo"
           titulo="Orden del catálogo"
           descripcion="Qué propiedad aparece primero en el catálogo y en el inicio del sitio."
           acciones={
@@ -145,7 +149,7 @@ export default function ConfiguracionPage() {
 
         <MenuDelPanel />
 
-        <Tarjeta titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">
+        <Tarjeta guia="apariencia" titulo="Apariencia" descripcion="Modo claro u oscuro. También se cambia desde el menú, abajo a la izquierda.">
           <div role="radiogroup" aria-label="Apariencia" className="grid gap-3 sm:grid-cols-2">
             {MODOS.map((modo) => {
               const elegido = theme === modo.id;
@@ -173,7 +177,7 @@ export default function ConfiguracionPage() {
           </div>
         </Tarjeta>
 
-        <Tarjeta titulo="Colores del panel" descripcion="El color del menú y de los acentos. El sitio público mantiene sus colores.">
+        <Tarjeta guia="colores" titulo="Colores del panel" descripcion="El color del menú y de los acentos. El sitio público mantiene sus colores.">
           <div role="radiogroup" aria-label="Colores del panel" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {palettes.map((p) => {
               const elegida = palette === p.id;

@@ -45,7 +45,7 @@ export default function Recordatorios() {
 
   return (
     <>
-      <Tarjeta titulo="Recordatorios" relleno={false}>
+      <Tarjeta guia="recordatorios" titulo="Recordatorios" relleno={false}>
         {!datos ? (
           <div className="flex flex-col gap-2 p-5">
             <Esqueleto className="h-4 w-3/4" />

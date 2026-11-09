@@ -140,6 +140,7 @@ export default function SenasPage() {
   return (
     <>
       <Encabezado
+        guia="senas"
         titulo="Reservas con seña"
         descripcion="Propiedades en venta o alquiler reservadas con seña. Mientras la reserva está activa se ven «Reservadas» en el sitio; si llega la fecha límite sin concretarse, vuelven a estar disponibles solas."
         acciones={
@@ -154,8 +155,8 @@ export default function SenasPage() {
           {error}
         </Alerta>
       ) : (
-        <Tarjeta relleno={false}>
-          <div className="border-b border-panel-borde px-4 pt-3">
+        <Tarjeta guia="lista" relleno={false}>
+          <div data-guia="pestanas" className="border-b border-panel-borde px-4 pt-3">
             <Pestanas
               etiqueta="Filtrar reservas"
               className="flex gap-6 border-b-0"
@@ -215,7 +216,7 @@ export default function SenasPage() {
                       {s.cierre && <p className="m-0 text-[13px] text-panel-suave">Cierre: {s.cierre}</p>}
                     </div>
                     {s.estado === 'activa' && (
-                      <div className="flex shrink-0 flex-wrap gap-2">
+                      <div data-guia="acciones-fila" className="flex shrink-0 flex-wrap gap-2">
                         <Boton tamano="sm" variante="principal" icono="check" onClick={() => { setCierre(''); setCerrando({ sena: s, accion: 'concretar' }); }}>
                           Concretar
                         </Boton>

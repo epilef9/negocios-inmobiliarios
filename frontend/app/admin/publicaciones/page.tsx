@@ -275,12 +275,13 @@ export default function AdminPublicacionesPage() {
   return (
     <div className="flex flex-col gap-5">
       <Encabezado
+        guia="publicaciones"
         titulo="Solicitudes de publicación"
         descripcion="Pedidos de clientes que quieren publicar su propiedad. Revisá los datos, las fotos y la documentación antes de aprobar."
       />
 
       {/* Pestañas con cantidad */}
-      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
+      <div role="group" data-guia="pestanas" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
         {FILTROS.map(({ id, nombre }) => {
           const activa = filtroActivo === id;
           return (
@@ -309,7 +310,7 @@ export default function AdminPublicacionesPage() {
         </Alerta>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
+      <div data-guia="lista" className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
         {!solicitudes ? (
           <div className="flex flex-col divide-y divide-panel-borde">
             {[0, 1, 2].map((i) => (
@@ -337,6 +338,7 @@ export default function AdminPublicacionesPage() {
                   <div className="min-w-0">
                     <button
                       type="button"
+                      data-guia="detalle"
                       onClick={() => setSolicitudDetalle(sol)}
                       className="block max-w-full truncate text-left text-[14px] font-medium after:absolute after:inset-0 hover:underline focus-visible:outline-none"
                     >

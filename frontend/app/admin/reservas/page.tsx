@@ -230,11 +230,11 @@ export default function ReservasAdminPage() {
 
   return (
     <>
-      <Encabezado titulo="Reservas" descripcion={descripcion} />
+      <Encabezado guia="reservas" titulo="Reservas" descripcion={descripcion} />
 
       <div className="flex flex-col gap-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div role="tablist" aria-label="Estado de las reservas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div role="tablist" data-guia="pestanas" aria-label="Estado de las reservas" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {PESTANAS.map((p) => {
               const activa = pestana === p.id;
               return (
@@ -252,7 +252,7 @@ export default function ReservasAdminPage() {
               );
             })}
           </div>
-          <label className="relative sm:w-72">
+          <label data-guia="filtros" className="relative sm:w-72">
             <span className="sr-only">Buscar</span>
             <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
             <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Cliente, email o propiedad" className={`${control} pl-10`} />
@@ -283,7 +283,7 @@ export default function ReservasAdminPage() {
               texto={lista.length === 0 ? 'Cuando un cliente reserve una estadía desde el sitio, aparece acá.' : undefined}
             />
           ) : reservas ? (
-            <ul className="m-0 list-none divide-y divide-panel-borde p-0">
+            <ul data-guia="lista" className="m-0 list-none divide-y divide-panel-borde p-0">
               {visibles.map((r) => {
                 const estado = estadoDe(ESTADO_RESERVA, r.estado);
                 const urgente = r.estado === 'pendiente' && horasRestantes(r.venceEn, ahora) < HORAS_URGENTE;
@@ -316,7 +316,7 @@ export default function ReservasAdminPage() {
                       {situacion(r)}
                     </span>
                     <span className="tabular text-[13.5px] font-medium xl:text-right">{usd(r.totalUSD)}</span>
-                    <div className="-ml-2 flex items-center xl:ml-0 xl:justify-end">{trabajando === r.id ? <span className="px-2 text-[13px] text-panel-tenue">Guardando…</span> : acciones(r)}</div>
+                    <div data-guia="acciones-fila" className="-ml-2 flex items-center xl:ml-0 xl:justify-end">{trabajando === r.id ? <span className="px-2 text-[13px] text-panel-tenue">Guardando…</span> : acciones(r)}</div>
                     <ActividadRegistro entidad="reserva" id={r.id} className="md:col-span-full" />
                   </li>
                 );

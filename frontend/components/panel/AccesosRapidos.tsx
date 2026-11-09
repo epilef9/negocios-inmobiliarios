@@ -98,6 +98,7 @@ export default function AccesosRapidos({ pendientes }: { pendientes: PendientesP
   return (
     <>
       <Tarjeta
+        guia="accesos"
         titulo="Accesos rápidos"
         descripcion="Lo que más usás, a un clic. Los números son cosas para revisar."
         acciones={

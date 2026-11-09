@@ -130,6 +130,7 @@ export default function PropiedadesAdminPage() {
   return (
     <>
       <Encabezado
+        guia="propiedades"
         titulo="Propiedades"
         descripcion={propiedades ? `${lista.length} en total · ${disponibles} disponibles` : 'Todas las propiedades cargadas en el sitio.'}
         acciones={
@@ -145,7 +146,7 @@ export default function PropiedadesAdminPage() {
       />
 
       <div className="flex flex-col gap-4">
-        <div role="search" className="grid gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
+        <div role="search" data-guia="filtros" className="grid gap-3 rounded-xl border border-panel-borde bg-panel-superficie p-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_160px_160px_160px_auto]">
           <label className="relative sm:col-span-2 lg:col-span-1">
             <span className="sr-only">Buscar</span>
             <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
@@ -219,7 +220,7 @@ export default function PropiedadesAdminPage() {
           ) : propiedades ? (
             <>
               {/* Tabla en pantallas medianas y grandes */}
-              <table className="hidden w-full border-collapse text-left md:table">
+              <table data-guia="lista" className="hidden w-full border-collapse text-left md:table">
                 <thead>
                   <tr className="border-b border-panel-borde bg-panel-hundido text-[12.5px] text-panel-suave">
                     <th scope="col" className="px-4 py-2.5 font-medium">Propiedad</th>
@@ -249,11 +250,11 @@ export default function PropiedadesAdminPage() {
                       <td className="tabular whitespace-nowrap px-4 py-3 text-right text-[13.5px] font-medium">
                         {textoPrecios(p).map((texto) => <span key={texto} className="block">{texto}</span>)}
                       </td>
-                      <td className="px-4 py-3">
+                      <td data-guia="estado" className="px-4 py-3">
                         <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex justify-end gap-1">
+                        <div data-guia="acciones-fila" className="flex justify-end gap-1">
                           <Link href={`/propiedades/${p._id}`} target="_blank" title="Ver en el sitio" aria-label={`Ver ${p.titulo} en el sitio`} className="rounded-md p-[13px] text-panel-tenue sm:p-2 hover:bg-panel-hundido hover:text-panel-texto">
                             <Icono nombre="ojo" className="h-[18px] w-[18px]" />
                           </Link>
@@ -274,7 +275,7 @@ export default function PropiedadesAdminPage() {
               </table>
 
               {/* Lista en celulares */}
-              <ul className="m-0 list-none divide-y divide-panel-borde p-0 md:hidden">
+              <ul data-guia="lista" className="m-0 list-none divide-y divide-panel-borde p-0 md:hidden">
                 {visibles.map((p) => (
                   <li key={p._id} className="flex flex-col gap-3 p-4">
                     <div className="flex items-start gap-3">
@@ -289,9 +290,9 @@ export default function PropiedadesAdminPage() {
                         <span className="tabular block text-[13.5px] font-medium">{textoPrecios(p).join(' · ')}</span>
                       </div>
                     </div>
-                    <div className="flex items-center justify-between gap-2">
+                    <div data-guia="estado" className="flex items-center justify-between gap-2">
                       <SelectorEstado propiedad={p} alCambiar={(estado) => cambiarEstado(p, estado)} />
-                      <div className="flex gap-1">
+                      <div data-guia="acciones-fila" className="flex gap-1">
                         <BotonLink href={`/propiedades/${p._id}/imprimir`} target="_blank" tamano="sm" variante="fantasma" icono="imprimir" aria-label={`Imprimir la ficha de ${p.titulo}`}>{null}</BotonLink>
                         <BotonLink href={`/admin/propiedades/nueva?editar=${p._id}`} tamano="sm" icono="editar">
                           Editar

@@ -141,10 +141,11 @@ export default function SitioPage() {
 
   return (
     <>
-      <Encabezado volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
+      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos y los datos para transferir." />
       <div className="flex max-w-4xl flex-col gap-6">
         <form onSubmit={(e) => guardar('contacto', { contacto }, e)}>
           <Tarjeta
+            guia="contacto"
             titulo="Contacto de la oficina"
             descripcion="Se muestra en la barra de arriba, en el pie de todas las páginas y en Contacto."
             acciones={
@@ -186,6 +187,7 @@ export default function SitioPage() {
 
         <form onSubmit={guardarLugares}>
           <Tarjeta
+            guia="lugares"
             titulo="Lugares de referencia"
             descripcion="En la ficha de cada propiedad se muestra a cuántas cuadras queda de estos lugares (Universidad, Sanatorio, plaza, terminal…). Pegá el link de Google Maps de cada uno para tomar el punto exacto."
             acciones={
@@ -224,6 +226,7 @@ export default function SitioPage() {
 
         <form onSubmit={(e) => guardar('costos', { costos }, e)}>
           <Tarjeta
+            guia="calculadora"
             titulo="Calculadora «cuánto necesito para entrar»"
             descripcion="Aparece en la ficha de las propiedades en venta y alquiler cuando la publicás. Los honorarios y el sellado de alquiler se calculan sobre el total del contrato."
             acciones={
@@ -265,6 +268,7 @@ export default function SitioPage() {
 
         <form onSubmit={(e) => guardar('banco', { banco }, e)}>
           <Tarjeta
+            guia="banco"
             titulo="Datos para transferencias"
             descripcion="Los ve solo el cliente que está pagando una reserva por transferencia. Sin titular y CBU o alias, esa opción no se ofrece."
             acciones={

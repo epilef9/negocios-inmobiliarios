@@ -189,11 +189,12 @@ export default function CobrosPage() {
   return (
     <>
       <Encabezado
+        guia="cobros"
         titulo="Cobros"
         descripcion="Los alquileres de cada mes según los contratos vigentes. Registrá cada pago para generar el recibo; pasado el día de vencimiento, los que no pagaron figuran atrasados y les podés mandar un aviso."
       />
 
-      <div className="mb-5 flex flex-wrap items-center gap-2">
+      <div data-guia="mes" className="mb-5 flex flex-wrap items-center gap-2">
         <Boton tamano="sm" icono="atras" aria-label="Mes anterior" onClick={() => irA(moverMes(periodo, -1))} />
         <h2 className="m-0 min-w-44 text-center text-[17px] font-semibold" aria-live="polite">
           {mayuscula(nombreMes(periodo))}
@@ -217,7 +218,7 @@ export default function CobrosPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <dl data-guia="resumen" className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3">
             <div className="rounded-xl border border-panel-borde bg-panel-superficie p-4">
               <dt className="text-[12.5px] text-panel-suave">Cobrado</dt>
               <dd className="tabular m-0 mt-1 text-[20px] font-semibold leading-tight">{totales(filas, (f) => (f.estado === 'pagado' ? f.cobro?.monto : null))}</dd>
@@ -234,8 +235,8 @@ export default function CobrosPage() {
             </div>
           </dl>
 
-          <Tarjeta relleno={false}>
-            <div className="border-b border-panel-borde px-4 pt-3">
+          <Tarjeta guia="lista" relleno={false}>
+            <div data-guia="pestanas" className="border-b border-panel-borde px-4 pt-3">
               <Pestanas
                 etiqueta="Filtrar cobros"
                 className="flex gap-6 overflow-x-auto border-b-0"
@@ -295,7 +296,7 @@ export default function CobrosPage() {
                           </p>
                         )}
                       </div>
-                      <div className="flex shrink-0 flex-wrap gap-2">
+                      <div data-guia="acciones-fila" className="flex shrink-0 flex-wrap gap-2">
                         {f.estado === 'pagado' && f.cobro ? (
                           <>
                             <BotonLink tamano="sm" variante="principal" icono="imprimir" href={`/admin/cobros/recibo/${f.cobro.id}`} target="_blank">

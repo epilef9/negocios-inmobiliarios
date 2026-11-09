@@ -296,6 +296,7 @@ export default function ClientesPage() {
   return (
     <>
       <Encabezado
+        guia="clientes"
         titulo="Clientes"
         descripcion="Dueños de las propiedades, inquilinos y las cuentas creadas en el sitio."
         acciones={
@@ -324,7 +325,7 @@ export default function ClientesPage() {
       {panel && (
         <div className="flex flex-col gap-5">
           {/* Resumen: cada número lleva a su pestaña; "sin dueño" abre el formulario */}
-          <section aria-label="Resumen" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-panel-borde bg-panel-borde lg:grid-cols-4">
+          <section data-guia="resumen" aria-label="Resumen" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-panel-borde bg-panel-borde lg:grid-cols-4">
             {[
               { texto: 'Dueños', valor: panel.resumen.propietarios, detalle: 'con propiedades cargadas', alTocar: () => setPestana('propietarios') },
               { texto: 'Inquilinos', valor: panel.resumen.inquilinos, detalle: 'alquilando ahora', alTocar: () => setPestana('inquilinos') },
@@ -349,7 +350,7 @@ export default function ClientesPage() {
           </section>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div role="tablist" aria-label="Qué clientes ver" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div role="tablist" data-guia="pestanas" aria-label="Qué clientes ver" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {PESTANAS.map((p) => {
                 const activa = pestana === p.id;
                 return (
@@ -367,7 +368,7 @@ export default function ClientesPage() {
                 );
               })}
             </div>
-            <label className="relative lg:w-80">
+            <label data-guia="filtros" className="relative lg:w-80">
               <span className="sr-only">Buscar</span>
               <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
               <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, email, teléfono o propiedad" className={`${control} pl-10`} />
@@ -375,7 +376,7 @@ export default function ClientesPage() {
           </div>
 
           {pestana === 'cuentas' ? (
-            <Tarjeta relleno={false}>
+            <Tarjeta guia="lista" relleno={false}>
               {cuentasVisibles.length === 0 ? (
                 <EstadoVacio
                   icono="clientes"
@@ -415,7 +416,7 @@ export default function ClientesPage() {
               )}
             </Tarjeta>
           ) : (
-            <Tarjeta relleno={false}>
+            <Tarjeta guia="lista" relleno={false}>
               {clientesVisibles.length === 0 ? (
                 <EstadoVacio
                   icono="clientes"
