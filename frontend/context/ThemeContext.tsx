@@ -4,6 +4,7 @@ import React, { createContext, useContext, useEffect, useState, useMemo } from '
 import { useAuth } from './AuthContext';
 import { getUserPreferences, saveUserPreferences } from '../services/auth';
 
+import { esPersonal } from '@/lib/permisos';
 export type ThemeMode = 'light' | 'dark';
 
 export type PaletteId = 'corporativo' | 'oro-luxury' | 'esmeralda' | 'zafiro' | 'borgona';
@@ -103,7 +104,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   // Las preferencias remotas pertenecen a la cuenta y sobrescriben el respaldo local.
   useEffect(() => {
     if (isAuthLoading) return;
-    if (!user || user.rol !== 'admin') {
+    if (!user || !esPersonal(user)) {
       return;
     }
 
@@ -144,7 +145,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme, palette]);
 
   useEffect(() => {
-    if (!preferencesLoaded || !user || user.rol !== 'admin') return;
+    if (!preferencesLoaded || !user || !esPersonal(user)) return;
     void saveUserPreferences({ tema: theme, paleta: palette });
   }, [theme, palette, preferencesLoaded, user]);
 

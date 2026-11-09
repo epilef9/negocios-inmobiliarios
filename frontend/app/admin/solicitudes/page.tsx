@@ -7,6 +7,7 @@ import { EVENTO_SOLICITUDES, actualizarArchivadoSolicitud, actualizarEstadoSolic
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, Dialogo, Encabezado, EstadoVacio, Insignia, Tarjeta, useAviso } from '@/components/panel/ui';
 
+import ActividadRegistro from '@/components/panel/ActividadRegistro';
 const estadoTono: Record<string, 'aviso' | 'exito' | 'peligro' | 'neutro'> = {
   pendiente: 'aviso',
   aprobada: 'exito',
@@ -632,6 +633,7 @@ export default function SolicitudesAdminPage() {
                           </Boton>
                         </div>
                       </div>
+                      <ActividadRegistro entidad="solicitud" id={solicitud.id} className="mt-3" />
                     </article>
                   );
                 })}

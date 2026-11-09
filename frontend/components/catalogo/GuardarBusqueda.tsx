@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { guardarBusqueda } from '@/services/avisos';
 import { direccionDeFiltros, type FiltrosPropiedades } from './FiltrosCatalogo';
 
+import { esPersonal } from '@/lib/permisos';
 // 221: «Avisame cuando entre algo así»: guarda los filtros del catálogo y manda un mail cuando se publica
 // una propiedad que coincide. Sin sesión lleva a ingresar y vuelve con los mismos filtros.
 export default function GuardarBusqueda({ filtros }: { filtros: FiltrosPropiedades }) {
@@ -15,7 +16,7 @@ export default function GuardarBusqueda({ filtros }: { filtros: FiltrosPropiedad
   const [estado, setEstado] = useState<'listo' | 'guardando' | 'guardada'>('listo');
   const [error, setError] = useState('');
   const conFiltros = Object.entries(filtros).some(([clave, valor]) => clave !== 'status' && valor);
-  if (!conFiltros || user?.rol === 'admin') return null;
+  if (!conFiltros || esPersonal(user)) return null;
 
   const guardar = async () => {
     if (!user) {

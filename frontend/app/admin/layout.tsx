@@ -1,13 +1,15 @@
 'use client';
 
 // Proteccion del panel de administracion (RF-09 / RNF-05)
-// Solo usuarios autenticados con rol admin pueden acceder.
+// Solo entra el personal: el administrador a todo y cada empleado a las secciones que tiene permitidas.
+// El control real lo hace el backend en cada ruta; esto evita mostrar pantallas que no se pueden usar.
 
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAuth } from '../../context/AuthContext';
 import PanelMarco from '@/components/panel/PanelMarco';
 
+import { esPersonal, puedeEntrarARuta } from '@/lib/permisos';
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { user, isLoading } = useAuth();
@@ -21,10 +23,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       return;
     }
 
-    if (user.rol !== 'admin') {
+    if (!esPersonal(user)) {
       router.replace('/');
+      return;
     }
-  }, [user, isLoading, router]);
+
+    // Un empleado que escribe a mano la dirección de una sección que no tiene vuelve al Inicio del panel
+    if (!puedeEntrarARuta(user, ruta)) {
+      router.replace('/admin');
+    }
+  }, [user, isLoading, router, ruta]);
 
   if (isLoading) {
     return (
@@ -32,7 +40,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  if (!user || user.rol !== 'admin') {
+  if (!user || !esPersonal(user) || !puedeEntrarARuta(user, ruta)) {
     return (
       <div className="panel flex min-h-dvh items-center justify-center text-sm text-panel-suave">Redirigiendo…</div>
     );

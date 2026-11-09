@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { AuthRequestError } from '@/services/auth';
 import PantallaCuenta, { BotonVerPassword, ReenviarVerificacion, YaIngresaste, botonPrincipal, control, destinoSeguro, etiqueta } from '@/components/cuenta/PantallaCuenta';
 
+import { esAdmin, esPersonal } from '@/lib/permisos';
 const EMAIL_VALIDO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function FormularioIngreso() {
@@ -39,7 +40,7 @@ function FormularioIngreso() {
     setEnviando(true);
     try {
       const usuario = await login({ email: email.trim(), password });
-      router.push(volver ?? (usuario.rol === 'admin' ? '/admin/bienvenida' : '/'));
+      router.push(volver ?? (esAdmin(usuario) ? '/admin/bienvenida' : esPersonal(usuario) ? '/admin' : '/'));
     } catch (err) {
       const mensaje = err instanceof Error ? err.message : '';
       if (err instanceof AuthRequestError && err.code === 'EMAIL_NO_VERIFICADO') {

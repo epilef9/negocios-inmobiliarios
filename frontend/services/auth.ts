@@ -15,6 +15,8 @@ export interface User {
   telefono?: string;
   email: string;
   rol: string;
+  // Solo empleados: secciones del panel a las que puede entrar
+  permisos?: string[];
   checklistRequisitos?: string[];
   emailVerificado?: boolean;
   preferencias?: UserPreferences;
