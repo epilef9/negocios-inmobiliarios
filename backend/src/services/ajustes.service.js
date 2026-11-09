@@ -97,6 +97,8 @@ const PREDETERMINADOS = {
     },
     banco: { titular: '', banco: '', cbu: '', alias: '', cuit: '' },
     // Los carga el administrador con el punto exacto de cada lugar (no se inventan coordenadas)
+    // 0 = no se ofrece seña (solo el total); 100 = la seña es el total
+    estadias: { senaPorcentaje: 30 },
     lugares: [],
     preguntas: PREGUNTAS_SUGERIDAS,
 };
@@ -113,8 +115,8 @@ const fusionar = (base, guardado) => {
 
 const leer = async () => {
     const doc = await Ajustes.findById(ID).lean();
-    const { contacto, costos, banco, lugares, preguntas } = doc || {};
-    return fusionar(PREDETERMINADOS, { contacto, costos, banco, lugares, preguntas });
+    const { contacto, costos, banco, lugares, preguntas, estadias } = doc || {};
+    return fusionar(PREDETERMINADOS, { contacto, costos, banco, lugares, preguntas, estadias });
 };
 
 const bancoCompleto = (banco) => Boolean(banco && banco.titular && (banco.cbu || banco.alias));
@@ -122,7 +124,7 @@ const bancoCompleto = (banco) => Boolean(banco && banco.titular && (banco.cbu ||
 // Lo público: contacto siempre; costos solo si se publicaron; del banco, solo si hay datos (no los datos)
 const publicos = async () => {
     const a = await leer();
-    return { contacto: a.contacto, costos: a.costos.publicado ? a.costos : null, transferencia: bancoCompleto(a.banco), lugares: a.lugares, preguntas: a.preguntas };
+    return { contacto: a.contacto, costos: a.costos.publicado ? a.costos : null, transferencia: bancoCompleto(a.banco), lugares: a.lugares, preguntas: a.preguntas, estadias: a.estadias };
 };
 
 // ---------- Validación ----------
@@ -178,6 +180,12 @@ const revisar = (cuerpo = {}) => {
         const pedidos = [k.alquiler?.mesesDeposito, k.alquiler?.honorariosPorcentaje, k.alquiler?.selladoPorcentaje, k.venta?.honorariosPorcentaje, k.venta?.escrituraPorcentaje];
         if (pedidos.some((v) => v !== undefined && (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 20))) return { error: 'Revisá los porcentajes: tienen que ser números entre 0 y 20.' };
         Object.assign(cambio, Object.fromEntries(Object.entries(campos).filter(([, v]) => v !== undefined)));
+    }
+    const e = cuerpo.estadias;
+    if (e && typeof e === 'object' && e.senaPorcentaje !== undefined) {
+        const pct = e.senaPorcentaje;
+        if (typeof pct !== 'number' || !Number.isFinite(pct) || pct < 0 || pct > 100) return { error: 'La seña de las estadías tiene que ser un porcentaje entre 0 y 100.' };
+        cambio['estadias.senaPorcentaje'] = Math.round(pct * 100) / 100;
     }
     const b = cuerpo.banco;
     if (b && typeof b === 'object') {

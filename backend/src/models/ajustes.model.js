@@ -46,6 +46,10 @@ const ajustesSchema = new mongoose.Schema(
             },
             aclaracion: { type: String, trim: true },
         },
+        // Pago de estadías (alquiler temporario): qué porcentaje del total se paga como seña para reservar
+        estadias: {
+            senaPorcentaje: { type: Number, min: 0, max: 100 },
+        },
         lugares: { type: [lugarSchema], default: undefined },
         preguntas: { type: [preguntaSchema], default: undefined },
         banco: {

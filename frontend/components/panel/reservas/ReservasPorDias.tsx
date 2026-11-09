@@ -15,9 +15,9 @@ import {
   type Reserva,
 } from '@/services/reservas';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
-import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso } from '@/components/panel/ui';
+import { Alerta, Boton, BotonLink, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, areaTexto, control, useAviso } from '@/components/panel/ui';
 import { ESTADO_RESERVA, estadoDe } from '@/components/panel/estados';
-import { ESTADO_PAGO, aprobarPago, getPagosAdmin, pesos, rechazarPago, urlComprobante, type PagoAdmin } from '@/services/pagos';
+import { ESTADO_PAGO, METODO_PAGO, TIPO_PAGO, cuentaDeReserva, getPagosAdmin, pesos, urlComprobante, type PagoAdmin } from '@/services/pagos';
 
 import ActividadRegistro from '@/components/panel/ActividadRegistro';
 // Pestaña «Por días» de Panel → Reservas (ver app/admin/reservas/page.tsx).
@@ -111,8 +111,13 @@ export default function ReservasPorDias({ selector }: { selector?: ReactNode }) 
   const [trabajando, setTrabajando] = useState<string | null>(null);
   const { mostrar, aviso } = useAviso();
   const [pagos, setPagos] = useState<PagoAdmin[]>([]);
-  const [notaPago, setNotaPago] = useState('');
-  const pagoDe = (reservaId: string) => pagos.find((p) => p.reserva === reservaId && p.estado === 'aprobado') ?? pagos.find((p) => p.reserva === reservaId);
+  // Cómo va el pago de cada estadía: pagada, con la seña pagada o con un comprobante para revisar en Cobros
+  const estadoPagoDe = (r: Reserva): { texto: string; tono: 'exito' | 'aviso' } | null => {
+    const cuenta = cuentaDeReserva(pagos, r.id, r.totalUSD);
+    if (cuenta.pagos.some((p) => p.estado === 'en_revision')) return { texto: ESTADO_PAGO.en_revision, tono: 'aviso' };
+    if (cuenta.pagadoUSD <= 0) return null;
+    return cuenta.restanteUSD > 0.009 ? { texto: 'Seña pagada', tono: 'exito' } : { texto: 'Pagada', tono: 'exito' };
+  };
 
   const cargar = useCallback(() => {
     getPagosAdmin()
@@ -312,9 +317,10 @@ export default function ReservasPorDias({ selector }: { selector?: ReactNode }) 
                     <span className="min-w-0 truncate text-[13.5px] text-panel-suave">{r.tituloPropiedad || 'Propiedad sin título'}</span>
                     <span className="flex flex-wrap items-center gap-2 xl:flex-col xl:items-start xl:gap-1">
                       <Insignia tono={estado.tono}>{estado.texto}</Insignia>
-                      {pagoDe(r.id) && (pagoDe(r.id)?.estado === 'aprobado' || pagoDe(r.id)?.estado === 'en_revision') && (
-                        <Insignia tono={pagoDe(r.id)?.estado === 'aprobado' ? 'exito' : 'aviso'}>{ESTADO_PAGO[pagoDe(r.id)!.estado]}</Insignia>
-                      )}
+                      {(() => {
+                        const pago = estadoPagoDe(r);
+                        return pago && <Insignia tono={pago.tono}>{pago.texto}</Insignia>;
+                      })()}
                       {situacion(r)}
                     </span>
                     <span className="tabular text-[13.5px] font-medium xl:text-right">{usd(r.totalUSD)}</span>
@@ -463,7 +469,9 @@ export default function ReservasPorDias({ selector }: { selector?: ReactNode }) 
                       <li key={p.id} className="flex flex-col gap-2 rounded-lg border border-panel-borde p-3">
                         <div className="flex flex-wrap items-center gap-2">
                           <Insignia tono={p.estado === 'aprobado' ? 'exito' : p.estado === 'en_revision' ? 'aviso' : p.estado === 'rechazado' ? 'peligro' : 'neutro'}>{ESTADO_PAGO[p.estado]}</Insignia>
-                          <span>{p.metodo === 'mercadopago' ? 'Mercado Pago' : 'Transferencia'}</span>
+                          <span>
+                            {TIPO_PAGO[p.tipo]} · {METODO_PAGO[p.metodo]}
+                          </span>
                           <span className="tabular text-panel-suave">
                             {pesos(p.montoARS)} · {fechaHoraArgentina(p.createdAt)}
                           </span>
@@ -475,50 +483,9 @@ export default function ReservasPorDias({ selector }: { selector?: ReactNode }) 
                         </div>
                         {p.nota && <p className="m-0 text-panel-suave">{p.nota}</p>}
                         {p.estado === 'en_revision' && (
-                          <div className="flex flex-wrap items-center gap-2">
-                            <input aria-label="Nota para el cliente (opcional)" value={notaPago} onChange={(e) => setNotaPago(e.target.value)} maxLength={300} placeholder="Nota (opcional, la ve el cliente si se rechaza)" className={`${control} min-w-0 flex-1`} />
-                            <Boton
-                              tamano="sm"
-                              variante="principal"
-                              icono="check"
-                              cargando={trabajando === p.id}
-                              onClick={async () => {
-                                setTrabajando(p.id);
-                                try {
-                                  await aprobarPago(p.id, notaPago);
-                                  mostrar('Pago confirmado. La reserva quedó confirmada.');
-                                  setNotaPago('');
-                                  cargar();
-                                } catch (e) {
-                                  mostrar(e instanceof Error ? e.message : 'No se pudo confirmar el pago', 'peligro');
-                                } finally {
-                                  setTrabajando(null);
-                                }
-                              }}
-                            >
-                              Confirmar pago
-                            </Boton>
-                            <Boton
-                              tamano="sm"
-                              variante="peligro"
-                              cargando={trabajando === `${p.id}-r`}
-                              onClick={async () => {
-                                setTrabajando(`${p.id}-r`);
-                                try {
-                                  await rechazarPago(p.id, notaPago);
-                                  mostrar('Comprobante rechazado. Le avisamos al cliente.');
-                                  setNotaPago('');
-                                  cargar();
-                                } catch (e) {
-                                  mostrar(e instanceof Error ? e.message : 'No se pudo rechazar', 'peligro');
-                                } finally {
-                                  setTrabajando(null);
-                                }
-                              }}
-                            >
-                              Rechazar
-                            </Boton>
-                          </div>
+                          <BotonLink href="/admin/cobros?tipo=estadias" tamano="sm" variante="principal" icono="check" className="self-start">
+                            Revisar el comprobante en Cobros
+                          </BotonLink>
                         )}
                       </li>
                     ))}

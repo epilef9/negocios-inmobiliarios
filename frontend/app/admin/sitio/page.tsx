@@ -12,7 +12,7 @@ import { Alerta, Boton, Campo, Encabezado, Esqueleto, Interruptor, Tarjeta, area
 //  - Datos bancarios para el pago por transferencia
 //  - Preguntas frecuentes que responde el asistente de Contacto
 
-type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco' | 'preguntas';
+type Seccion = 'contacto' | 'lugares' | 'costos' | 'banco' | 'estadias' | 'preguntas';
 // En el formulario las palabras clave se escriben separadas por coma
 type PreguntaEditable = { pregunta: string; respuesta: string; palabras: string; enlaceTexto: string; enlaceHref: string };
 const MAX_PREGUNTAS = 25;
@@ -44,6 +44,7 @@ export default function SitioPage() {
   const [lugares, setLugares] = useState<(Omit<Lugar, 'latitud' | 'longitud'> & { latitud: string; longitud: string; link?: string; linkLeido?: string })[]>([]);
   const [costos, setCostos] = useState<Costos | null>(null);
   const [banco, setBanco] = useState<Banco | null>(null);
+  const [sena, setSena] = useState('');
   const [preguntas, setPreguntas] = useState<PreguntaEditable[]>([]);
   const [abierta, setAbierta] = useState<number | null>(null);
 
@@ -53,6 +54,7 @@ export default function SitioPage() {
     setLugares(a.lugares.map((l) => ({ ...l, latitud: String(l.latitud), longitud: String(l.longitud) })));
     setCostos(a.costos);
     setBanco(a.banco);
+    setSena(String(a.estadias?.senaPorcentaje ?? 30));
     setPreguntas((a.preguntas ?? []).map(aEditable));
   };
 
@@ -174,7 +176,7 @@ export default function SitioPage() {
 
   return (
     <>
-      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos, los datos para transferir y las preguntas del asistente." />
+      <Encabezado guia="sitio" volver={{ href: '/admin/configuracion', texto: 'Configuración' }} titulo="Datos del sitio" descripcion="Lo que ven los clientes: contacto de la oficina, lugares de referencia, la calculadora de costos, los datos para transferir, la seña de las estadías y las preguntas del asistente." />
       <div className="flex max-w-4xl flex-col gap-6">
         <form onSubmit={(e) => guardar('contacto', { contacto }, e)}>
           <Tarjeta
@@ -322,6 +324,35 @@ export default function SitioPage() {
               {campoTexto('Alias', banco.alias, (v) => setBanco({ ...banco, alias: v }), { maxLength: 20 })}
               {campoTexto('CUIT', banco.cuit, (v) => setBanco({ ...banco, cuit: v }), { inputMode: 'numeric', maxLength: 13 })}
             </div>
+          </Tarjeta>
+        </form>
+
+        <form
+          onSubmit={(e) => {
+            const pct = Number(sena.replace(',', '.'));
+            if (!sena.trim() || !Number.isFinite(pct) || pct < 0 || pct > 100) {
+              e.preventDefault();
+              return setErrores((x) => ({ ...x, estadias: 'Escribí un porcentaje entre 0 y 100.' }));
+            }
+            guardar('estadias', { estadias: { senaPorcentaje: pct } }, e);
+          }}
+        >
+          <Tarjeta
+            guia="estadias"
+            titulo="Pago de estadías"
+            descripcion="En los alquileres temporarios, el cliente elige pagar una seña (para que los días queden reservados) o el total. Con 0 % o 100 % solo se ofrece pagar el total."
+            acciones={
+              <Boton variante="principal" type="submit" cargando={guardando === 'estadias'}>
+                Guardar
+              </Boton>
+            }
+          >
+            <Campo etiqueta="Seña (porcentaje del total de la estadía)" htmlFor="sena-estadias" error={errores.estadias} ayuda="Por ejemplo, 30: en una estadía de USD 300, la seña es de USD 90. El resto se paga después desde Mi cuenta.">
+              <div className="flex max-w-40 items-center gap-2">
+                <input id="sena-estadias" inputMode="decimal" value={sena} maxLength={5} onChange={(e) => setSena(e.target.value)} className={`${control} tabular`} />
+                <span className="text-panel-suave">%</span>
+              </div>
+            </Campo>
           </Tarjeta>
         </form>
 

@@ -37,7 +37,7 @@ export const SECCIONES: SeccionMenu[] = [
   { clave: 'solicitudes', href: '/admin/solicitudes', texto: 'Solicitudes', icono: 'solicitudes', pendiente: { claves: ['solicitudes'], texto: 'por revisar' } },
   { clave: 'clientes', href: '/admin/clientes', texto: 'Clientes', icono: 'clientes' },
   { clave: 'contratos', href: '/admin/contratos', texto: 'Contratos', icono: 'documento', pendiente: { claves: ['contratos'], texto: 'para revisar (vencen o actualizan precio)' } },
-  { clave: 'cobros', href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { claves: ['cobros'], texto: 'alquileres atrasados' } },
+  { clave: 'cobros', href: '/admin/cobros', texto: 'Cobros', icono: 'dinero', pendiente: { claves: ['cobros'], texto: 'alquileres atrasados o pagos para revisar' } },
   { clave: 'publicaciones', href: '/admin/publicaciones', texto: 'Publicaciones', icono: 'subir', pendiente: { claves: ['publicaciones'], texto: 'por revisar' } },
   { clave: 'requisitos', href: '/admin/requisitos', texto: 'Requisitos', icono: 'checklist', enConfiguracion: true },
   { clave: 'empleados', href: '/admin/empleados', texto: 'Empleados', icono: 'clientes' },

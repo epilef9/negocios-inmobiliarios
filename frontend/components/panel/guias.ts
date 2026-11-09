@@ -65,7 +65,7 @@ const GUIAS_PANEL = {
       { objetivo: 'pestanas', titulo: 'Reservas de estadía', texto: 'Pedidos de alquiler por días. En «Por confirmar» están las que esperan tu respuesta; las que no respondés a tiempo pasan a «Vencidas».' },
       { objetivo: 'filtros', titulo: 'Buscar', texto: 'Por cliente, email o propiedad.' },
       { objetivo: 'lista', titulo: 'La lista', texto: 'Fechas, huésped, propiedad, total y estado. Las que están por vencer se marcan en rojo.' },
-      { objetivo: 'acciones-fila', titulo: 'Confirmar, rechazar o ver el pago', texto: 'Si el cliente pagó por transferencia, revisá el comprobante antes de confirmar. Al cliente le llega un mail con tu respuesta.' },
+      { objetivo: 'acciones-fila', titulo: 'Confirmar, rechazar o ver el pago', texto: 'Cuando el cliente paga la seña o el total, la reserva se confirma sola. Los comprobantes que suben se revisan en Cobros → Pagos de estadías. Al cliente le llega un mail con tu respuesta.' },
     ],
   },
   disponibilidad: {
@@ -119,11 +119,21 @@ const GUIAS_PANEL = {
   cobros: {
     titulo: 'Cobros',
     pasos: [
+      { objetivo: 'tipos', titulo: 'Dos tipos de cobro', texto: '«Alquileres»: el alquiler de cada mes según los contratos. «Pagos de estadías»: las señas y pagos de los alquileres temporarios, con el comprobante que sube el cliente.' },
       { objetivo: 'mes', titulo: 'Elegí el mes', texto: 'Con las flechas pasás de mes. «Este mes» te trae de vuelta al actual.' },
       { objetivo: 'resumen', titulo: 'Cuánto se cobró', texto: 'Lo cobrado, lo pendiente y lo atrasado del mes, según los contratos vigentes.' },
       { objetivo: 'pestanas', titulo: 'Filtrar', texto: 'Mirá solo los atrasados, los pendientes o los pagados.' },
       { objetivo: 'lista', titulo: 'Un renglón por alquiler', texto: 'Inquilino, propiedad, monto y día de vencimiento. Pasado ese día sin pago, el alquiler figura atrasado.' },
       { objetivo: 'acciones-fila', titulo: 'Registrar el pago', texto: 'Al registrar el pago se genera el recibo para imprimir o mandar. También podés avisar un atraso por mail o cargar el monto nuevo después de una actualización.' },
+    ],
+  },
+  'cobros-estadias': {
+    titulo: 'Pagos de estadías',
+    pasos: [
+      { objetivo: 'tipos', titulo: 'Dos tipos de cobro', texto: '«Pagos de estadías»: las señas y pagos de alquileres temporarios que hacen los clientes desde el sitio. «Alquileres»: el alquiler de cada mes según los contratos.' },
+      { objetivo: 'pestanas', titulo: 'Para revisar primero', texto: 'En «Para revisar» están los pagos con comprobante que esperan tu confirmación. Los acreditados, rechazados e iniciados tienen su pestaña.' },
+      { objetivo: 'lista', titulo: 'Un renglón por pago', texto: 'Cliente, estadía, si es la seña, el total o el saldo, la forma de pago y el monto en pesos. Con Mercado Pago también ves lo que informó Mercado Pago.' },
+      { objetivo: 'acciones-fila', titulo: 'Ver el comprobante y confirmar', texto: 'Abrí el comprobante y fijate que el monto coincida. Al confirmar, la reserva queda confirmada y esos días reservados. Si lo rechazás, al cliente le llega el motivo por mail.' },
     ],
   },
   publicaciones: {
@@ -180,6 +190,7 @@ const GUIAS_PANEL = {
       { objetivo: 'lugares', titulo: 'Lugares de referencia', texto: 'Pegá el link de Google Maps de cada lugar (la Universidad, el Sanatorio…). En cada ficha se muestra a cuántas cuadras queda.' },
       { objetivo: 'calculadora', titulo: 'La calculadora', texto: 'Depósito, honorarios, sellado y escritura. Con esto el cliente ve cuánto necesita para entrar a una propiedad.' },
       { objetivo: 'banco', titulo: 'Datos para transferencias', texto: 'CBU o alias y titular. Los ve solo quien está pagando una reserva por transferencia.' },
+      { objetivo: 'estadias', titulo: 'Seña de las estadías', texto: 'Qué porcentaje del total paga el cliente como seña para reservar los días de un alquiler temporario. El resto lo paga después.' },
       { objetivo: 'preguntas', titulo: 'Preguntas del asistente', texto: 'Lo que responde solo el asistente de Contacto: horarios, requisitos, cómo agendar o publicar. Agregá las que te hacen siempre; lo que no sepa responder te llega por WhatsApp.' },
       { titulo: 'Cada bloque se guarda solo', texto: 'Cada tarjeta tiene su botón «Guardar»: lo que cambiás en una no toca las otras.' },
     ],

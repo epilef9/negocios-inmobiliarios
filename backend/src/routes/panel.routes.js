@@ -35,13 +35,13 @@ const contratosParaRevisar = async () => {
 router.get('/pendientes', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     const tareas = {
         visitas: visitasPorConfirmar,
-        reservas: async () =>
-            (await require('../services/reservas.service').contarPendientes()) + (await Pago.countDocuments({ estado: 'en_revision' })),
+        reservas: () => require('../services/reservas.service').contarPendientes(),
         solicitudes: () => require('../services/solicitudes.service').contarPendientes(),
         publicaciones: () => SolicitudPublicacion.countDocuments({ estado: 'pendiente' }),
         senas: senasPorVencer,
         contratos: contratosParaRevisar,
-        cobros: () => require('../services/cobros.service').contarAtrasados(),
+        // Alquileres atrasados y comprobantes de pago de estadías para revisar (los dos están en Cobros)
+        cobros: async () => (await require('../services/cobros.service').contarAtrasados()) + (await Pago.countDocuments({ estado: 'en_revision' })),
     };
     // Cada empleado ve solo los números de las secciones que puede usar
     const claves = Object.keys(tareas).filter((c) => permisos.tienePermiso(req.user, c));
@@ -102,7 +102,7 @@ const armarResumen = async () => {
 
     await seguro(async () => {
         const n = await Pago.countDocuments({ estado: 'en_revision' });
-        items.push({ clave: 'pagos', urgencia: 1, orden: 3, cantidad: n, href: '/admin/reservas', titulo: `${plural(n, 'comprobante de pago', 'comprobantes de pago')} para revisar`, detalle: 'Transferencias que subieron los clientes.' });
+        items.push({ clave: 'pagos', urgencia: 1, orden: 3, cantidad: n, href: '/admin/cobros?tipo=estadias', titulo: `${plural(n, 'comprobante de pago', 'comprobantes de pago')} para revisar`, detalle: 'Señas y pagos de estadías que subieron los clientes.' });
     });
 
     await seguro(async () => {
@@ -156,7 +156,7 @@ const armarResumen = async () => {
 // Un ítem del resumen se muestra solo si la persona tiene permiso para la sección a la que lleva (/admin/<sección>).
 // Lo que lleva a páginas que no son una sección con permiso (por ejemplo, Datos del sitio) es solo del administrador.
 const permitidoEnResumen = (user, item) => {
-    const seccion = String(item.href || '').replace(/^\/admin\//, '').split('/')[0];
+    const seccion = String(item.href || '').replace(/^\/admin\//, '').split(/[/?#]/)[0];
     return permisos.CLAVES.includes(seccion) ? permisos.tienePermiso(user, seccion) : permisos.esAdmin(user);
 };
 
