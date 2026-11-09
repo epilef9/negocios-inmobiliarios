@@ -3,9 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { getMisSolicitudesPublicacion, type SolicitudPublicacion } from "@/services/solicitudesPublicacion";
+import { getMisEstadisticas, type MisEstadisticas } from "@/services/estadisticas";
+import EstadisticasPropiedad, { NumerosPropiedad } from "./EstadisticasPropiedad";
 
 // Mi cuenta: las propiedades que el cliente pidió publicar (HU-08 / HU-37), con el mismo diseño que reservas
-// y solicitudes: filas, estado en una pastilla y qué sigue en cada caso.
+// y solicitudes: filas, estado en una pastilla y qué sigue en cada caso. Las publicadas muestran sus números
+// (vistas, consultas, visitas, favoritos y solicitudes) para que el dueño sepa cómo le va.
+
+const PERIODOS = [7, 30, 90];
 
 const ESTADOS: Record<SolicitudPublicacion["estado"], { texto: string; clase: string; queSigue: string }> = {
   pendiente: {
@@ -34,6 +39,18 @@ const precio = (sol: SolicitudPublicacion) => {
 export default function MisPublicaciones() {
   const [publicaciones, setPublicaciones] = useState<SolicitudPublicacion[] | null>(null);
   const [error, setError] = useState("");
+  const [dias, setDias] = useState(30);
+  const [estadisticas, setEstadisticas] = useState<MisEstadisticas | null>(null);
+
+  useEffect(() => {
+    let activo = true;
+    getMisEstadisticas(dias)
+      .then((e) => activo && setEstadisticas(e))
+      .catch(() => activo && setEstadisticas(null));
+    return () => {
+      activo = false;
+    };
+  }, [dias]);
 
   useEffect(() => {
     let activo = true;
@@ -45,8 +62,40 @@ export default function MisPublicaciones() {
     };
   }, []);
 
+  const deLaPropiedad = (id?: string) => (id ? estadisticas?.propiedades.find((p) => p.id === id) : undefined);
+  // Propiedades a su nombre que no vinieron de un pedido desde el sitio (las cargó la inmobiliaria)
+  const idsPedidos = new Set((publicaciones ?? []).map((sol) => (sol.propiedadCreada && typeof sol.propiedadCreada === "object" ? sol.propiedadCreada._id : "")));
+  const otras = (estadisticas?.propiedades ?? []).filter((p) => !idsPedidos.has(p.id));
+  const hayNumeros = Boolean(estadisticas?.propiedades.length);
+
   return (
     <section aria-label="Tus publicaciones" className="flex flex-col gap-8">
+      {hayNumeros && estadisticas && (
+        <div className="flex flex-col gap-6 border-b border-[#efe9df]/12 pb-10">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <h2 className="font-display m-0 text-[clamp(28px,2.8vw,38px)] font-normal leading-none">Cómo les va a tus propiedades</h2>
+            <div role="radiogroup" aria-label="Período" className="flex gap-1 rounded-full border border-[#efe9df]/20 p-1">
+              {PERIODOS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  role="radio"
+                  aria-checked={dias === p}
+                  onClick={() => setDias(p)}
+                  className={`calma-micro rounded-full px-4 py-2 text-[11px] transition-colors duration-300 ${dias === p ? "bg-[#efe9df] text-[#071733]" : "text-[#efe9df]/70 hover:text-[#efe9df]"}`}
+                >
+                  {p} días
+                </button>
+              ))}
+            </div>
+          </div>
+          <NumerosPropiedad totales={estadisticas.totales} />
+          <p className="m-0 max-w-2xl text-[13.5px] leading-relaxed text-[#efe9df]/55">
+            Contamos cuántas veces abrieron la ficha, tocaron WhatsApp, pidieron una visita, la guardaron en favoritos o mandaron una solicitud. Nunca quién.
+          </p>
+        </div>
+      )}
+
       <div>
         <Link
           href="/publicar"
@@ -94,6 +143,7 @@ export default function MisPublicaciones() {
                     {sol.motivoRechazo}
                   </p>
                 )}
+                {creada && deLaPropiedad(creada._id) && <EstadisticasPropiedad datos={deLaPropiedad(creada._id)!} dias={dias} />}
                 <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-[13px] text-[#efe9df]/50">
                   <span>Enviada el {new Date(sol.createdAt).toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}</span>
                   {creada && (
@@ -106,6 +156,25 @@ export default function MisPublicaciones() {
             );
           })}
         </ul>
+      )}
+
+      {publicaciones && otras.length > 0 && (
+        <div className="flex flex-col gap-6">
+          <h2 className="font-display m-0 text-[clamp(26px,2.4vw,32px)] font-normal leading-none">Otras propiedades a tu nombre</h2>
+          <ul className="m-0 flex list-none flex-col p-0">
+            {otras.map((p) => (
+              <li key={p.id} className="flex flex-col gap-3 border-b border-[#efe9df]/12 py-7 first:pt-0">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-2">
+                  <span className="text-[18px] text-[#efe9df] [overflow-wrap:anywhere]">{p.titulo}</span>
+                  <Link href={`/propiedades/${p.id}`} className="calma-micro calma-link text-[11px] text-[#efe9df]">
+                    Ver en el catálogo
+                  </Link>
+                </div>
+                <EstadisticasPropiedad datos={p} dias={dias} />
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );

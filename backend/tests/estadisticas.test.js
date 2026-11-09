@@ -35,3 +35,36 @@ describe('Aviso de ingreso', () => {
         assert.notEqual(huellaDe('abc'), 'abc');
     });
 });
+
+// Estadísticas para quien publicó la propiedad (Mi cuenta → Tus publicaciones)
+const { armarDeDueno, propiasDe } = require('../src/services/estadisticas.service');
+describe('Estadísticas del dueño', () => {
+    const casa = { _id: '64b7f0c2a1b2c3d4e5f60718', titulo: 'Casa con jardín', estado: 'disponible', categoriaOperacion: 'venta', operaciones: ['venta', 'alquiler'], fotos: ['f.jpg'] };
+    const depto = { _id: '64b7f0c2a1b2c3d4e5f60719', titulo: 'Depto céntrico', categoriaOperacion: 'alquiler', fotos: [] };
+    const fila = (id, dia, datos) => ({ _id: { propiedad: id, dia }, ...datos });
+
+    it('suma cada propiedad por separado y arma las vistas día por día', () => {
+        const r = armarDeDueno([casa, depto], [
+            fila(casa._id, '2026-11-08', { vistas: 10, whatsapp: 2, favoritos: 1 }),
+            fila(casa._id, '2026-11-10', { vistas: 5, visitas: 1 }),
+            fila(depto._id, '2026-11-10', { vistas: 3, solicitudes: 1 }),
+        ], { desde: '2026-11-04', hasta: '2026-11-10', dias: 7 });
+        const [c, d] = r.propiedades;
+        assert.deepEqual([c.vistas, c.whatsapp, c.visitas, c.favoritos, c.solicitudes], [15, 2, 1, 1, 0]);
+        assert.deepEqual(c.operaciones, ['venta', 'alquiler']);
+        assert.equal(c.serie.length, 7);
+        assert.deepEqual(c.serie.map((x) => x.vistas), [0, 0, 0, 0, 10, 0, 5]);
+        assert.equal(d.vistas, 3);
+        assert.equal(r.totales.vistas, 18);
+        assert.equal(r.totales.solicitudes, 1);
+    });
+
+    it('no devuelve datos de quién miró: solo números', () => {
+        const r = armarDeDueno([casa], [fila(casa._id, '2026-11-10', { vistas: 1 })], { desde: '2026-11-10', hasta: '2026-11-10', dias: 1 });
+        assert.deepEqual(Object.keys(r.propiedades[0]).sort(), ['estado', 'favoritos', 'foto', 'id', 'operaciones', 'serie', 'solicitudes', 'titulo', 'visitas', 'vistas', 'whatsapp']);
+    });
+
+    it('sin un usuario válido no busca nada', async () => {
+        assert.deepEqual(await propiasDe('no-es-id'), []);
+    });
+});
