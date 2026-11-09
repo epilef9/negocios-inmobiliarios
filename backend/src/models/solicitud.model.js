@@ -36,6 +36,8 @@ const solicitudSchema = new mongoose.Schema(
         archivadaPor: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
         datosCifrados: { type: String, required: true, select: false },
         documentos: { type: [documentoSchema], default: [] },
+        // Cuándo se borraron los documentos por el plazo de conservación (limpiezaDocumentos.service); la solicitud queda sin ellos
+        documentosBorradosEn: { type: Date, default: null },
         claveIdempotencia: { type: String, required: true },
     },
     { timestamps: true }
