@@ -6,6 +6,7 @@ import { deleteContrato, getContratos, updateContrato, type Contrato, type Estad
 import Icono from '@/components/panel/Icono';
 import { Alerta, Boton, BotonLink, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import { ESTADO_CONTRATO, estadoDe } from '@/components/panel/estados';
+import { descargarExcel, nombreConFecha } from '@/lib/excel';
 
 type Pestana = 'activos' | 'por_vencer' | 'firmados' | 'borradores' | 'cerrados' | 'todos';
 
@@ -122,6 +123,24 @@ export default function ContratosAdminPage() {
     }
   };
 
+  // Exportar a Excel lo que se ve (pestaña, búsqueda y año)
+  const exportar = () => {
+    const fecha = (texto?: string) => leerFecha(texto)?.toLocaleDateString('es-AR') ?? texto ?? '';
+    descargarExcel(nombreConFecha('contratos'), [
+      {
+        nombre: 'Contratos',
+        columnas: ['Número', 'Estado', 'Tipo', 'Cliente', 'DNI', 'Teléfono', 'Email', 'Propiedad', 'Dirección', 'Inicio', 'Fin', 'Monto mensual', 'Ajuste', 'Garantía'],
+        filas: visibles.map((c) => [
+          c.numeroContrato, estadoDe(ESTADO_CONTRATO, c.estado).texto, c.tipoContrato,
+          [c.cliente?.nombre, c.cliente?.apellido].filter(Boolean).join(' '), c.cliente?.dni, c.cliente?.telefono, c.cliente?.email,
+          c.propiedad?.titulo, c.propiedad?.direccion, fecha(c.fechaInicio), fecha(c.fechaFin), c.montoMensual, c.ajuste,
+          c.tipoGarantia === 'caucion' ? 'Seguro de caución' : c.tipoGarantia === 'propietaria' ? 'Garantía propietaria' : '',
+        ]),
+      },
+    ]);
+    mostrar('Listo, se descargó el Excel.');
+  };
+
   const activos = lista.filter((c) => c.estado === 'activo').length;
   const porVencer = lista.filter((c) => c.estado === 'por_vencer').length;
 
@@ -132,9 +151,14 @@ export default function ContratosAdminPage() {
         titulo="Contratos"
         descripcion={contratos ? `${activos} activos${porVencer ? ` · ${porVencer} por vencer` : ''} · ${lista.length} en total` : 'Contratos de alquiler y venta generados desde el panel.'}
         acciones={
-          <BotonLink href="/admin/contratos/generar" variante="principal" icono="mas">
-            Generar contrato
-          </BotonLink>
+          <>
+            <Boton icono="descargar" onClick={exportar} disabled={!contratos} title="Descarga lo que se ve: la pestaña, la búsqueda y el año elegidos">
+              Exportar a Excel
+            </Boton>
+            <BotonLink href="/admin/contratos/generar" variante="principal" icono="mas">
+              Generar contrato
+            </BotonLink>
+          </>
         }
       />
 

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
+import { descargarExcel, nombreConFecha } from '@/lib/excel';
 import {
   asignarPersona,
   getPanelClientes,
@@ -193,6 +194,33 @@ export default function ClientesPage() {
     { id: 'cuentas', texto: 'Cuentas del sitio' },
   ];
 
+  // Exportar a Excel lo que se ve: la pestaña elegida con la búsqueda aplicada
+  const exportar = () => {
+    if (!panel) return;
+    const titulos = (lista: PropiedadDeCliente[]) => lista.map((p) => p.titulo).join(' · ');
+    if (pestana === 'cuentas') {
+      descargarExcel(nombreConFecha('cuentas-del-sitio'), [
+        {
+          nombre: 'Cuentas del sitio',
+          columnas: ['Nombre', 'Apellido', 'Email', 'Teléfono', 'DNI', 'Email confirmado', 'Creada', 'Dueño de', 'Alquila'],
+          filas: cuentasVisibles.map((u) => [
+            u.nombre, u.apellido, u.email, u.telefono, u.dni, u.emailVerificado ? 'Sí' : 'No',
+            u.creadoEn ? new Date(u.creadoEn).toLocaleDateString('es-AR') : '', titulos(u.vinculo?.propietarioDe ?? []), titulos(u.vinculo?.alquilaEn ?? []),
+          ]),
+        },
+      ]);
+    } else {
+      descargarExcel(nombreConFecha(pestana === 'todos' ? 'clientes' : pestana), [
+        {
+          nombre: PESTANAS.find((p) => p.id === pestana)?.texto ?? 'Clientes',
+          columnas: ['Nombre', 'Email', 'Teléfono', 'Cuenta en el sitio', 'Dueño de', 'Alquila'],
+          filas: clientesVisibles.map((c) => [c.nombre, c.email, c.telefono, c.registrado ? 'Sí' : 'No', titulos(c.propietarioDe), titulos(c.alquilaEn)]),
+        },
+      ]);
+    }
+    mostrar('Listo, se descargó el Excel.');
+  };
+
   const abrirAsignar = (inicial: Partial<Formulario> = {}) => {
     setErrorForm(null);
     setDialogo({ ...FORMULARIO_VACIO, ...inicial });
@@ -300,9 +328,14 @@ export default function ClientesPage() {
         titulo="Clientes"
         descripcion="Dueños de las propiedades, inquilinos y las cuentas creadas en el sitio."
         acciones={
-          <Boton variante="principal" icono="mas" onClick={() => abrirAsignar()} disabled={!panel}>
-            Asignar a una propiedad
-          </Boton>
+          <>
+            <Boton icono="descargar" onClick={exportar} disabled={!panel} title="Descarga lo que se ve: la pestaña elegida con la búsqueda aplicada">
+              Exportar a Excel
+            </Boton>
+            <Boton variante="principal" icono="mas" onClick={() => abrirAsignar()} disabled={!panel}>
+              Asignar a una propiedad
+            </Boton>
+          </>
         }
       />
 
