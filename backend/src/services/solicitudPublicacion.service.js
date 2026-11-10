@@ -252,6 +252,13 @@ const solicitudPublicacionService = {
             },
         }));
 
+        // Alquiler temporario: la reserva (HU-20) cobra por noche, así que el precio pretendido pasa a ser el
+        // precio por noche. `precio` ya quedó en dólares (normalizarOperaciones convierte los pesos con la cotización).
+        if (solicitud.operacion === 'temporario') {
+            nuevaPropiedad.precioPorNocheUSD = nuevaPropiedad.precio;
+            if (!nuevaPropiedad.minimoNoches) nuevaPropiedad.minimoNoches = 1;
+        }
+
         await nuevaPropiedad.save();
 
         // 2. Actualizar estado de la solicitud

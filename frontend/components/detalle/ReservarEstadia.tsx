@@ -10,6 +10,7 @@ import type { DisponibilidadPublica } from '@/services/disponibilidad';
 import { calcularTotal, crearReserva, fechaHoraArgentina, usd, type Reserva } from '@/services/reservas';
 
 import { esPersonal } from '@/lib/permisos';
+import { useContacto } from '@/components/sitio/useAjustes';
 // Reserva de una estadía en alquiler temporario (HU-20): el cliente toca la entrada y la salida en el
 // calendario de fechas libres, ve el detalle con el total y la envía. Queda pendiente hasta que la
 // inmobiliaria la confirma; mientras tanto esas noches figuran "por confirmar" para todos.
@@ -59,6 +60,9 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
   const maximoHuespedes = propiedad.huespedesMaximos && propiedad.huespedesMaximos > 0 ? propiedad.huespedesMaximos : 20;
   const minimo = Math.max(1, datos?.minimoNoches ?? propiedad.minimoNoches ?? 1);
   const precioNoche = datos?.precioPorNocheUSD ?? propiedad.precioPorNocheUSD ?? 0;
+  // Sin precio por noche el servidor rechaza la reserva: en vez de un total en USD 0, se ofrece WhatsApp
+  const sinPrecio = !(precioNoche > 0);
+  const { whatsappUrl } = useContacto();
   const esAdmin = esPersonal(user);
 
   // Al volver de ingresar se recuperan las fechas que había elegido (si siguen libres)
@@ -252,6 +256,18 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
                   </div>
                 </dl>
 
+                {sinPrecio ? (
+                  <div className="flex flex-col items-start gap-4 border-t border-[#efe9df]/15 pt-5">
+                    <p className="m-0 max-w-[60ch] text-[16px] leading-relaxed text-[#efe9df]/80">
+                      Esta propiedad todavía no tiene precio por noche. Escribinos por WhatsApp con estas fechas y te pasamos el valor para reservarla.
+                    </p>
+                    <a href={whatsappUrl} target="_blank" rel="noreferrer" className="calma-micro flex items-center gap-2.5 rounded-full bg-[#efe9df] px-6 py-4 text-[12px] text-[#071733] transition-colors hover:bg-white">
+                      <span className="calma-dot" aria-hidden="true" />
+                      Consultar por WhatsApp
+                    </a>
+                  </div>
+                ) : (
+                <>
                 <div className="flex flex-wrap items-center justify-between gap-4 border-t border-[#efe9df]/15 pt-5">
                   <div className="flex flex-col gap-0.5">
                     <span id="huespedes-titulo" className="text-[16px]">
@@ -327,6 +343,8 @@ export default function ReservarEstadia({ propiedad }: { propiedad: ApiProperty 
                       </Link>
                     </p>
                   </div>
+                )}
+                </>
                 )}
               </div>
             )}
