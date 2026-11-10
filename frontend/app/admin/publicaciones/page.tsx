@@ -196,7 +196,7 @@ export default function AdminPublicacionesPage() {
     try {
       const { propiedadId } = await aprobarSolicitudPublicacion(sol._id);
       // Se sigue en la edición de la propiedad creada (HU-26)
-      router.push(`/admin/propiedades/${propiedadId}/editar`);
+      router.push(`/admin/propiedades/nueva?editar=${propiedadId}`);
     } catch (err) {
       mostrar(err instanceof Error ? err.message : 'No se pudo aprobar la solicitud.', 'peligro');
       setAprobandoId(null);
@@ -397,7 +397,7 @@ export default function AdminPublicacionesPage() {
                   </Boton>
                 </div>
               ) : detalle.estado === 'aprobada' && idPropiedad(detalle) ? (
-                <Boton variante="principal" icono="editar" onClick={() => router.push(`/admin/propiedades/${idPropiedad(detalle)}/editar`)}>
+                <Boton variante="principal" icono="editar" onClick={() => router.push(`/admin/propiedades/nueva?editar=${idPropiedad(detalle)}`)}>
                   Editar en catálogo
                 </Boton>
               ) : (
