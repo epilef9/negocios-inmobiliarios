@@ -1,4 +1,5 @@
-// Servicio del perfil propio: datos de la cuenta. La contraseña y el email se cambian con un enlace por mail.
+// Servicio del perfil propio: datos de la cuenta. La contraseña se cambia con la actual (o, si no se acuerda,
+// con un enlace por mail) y el email se confirma con un enlace a la casilla nueva.
 import { API_URL } from './api';
 import type { User } from './auth';
 import { conSesion } from './sesion';
@@ -51,6 +52,12 @@ export async function guardarPerfil(datos: DatosPerfil) {
     body: JSON.stringify(datos),
   });
   return { ...data, mensaje: message };
+}
+
+// HU-31: cambia la contraseña escribiendo la actual. Las otras sesiones se cierran; esta sigue (el backend renueva la cookie).
+export async function cambiarPassword(actual: string, nueva: string) {
+  const { data, message } = await pedir<{ user: Perfil }>('/users/me/password', { method: 'PUT', body: JSON.stringify({ actual, nueva }) });
+  return { user: data?.user, mensaje: message };
 }
 
 // Manda al email de la cuenta el enlace para elegir una contraseña nueva

@@ -8,7 +8,7 @@ import ApartadosCuenta from "@/components/cuenta/ApartadosCuenta";
 import InvitacionIngresar from "@/components/cuenta/InvitacionIngresar";
 import { useAuth } from "@/context/AuthContext";
 import { useConfirmarSalida } from "@/components/sitio/ConfirmarSalida";
-import { ErrorPerfil, cerrarSesionesEnTodos, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
+import { ErrorPerfil, cambiarPassword, cerrarSesionesEnTodos, getPerfil, guardarPerfil, pedirCambioPassword, type DatosPerfil } from "@/services/perfil";
 
 import { esPersonal } from '@/lib/permisos';
 // Estilos del formulario, iguales a los de ingreso y registro
@@ -71,6 +71,10 @@ export default function PerfilPage() {
 	const [pidiendoClave, setPidiendoClave] = useState(false);
 	const [avisoClave, setAvisoClave] = useState<Aviso>(null);
 	const [enlaceDevClave, setEnlaceDevClave] = useState<string | null>(null);
+	const [clave, setClave] = useState({ actual: "", nueva: "", repetida: "" });
+	const [erroresClave, setErroresClave] = useState<Record<string, string>>({});
+	const [cambiandoClave, setCambiandoClave] = useState(false);
+	const [avisoCambioClave, setAvisoCambioClave] = useState<Aviso>(null);
 
 	const [confirmandoSesiones, setConfirmandoSesiones] = useState(false);
 	const [cerrandoSesiones, setCerrandoSesiones] = useState(false);
@@ -155,8 +159,34 @@ export default function PerfilPage() {
 		}
 	};
 
-	// La contraseña no se cambia acá: se manda un enlace al email de la cuenta (así nadie que encuentre
-	// la sesión abierta puede cambiarla)
+	// HU-31: la contraseña se cambia escribiendo la actual (así nadie que encuentre la sesión abierta puede cambiarla).
+	// Si no se acuerda de la actual, se le manda un enlace al email de la cuenta.
+	const cambiarClave = async (e: FormEvent) => {
+		e.preventDefault();
+		const errs: Record<string, string> = {};
+		if (!clave.actual) errs.actual = "Escribí tu contraseña actual.";
+		if (clave.nueva.length < 8) errs.nueva = "Tiene que tener al menos 8 caracteres.";
+		else if (clave.nueva.length > 72) errs.nueva = "Puede tener hasta 72 caracteres.";
+		else if (clave.nueva === clave.actual) errs.nueva = "Tiene que ser distinta de la actual.";
+		if (!errs.nueva && clave.repetida !== clave.nueva) errs.repetida = "Las dos contraseñas nuevas no coinciden.";
+		setErroresClave(errs);
+		setAvisoCambioClave(null);
+		if (Object.keys(errs).length) return;
+		setCambiandoClave(true);
+		try {
+			const resultado = await cambiarPassword(clave.actual, clave.nueva);
+			if (resultado.user && user) actualizarUsuario({ ...user, ...resultado.user });
+			setClave({ actual: "", nueva: "", repetida: "" });
+			setAvisoCambioClave({ tono: "bien", texto: resultado.mensaje || "Listo, cambiaste tu contraseña." });
+		} catch (error) {
+			const texto = error instanceof Error ? error.message : "No pudimos cambiar la contraseña.";
+			if (/actual/i.test(texto) && !/distinta/i.test(texto)) setErroresClave({ actual: texto });
+			else setAvisoCambioClave({ tono: "mal", texto });
+		} finally {
+			setCambiandoClave(false);
+		}
+	};
+
 	const pedirClave = async () => {
 		setPidiendoClave(true);
 		setAvisoClave(null);
@@ -267,13 +297,37 @@ export default function PerfilPage() {
 								Contraseña
 							</h2>
 							<p className="m-0 mt-3 max-w-xl text-[15px] leading-relaxed text-[#efe9df]/65">
-								Por seguridad, te mandamos un enlace a <strong className="font-semibold text-[#efe9df]">{emailGuardado || "tu email"}</strong> para que elijas la nueva. Al cambiarla se cierran las sesiones abiertas en otros dispositivos.
+								Para cambiarla, escribí la actual y elegí una nueva. Al cambiarla se cierran las sesiones abiertas en otros dispositivos.
 							</p>
-							<div className="mt-8 flex flex-wrap items-center gap-6">
-								<button type="button" onClick={pedirClave} disabled={pidiendoClave || cargando || Boolean(errorCarga)} className={botonPrincipal}>
-									{pidiendoClave ? "Enviando…" : "Mandarme el enlace"}
-								</button>
-								<Mensaje aviso={avisoClave} />
+							<form noValidate onSubmit={cambiarClave} className="mt-10 grid gap-8 sm:grid-cols-2">
+								<div className="sm:col-span-2 sm:max-w-[calc(50%-1rem)]">
+									<Campo id={`${id}-clave-actual`} texto="Contraseña actual *" error={erroresClave.actual}>
+										<input id={`${id}-clave-actual`} type="password" autoComplete="current-password" value={clave.actual} aria-invalid={Boolean(erroresClave.actual)} onChange={(e) => setClave((c) => ({ ...c, actual: e.target.value }))} className={control} />
+									</Campo>
+								</div>
+								<Campo id={`${id}-clave-nueva`} texto="Contraseña nueva *" error={erroresClave.nueva} ayuda="Entre 8 y 72 caracteres.">
+									<input id={`${id}-clave-nueva`} type="password" autoComplete="new-password" value={clave.nueva} aria-invalid={Boolean(erroresClave.nueva)} onChange={(e) => setClave((c) => ({ ...c, nueva: e.target.value }))} className={control} />
+								</Campo>
+								<Campo id={`${id}-clave-repetida`} texto="Repetí la contraseña nueva *" error={erroresClave.repetida}>
+									<input id={`${id}-clave-repetida`} type="password" autoComplete="new-password" value={clave.repetida} aria-invalid={Boolean(erroresClave.repetida)} onChange={(e) => setClave((c) => ({ ...c, repetida: e.target.value }))} className={control} />
+								</Campo>
+								<div className="flex flex-wrap items-center gap-6 sm:col-span-2">
+									<button type="submit" disabled={cambiandoClave || cargando || Boolean(errorCarga)} className={botonPrincipal}>
+										{cambiandoClave ? "Cambiando…" : "Cambiar contraseña"}
+									</button>
+									<Mensaje aviso={avisoCambioClave} />
+								</div>
+							</form>
+							<div className="mt-10 flex flex-col gap-3 border-t border-[#efe9df]/10 pt-6">
+								<p className="m-0 max-w-xl text-[14.5px] leading-relaxed text-[#efe9df]/65">
+									¿No te acordás de la actual? Te mandamos un enlace a <strong className="font-semibold text-[#efe9df]">{emailGuardado || "tu email"}</strong> para que elijas una nueva.
+								</p>
+								<div className="flex flex-wrap items-center gap-6">
+									<button type="button" onClick={pedirClave} disabled={pidiendoClave || cargando || Boolean(errorCarga)} className="calma-micro calma-link cursor-pointer text-[12px] text-[#efe9df] disabled:opacity-50">
+										{pidiendoClave ? "Enviando…" : "Mandarme el enlace"}
+									</button>
+									<Mensaje aviso={avisoClave} />
+								</div>
 							</div>
 							{enlaceDevClave && <EnlaceDeDesarrollo enlace={enlaceDevClave} para="elegir la contraseña nueva" accion="Elegir contraseña nueva" />}
 						</section>

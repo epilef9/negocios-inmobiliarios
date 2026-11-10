@@ -9,7 +9,8 @@ const perfilController = require('../controllers/perfil.controller');
 // sin cifrar y devolvía los datos de todas las cuentas.)
 router.get('/me', authMiddleware, perfilController.obtener);
 router.put('/me', authMiddleware, frenos.perfil, perfilController.actualizar);
-// La contraseña se cambia con un enlace que llega al email de la cuenta
+// Contraseña: se cambia escribiendo la actual (HU-31) o, si no se acuerda, con un enlace al email de la cuenta
+router.put('/me/password', authMiddleware, frenos.cambioClave, perfilController.cambiarPassword);
 router.post('/me/password', authMiddleware, frenos.enlaces, perfilController.pedirCambioPassword);
 
 module.exports = router;

@@ -11,6 +11,7 @@ import OpcionesPropiedad, { propiedadOfrecida } from '@/components/panel/Opcione
 import { operacionesDe, precioDe, tieneOperacion } from '@/components/sitio/operaciones';
 
 import ActividadRegistro from '@/components/panel/ActividadRegistro';
+import { descargarExcel, nombreConFecha } from '@/lib/excel';
 // Hoy en formato AAAA-MM-DD (hora local), para no ofrecer días que ya pasaron
 const hoyIso = () => {
   const d = new Date();
@@ -266,6 +267,21 @@ export default function VisitasAdminPage() {
     { id: 'todas', texto: 'Todas' },
   ];
 
+  // Exportar a Excel lo que se ve (pestaña, búsqueda y día), en el mismo orden
+  const exportar = () => {
+    descargarExcel(nombreConFecha('visitas'), [
+      {
+        nombre: 'Visitas',
+        columnas: ['Fecha', 'Horario', 'Estado', 'Cliente', 'Teléfono', 'Email', 'Propiedad', 'Dirección', 'Nota', 'Motivo del rechazo'],
+        filas: visibles.map(({ v, cuando }) => [
+          cuando ? cuando.toLocaleDateString('es-AR') : v.fecha, v.horario, estadoDe(ESTADO_VISITA, v.estado).texto,
+          v.cliente.nombre, v.cliente.telefono, v.cliente.email, v.propiedad.titulo, v.propiedad.direccion, v.notaAdicional, v.motivoRechazo,
+        ]),
+      },
+    ]);
+    mostrar('Listo, se descargó el Excel.');
+  };
+
   const abrirReprogramar = (visita: Visita) => {
     setReprogramacion({ fecha: '', hora: visita.horario?.match(/\d{1,2}:\d{2}/)?.[0]?.padStart(5, '0') ?? '', nota: '' });
     setAReprogramar(visita);
@@ -294,6 +310,9 @@ export default function VisitasAdminPage() {
                 Cargar visitas de prueba
               </Boton>
             )}
+            <Boton icono="descargar" onClick={exportar} disabled={!visitas} title="Descarga lo que se ve: la pestaña, la búsqueda y el día elegidos">
+              Exportar a Excel
+            </Boton>
             <Boton variante="principal" icono="mas" onClick={() => { setFaltaEnNueva(null); setNuevaAbierta(true); }}>
               Agendar visita
             </Boton>
