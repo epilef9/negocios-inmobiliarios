@@ -177,18 +177,22 @@ const crearPreferencia = async (reservaId, usuario, tipo) => {
     const sitio = config.urlFrontend();
     // Al volver, Mercado Pago suma payment_id y status a estas direcciones: con eso se verifica el pago aunque el
     // aviso automático (webhook) no llegue, por ejemplo probando en la computadora
+    const avisoMP = process.env.MP_NOTIFICACION_URL || (sitio.startsWith('https://') ? `${sitio}/api/pagos/webhook` : '');
     const volver = (estado) => `${sitio}/reservas?pago=${estado}&ref=${pago._id}`;
     const preferencia = await llamarMP('/checkout/preferences', {
         method: 'POST',
         headers: { 'X-Idempotency-Key': String(pago._id) },
         body: JSON.stringify({
             items: [{ id: String(reserva._id), title: `${elegido.tipo === 'sena' ? 'Seña' : elegido.tipo === 'saldo' ? 'Saldo' : 'Estadía'}: ${reserva.tituloPropiedad}`.slice(0, 250), quantity: 1, currency_id: 'ARS', unit_price: montoARS }],
-            payer: { email: usuario.email },
+            // Sin payer.email: el que paga inicia sesión en Mercado Pago. Mandar el email de la cuenta del sitio
+            // (una persona real) rompe los pagos de prueba («una de las partes es de prueba»).
             external_reference: String(pago._id),
             back_urls: { success: volver('aprobado'), pending: volver('pendiente'), failure: volver('rechazado') },
             // Mercado Pago solo vuelve solo al sitio si la dirección es https (en la computadora se vuelve con el botón)
             ...(sitio.startsWith('https://') ? { auto_return: 'approved' } : {}),
-            notification_url: `${process.env.MP_NOTIFICACION_URL || `${sitio}/api/pagos/webhook`}`,
+            // El aviso automático necesita una dirección pública: en la compu (localhost) no se manda y el pago se
+            // verifica al volver del checkout
+            ...(avisoMP ? { notification_url: avisoMP } : {}),
             statement_descriptor: 'NEGOCIOS INMOB',
             expires: true,
             expiration_date_to: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
