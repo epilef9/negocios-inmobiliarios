@@ -47,7 +47,9 @@ function caracteristicas(p: ApiProperty) {
 		agregar("Piso", p.pisoUnidad);
 	}
 	if (tieneOperacion(p, "alquiler") && p.duracionAlquilerMeses) {
-		agregar("Contrato", `${p.duracionAlquilerMeses} ${p.unidadDuracionAlquiler === "años" ? "años" : "meses"}`);
+		const enAnios = p.unidadDuracionAlquiler === "años";
+		const cantidad = enAnios ? p.duracionAlquilerMeses / 12 : p.duracionAlquilerMeses;
+		agregar("Contrato", `${cantidad} ${enAnios ? (cantidad === 1 ? "año" : "años") : (cantidad === 1 ? "mes" : "meses")}`);
 	}
 	if (tieneOperacion(p, "temporario")) {
 		agregar("Huéspedes", p.huespedesMaximos ? `Hasta ${p.huespedesMaximos}` : undefined);
