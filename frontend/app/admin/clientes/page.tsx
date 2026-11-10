@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Alerta, Boton, Campo, Dialogo, Encabezado, Esqueleto, EstadoVacio, Insignia, Tarjeta, control, useAviso, useConfirmar } from '@/components/panel/ui';
 import Icono, { type NombreIcono } from '@/components/panel/Icono';
 import { ESTADO_PROPIEDAD, estadoDe } from '@/components/panel/estados';
+import { descargarExcel, nombreConFecha } from '@/lib/excel';
 import {
   asignarPersona,
   getPanelClientes,
@@ -193,6 +194,33 @@ export default function ClientesPage() {
     { id: 'cuentas', texto: 'Cuentas del sitio' },
   ];
 
+  // Exportar a Excel lo que se ve: la pestaña elegida con la búsqueda aplicada
+  const exportar = () => {
+    if (!panel) return;
+    const titulos = (lista: PropiedadDeCliente[]) => lista.map((p) => p.titulo).join(' · ');
+    if (pestana === 'cuentas') {
+      descargarExcel(nombreConFecha('cuentas-del-sitio'), [
+        {
+          nombre: 'Cuentas del sitio',
+          columnas: ['Nombre', 'Apellido', 'Email', 'Teléfono', 'DNI', 'Email confirmado', 'Creada', 'Dueño de', 'Alquila'],
+          filas: cuentasVisibles.map((u) => [
+            u.nombre, u.apellido, u.email, u.telefono, u.dni, u.emailVerificado ? 'Sí' : 'No',
+            u.creadoEn ? new Date(u.creadoEn).toLocaleDateString('es-AR') : '', titulos(u.vinculo?.propietarioDe ?? []), titulos(u.vinculo?.alquilaEn ?? []),
+          ]),
+        },
+      ]);
+    } else {
+      descargarExcel(nombreConFecha(pestana === 'todos' ? 'clientes' : pestana), [
+        {
+          nombre: PESTANAS.find((p) => p.id === pestana)?.texto ?? 'Clientes',
+          columnas: ['Nombre', 'Email', 'Teléfono', 'Cuenta en el sitio', 'Dueño de', 'Alquila'],
+          filas: clientesVisibles.map((c) => [c.nombre, c.email, c.telefono, c.registrado ? 'Sí' : 'No', titulos(c.propietarioDe), titulos(c.alquilaEn)]),
+        },
+      ]);
+    }
+    mostrar('Listo, se descargó el Excel.');
+  };
+
   const abrirAsignar = (inicial: Partial<Formulario> = {}) => {
     setErrorForm(null);
     setDialogo({ ...FORMULARIO_VACIO, ...inicial });
@@ -296,12 +324,18 @@ export default function ClientesPage() {
   return (
     <>
       <Encabezado
+        guia="clientes"
         titulo="Clientes"
         descripcion="Dueños de las propiedades, inquilinos y las cuentas creadas en el sitio."
         acciones={
-          <Boton variante="principal" icono="mas" onClick={() => abrirAsignar()} disabled={!panel}>
-            Asignar a una propiedad
-          </Boton>
+          <>
+            <Boton icono="descargar" onClick={exportar} disabled={!panel} title="Descarga lo que se ve: la pestaña elegida con la búsqueda aplicada">
+              Exportar a Excel
+            </Boton>
+            <Boton variante="principal" icono="mas" onClick={() => abrirAsignar()} disabled={!panel}>
+              Asignar a una propiedad
+            </Boton>
+          </>
         }
       />
 
@@ -324,7 +358,7 @@ export default function ClientesPage() {
       {panel && (
         <div className="flex flex-col gap-5">
           {/* Resumen: cada número lleva a su pestaña; "sin dueño" abre el formulario */}
-          <section aria-label="Resumen" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-panel-borde bg-panel-borde lg:grid-cols-4">
+          <section data-guia="resumen" aria-label="Resumen" className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-panel-borde bg-panel-borde lg:grid-cols-4">
             {[
               { texto: 'Dueños', valor: panel.resumen.propietarios, detalle: 'con propiedades cargadas', alTocar: () => setPestana('propietarios') },
               { texto: 'Inquilinos', valor: panel.resumen.inquilinos, detalle: 'alquilando ahora', alTocar: () => setPestana('inquilinos') },
@@ -349,7 +383,7 @@ export default function ClientesPage() {
           </section>
 
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-            <div role="tablist" aria-label="Qué clientes ver" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div role="tablist" data-guia="pestanas" aria-label="Qué clientes ver" className="flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-panel-hundido p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {PESTANAS.map((p) => {
                 const activa = pestana === p.id;
                 return (
@@ -367,7 +401,7 @@ export default function ClientesPage() {
                 );
               })}
             </div>
-            <label className="relative lg:w-80">
+            <label data-guia="filtros" className="relative lg:w-80">
               <span className="sr-only">Buscar</span>
               <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
               <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Nombre, email, teléfono o propiedad" className={`${control} pl-10`} />
@@ -375,7 +409,7 @@ export default function ClientesPage() {
           </div>
 
           {pestana === 'cuentas' ? (
-            <Tarjeta relleno={false}>
+            <Tarjeta guia="lista" relleno={false}>
               {cuentasVisibles.length === 0 ? (
                 <EstadoVacio
                   icono="clientes"
@@ -415,7 +449,7 @@ export default function ClientesPage() {
               )}
             </Tarjeta>
           ) : (
-            <Tarjeta relleno={false}>
+            <Tarjeta guia="lista" relleno={false}>
               {clientesVisibles.length === 0 ? (
                 <EstadoVacio
                   icono="clientes"

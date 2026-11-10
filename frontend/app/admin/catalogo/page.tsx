@@ -102,6 +102,7 @@ export default function OrdenCatalogoPage() {
   return (
     <>
       <Encabezado
+        guia="catalogo"
         volver={{ href: '/admin/configuracion', texto: 'Configuración' }}
         titulo="Orden del catálogo"
         descripcion="Así se ordenan las propiedades en el sitio. Arrastralas o usá las flechas y después guardá."
@@ -113,7 +114,7 @@ export default function OrdenCatalogoPage() {
       />
 
       <div className="flex flex-col gap-4 pb-20">
-        <label className="relative max-w-md">
+        <label data-guia="buscar" className="relative max-w-md">
           <span className="sr-only">Buscar una propiedad</span>
           <Icono nombre="buscar" className="pointer-events-none absolute left-3 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-panel-tenue" />
           <input type="search" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar para ubicarla en la lista" className={`${control} pl-10`} />
@@ -142,7 +143,7 @@ export default function OrdenCatalogoPage() {
           ) : propiedades && visibles.length === 0 ? (
             <EstadoVacio icono="buscar" titulo="Ninguna propiedad coincide" accion={<Boton onClick={() => setBusqueda('')}>Limpiar búsqueda</Boton>} />
           ) : (
-            <ol className="m-0 list-none divide-y divide-panel-borde p-0">
+            <ol data-guia="lista" className="m-0 list-none divide-y divide-panel-borde p-0">
               {visibles.map(({ p, indice }) => (
                 <li
                   key={p._id}

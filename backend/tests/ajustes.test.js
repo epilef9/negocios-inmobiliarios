@@ -1,8 +1,8 @@
-// Ajustes del sitio: validación de contacto, costos y datos bancarios. No usa base de datos.
+// Ajustes del sitio: validación de contacto, costos, datos bancarios y preguntas del asistente. No usa base de datos.
 // Correr solo este archivo:  node --test tests/ajustes.test.js
 const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
-const { revisar, fusionar, PREDETERMINADOS, bancoCompleto } = require('../src/services/ajustes.service');
+const { revisar, fusionar, PREDETERMINADOS, PREGUNTAS_SUGERIDAS, MAX_PREGUNTAS, bancoCompleto } = require('../src/services/ajustes.service');
 
 describe('Ajustes: contacto', () => {
     it('limpia el WhatsApp y el usuario de Instagram', () => {
@@ -59,5 +59,38 @@ describe('Ajustes: lugares de referencia', () => {
     it('rechaza lugares sin nombre o fuera de la provincia', () => {
         assert.match(revisar({ lugares: [{ nombre: '', latitud: -32, longitud: -60 }] }).error, /nombre/);
         assert.match(revisar({ lugares: [{ nombre: 'Obelisco', latitud: -34.6, longitud: -58.38 }] }).error, /Entre Ríos/);
+    });
+});
+
+describe('Ajustes: preguntas del asistente', () => {
+    it('las sugeridas pasan su propia validación', () => {
+        const { cambio, error } = revisar({ preguntas: PREGUNTAS_SUGERIDAS });
+        assert.equal(error, undefined);
+        assert.equal(cambio.preguntas.length, PREGUNTAS_SUGERIDAS.length);
+    });
+
+    it('sin nada guardado se usan las sugeridas; una lista vacía guardada se respeta', () => {
+        assert.equal(fusionar(PREDETERMINADOS, {}).preguntas.length, PREGUNTAS_SUGERIDAS.length);
+        assert.deepEqual(fusionar(PREDETERMINADOS, { preguntas: [] }).preguntas, []);
+    });
+
+    it('limpia las palabras clave y conserva los renglones de la respuesta', () => {
+        const { cambio } = revisar({ preguntas: [{ pregunta: '  ¿Aceptan mascotas? ', respuesta: 'Depende\r\n\r\n\r\nde la propiedad', palabras: ['Mascotas', '', 'perro'] }] });
+        assert.deepEqual(cambio.preguntas[0], { pregunta: '¿Aceptan mascotas?', respuesta: 'Depende\n\nde la propiedad', palabras: ['mascotas', 'perro'] });
+    });
+
+    it('pide pregunta y respuesta, y limita la cantidad', () => {
+        assert.match(revisar({ preguntas: [{ pregunta: '', respuesta: 'x' }] }).error, /pregunta/);
+        assert.match(revisar({ preguntas: [{ pregunta: 'x', respuesta: ' ' }] }).error, /respuesta/);
+        const muchas = Array.from({ length: MAX_PREGUNTAS + 1 }, (_, i) => ({ pregunta: `p${i}`, respuesta: 'r' }));
+        assert.match(revisar({ preguntas: muchas }).error, /hasta/);
+    });
+
+    it('el enlace solo puede ir a una página del sitio o a https', () => {
+        const con = (href) => revisar({ preguntas: [{ pregunta: 'p', respuesta: 'r', enlace: { texto: 'Ver', href } }] });
+        assert.equal(con('/requisitos?para=alquilar').error, undefined);
+        assert.equal(con('https://wa.me/543434469522').error, undefined);
+        for (const malo of ['javascript:alert(1)', '//otro.com', 'http://otro.com', 'data:text/html,x']) assert.match(con(malo).error, /enlace/);
+        assert.match(revisar({ preguntas: [{ pregunta: 'p', respuesta: 'r', enlace: { texto: 'Ver' } }] }).error, /enlace/);
     });
 });

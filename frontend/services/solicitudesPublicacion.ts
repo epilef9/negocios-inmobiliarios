@@ -30,7 +30,8 @@ export interface SolicitudPublicacion {
     dni?: string;
   };
   tipoPropiedad: 'casa' | 'departamento' | 'terreno' | 'local' | 'monoambiente' | 'oficina' | 'cochera' | 'otro';
-  operacion: 'venta' | 'alquiler' | 'temporario';
+  // «ambas»: venta y alquiler; el precio de venta va en precioPretendido y el del alquiler en precioAlquiler
+  operacion: 'venta' | 'alquiler' | 'temporario' | 'ambas';
   titulo?: string;
   direccion: string;
   ciudad?: string;
@@ -48,6 +49,10 @@ export interface SolicitudPublicacion {
   superficieTotal?: number;
   superficieCubierta?: number;
   precioPretendido: {
+    monto: number;
+    moneda: 'ARS' | 'USD';
+  };
+  precioAlquiler?: {
     monto: number;
     moneda: 'ARS' | 'USD';
   };
@@ -86,6 +91,10 @@ export interface CrearSolicitudPayload {
   superficieTotal?: number;
   superficieCubierta?: number;
   precioPretendido: {
+    monto: number;
+    moneda: 'ARS' | 'USD';
+  };
+  precioAlquiler?: {
     monto: number;
     moneda: 'ARS' | 'USD';
   };

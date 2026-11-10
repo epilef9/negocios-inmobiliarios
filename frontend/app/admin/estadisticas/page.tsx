@@ -97,9 +97,9 @@ export default function EstadisticasPage() {
 
   return (
     <>
-      <Encabezado titulo="Estadísticas" descripcion="Cuánto se mira cada propiedad y qué consultas genera. Se cuenta desde que se activó esta sección; no se guardan datos de quien mira." />
+      <Encabezado guia="estadisticas" titulo="Estadísticas" descripcion="Cuánto se mira cada propiedad y qué consultas genera. Se cuenta desde que se activó esta sección; no se guardan datos de quien mira." />
 
-      <div className="mb-5">
+      <div data-guia="periodo" className="mb-5">
         <Pestanas etiqueta="Período" className="flex gap-6 overflow-x-auto" activa={periodo} alCambiar={(i) => { setDatos(null); setPeriodo(i); }} pestanas={PERIODOS.map((d) => ({ id: String(d), contenido: d === 365 ? 'Último año' : `Últimos ${d} días` }))} />
       </div>
 
@@ -114,7 +114,7 @@ export default function EstadisticasPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-6">
-          <dl className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <dl data-guia="metricas" className="m-0 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {METRICAS.map((m) => (
               <div key={m.clave} className="rounded-xl border border-panel-borde bg-panel-superficie p-4">
                 <dt className="text-[12.5px] text-panel-suave">{m.texto}</dt>
@@ -123,11 +123,11 @@ export default function EstadisticasPage() {
             ))}
           </dl>
 
-          <Tarjeta>
+          <Tarjeta guia="grafico">
             <VistasPorDia serie={datos.serie} />
           </Tarjeta>
 
-          <Tarjeta titulo="Por propiedad" descripcion={`Del ${diaCorto(datos.desde)} al ${diaCorto(datos.hasta)}, la más vista arriba.`} relleno={false}>
+          <Tarjeta guia="por-propiedad" titulo="Por propiedad" descripcion={`Del ${diaCorto(datos.desde)} al ${diaCorto(datos.hasta)}, la más vista arriba.`} relleno={false}>
             {conMovimiento.length === 0 ? (
               <EstadoVacio icono="info" titulo="Todavía no hay movimiento en este período" texto="Los números aparecen a medida que la gente abre las fichas." />
             ) : (

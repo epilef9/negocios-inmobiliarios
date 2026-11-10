@@ -6,6 +6,11 @@ import { animarRevelados } from '@/components/sitio/motion';
 import { obtenerPropiedades } from '@/components/sitio/datos';
 import { useDolarBlue } from '@/components/sitio/precio';
 import TarjetaPropiedad from '@/components/sitio/TarjetaPropiedad';
+import { operacionesAbiertas } from '@/components/sitio/operaciones';
+
+// HU-39: las vendidas o alquiladas no van en la portada aunque estén primeras en el orden
+// (una alquilada que también se vende con el inquilino adentro sí, porque sigue a la venta)
+const sigueOfrecida = (p: ApiProperty) => p.estado !== 'vendido' && !(p.estado === 'alquilado' && operacionesAbiertas(p).length === 0);
 
 export default function DestacadasCalma() {
   const ref = useRef<HTMLDivElement>(null);
@@ -16,7 +21,7 @@ export default function DestacadasCalma() {
   useEffect(() => {
     obtenerPropiedades()
       .then((datos) => {
-        setPropiedades(datos.slice(0, 3));
+        setPropiedades(datos.filter(sigueOfrecida).slice(0, 3));
         setEstado('listo');
       })
       .catch(() => setEstado('error'));

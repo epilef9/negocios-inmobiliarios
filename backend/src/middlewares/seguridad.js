@@ -101,6 +101,8 @@ const frenos = {
     visitas: limitar({ nombre: 'visitas', ventanaMinutos: 10, maximo: 5, mensaje: 'Pediste muchas visitas seguidas. Si necesitás más, escribinos por WhatsApp.' }),
     solicitudes: limitar({ nombre: 'solicitudes', ventanaMinutos: 60, maximo: 5, mensaje: 'Enviaste varias solicitudes en poco tiempo. Probá de nuevo más tarde.' }),
     perfil: limitar({ nombre: 'perfil', ventanaMinutos: 15, maximo: 10 }),
+    // Probar contraseñas desde una sesión robada: pocos intentos por cuenta
+    cambioClave: limitar({ nombre: 'cambio-clave', ventanaMinutos: 15, maximo: 5, clave: (req) => String(req.user?._id || ''), mensaje: 'Hiciste muchos intentos de cambiar la contraseña. Esperá unos minutos o pedí el enlace por mail.' }),
     contacto: limitar({ nombre: 'contacto', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas consultas seguidas. Probá de nuevo en unos minutos.' }),
     reservas: limitar({ nombre: 'reservas', ventanaMinutos: 10, maximo: 5, mensaje: 'Enviaste muchas reservas seguidas. Esperá unos minutos o escribinos por WhatsApp.' }),
     documentosSolicitudes: limitar({ nombre: 'documentos-solicitudes', ventanaMinutos: 60, maximo: 72, clave: (req) => String(req.user?._id || ''), mensaje: 'Subiste muchos documentos. Esperá unos minutos antes de volver a intentar.' }),

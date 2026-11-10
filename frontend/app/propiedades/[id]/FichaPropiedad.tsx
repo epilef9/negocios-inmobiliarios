@@ -270,6 +270,8 @@ export default function DetallePropiedad() {
 									)}
 									<p className={`font-display m-0 leading-none ${precios.length > 1 ? "text-[clamp(30px,2.8vw,40px)]" : "text-[clamp(36px,3.4vw,48px)]"}`}>{precio.principal}</p>
 									{precio.referencia && <p className="m-0 text-[14px] text-[#efe9df]/65">{precio.referencia}</p>}
+									{/* HU-17/18: el valor en pesos es de referencia */}
+									{precio.referencia && indice === precios.length - 1 && <p className="m-0 text-[12px] text-[#efe9df]/45">El valor en pesos es de referencia y puede variar según la cotización del dólar blue.</p>}
 									{precios.length > 1 && !abiertas.includes(precio.operacion) && p.estado === "alquilado" && precio.operacion === "alquiler" && (
 										<p className="m-0 text-[14px] text-[#efe9df]/75">Ya está alquilada: se vende con el inquilino adentro.</p>
 									)}

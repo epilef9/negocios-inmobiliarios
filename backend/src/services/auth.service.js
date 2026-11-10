@@ -262,6 +262,35 @@ const authService = {
         return { token: firmarSesion(user), user: datosPublicos(user) };
     },
 
+    // HU-31: cambiar la contraseña desde Mi cuenta escribiendo la actual. Las otras sesiones se cierran y el
+    // dispositivo desde el que se cambió sigue adentro con una sesión nueva. (Si no se acuerda de la actual, está el
+    // enlace por mail.)
+    cambiarPassword: async (userId, actual, nueva) => {
+        if (typeof actual !== 'string' || !actual) {
+            throw errorHttp('Escribí tu contraseña actual.', 400, 'PASSWORD_ACTUAL');
+        }
+        if (typeof nueva !== 'string' || nueva.length < 8 || nueva.length > 72) {
+            throw errorHttp('La contraseña nueva tiene que tener entre 8 y 72 caracteres.', 400, 'PASSWORD_INVALIDA');
+        }
+        const user = await User.findById(userId);
+        if (!user) throw errorHttp('Cuenta no encontrada.', 404);
+        if (!(await bcrypt.compare(actual, user.contrasena))) {
+            throw errorHttp('La contraseña actual no es correcta.', 400, 'PASSWORD_ACTUAL');
+        }
+        if (actual === nueva || (await bcrypt.compare(nueva, user.contrasena))) {
+            throw errorHttp('La contraseña nueva tiene que ser distinta de la actual.', 400, 'PASSWORD_REPETIDA');
+        }
+
+        user.contrasena = await bcrypt.hash(nueva, 10);
+        user.credencialesCambiadasEn = new Date();
+        await user.save();
+
+        emailService.avisarPasswordCambiada({ para: user.email, nombre: user.nombre }).catch((error) =>
+            console.error('[contraseña] No se pudo mandar el aviso:', error.message)
+        );
+        return { token: firmarSesion(user), user: datosPublicos(user) };
+    },
+
     // Cierra todas las sesiones abiertas de la cuenta (el middleware rechaza las iniciadas antes de esta fecha).
     // El dispositivo desde el que se pide recibe una sesión nueva para seguir adentro.
     cerrarSesiones: async (userId) => {

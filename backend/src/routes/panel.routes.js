@@ -35,13 +35,13 @@ const contratosParaRevisar = async () => {
 router.get('/pendientes', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
     const tareas = {
         visitas: visitasPorConfirmar,
-        reservas: async () =>
-            (await require('../services/reservas.service').contarPendientes()) + (await Pago.countDocuments({ estado: 'en_revision' })),
+        reservas: () => require('../services/reservas.service').contarPendientes(),
         solicitudes: () => require('../services/solicitudes.service').contarPendientes(),
         publicaciones: () => SolicitudPublicacion.countDocuments({ estado: 'pendiente' }),
         senas: senasPorVencer,
         contratos: contratosParaRevisar,
-        cobros: () => require('../services/cobros.service').contarAtrasados(),
+        // Alquileres atrasados y comprobantes de pago de estadías para revisar (los dos están en Cobros)
+        cobros: async () => (await require('../services/cobros.service').contarAtrasados()) + (await Pago.countDocuments({ estado: 'en_revision' })),
     };
     // Cada empleado ve solo los números de las secciones que puede usar
     const claves = Object.keys(tareas).filter((c) => permisos.tienePermiso(req.user, c));
@@ -102,15 +102,15 @@ const armarResumen = async () => {
 
     await seguro(async () => {
         const n = await Pago.countDocuments({ estado: 'en_revision' });
-        items.push({ clave: 'pagos', urgencia: 1, orden: 3, cantidad: n, href: '/admin/reservas', titulo: `${plural(n, 'comprobante de pago', 'comprobantes de pago')} para revisar`, detalle: 'Transferencias que subieron los clientes.' });
+        items.push({ clave: 'pagos', urgencia: 1, orden: 3, cantidad: n, href: '/admin/cobros?tipo=estadias', titulo: `${plural(n, 'comprobante de pago', 'comprobantes de pago')} para revisar`, detalle: 'Señas y pagos de estadías que subieron los clientes.' });
     });
 
     await seguro(async () => {
         await require('../services/reservasPropiedad.service').vencerReservas();
         const activas = await ReservaPropiedad.find({ estado: 'activa', fechaLimite: { $lte: new Date(ahora.getTime() + DIAS_AVISO_SENA * 86400000) } }).select('fechaLimite tituloPropiedad').lean();
         const manianaYa = activas.filter((s) => new Date(s.fechaLimite).getTime() - ahora.getTime() <= 24 * MS_HORA);
-        items.push({ clave: 'senas-hoy', urgencia: 1, orden: 4, cantidad: manianaYa.length, href: '/admin/senas', titulo: `${plural(manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en 24 horas`, detalle: manianaYa[0] ? `${manianaYa[0].tituloPropiedad}: concretala, extendela o cancelala.` : undefined });
-        items.push({ clave: 'senas', urgencia: 2, orden: 12, cantidad: activas.length - manianaYa.length, href: '/admin/senas', titulo: `${plural(activas.length - manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en los próximos días` });
+        items.push({ clave: 'senas-hoy', urgencia: 1, orden: 4, cantidad: manianaYa.length, href: '/admin/reservas?tipo=sena', titulo: `${plural(manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en 24 horas`, detalle: manianaYa[0] ? `${manianaYa[0].tituloPropiedad}: concretala, extendela o cancelala.` : undefined });
+        items.push({ clave: 'senas', urgencia: 2, orden: 12, cantidad: activas.length - manianaYa.length, href: '/admin/reservas?tipo=sena', titulo: `${plural(activas.length - manianaYa.length, 'reserva con seña vence', 'reservas con seña vencen')} en los próximos días` });
     });
 
     await seguro(async () => {
@@ -156,7 +156,7 @@ const armarResumen = async () => {
 // Un ítem del resumen se muestra solo si la persona tiene permiso para la sección a la que lleva (/admin/<sección>).
 // Lo que lleva a páginas que no son una sección con permiso (por ejemplo, Datos del sitio) es solo del administrador.
 const permitidoEnResumen = (user, item) => {
-    const seccion = String(item.href || '').replace(/^\/admin\//, '').split('/')[0];
+    const seccion = String(item.href || '').replace(/^\/admin\//, '').split(/[/?#]/)[0];
     return permisos.CLAVES.includes(seccion) ? permisos.tienePermiso(user, seccion) : permisos.esAdmin(user);
 };
 
@@ -169,17 +169,19 @@ router.get('/resumen', authMiddleware, authMiddleware.requirePersonal, async (re
     }
 });
 
-// Accesos rápidos del inicio: lista de claves cortas (las conoce el frontend). Se limpian repetidos y basura.
-const MAX_ACCESOS = 12;
-const limpiarAccesos = (lista) => {
+// Accesos rápidos del inicio y secciones del menú: listas de claves cortas (las conoce el frontend).
+// Se limpian repetidos y basura.
+const limpiarClaves = (lista, maximo) => {
     if (!Array.isArray(lista)) return null;
     const vistos = new Set();
     for (const clave of lista) {
         if (typeof clave === 'string' && /^[a-z0-9-]{1,40}$/.test(clave)) vistos.add(clave);
-        if (vistos.size >= MAX_ACCESOS) break;
+        if (vistos.size >= maximo) break;
     }
     return [...vistos];
 };
+const limpiarAccesos = (lista) => limpiarClaves(lista, 12);
+const limpiarMenu = (lista) => limpiarClaves(lista, 30);
 
 router.get('/accesos', authMiddleware, authMiddleware.requirePersonal, (req, res) => {
     const accesos = req.user.preferencias?.accesos;
@@ -197,7 +199,30 @@ router.put('/accesos', authMiddleware, authMiddleware.requirePersonal, async (re
     }
 });
 
+// Menú del panel: qué secciones van en el menú principal (el resto, en «Más opciones»). Cada persona del panel
+// tiene el suyo; lo que no puede ver por permisos el frontend no lo muestra igual.
+router.get('/menu', authMiddleware, authMiddleware.requirePersonal, (req, res) => {
+    const menu = req.user.preferencias?.menu;
+    res.status(200).json({ data: Array.isArray(menu) ? menu : null });
+});
+
+router.put('/menu', authMiddleware, authMiddleware.requirePersonal, async (req, res) => {
+    // null vuelve al menú de siempre
+    const menu = req.body?.menu === null ? null : limpiarMenu(req.body?.menu);
+    if (menu === null && req.body?.menu !== null) return res.status(400).json({ message: 'El menú no es válido' });
+    try {
+        await User.updateOne(
+            { _id: req.user._id },
+            menu === null ? { $unset: { 'preferencias.menu': 1 }, $set: { updatedAt: Date.now() } } : { $set: { 'preferencias.menu': menu, updatedAt: Date.now() } }
+        );
+        res.status(200).json({ data: menu });
+    } catch {
+        res.status(500).json({ message: 'No se pudo guardar el menú' });
+    }
+});
+
 module.exports = router;
 module.exports.ordenarPendientes = ordenarPendientes;
 module.exports.limpiarAccesos = limpiarAccesos;
+module.exports.limpiarMenu = limpiarMenu;
 module.exports.permitidoEnResumen = permitidoEnResumen;

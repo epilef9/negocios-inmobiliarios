@@ -37,7 +37,8 @@ const connectDB = async () => {
         return;
     }
 
-    const mongoUri = process.env.MONGODB_URI || process.env.DB_URI;
+    // npm run dev:demo levanta el sitio contra la base de demo (MONGODB_URI_DEMO), con el mismo control que el script que la llena
+    const mongoUri = process.env.USAR_BASE_DEMO === '1' ? require('../utils/base-demo').uriDemo() : process.env.MONGODB_URI || process.env.DB_URI;
 
     if (!mongoUri || /TU_USUARIO|TU_PASSWORD|TU_CLUSTER/.test(mongoUri)) {
         throw new Error('MONGODB_URI no está configurada. Reemplaza los valores de ejemplo en backend/.env por la URI real de MongoDB Atlas.');
@@ -45,7 +46,7 @@ const connectDB = async () => {
 
     try {
         await mongoose.connect(mongoUri, OPCIONES);
-        console.log('✅ MongoDB connected successfully (SRV cluster)');
+        console.log(`✅ MongoDB connected successfully (SRV cluster)${process.env.USAR_BASE_DEMO === '1' ? ' · BASE DE DEMO' : ''}`);
         return;
     } catch (errorSrv) {
         console.warn(`⚠️ La conexión SRV no respondió (${errorSrv.message}). Probando con la lista de nodos del cluster...`);

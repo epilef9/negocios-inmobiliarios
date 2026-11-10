@@ -41,6 +41,7 @@ const NOMBRE_OPERACION: Record<string, string> = {
   venta: 'Venta',
   alquiler: 'Alquiler',
   temporario: 'Alquiler temporario',
+  ambas: 'Venta y alquiler',
 };
 const NOMBRE_ESTADO: Record<EstadoSolicitudPublicacion, string> = {
   pendiente: 'Pendiente',
@@ -74,8 +75,12 @@ const FILTROS: { id: FiltroEstado; nombre: string }[] = [
 const tonoEstado = (estado: EstadoSolicitudPublicacion): 'aviso' | 'exito' | 'peligro' =>
   estado === 'aprobada' ? 'exito' : estado === 'rechazada' ? 'peligro' : 'aviso';
 
+const montoTexto = (p?: { monto?: number; moneda?: string }) => `${p?.moneda === 'ARS' ? '$' : 'USD'} ${p?.monto?.toLocaleString('es-AR') ?? '-'}`;
+// Venta y alquiler: los dos precios
 const precio = (sol: SolicitudPublicacion) =>
-  `${sol.precioPretendido?.moneda === 'ARS' ? '$' : 'USD'} ${sol.precioPretendido?.monto?.toLocaleString('es-AR') ?? '-'}`;
+  sol.operacion === 'ambas' && sol.precioAlquiler
+    ? `${montoTexto(sol.precioPretendido)} · alquiler ${montoTexto(sol.precioAlquiler)}/mes`
+    : montoTexto(sol.precioPretendido);
 
 const nombreCliente = (sol: SolicitudPublicacion) => {
   const cliente = typeof sol.cliente === 'object' ? sol.cliente : null;
@@ -275,12 +280,13 @@ export default function AdminPublicacionesPage() {
   return (
     <div className="flex flex-col gap-5">
       <Encabezado
+        guia="publicaciones"
         titulo="Solicitudes de publicación"
         descripcion="Pedidos de clientes que quieren publicar su propiedad. Revisá los datos, las fotos y la documentación antes de aprobar."
       />
 
       {/* Pestañas con cantidad */}
-      <div role="group" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
+      <div role="group" data-guia="pestanas" aria-label="Filtrar por estado" className="flex flex-wrap gap-1.5">
         {FILTROS.map(({ id, nombre }) => {
           const activa = filtroActivo === id;
           return (
@@ -309,7 +315,7 @@ export default function AdminPublicacionesPage() {
         </Alerta>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
+      <div data-guia="lista" className="overflow-hidden rounded-xl border border-panel-borde bg-panel-superficie">
         {!solicitudes ? (
           <div className="flex flex-col divide-y divide-panel-borde">
             {[0, 1, 2].map((i) => (
@@ -337,6 +343,7 @@ export default function AdminPublicacionesPage() {
                   <div className="min-w-0">
                     <button
                       type="button"
+                      data-guia="detalle"
                       onClick={() => setSolicitudDetalle(sol)}
                       className="block max-w-full truncate text-left text-[14px] font-medium after:absolute after:inset-0 hover:underline focus-visible:outline-none"
                     >

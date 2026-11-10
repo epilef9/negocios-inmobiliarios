@@ -7,6 +7,7 @@ const User = require('../models/user.model');
 const config = require('../config/env');
 const emailService = require('../services/email.service');
 const authService = require('../services/auth.service');
+const { establecerSesion } = require('../middlewares/sesion');
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const HORAS_VALIDEZ_CAMBIO_EMAIL = 24;
@@ -132,5 +133,19 @@ exports.pedirCambioPassword = async (req, res) => {
     } catch (error) {
         console.error('[perfil] No se pudo mandar el enlace de contraseña:', error.message);
         res.status(500).json({ message: 'No pudimos mandar el mail. Probá de nuevo en un rato.' });
+    }
+};
+
+// HU-31: cambiar la contraseña con la actual. Las otras sesiones se cierran; esta sigue con una sesión nueva.
+exports.cambiarPassword = async (req, res) => {
+    try {
+        const { actual, nueva } = req.body || {};
+        const { token, user } = await authService.cambiarPassword(req.user._id, actual, nueva);
+        establecerSesion(res, token);
+        res.status(200).json({ message: 'Listo, cambiaste tu contraseña. Cerramos la sesión en tus otros dispositivos.', data: { user } });
+    } catch (error) {
+        const status = error.statusCode || 500;
+        if (status === 500) console.error('[perfil] No se pudo cambiar la contraseña:', error.message);
+        res.status(status).json({ message: status === 500 ? 'No pudimos cambiar la contraseña. Probá de nuevo.' : error.message, code: error.code });
     }
 };

@@ -242,8 +242,6 @@ export default function HorarioVisitasPage() {
   const [guardando, setGuardando] = useState(false);
   const [fuera, setFuera] = useState<VisitaFueraDeHorario[]>([]);
   const [cierre, setCierre] = useState({ desde: '', hasta: '', motivo: '' });
-  // Ayuda "Cómo funciona" desplegada debajo del título
-  const [comoFunciona, setComoFunciona] = useState(false);
   // Problema del cierre que se quiere agregar, junto al campo que lo causa
   const [errorCierre, setErrorCierre] = useState<{ campo: 'desde' | 'hasta'; texto: string } | null>(null);
   const campoDesde = useRef<HTMLButtonElement>(null);
@@ -407,61 +405,8 @@ export default function HorarioVisitasPage() {
       <Encabezado
         titulo="Horario de visitas"
         descripcion="Configurá los días y horarios de atención, la duración de cada turno y los días cerrados. Con esto se arman los turnos que los clientes eligen al agendar una visita."
-        acciones={
-          <Boton icono="idea" aria-expanded={comoFunciona} aria-controls={`${id}-como`} onClick={() => setComoFunciona((v) => !v)}>
-            {comoFunciona ? 'Ocultar ayuda' : 'Cómo funciona'}
-          </Boton>
-        }
+        guia="horario"
       />
-
-      {/* Cómo funciona: se despliega acá mismo (no tapa la pantalla). Los pasos entran de a uno y la línea que los
-          une se dibuja; el del medio muestra la duración actual del turno. */}
-      <div
-        id={`${id}-como`}
-        aria-hidden={!comoFunciona}
-        inert={!comoFunciona}
-        className={`grid transition-[grid-template-rows,opacity,margin] duration-300 ease-out motion-reduce:transition-none ${comoFunciona ? 'mb-6 grid-rows-[1fr] opacity-100' : 'mb-0 grid-rows-[0fr] opacity-0'}`}
-      >
-        <div className="overflow-hidden">
-          <div className="relative rounded-xl bg-panel-acento-suave/60 p-5 ring-1 ring-inset ring-panel-borde">
-            <p className="m-0 mb-4 flex items-center gap-2 text-[13px] font-semibold text-panel-acento">
-              <Icono nombre="idea" className="h-4 w-4" />
-              Cómo funciona, en tres pasos
-            </p>
-            <ol className="m-0 grid list-none gap-4 p-0 sm:grid-cols-3 sm:gap-0">
-              {[
-                { icono: 'reloj' as const, titulo: 'Franjas por día', texto: 'Elegís en qué horas recibe visitas la oficina, cada día de la semana.' },
-                { icono: 'visitas' as const, titulo: horario ? `Turnos de ${horario.duracionMinutos} min` : 'Turnos', texto: 'Cada franja se reparte en turnos; cada turno es una visita.' },
-                { icono: 'calendario' as const, titulo: 'El cliente elige', texto: 'En la ficha ve los turnos libres; los días cerrados no aparecen.' },
-              ].map((paso, i) => (
-                <li
-                  key={i}
-                  style={{ transitionDelay: comoFunciona ? `${120 + i * 110}ms` : '0ms' }}
-                  className={`relative flex gap-3 transition-[opacity,translate] duration-500 ease-out motion-reduce:transition-none sm:flex-col sm:pr-6 ${comoFunciona ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0'}`}
-                >
-                  {i < 2 && (
-                    <span
-                      aria-hidden="true"
-                      style={{ transitionDelay: comoFunciona ? `${260 + i * 110}ms` : '0ms' }}
-                      className={`absolute left-[18px] top-10 bottom-[-16px] w-px origin-top bg-panel-acento/40 transition-transform duration-500 ease-out motion-reduce:transition-none sm:left-11 sm:right-2 sm:top-[18px] sm:bottom-auto sm:h-px sm:w-auto sm:origin-left ${
-                        comoFunciona ? 'scale-100' : 'max-sm:scale-y-0 sm:scale-x-0'
-                      }`}
-                    />
-                  )}
-                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-panel-acento/40 bg-panel-superficie text-panel-acento">
-                    <Icono nombre={paso.icono} className="h-[18px] w-[18px]" />
-                    <span className="tabular absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-panel-marca text-[10px] font-semibold text-panel-marca-texto">{i + 1}</span>
-                  </span>
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-[14px] font-semibold">{paso.titulo}</span>
-                    <span className="text-[13px] leading-snug text-panel-suave">{paso.texto}</span>
-                  </span>
-                </li>
-              ))}
-            </ol>
-          </div>
-        </div>
-      </div>
 
       {errorCarga && (
         <Alerta tono="peligro" titulo="No se pudo cargar el horario" accion={<Boton tamano="sm" onClick={() => { setErrorCarga(null); cargar(); }}>Reintentar</Boton>}>
@@ -481,7 +426,7 @@ export default function HorarioVisitasPage() {
         <div className="grid gap-5 pb-24 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
           {/* Estadística de la semana: arriba en el celular, a la derecha (fija al bajar) en pantallas anchas */}
           <aside className="xl:sticky xl:top-4 xl:col-start-2 xl:row-start-1">
-            <Tarjeta>
+            <Tarjeta guia="proximos-dias">
               <div className="flex flex-col gap-4">
                 <span className="flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.06em] text-panel-suave">
                   <Icono nombre="calendario" className="h-4 w-4" />
@@ -584,6 +529,7 @@ export default function HorarioVisitasPage() {
             ].filter((g) => g.turnos.length);
             return (
               <Tarjeta
+                guia="vista-previa"
                 titulo="Vista previa: lo que ve un cliente"
                 descripcion="Los horarios que aparecen esta semana cuando alguien toca “Agendar una visita” en una propiedad, con los cambios sin guardar incluidos."
                 relleno={false}
@@ -654,10 +600,11 @@ export default function HorarioVisitasPage() {
           })()}
 
           <Tarjeta
+            guia="franjas"
             titulo="Días y franjas"
             descripcion="Una franja es un rango de horas en que se reciben visitas; se reparte en turnos. Escribí la hora en cada franja (9:05, 1730…). Las barras muestran cómo queda la semana."
             acciones={
-              <label className="flex items-center gap-2 whitespace-nowrap text-[13px] text-panel-suave">
+              <label data-guia="duracion" className="flex items-center gap-2 whitespace-nowrap text-[13px] text-panel-suave">
                 <Icono nombre="reloj" className="h-[18px] w-[18px] text-panel-tenue" />
                 Turnos de
                 <select
@@ -880,6 +827,7 @@ export default function HorarioVisitasPage() {
               </span>
             }
             descripcion="Feriados y vacaciones: esos días no se ofrecen turnos, aunque normalmente se atienda."
+            guia="cerrados"
           >
             {/* Formulario en un recuadro ámbar suave: el color de "cerrado" en toda la pantalla */}
             <form onSubmit={agregarCierre} noValidate className="flex flex-col gap-3 rounded-xl bg-amber-50/70 p-4 ring-1 ring-inset ring-amber-200/80 dark:bg-amber-950/20 dark:ring-amber-900/60">

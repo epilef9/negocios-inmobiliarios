@@ -24,7 +24,8 @@ const DOCUMENTOS = ['dni', 'escritura', 'impuestos', 'planos', 'reglamento'];
 const DOCUMENTOS_OBLIGATORIOS = ['dni', 'escritura', 'impuestos'];
 // Solo se trabaja con estos tipos, operaciones y localidades (todas en Entre Ríos)
 const TIPOS_PUBLICABLES = ['casa', 'departamento', 'terreno', 'local'];
-const OPERACIONES = ['venta', 'alquiler', 'temporario'];
+const OPERACIONES = ['venta', 'alquiler', 'temporario', 'ambas'];
+const NOMBRE_OPERACION = { venta: 'venta', alquiler: 'alquiler', temporario: 'alquiler temporario', ambas: 'venta y alquiler' };
 const LOCALIDADES = ['Villa Libertador San Martín', 'Crespo', 'Diamante'];
 const PROVINCIA = 'Entre Ríos';
 
@@ -60,7 +61,12 @@ const solicitudPublicacionService = {
         }
         const operacion = datos.operacion || 'venta';
         if (!OPERACIONES.includes(operacion)) {
-            throw errorHttp('Elegí si es venta, alquiler o alquiler temporario.', 400);
+            throw errorHttp('Elegí si es venta, alquiler, venta y alquiler, o alquiler temporario.', 400);
+        }
+        // Venta y alquiler: además del precio de venta, el del alquiler mensual
+        const montoAlquiler = Number(datos.precioAlquiler?.monto);
+        if (operacion === 'ambas' && !(Number.isFinite(montoAlquiler) && montoAlquiler > 0)) {
+            throw errorHttp('Ingresá también el precio del alquiler mensual.', 400);
         }
         const ciudad = typeof datos.ciudad === 'string' && datos.ciudad.trim() ? datos.ciudad.trim() : LOCALIDADES[0];
         if (!LOCALIDADES.includes(ciudad)) {
@@ -95,7 +101,7 @@ const solicitudPublicacionService = {
             dni: datos.contacto?.dni || user.dni || '',
         };
 
-        const titulo = datos.titulo?.trim() || `${capitalizar(tipoPropiedad)} en ${capitalizar(operacion)} - ${datos.direccion.trim()}`;
+        const titulo = datos.titulo?.trim() || `${capitalizar(tipoPropiedad)} en ${NOMBRE_OPERACION[operacion]} - ${datos.direccion.trim()}`;
 
         const nuevaSolicitud = new SolicitudPublicacion({
             cliente: userId,
@@ -123,6 +129,8 @@ const solicitudPublicacionService = {
                 monto: Number(datos.precioPretendido.monto),
                 moneda: datos.precioPretendido.moneda === 'ARS' ? 'ARS' : 'USD',
             },
+            // El alquiler se cobra casi siempre en pesos: si no se aclara, queda en ARS
+            precioAlquiler: operacion === 'ambas' ? { monto: montoAlquiler, moneda: datos.precioAlquiler.moneda === 'USD' ? 'USD' : 'ARS' } : undefined,
             descripcion: datos.descripcion ? datos.descripcion.trim() : '',
             fotos: Array.isArray(datos.fotos) ? datos.fotos.filter((f) => typeof f === 'string' && f.trim().length > 0) : [],
             documentos: Object.fromEntries(adjuntos.map((nombre) => [nombre, documentos[nombre].trim()])),
@@ -209,7 +217,15 @@ const solicitudPublicacionService = {
             ciudad: solicitud.ciudad || 'Libertador San Martín',
             provincia: 'entre_rios',
             referenciasUbicacion: solicitud.referenciasUbicacion || '',
-            categoriaOperacion: solicitud.operacion,
+            ...(solicitud.operacion === 'ambas'
+                ? {
+                    operaciones: ['venta', 'alquiler'],
+                    precios: {
+                        venta: { precio: solicitud.precioPretendido.monto, moneda: solicitud.precioPretendido.moneda || 'USD' },
+                        alquiler: { precio: solicitud.precioAlquiler?.monto ?? 0, moneda: solicitud.precioAlquiler?.moneda || 'ARS' },
+                    },
+                }
+                : { categoriaOperacion: solicitud.operacion }),
             tipoInmueble: tipoInmueble,
             ambientes: solicitud.ambientes ?? 1,
             dormitorios: solicitud.dormitorios || 0,
@@ -298,5 +314,8 @@ const solicitudPublicacionService = {
 };
 
 solicitudPublicacionService.OPCIONES = { TIPOS_PUBLICABLES, OPERACIONES, LOCALIDADES, PROVINCIA, DOCUMENTOS, DOCUMENTOS_OBLIGATORIOS };
+
+// Lo que hay que marcar en Requisitos antes de pedir una publicación (lo usa también npm run ejemplos)
+solicitudPublicacionService.REQUISITOS_PUBLICAR = REQUISITOS_PUBLICAR;
 
 module.exports = solicitudPublicacionService;

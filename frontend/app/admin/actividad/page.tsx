@@ -28,14 +28,14 @@ export default function AdminActividadPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <Encabezado titulo="Actividad" descripcion="Lo último que hizo cada persona del panel al confirmar, cancelar o cambiar visitas, reservas, solicitudes y propiedades." />
+      <Encabezado guia="actividad" titulo="Actividad" descripcion="Lo último que hizo cada persona del panel al confirmar, cancelar o cambiar visitas, reservas, solicitudes y propiedades." />
       {aviso}
       {cargando ? (
         <Tarjeta><p className="m-0 text-sm text-panel-suave">Cargando…</p></Tarjeta>
       ) : lista.length === 0 ? (
         <EstadoVacio icono="reloj" titulo="Todavía no hay actividad" texto="Va a aparecer acá a medida que se confirmen o cambien cosas desde el panel." />
       ) : (
-        <Tarjeta relleno={false}>
+        <Tarjeta guia="lista" relleno={false}>
           <ul className="m-0 flex list-none flex-col divide-y divide-panel-borde p-0">
             {lista.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm">

@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Icono, { type NombreIcono } from './Icono';
+import { BotonGuia } from './Recorrido';
+import type { ClaveGuia } from './guias';
 import { MESES, SEMANA, celdasDelMes, diasDelMes, hoyIso, isoDe, mesSiguiente, sumarDias } from '@/components/calendario/fechas';
 
 // ---------- Botones ----------
@@ -56,7 +58,8 @@ export function BotonLink({ href, variante = 'secundario', tamano = 'md', icono,
 }
 
 // ---------- Estructura ----------
-export function Encabezado({ titulo, descripcion, acciones, volver }: { titulo: string; descripcion?: React.ReactNode; acciones?: React.ReactNode; volver?: { href: string; texto: string } }) {
+// guia: muestra el botón «Cómo funciona» con el recorrido de esa pantalla (pasos en guias.ts)
+export function Encabezado({ titulo, descripcion, acciones, volver, guia }: { titulo: string; descripcion?: React.ReactNode; acciones?: React.ReactNode; volver?: { href: string; texto: string }; guia?: ClaveGuia }) {
   return (
     <header className="flex flex-col gap-4 pb-6 sm:flex-row sm:items-end sm:justify-between">
       {/* flex-1: un texto largo usa el espacio que sobra y no empuja las acciones fuera de la pantalla */}
@@ -70,14 +73,20 @@ export function Encabezado({ titulo, descripcion, acciones, volver }: { titulo: 
         <h1 className="font-display m-0 text-[34px] font-normal leading-tight tracking-[-0.01em] sm:text-[40px]">{titulo}</h1>
         {descripcion && <p className="m-0 max-w-2xl text-[15px] leading-relaxed text-panel-suave">{descripcion}</p>}
       </div>
-      {acciones && <div className="flex flex-wrap items-center gap-2">{acciones}</div>}
+      {(acciones || guia) && (
+        <div data-guia="acciones" className="flex flex-wrap items-center gap-2">
+          {guia && <BotonGuia guia={guia} />}
+          {acciones}
+        </div>
+      )}
     </header>
   );
 }
 
-export function Tarjeta({ titulo, descripcion, acciones, children, className = '', relleno = true }: { titulo?: React.ReactNode; descripcion?: React.ReactNode; acciones?: React.ReactNode; children?: React.ReactNode; className?: string; relleno?: boolean }) {
+// guia: nombre de la parte para el recorrido «Cómo funciona» (data-guia)
+export function Tarjeta({ titulo, descripcion, acciones, children, className = '', relleno = true, guia }: { titulo?: React.ReactNode; descripcion?: React.ReactNode; acciones?: React.ReactNode; children?: React.ReactNode; className?: string; relleno?: boolean; guia?: string }) {
   return (
-    <section className={`rounded-xl border border-panel-borde bg-panel-superficie ${className}`}>
+    <section data-guia={guia} className={`rounded-xl border border-panel-borde bg-panel-superficie ${className}`}>
       {(titulo || acciones) && (
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-panel-borde px-5 py-4">
           <div className="min-w-0">

@@ -434,8 +434,9 @@ export default function SolicitudesAdminPage() {
   return (
     <>
       <Encabezado
+        guia="solicitudes"
         titulo="Solicitudes"
-        descripcion="Gestioná las solicitudes de alquiler y compra realizadas por los clientes."
+        descripcion="Una solicitud es el pedido de un cliente para alquilar o comprar una propiedad, con sus datos y su documentación. Si la aprobás y la propiedad se aparta, eso ya es una reserva. Las rechazadas, vencidas o cerradas se borran solas a los 90 días."
       />
       {aviso}
 
@@ -444,7 +445,7 @@ export default function SolicitudesAdminPage() {
 
         <Tarjeta titulo="Listado de solicitudes" descripcion="Buscá por cliente o propiedad, filtrá por operación y revisá el estado actual.">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center gap-2 border-b border-panel-borde pb-4" role="tablist" aria-label="Secciones de solicitudes">
+            <div data-guia="pestanas" className="flex flex-wrap items-center gap-2 border-b border-panel-borde pb-4" role="tablist" aria-label="Secciones de solicitudes">
               <button
                 type="button"
                 role="tab"
@@ -487,7 +488,7 @@ export default function SolicitudesAdminPage() {
               )}
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_220px_220px_180px]">
+            <div data-guia="filtros" className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_220px_220px_180px]">
               <label className="block">
                 <span className="mb-1.5 block text-[12px] font-medium uppercase tracking-[0.08em] text-panel-suave">Buscar</span>
                 <input
@@ -552,7 +553,7 @@ export default function SolicitudesAdminPage() {
                 texto="Probá cambiar la búsqueda o los filtros seleccionados."
               />
             ) : (
-              <div className="flex flex-col gap-3 pt-2">
+              <div data-guia="lista" className="flex flex-col gap-3 pt-2">
                 {visibles.map((solicitud) => {
                   const nombreCliente = solicitud.problemaDescifrado ? 'No disponible' : obtenerNombreCliente(solicitud);
                   const emailCliente = solicitud.problemaDescifrado ? 'No disponible' : obtenerEmailCliente(solicitud);
@@ -601,7 +602,7 @@ export default function SolicitudesAdminPage() {
                           </div>
                         </div>
 
-                        <div className="flex flex-wrap gap-2 xl:ml-auto">
+                        <div data-guia="acciones-fila" className="flex flex-wrap gap-2 xl:ml-auto">
                           <Boton onClick={() => abrirDetalle(solicitud)} icono="ojo" variante="principal" tamano="sm">
                             {solicitud.problemaDescifrado ? 'Ver incidencia' : 'Ver solicitud'}
                           </Boton>

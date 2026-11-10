@@ -341,7 +341,7 @@ export default function DisponibilidadAdminPage() {
 
   // ---------- Partes de la pantalla ----------
   const franja = (
-    <Tarjeta titulo={`Las próximas ${SEMANAS_FRANJA} semanas`} descripcion="Cada barra es una noche. Tocá un mes para verlo en el calendario.">
+    <Tarjeta guia="franja" titulo={`Las próximas ${SEMANAS_FRANJA} semanas`} descripcion="Cada barra es una noche. Tocá un mes para verlo en el calendario.">
       {rangos === null ? (
         <Esqueleto className="h-24 w-full" />
       ) : (
@@ -427,6 +427,7 @@ export default function DisponibilidadAdminPage() {
 
   const calendario = (
     <Tarjeta
+      guia="calendario"
       titulo="Calendario"
       descripcion={
         propiedad && (
@@ -513,7 +514,7 @@ export default function DisponibilidadAdminPage() {
   );
 
   const lineaDeTiempo = (
-    <Tarjeta titulo="Temporada" descripcion="Estadías y huecos libres, desde hoy.">
+    <Tarjeta guia="temporada" titulo="Temporada" descripcion="Estadías y huecos libres, desde hoy.">
       {rangos === null ? (
         <div className="flex flex-col gap-3">
           <Esqueleto className="h-12 w-full" />
@@ -628,6 +629,7 @@ export default function DisponibilidadAdminPage() {
   return (
     <div>
       <Encabezado
+        guia="disponibilidad"
         titulo="Disponibilidad"
         descripcion="Marcá las noches en que una propiedad de alquiler temporario no se puede alquilar. En el sitio, el resto aparece como libre."
       />
@@ -675,7 +677,7 @@ export default function DisponibilidadAdminPage() {
       ) : (
         <div className="flex flex-col gap-5">
           <Campo etiqueta="Propiedad" htmlFor={`${id}-propiedad`} className="max-w-md">
-            <select id={`${id}-propiedad`} className={control} value={propiedadId} onChange={(e) => cambiarPropiedad(e.target.value)}>
+            <select id={`${id}-propiedad`} data-guia="propiedad" className={control} value={propiedadId} onChange={(e) => cambiarPropiedad(e.target.value)}>
               {propiedades.map((p) => (
                 <option key={p._id} value={p._id}>
                   {p.codigoInterno ? `${p.codigoInterno}: ` : ''}

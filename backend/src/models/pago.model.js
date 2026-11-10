@@ -2,11 +2,15 @@ const mongoose = require('mongoose');
 
 // HU-41 / 217 / 218: pagos de reservas de alquiler temporario, con Mercado Pago o por transferencia.
 // El monto lo calcula SIEMPRE el servidor desde la reserva (totalUSD × dólar del día); nunca se toma del navegador.
+// tipo: «sena» (un porcentaje del total que confirma la reserva), «total» (toda la estadía) o «saldo» (lo que falta
+// después de la seña). Con cualquiera de los dos medios el cliente sube la foto del comprobante, que se revisa en
+// Panel → Cobros → Pagos de estadías.
 const pagoSchema = new mongoose.Schema(
     {
         reserva: { type: mongoose.Schema.Types.ObjectId, ref: 'Reserva', required: true, index: true },
         usuario: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
         metodo: { type: String, enum: ['mercadopago', 'transferencia'], required: true },
+        tipo: { type: String, enum: ['sena', 'total', 'saldo'], default: 'total' },
         estado: { type: String, enum: ['pendiente', 'en_revision', 'aprobado', 'rechazado', 'cancelado'], default: 'pendiente', index: true },
         montoARS: { type: Number, required: true, min: 0 },
         montoUSD: { type: Number, required: true, min: 0 },
@@ -15,7 +19,7 @@ const pagoSchema = new mongoose.Schema(
         mpPreferencia: { type: String, default: '' },
         mpPago: { type: String, default: '' },
         mpEstado: { type: String, default: '' },
-        // Transferencia: el comprobante se guarda en la base (máx. 4 MB) y solo lo ve el administrador
+        // Comprobante (transferencia o Mercado Pago): se guarda en la base (máx. 4 MB) y solo lo ve el panel
         comprobante: {
             datos: { type: Buffer, select: false },
             tipo: { type: String, default: '' },

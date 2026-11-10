@@ -15,10 +15,13 @@ router.get('/', async (_req, res) => {
     }
 });
 
-// Administrador: todo (incluye los datos bancarios) y guardar cambios
+// Administrador: todo (incluye los datos bancarios) y guardar cambios. «sugeridas» son las preguntas del
+// asistente que trae el sitio, para poder volver a ellas desde el panel.
+const paraAdmin = (a) => ({ ...a, sugeridas: ajustes.PREGUNTAS_SUGERIDAS });
+
 router.get('/admin', authMiddleware, authMiddleware.requireAdmin, async (_req, res) => {
     try {
-        res.json({ data: await ajustes.leer() });
+        res.json({ data: paraAdmin(await ajustes.leer()) });
     } catch (error) {
         console.error('Error al leer los ajustes:', error);
         res.status(500).json({ message: 'No se pudieron leer los ajustes' });
@@ -29,7 +32,7 @@ router.put('/', authMiddleware, authMiddleware.requireAdmin, async (req, res) =>
     try {
         const { ajustes: guardados, error } = await ajustes.guardar(req.body);
         if (error) return res.status(400).json({ message: error });
-        res.json({ data: guardados, message: 'Cambios guardados' });
+        res.json({ data: paraAdmin(guardados), message: 'Cambios guardados' });
     } catch (error) {
         console.error('Error al guardar los ajustes:', error);
         res.status(500).json({ message: 'No se pudieron guardar los ajustes' });

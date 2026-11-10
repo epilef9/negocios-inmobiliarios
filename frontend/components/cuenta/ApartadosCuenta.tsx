@@ -102,7 +102,7 @@ export default function ApartadosCuenta() {
         <Apartado
           href="/mis-publicaciones"
           titulo="Tus publicaciones"
-          descripcion="Las propiedades que nos pediste publicar y en qué estado están."
+          descripcion="Las propiedades que nos pediste publicar, en qué estado están y cuánta gente las vio."
           resumen={texto(publicaciones, "propiedad", "propiedades", "en revisión")}
         />
         <Apartado

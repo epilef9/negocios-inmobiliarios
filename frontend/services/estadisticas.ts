@@ -20,6 +20,12 @@ export type ResumenEstadisticas = { desde: string; hasta: string; dias: number; 
 
 export const getEstadisticas = (dias: number) => request<ResumenEstadisticas>(`/estadisticas?dias=${dias}`);
 
+// Mi cuenta → Tus publicaciones: los números de las propiedades de quien está conectado (las que publicó o están
+// a su nombre). Solo cantidades: nunca quién miró ni quién guardó la propiedad.
+export type EstadisticaPropia = Totales & { id: string; titulo: string; estado: string; operaciones: string[]; foto: string; serie: { dia: string; vistas: number }[] };
+export type MisEstadisticas = { desde: string; hasta: string; dias: number; totales: Totales; propiedades: EstadisticaPropia[] };
+export const getMisEstadisticas = (dias: number) => request<MisEstadisticas>(`/estadisticas/mias?dias=${dias}`);
+
 // Fire-and-forget: con keepalive llega aunque la persona se vaya a WhatsApp en ese momento
 export function registrarEvento(propiedad: string, tipo: 'vista' | 'whatsapp') {
   try {
