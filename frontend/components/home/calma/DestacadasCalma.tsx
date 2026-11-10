@@ -10,7 +10,7 @@ import { operacionesAbiertas } from '@/components/sitio/operaciones';
 
 // HU-39: las vendidas o alquiladas no van en la portada aunque estén primeras en el orden
 // (una alquilada que también se vende con el inquilino adentro sí, porque sigue a la venta)
-const sigueOfrecida = (p: ApiProperty) => operacionesAbiertas(p).length > 0;
+const sigueOfrecida = (p: ApiProperty) => p.estado === 'reservado' || operacionesAbiertas(p).length > 0;
 
 export default function DestacadasCalma() {
   const ref = useRef<HTMLDivElement>(null);
