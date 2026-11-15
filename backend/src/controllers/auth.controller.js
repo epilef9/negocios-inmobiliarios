@@ -54,7 +54,7 @@ exports.resendVerification = async (req, res) => {
         const { enlaceDev } = await authService.resendVerification(req.body.email);
         res.status(200).json({
             message: 'Si la cuenta existe y falta confirmarla, te mandamos un nuevo enlace.',
-            segundos: 60,
+            segundos: authService.SEGUNDOS_ENTRE_REENVIOS,
             enlaceDev
         });
     } catch (error) {

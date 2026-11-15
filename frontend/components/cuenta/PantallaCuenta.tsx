@@ -152,7 +152,8 @@ export function EnlaceDeDesarrollo({ enlace, para = 'confirmar la cuenta', accio
   );
 }
 
-const SEGUNDOS_ENTRE_REENVIOS = 60;
+// Igual que en el servidor (auth.service.js): otros correos que no son Gmail tardan en traer el primer mail
+const SEGUNDOS_ENTRE_REENVIOS = 120;
 
 // Reenvía el enlace de confirmación; lo usan el registro y el ingreso.
 // Mientras corre la espera entre envíos, el botón muestra cuánto falta.
