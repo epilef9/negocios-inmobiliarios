@@ -4,8 +4,10 @@ import { useState, useId, useRef, type FormEvent, type DragEvent, type ChangeEve
 import Link from 'next/link';
 import SitioBase from '@/components/sitio/SitioBase';
 import { useAuth } from '@/context/AuthContext';
-import { GUIAS } from '@/components/requisitos/datos';
+import { useGuias } from '@/components/requisitos/useGuias';
+import ListaRequisitos from '@/components/requisitos/ListaRequisitos';
 import { useChecklist } from '@/components/requisitos/useChecklist';
+import { useAvisoAlSalir } from '@/components/sitio/AvisoAlSalir';
 import {
   enviarSolicitudPublicacion,
   subirFotosPublicacion,
@@ -73,9 +75,14 @@ export default function PublicarPropiedadPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avisoRef = useRef<HTMLDivElement>(null);
   const { user, isLoading } = useAuth();
-  const { marcas: requisitosMarcados, estado: estadoRequisitos } = useChecklist();
-  const requisitosPublicar = GUIAS.find((guia) => guia.id === 'publicar')?.secciones.flatMap((seccion) => seccion.items) ?? [];
+  const { marcas: requisitosMarcados, estado: estadoRequisitos, alternar: alternarRequisito } = useChecklist();
+  // La misma lista que muestra la página de requisitos (la que carga el admin)
+  const seccionesPublicar = useGuias().find((guia) => guia.id === 'publicar')?.secciones ?? [];
+  const requisitosPublicar = seccionesPublicar.flatMap((seccion) => seccion.items);
   const requisitosCompletos = requisitosPublicar.every((requisito) => requisitosMarcados[requisito.id]);
+  const requisitosFaltantes = requisitosPublicar.filter((requisito) => !requisitosMarcados[requisito.id]).length;
+  // Los requisitos se marcan acá mismo: ir a otra página descartaba las fotos y los documentos ya elegidos
+  const [verRequisitos, setVerRequisitos] = useState(false);
 
   const [tipoPropiedad, setTipoPropiedad] = useState<TipoPropiedad>('casa');
   const [operacion, setOperacion] = useState('venta');
@@ -118,6 +125,13 @@ export default function PublicarPropiedadPage() {
   const [error, setError] = useState<string | null>(null);
   const [campoConError, setCampoConError] = useState<string | null>(null);
   const [enviadoExitoso, setEnviadoExitoso] = useState(false);
+
+  // Si ya cargó algo y todavía no lo envió, se pregunta antes de salir de la página
+  const hayDatosCargados = [titulo, direccion, referenciasUbicacion, superficieTotal, superficieCubierta, monto, montoAlquiler, descripcion, montoExpensas, otrasComodidades, fotosTexto].some((valor) => valor.trim() !== '')
+    || comodidades.length > 0
+    || fotosLocales.length > 0
+    || Object.keys(documentos).length > 0;
+  const dialogoAlSalir = useAvisoAlSalir(Boolean(user) && hayDatosCargados && !enviadoExitoso);
 
   // El aviso queda arriba del formulario: se lleva la pantalla hasta ahí para que siempre se vea
   const mostrarError = (mensaje: string, campo: string | null = null) => {
@@ -331,6 +345,7 @@ export default function PublicarPropiedadPage() {
 
   return (
     <SitioBase>
+      {dialogoAlSalir}
       <header className="encabezado-color encabezado-azul px-5 pb-14 pt-32 sm:px-10 lg:pt-40">
         <div className="mx-auto max-w-5xl">
           <p className="calma-micro m-0 mb-3 text-[#d9382b]">¿Querés vender o alquilar?</p>
@@ -398,15 +413,51 @@ export default function PublicarPropiedadPage() {
             <form noValidate onSubmit={handleSubmit} className="flex flex-col gap-14">
               {/* Avisos arriba de todo: si algo falta, la pantalla sube hasta acá */}
               <div ref={avisoRef} tabIndex={-1} className="flex scroll-mt-32 flex-col gap-4 outline-none">
-                {!requisitosCompletos && estadoRequisitos !== 'cargando' && (
-                  <div className="rounded-2xl border border-[#d9382b]/50 bg-[#d9382b]/10 p-5 text-[15px] leading-relaxed text-[#efe9df]">
-                    <p className="m-0 font-medium">Completá todos los requisitos antes de solicitar la publicación.</p>
-                    <p className="m-0 mt-2 text-[#efe9df]/70">
-                      Te faltan {requisitosPublicar.filter((requisito) => !requisitosMarcados[requisito.id]).length} requisitos.{' '}
-                      <Link href="/requisitos?para=publicar" className="underline underline-offset-4 hover:text-white">
-                        Ver la lista para publicar
-                      </Link>
+                {/* Siempre a la vista: en rojo si falta algo, en verde si está todo, y la lista se puede desplegar igual */}
+                {estadoRequisitos !== 'cargando' && (
+                  <div
+                    className={`rounded-2xl border p-5 text-[15px] leading-relaxed text-[#efe9df] ${
+                      requisitosCompletos ? 'border-[#9fd8b4]/30 bg-[#9fd8b4]/10' : 'border-[#d9382b]/50 bg-[#d9382b]/10'
+                    }`}
+                  >
+                    <p className="m-0 font-medium" aria-live="polite">
+                      {requisitosCompletos
+                        ? 'Ya tienes todos los requisitos completos.'
+                        : 'Completá todos los requisitos antes de solicitar la publicación.'}
                     </p>
+                    <p className="m-0 mt-2 text-[#efe9df]/70">
+                      {!requisitosCompletos && `Te ${requisitosFaltantes === 1 ? 'falta 1 requisito' : `faltan ${requisitosFaltantes} requisitos`}. `}
+                      <button
+                        type="button"
+                        onClick={() => setVerRequisitos((abierta) => !abierta)}
+                        aria-expanded={verRequisitos}
+                        aria-controls={`${id}-requisitos`}
+                        // Sin subrayado y con flecha: se lee como algo que se despliega acá, no como un enlace a otra página
+                        className="inline-flex items-center gap-1.5 rounded-full border border-[#efe9df]/30 px-3 py-1 text-[#efe9df] transition-colors duration-300 hover:border-[#efe9df] hover:bg-[#efe9df]/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#efe9df]"
+                      >
+                        {verRequisitos ? 'Ocultar los requisitos' : 'Ver y marcar los requisitos'}
+                        <svg
+                          aria-hidden="true"
+                          viewBox="0 0 24 24"
+                          className={`h-4 w-4 transition-transform duration-300 ${verRequisitos ? 'rotate-180' : ''}`}
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
+                      </button>
+                    </p>
+                    {verRequisitos && (
+                      <div id={`${id}-requisitos`} className="mt-5">
+                        <p className="m-0 mb-5 text-[14px] text-[#efe9df]/60">
+                          Marcalos acá mismo: lo que ya cargaste en el formulario no se pierde.
+                        </p>
+                        <ListaRequisitos secciones={seccionesPublicar} marcas={requisitosMarcados} alternar={alternarRequisito} compacta />
+                      </div>
+                    )}
                   </div>
                 )}
                 {estadoRequisitos === 'cargando' && <p className="m-0 text-[14px] text-[#efe9df]/60">Verificando tus requisitos…</p>}
