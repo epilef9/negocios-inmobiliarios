@@ -236,42 +236,111 @@ export default function PublicarPropiedadPage() {
     if (valor === 'no') setMontoExpensas('');
   };
 
+  // Los datos del formulario, en su orden. Con esto se arman el avance («8 de 13 obligatorios»), la lista de lo que
+  // falta junto al botón, los ✓ de cada sección y el chequeo al enviar: las reglas quedan en un solo lugar.
+  // seccion: el número de la sección del formulario (0 = los requisitos, que van arriba de todo).
+  // destino: el id del elemento al que lleva cada ítem de la lista.
+  type Dato = { etiqueta: string; destino: string; seccion: number; completo: boolean };
+  const montoNum = parseFloat(monto);
+  const montoAlquilerNum = parseFloat(montoAlquiler);
+  const largoDescripcion = descripcion.trim().length;
+  const numeroValido = (valor: string) => valor.trim() !== '' && Number(valor) > 0;
+  const obligatorios: Dato[] = [
+    {
+      etiqueta: `Marcar los requisitos (${requisitosFaltantes === 1 ? 'queda 1' : `quedan ${requisitosFaltantes}`})`,
+      destino: `${id}-requisitos-boton`,
+      seccion: 0,
+      completo: requisitosCompletos,
+    },
+    { etiqueta: 'Título de la publicación', destino: `${id}-titulo`, seccion: 1, completo: titulo.trim() !== '' },
+    { etiqueta: 'Calle y número', destino: `${id}-direccion`, seccion: 2, completo: direccion.trim() !== '' },
+    ...(esTerreno ? [] : [{ etiqueta: 'Ambientes', destino: `${id}-ambientes`, seccion: 3, completo: numeroValido(ambientes) }]),
+    { etiqueta: 'Superficie total', destino: `${id}-superficieTotal`, seccion: 3, completo: numeroValido(superficieTotal) },
+    ...(esTerreno ? [] : [{ etiqueta: 'Superficie cubierta', destino: `${id}-superficieCubierta`, seccion: 3, completo: numeroValido(superficieCubierta) }]),
+    {
+      // Si eligió que paga y cargó un monto negativo, este dato tampoco está completo
+      etiqueta: expensas === 'si' && Number(montoExpensas) < 0 ? 'Monto de expensas (no puede ser negativo)' : 'Si paga expensas',
+      destino: expensas === 'si' && Number(montoExpensas) < 0 ? `${id}-montoExpensas` : `${id}-expensas`,
+      seccion: 4,
+      completo: expensas !== '' && !(expensas === 'si' && Number(montoExpensas) < 0),
+    },
+    { etiqueta: esAmbas ? 'Precio de venta' : 'Monto pretendido', destino: `${id}-monto`, seccion: 5, completo: !isNaN(montoNum) && montoNum > 0 },
+    ...(esAmbas ? [{ etiqueta: 'Alquiler mensual', destino: `${id}-montoAlquiler`, seccion: 5, completo: !isNaN(montoAlquilerNum) && montoAlquilerNum > 0 }] : []),
+    {
+      etiqueta: `Descripción (mínimo 20 caracteres, va${largoDescripcion === 1 ? '' : 'n'} ${largoDescripcion})`,
+      destino: `${id}-descripcion`,
+      seccion: 6,
+      completo: largoDescripcion >= 20,
+    },
+    { etiqueta: 'Al menos una foto', destino: `${id}-fotos-zona`, seccion: 6, completo: fotosLocales.length > 0 || fotosTexto.trim() !== '' },
+    ...DOCUMENTOS.filter((doc) => doc.obligatorio).map((doc) => ({
+      etiqueta: doc.nombre,
+      destino: `${id}-doc-${doc.clave}`,
+      seccion: 7,
+      completo: Boolean(documentos[doc.clave]),
+    })),
+  ];
+  const faltantes = obligatorios.filter((dato) => !dato.completo);
+  const obligatoriosCompletos = obligatorios.length - faltantes.length;
+
+  // Lo opcional que todavía no se cargó: se muestra aparte, no frena el envío
+  const opcionalesFaltantes: Dato[] = [
+    { etiqueta: 'Referencias de la ubicación', destino: `${id}-referencias`, seccion: 2, completo: referenciasUbicacion.trim() !== '' },
+    ...(esDepartamento ? [{ etiqueta: 'Piso / unidad', destino: `${id}-piso`, seccion: 3, completo: pisoUnidad.trim() !== '' }] : []),
+    ...(expensas === 'si' ? [{ etiqueta: 'Monto mensual de expensas', destino: `${id}-montoExpensas`, seccion: 4, completo: montoExpensas.trim() !== '' }] : []),
+    ...(esTerreno ? [] : [{ etiqueta: 'Comodidades', destino: `${id}-comodidades`, seccion: 4, completo: comodidades.length > 0 }]),
+    ...DOCUMENTOS.filter((doc) => !doc.obligatorio && (doc.clave !== 'reglamento' || esDepartamento)).map((doc) => ({
+      etiqueta: doc.nombre,
+      destino: `${id}-doc-${doc.clave}`,
+      seccion: 7,
+      completo: Boolean(documentos[doc.clave]),
+    })),
+  ].filter((dato) => !dato.completo);
+
+  // ✓ junto al título de una sección cuando ya tiene todos sus obligatorios
+  const seccionLista = (numero: number) => obligatorios.filter((dato) => dato.seccion === numero).every((dato) => dato.completo);
+  const marcaSeccion = (numero: number) =>
+    seccionLista(numero) ? (
+      <span className="ml-3 inline-flex h-7 w-7 translate-y-[-3px] items-center justify-center rounded-full bg-[#9fd8b4]/20 align-middle font-sans text-[15px] text-[#9fd8b4]">
+        <span aria-hidden="true">✓</span>
+        <span className="sr-only">(completa)</span>
+      </span>
+    ) : null;
+
+  // Después de tocar «Enviar» con datos pendientes, el recuadro de lo que falta queda en rojo
+  const [intentoConFaltantes, setIntentoConFaltantes] = useState(false);
+  const faltantesRef = useRef<HTMLDivElement>(null);
+
+  // Lleva la pantalla hasta el campo que falta y le pone el foco (los requisitos, además, se despliegan)
+  const irAFaltante = (faltante: Dato) => {
+    if (faltante.destino === `${id}-requisitos-boton`) setVerRequisitos(true);
+    requestAnimationFrame(() => {
+      const elemento = document.getElementById(faltante.destino);
+      if (!elemento) return;
+      const enfocable = elemento.matches('input, textarea, select, button, [tabindex]')
+        ? elemento
+        : elemento.querySelector<HTMLElement>('input, textarea, select, button, [tabindex]');
+      // Los inputs de archivo están ocultos: se toma la fila que los contiene para ubicar la pantalla
+      const referencia = elemento.closest('li') ?? elemento;
+      const destino = referencia.getBoundingClientRect().top + window.scrollY - 160;
+      if (window.__lenis) window.__lenis.scrollTo(destino);
+      else {
+        const quieto = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        window.scrollTo({ top: destino, behavior: quieto ? 'auto' : 'smooth' });
+      }
+      (enfocable ?? elemento).focus({ preventScroll: true });
+    });
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    if (!requisitosCompletos) {
-      mostrarError('Antes de enviar la solicitud tenés que marcar todos los requisitos para publicar tu propiedad.');
+    if (faltantes.length) {
+      // No se sube hasta arriba: el recuadro con lo que falta está justo encima del botón y se pinta de rojo
+      limpiarError();
+      setIntentoConFaltantes(true);
+      requestAnimationFrame(() => faltantesRef.current?.focus({ preventScroll: true }));
       return;
     }
-    if (!titulo.trim()) return mostrarError('Escribí un título para la publicación.', 'titulo');
-    if (!direccion.trim()) return mostrarError('Indicá la calle y el número del inmueble.', 'direccion');
-
-    const numericos: [string, string, string][] = esTerreno
-      ? [['superficieTotal', 'la superficie total', superficieTotal]]
-      : [
-          ['ambientes', 'los ambientes', ambientes],
-          ['superficieTotal', 'la superficie total', superficieTotal],
-          ['superficieCubierta', 'la superficie cubierta', superficieCubierta],
-        ];
-    const faltanteNumerico = numericos.find(([, , valor]) => !valor.trim() || Number(valor) <= 0);
-    if (faltanteNumerico) return mostrarError(`Completá ${faltanteNumerico[1]} con un valor mayor a cero.`, faltanteNumerico[0]);
-
-    if (!expensas) return mostrarError('Indicá si la propiedad paga expensas.', 'expensas');
-    if (expensas === 'si' && montoExpensas.trim() && Number(montoExpensas) < 0) {
-      return mostrarError('El monto de expensas no puede ser negativo.', 'montoExpensas');
-    }
-
-    const montoNum = parseFloat(monto);
-    if (isNaN(montoNum) || montoNum <= 0) return mostrarError(esAmbas ? 'Ingresá el precio de venta, mayor a cero.' : 'Ingresá un precio pretendido mayor a cero.', 'monto');
-    const montoAlquilerNum = parseFloat(montoAlquiler);
-    if (esAmbas && (isNaN(montoAlquilerNum) || montoAlquilerNum <= 0)) return mostrarError('Ingresá el precio del alquiler mensual, mayor a cero.', 'montoAlquiler');
-
-    if (!descripcion.trim() || descripcion.trim().length < 20) {
-      return mostrarError('Agregá una descripción de al menos 20 caracteres.', 'descripcion');
-    }
-    if (fotosLocales.length === 0 && !fotosTexto.trim()) return mostrarError('Adjuntá al menos una foto de la propiedad.', 'fotos');
-
-    const faltanteDocumento = DOCUMENTOS.find((doc) => doc.obligatorio && !documentos[doc.clave]);
-    if (faltanteDocumento) return mostrarError(`Adjuntá: ${faltanteDocumento.nombre}.`, `doc-${faltanteDocumento.clave}`);
 
     limpiarError();
     setEnviando(true);
@@ -428,6 +497,7 @@ export default function PublicarPropiedadPage() {
                     <p className="m-0 mt-2 text-[#efe9df]/70">
                       {!requisitosCompletos && `Te ${requisitosFaltantes === 1 ? 'falta 1 requisito' : `faltan ${requisitosFaltantes} requisitos`}. `}
                       <button
+                        id={`${id}-requisitos-boton`}
                         type="button"
                         onClick={() => setVerRequisitos((abierta) => !abierta)}
                         aria-expanded={verRequisitos}
@@ -474,7 +544,7 @@ export default function PublicarPropiedadPage() {
 
               {/* 1. Tipo y operación */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>1. Tipo de inmueble y operación</h2>
+                <h2 className={tituloSeccion}>1. Tipo de inmueble y operación{marcaSeccion(1)}</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-2 sm:col-span-2">
                     <label htmlFor={`${id}-titulo`} className={etiqueta}>Título de la publicación *</label>
@@ -501,7 +571,7 @@ export default function PublicarPropiedadPage() {
 
               {/* 2. Ubicación */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>2. Ubicación</h2>
+                <h2 className={tituloSeccion}>2. Ubicación{marcaSeccion(2)}</h2>
                 <p className="m-0 mt-2 text-[14px] text-[#efe9df]/60">Trabajamos en Villa Libertador San Martín, Crespo y Diamante.</p>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
@@ -529,7 +599,7 @@ export default function PublicarPropiedadPage() {
 
               {/* 3. Ambientes y medidas (cambia según el tipo) */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>{esTerreno ? '3. Medidas' : '3. Ambientes y medidas'}</h2>
+                <h2 className={tituloSeccion}>{esTerreno ? '3. Medidas' : '3. Ambientes y medidas'}{marcaSeccion(3)}</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-3">
                   {!esTerreno && (
                     <div className="flex flex-col gap-2">
@@ -579,9 +649,9 @@ export default function PublicarPropiedadPage() {
 
               {/* 4. Expensas y comodidades */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>{esTerreno ? '4. Expensas y otros detalles' : '4. Expensas y comodidades'}</h2>
+                <h2 className={tituloSeccion}>{esTerreno ? '4. Expensas y otros detalles' : '4. Expensas y comodidades'}{marcaSeccion(4)}</h2>
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
-                  <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" aria-invalid={invalido('expensas')}>
+                  <fieldset id={`${id}-expensas`} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" aria-invalid={invalido('expensas')}>
                     <legend className={`${etiqueta} mb-3 p-0`}>¿Paga expensas? *</legend>
                     <div className="flex flex-wrap gap-3">
                       {([['no', 'No paga'], ['si', 'Sí paga']] as const).map(([valor, nombre]) => (
@@ -617,7 +687,7 @@ export default function PublicarPropiedadPage() {
                     <p className="m-0 text-[13px] text-[#efe9df]/50">Si cargás un monto, queda marcado que sí paga.</p>
                   </div>
                   {!esTerreno && (
-                    <div className="sm:col-span-2">
+                    <div id={`${id}-comodidades`} className="sm:col-span-2">
                       <p className={etiqueta}>Comodidades</p>
                       <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
                         {COMODIDADES.map(([valor, nombre]) => (
@@ -638,7 +708,7 @@ export default function PublicarPropiedadPage() {
 
               {/* 5. Precio */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>5. Precio pretendido</h2>
+                <h2 className={tituloSeccion}>5. Precio pretendido{marcaSeccion(5)}</h2>
                 {esAmbas && <p className="m-0 mt-2 text-[15px] text-[#efe9df]/70">Como la ofrecés en venta y en alquiler, cargá los dos precios.</p>}
                 <div className="mt-6 grid gap-6 sm:grid-cols-2">
                   <div className="flex flex-col gap-2">
@@ -672,7 +742,7 @@ export default function PublicarPropiedadPage() {
 
               {/* 6. Descripción y fotos */}
               <section className="border-t border-[#efe9df]/15 pt-8">
-                <h2 className={tituloSeccion}>6. Descripción y fotos</h2>
+                <h2 className={tituloSeccion}>6. Descripción y fotos{marcaSeccion(6)}</h2>
                 <div className="mt-6 flex flex-col gap-8">
                   <div className="flex flex-col gap-2">
                     <label htmlFor={`${id}-descripcion`} className={etiqueta}>Descripción *</label>
@@ -692,6 +762,7 @@ export default function PublicarPropiedadPage() {
                     <p className={`${etiqueta} m-0`}>Fotos de la propiedad * <span className="normal-case text-[#efe9df]/45">· {fotosLocales.length}/{MAX_FOTOS}</span></p>
                     <input ref={fileInputRef} id={`${id}-fotos-archivos`} type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/avif" onChange={handleInputChange} className="sr-only" tabIndex={-1} />
                     <div
+                      id={`${id}-fotos-zona`}
                       role="button"
                       tabIndex={0}
                       onKeyDown={(e) => {
@@ -787,7 +858,7 @@ export default function PublicarPropiedadPage() {
               {/* 7. Documentación: un archivo por documento */}
               <section className="border-t border-[#efe9df]/15 pt-8">
                 <div className="flex flex-wrap items-baseline justify-between gap-3">
-                  <h2 className={tituloSeccion}>7. Documentación</h2>
+                  <h2 className={tituloSeccion}>7. Documentación{marcaSeccion(7)}</h2>
                   <span className="text-[14px] tabular-nums text-[#efe9df]/60">
                     {obligatoriosListos} de {totalObligatorios} obligatorios
                   </span>
@@ -857,8 +928,92 @@ export default function PublicarPropiedadPage() {
                 </ul>
               </section>
 
+              {/* Qué falta para poder enviar: se actualiza mientras se completa y cada ítem lleva a su campo */}
+              {/* Sin aria-live a propósito: cambia con cada tecla (el contador de la descripción) y sería ruido para un lector de pantalla */}
+              <div
+                ref={faltantesRef}
+                tabIndex={-1}
+                className={`rounded-2xl border p-5 text-[15px] leading-relaxed text-[#efe9df] outline-none transition-colors duration-300 ${
+                  !faltantes.length
+                    ? 'border-[#9fd8b4]/30 bg-[#9fd8b4]/10'
+                    : intentoConFaltantes
+                      ? 'border-[#d9382b] bg-[#d9382b]/15'
+                      : 'border-[#efe9df]/20 bg-[#efe9df]/5'
+                }`}
+              >
+                {/* Avance: cuántos obligatorios ya están */}
+                <div className="mb-4 flex flex-col gap-2">
+                  <p className="m-0 text-[14px] text-[#efe9df]/70">
+                    <span className="font-medium tabular-nums text-[#efe9df]">
+                      {obligatoriosCompletos} de {obligatorios.length}
+                    </span>{' '}
+                    obligatorios completos
+                  </p>
+                  <div
+                    role="progressbar"
+                    aria-label="Obligatorios completos"
+                    aria-valuemin={0}
+                    aria-valuemax={obligatorios.length}
+                    aria-valuenow={obligatoriosCompletos}
+                    className="h-1.5 overflow-hidden rounded-full bg-[#efe9df]/15"
+                  >
+                    <div
+                      className={`h-full rounded-full transition-[width] duration-500 ${faltantes.length ? 'bg-[#efe9df]' : 'bg-[#9fd8b4]'}`}
+                      style={{ width: `${(obligatoriosCompletos / obligatorios.length) * 100}%` }}
+                    />
+                  </div>
+                </div>
+
+                {faltantes.length ? (
+                  <>
+                    {/* Al tocar «Enviar» con datos pendientes se anuncia como alerta para los lectores de pantalla */}
+                    <p className="m-0 font-medium" role={intentoConFaltantes ? 'alert' : undefined}>
+                      {intentoConFaltantes ? 'Todavía no se envió: ' : 'Para enviar la solicitud '}
+                      {faltantes.length === 1 ? 'falta 1 dato' : `faltan ${faltantes.length} datos`}:
+                    </p>
+                    <ul className="m-0 mt-3 grid list-none gap-x-6 gap-y-2 p-0 sm:grid-cols-2">
+                      {faltantes.map((faltante) => (
+                        <li key={faltante.destino} className="flex items-start gap-2">
+                          <span aria-hidden="true" className="mt-[9px] h-1.5 w-1.5 shrink-0 rounded-full bg-[#d9382b]" />
+                          <button
+                            type="button"
+                            onClick={() => irAFaltante(faltante)}
+                            className="text-left text-[#efe9df]/80 underline decoration-[#efe9df]/30 underline-offset-4 transition-colors hover:text-white hover:decoration-white"
+                          >
+                            {faltante.etiqueta}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <p className="m-0 font-medium">Todo completo: ya se puede enviar la solicitud.</p>
+                )}
+
+                {/* Lo opcional que falta: informa, pero no frena el envío */}
+                {opcionalesFaltantes.length > 0 && (
+                  <div className="mt-5 border-t border-[#efe9df]/15 pt-4">
+                    <p className="m-0 text-[14px] text-[#efe9df]/70">Opcionales sin completar (no hacen falta para enviar):</p>
+                    <ul className="m-0 mt-2 grid list-none gap-x-6 gap-y-1.5 p-0 text-[14px] sm:grid-cols-2">
+                      {opcionalesFaltantes.map((opcional) => (
+                        <li key={opcional.destino} className="flex items-start gap-2">
+                          <span aria-hidden="true" className="mt-[8px] h-1.5 w-1.5 shrink-0 rounded-full border border-[#efe9df]/50" />
+                          <button
+                            type="button"
+                            onClick={() => irAFaltante(opcional)}
+                            className="text-left text-[#efe9df]/60 underline decoration-[#efe9df]/20 underline-offset-4 transition-colors hover:text-white hover:decoration-white"
+                          >
+                            {opcional.etiqueta}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+
               <div className="flex flex-col gap-4 border-t border-[#efe9df]/15 pt-8 sm:flex-row sm:items-center sm:justify-between">
-                <button type="submit" disabled={enviando || !requisitosCompletos || estadoRequisitos === 'cargando'} className={botonPrincipal}>
+                <button type="submit" disabled={enviando || estadoRequisitos === 'cargando'} className={botonPrincipal}>
                   {enviando ? mensajeEnvio || 'Enviando solicitud…' : 'Enviar solicitud de publicación'}
                 </button>
                 <p aria-live="polite" className="m-0 text-[13px] text-[#efe9df]/55">
