@@ -6,8 +6,8 @@ const config = require('../config/env');
 const emailService = require('./email.service');
 
 const HORAS_VALIDEZ_ENLACE = 24;
-// Dos minutos: Gmail entrega al instante, pero otros correos tardan bastante más en traer el primer mail
-const SEGUNDOS_ENTRE_REENVIOS = 120;
+// Quince minutos: Gmail entrega al instante, pero otros correos tardan bastante más en traer el primer mail
+const SEGUNDOS_ENTRE_REENVIOS = 15 * 60;
 const MINUTOS_VALIDEZ_RESTABLECER = 30;
 const User = require('../models/user.model');
 
@@ -176,7 +176,7 @@ const authService = {
             : 0;
         const faltan = Math.ceil((SEGUNDOS_ENTRE_REENVIOS * 1000 - (Date.now() - emitido)) / 1000);
         if (faltan > 0) {
-            const error = errorHttp('Esperá un par de minutos antes de pedir otro enlace: el anterior puede tardar en llegar', 429, 'REENVIO_MUY_SEGUIDO');
+            const error = errorHttp('Esperá unos minutos antes de pedir otro enlace: el anterior puede tardar en llegar', 429, 'REENVIO_MUY_SEGUIDO');
             error.segundos = faltan;
             throw error;
         }
@@ -188,7 +188,7 @@ const authService = {
         const user = await User.findOne({ email: String(email).toLowerCase().trim() }).select('+restablecimientoHash +restablecimientoExpira');
         if (!user) return {};
 
-        // Si ya se mandó uno hace menos de dos minutos no se manda otro (evita llenar la casilla de alguien)
+        // Si ya se mandó uno hace menos de quince minutos no se manda otro (evita llenar la casilla de alguien)
         const emitido = user.restablecimientoExpira ? user.restablecimientoExpira.getTime() - MINUTOS_VALIDEZ_RESTABLECER * 60 * 1000 : 0;
         if (Date.now() - emitido < SEGUNDOS_ENTRE_REENVIOS * 1000) return {};
 

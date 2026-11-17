@@ -153,7 +153,10 @@ export function EnlaceDeDesarrollo({ enlace, para = 'confirmar la cuenta', accio
 }
 
 // Igual que en el servidor (auth.service.js): otros correos que no son Gmail tardan en traer el primer mail
-const SEGUNDOS_ENTRE_REENVIOS = 120;
+const SEGUNDOS_ENTRE_REENVIOS = 15 * 60;
+
+// 900 -> "15:00", así el contador se lee en minutos
+const formatoEspera = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
 // Reenvía el enlace de confirmación; lo usan el registro y el ingreso.
 // Mientras corre la espera entre envíos, el botón muestra cuánto falta.
@@ -200,7 +203,7 @@ export function ReenviarVerificacion({
         disabled={estado === 'enviando' || espera > 0}
         className="calma-micro self-start rounded-full border border-[#efe9df]/40 px-7 py-4 text-[12px] transition-colors duration-500 hover:border-[#efe9df] hover:bg-[#efe9df]/5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-[#efe9df]/40 disabled:hover:bg-transparent"
       >
-        {estado === 'enviando' ? 'Enviando…' : espera > 0 ? `Reenviar en ${espera} s` : 'Reenviar el enlace'}
+        {estado === 'enviando' ? 'Enviando…' : espera > 0 ? `Reenviar en ${formatoEspera(espera)}` : 'Reenviar el enlace'}
       </button>
       {mensaje && (
         <p role="status" className={`m-0 text-[14px] ${estado === 'error' ? 'text-[#ff8a7d]' : 'text-[#efe9df]/70'}`}>
