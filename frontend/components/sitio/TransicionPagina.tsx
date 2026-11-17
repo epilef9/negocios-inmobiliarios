@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
+import { salidaRetenida } from './AvisoAlSalir';
 
 declare global {
   interface Window {
@@ -129,6 +130,11 @@ export default function TransicionPagina({ children }: { children: React.ReactNo
       if (destino.origin !== location.origin) return;
       // Mismo lugar con otros filtros o un ancla: sin animación
       if (destino.pathname === location.pathname) return;
+      // Un formulario a medio cargar (ver AvisoAlSalir) pregunta antes de irse
+      if (salidaRetenida(destino.pathname + destino.search + destino.hash)) {
+        e.preventDefault();
+        return;
+      }
 
       const capa = persiana.current;
       if (!capa) return;

@@ -44,6 +44,18 @@ class RequisitosService {
         return Requisito.find({ activo: true }).sort({ operacion: 1, orden: 1, _id: 1 }).lean();
     }
 
+    // Los ids de los requisitos que la persona ve para marcar, armados igual que en el navegador
+    // (frontend/components/requisitos/useGuias.ts): agrupados por sección y, por orden, con el id histórico
+    // de la guía fija; si el admin agregó más que los fijos, los de sobra usan su _id.
+    // Así lo que se exige al enviar es exactamente lo que se puede marcar en pantalla.
+    async idsVisibles(operacion, idsFijos) {
+        const items = (await this.listar()).filter((item) => item.operacion === operacion);
+        if (!items.length) return idsFijos;
+        const secciones = [...new Set(items.map((item) => item.seccion))];
+        const ordenados = secciones.flatMap((seccion) => items.filter((item) => item.seccion === seccion));
+        return ordenados.map((item, indice) => idsFijos[indice] ?? String(item._id));
+    }
+
     async listarAdmin() {
         await ensureDefaults();
         return Requisito.find().sort({ operacion: 1, orden: 1, _id: 1 }).lean();

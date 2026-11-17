@@ -5,6 +5,7 @@ const User = require('../models/user.model');
 const emailService = require('./email.service');
 const documentosPublicacion = require('./documentosPublicacion.service');
 const { normalizarOperaciones } = require('./properties.service');
+const requisitosService = require('./requisitos.service');
 
 const REQUISITOS_PUBLICAR = [
     'pub-escritura',
@@ -51,7 +52,9 @@ const solicitudPublicacionService = {
             throw errorHttp('Usuario no encontrado.', 404);
         }
         const checklist = new Set(user.checklistRequisitos || []);
-        const faltantes = REQUISITOS_PUBLICAR.filter((id) => !checklist.has(id));
+        // Se exigen los requisitos que el admin dejó activos (los que se ven en pantalla), no la lista fija
+        const exigidos = await requisitosService.idsVisibles('publicar', REQUISITOS_PUBLICAR);
+        const faltantes = exigidos.filter((id) => !checklist.has(id));
         if (faltantes.length) {
             throw errorHttp('Completá todos los requisitos para publicar tu propiedad antes de enviar la solicitud.', 400);
         }
